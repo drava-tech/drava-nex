@@ -1,0 +1,9 @@
+{
+  "name": "@platform/config",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./eslint/base": "./eslint/base.json",
+    "./typescript/base": "./typescript/base.json"
+  }
+}
