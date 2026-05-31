@@ -24,3 +24,7 @@ dist/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Turborepo caches and logs
+.turbo/
+
