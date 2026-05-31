@@ -1,10 +1,101 @@
 import React from 'react';
+import Link from 'next/link';
 
 export default function Page() {
+  const screens = [
+    { id: 'tv-01', name: 'Reception TV', location: 'Main Entrance Lobby' },
+    { id: 'tv-02', name: 'Experience TV', location: 'Customer Experience Center' },
+    { id: 'projector-01', name: 'Main Projector', location: 'Conference Hall' },
+  ];
+
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>Screen Player Placeholder</h1>
-      <p>This is the player app that renders full-screen signage experiences on physical devices.</p>
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#0a0a0a',
+        color: '#f3f4f6',
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        padding: '3rem 2rem',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div style={{ maxWidth: '640px', width: '100%', textAlign: 'center', marginBottom: '3rem' }}>
+        <h1
+          style={{
+            fontSize: '2.5rem',
+            fontWeight: 800,
+            letterSpacing: '-0.025em',
+            margin: '0 0 1rem 0',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          Signage Display Hub
+        </h1>
+        <p style={{ color: '#9ca3af', fontSize: '1.1rem', lineHeight: '1.6', margin: 0 }}>
+          Phase 1 MVP Runtime. Select an active physical screen configuration below to launch its dedicated full-screen media player.
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gap: '1.5rem',
+          width: '100%',
+          maxWidth: '640px',
+        }}
+      >
+        {screens.map((screen) => (
+          <Link
+            key={screen.id}
+            href={`/${screen.id}`}
+            style={{
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1.5rem',
+              backgroundColor: '#171717',
+              borderRadius: '12px',
+              border: '1px solid #262626',
+              transition: 'all 0.2s ease',
+              cursor: 'pointer',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.25rem' }}>
+                {screen.name}
+              </div>
+              <div style={{ fontSize: '0.875rem', color: '#737373' }}>
+                {screen.location}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#10b981',
+                  borderRadius: '50%',
+                  boxShadow: '0 0 8px #10b981',
+                }}
+              />
+              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#3b82f6' }}>
+                /{screen.id} →
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div style={{ marginTop: '4rem', color: '#404040', fontSize: '0.875rem' }}>
+        Next.js 15 App Router • TypeScript MVP
+      </div>
     </div>
   );
 }

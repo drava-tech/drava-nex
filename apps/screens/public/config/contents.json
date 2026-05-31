@@ -1,0 +1,25 @@
+{
+  "contents": [
+    {
+      "id": "idle-video",
+      "type": "video",
+      "source": "../21796143.mp4",
+      "loop": true,
+      "muted": true
+    },
+    {
+      "id": "promo-video",
+      "type": "video",
+      "source": "/media/promo.mp4",
+      "loop": true,
+      "muted": true
+    },
+    {
+      "id": "event-video",
+      "type": "video",
+      "source": "/media/event.mp4",
+      "loop": false,
+      "muted": false
+    }
+  ]
+}

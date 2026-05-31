@@ -1,0 +1,19 @@
+{
+  "screens": [
+    {
+      "screenId": "tv-01",
+      "screenName": "Reception TV",
+      "contentId": "idle-video"
+    },
+    {
+      "screenId": "tv-02",
+      "screenName": "Experience TV",
+      "contentId": "promo-video"
+    },
+    {
+      "screenId": "projector-01",
+      "screenName": "Main Projector",
+      "contentId": "event-video"
+    }
+  ]
+}
