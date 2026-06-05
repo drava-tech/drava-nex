@@ -1,7 +1,19 @@
 import React from "react";
 import Link from "next/link";
+import { Monitor, PlusCircle, Tv2, Trash2 } from "lucide-react";
 import { readScreensJson, readContentsJson } from "../../lib/config-writer";
 import { assignContent, addScreen, removeScreen } from "../../actions/screen-actions";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  Button,
+  Badge,
+  cn,
+} from "@platform/ui";
 
 export default async function ScreensPage() {
   const [screensData, contentsData] = await Promise.all([
@@ -12,14 +24,11 @@ export default async function ScreensPage() {
   const screens = screensData.screens || [];
   const contents = contentsData.contents || [];
 
-  // Form submit handlers (Server Actions in Forms)
   async function handleAssign(formData: FormData) {
     "use server";
     const screenId = formData.get("screenId") as string;
     const contentId = formData.get("contentId") as string;
-    if (screenId && contentId) {
-      await assignContent(screenId, contentId);
-    }
+    if (screenId && contentId) await assignContent(screenId, contentId);
   }
 
   async function handleAdd(formData: FormData) {
@@ -39,354 +48,232 @@ export default async function ScreensPage() {
   async function handleDelete(formData: FormData) {
     "use server";
     const screenId = formData.get("screenId") as string;
-    if (screenId) {
-      await removeScreen(screenId);
-    }
+    if (screenId) await removeScreen(screenId);
   }
 
+  const inputClass =
+    "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
+
+  const selectClass =
+    "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer";
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#09090b",
-        color: "#fafafa",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        padding: "3rem 2rem",
-      }}
-    >
-      {/* Pure CSS Hover Styles for Server Components */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .btn-remove {
-          background-color: transparent;
-          color: #ef4444;
-          transition: background-color 0.2s;
-        }
-        .btn-remove:hover {
-          background-color: rgba(239, 68, 68, 0.1);
-        }
-        .btn-update {
-          background-color: #3b82f6;
-          color: #ffffff;
-          transition: background-color 0.2s;
-        }
-        .btn-update:hover {
-          background-color: #2563eb;
-        }
-        .btn-register {
-          background-color: #10b981;
-          color: #ffffff;
-          transition: background-color 0.2s;
-        }
-        .btn-register:hover {
-          background-color: #059669;
-        }
-      `}} />
-
-      {/* Navigation Header */}
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto 3rem auto",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #27272a",
-          paddingBottom: "1.5rem",
-        }}
-      >
-        <div>
-          <span style={{ fontSize: "0.875rem", color: "#3b82f6", fontWeight: 600 }}>CMS CONTROL CENTER</span>
-          <h1 style={{ fontSize: "2rem", fontWeight: 800, margin: "0.25rem 0 0 0", color: "#ffffff" }}>
-            Screen Management
-          </h1>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Top Nav */}
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-primary">
+              CMS Control Center
+            </span>
+            <h1 className="mt-0.5 text-2xl font-bold text-foreground">
+              Screen Management
+            </h1>
+          </div>
+          <nav className="flex gap-1">
+            <Link
+              href="/"
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/screens"
+              className="rounded-md bg-secondary px-3 py-2 text-sm font-semibold text-foreground"
+            >
+              Screens
+            </Link>
+            <Link
+              href="/contents"
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Content Library
+            </Link>
+          </nav>
         </div>
-        <nav style={{ display: "flex", gap: "1rem" }}>
-          <Link
-            href="/"
-            style={{
-              color: "#a1a1aa",
-              textDecoration: "none",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid transparent",
-              transition: "all 0.2s",
-            }}
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/screens"
-            style={{
-              color: "#ffffff",
-              textDecoration: "none",
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              padding: "0.5rem 1rem",
-              backgroundColor: "#27272a",
-              borderRadius: "6px",
-            }}
-          >
-            Screens
-          </Link>
-          <Link
-            href="/contents"
-            style={{
-              color: "#a1a1aa",
-              textDecoration: "none",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              transition: "all 0.2s",
-            }}
-          >
-            Content Library
-          </Link>
-        </nav>
-      </div>
+      </header>
 
-      <div style={{ maxWidth: "1100px", margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 340px", gap: "2.5rem" }}>
-        
-        {/* Main Grid: Screen list */}
-        <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#e4e4e7", marginBottom: "1.5rem" }}>
-            Active Screens ({screens.length})
-          </h2>
+      {/* Main Content */}
+      <main className="mx-auto grid max-w-6xl grid-cols-[1fr_320px] gap-8 px-6 py-8">
 
-          <div style={{ display: "grid", gap: "1.5rem" }}>
+        {/* Screen List */}
+        <section className="flex flex-col gap-6">
+          <div className="flex items-center gap-2">
+            <Tv2 className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Active Screens
+            </h2>
+            <Badge variant="secondary" className="ml-1 tabular-nums">
+              {screens.length}
+            </Badge>
+          </div>
+
+          <div className="flex flex-col gap-4">
             {screens.map((screen: any) => {
-              const currentContent = contents.find((c: any) => c.id === screen.contentId);
+              const currentContent = contents.find(
+                (c: any) => c.id === screen.contentId
+              );
               return (
-                <div
-                  key={screen.screenId}
-                  style={{
-                    backgroundColor: "#18181b",
-                    borderRadius: "12px",
-                    border: "1px solid #27272a",
-                    padding: "1.5rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "1.25rem",
-                    transition: "border-color 0.2s",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <h3 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, color: "#ffffff" }}>
-                          {screen.screenName}
-                        </h3>
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            backgroundColor: "#27272a",
-                            color: "#a1a1aa",
-                            padding: "0.15rem 0.5rem",
-                            borderRadius: "4px",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {screen.screenId}
-                        </span>
+                <Card key={screen.screenId} className="bg-card">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                          <Monitor className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">
+                            {screen.screenName}
+                          </CardTitle>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {screen.screenId}
+                          </span>
+                        </div>
                       </div>
-                      <p style={{ color: "#71717a", fontSize: "0.875rem", margin: "0.25rem 0 0 0" }}>
-                        Assigned Content: <strong style={{ color: "#3b82f6" }}>{screen.contentId}</strong>
-                        {currentContent && ` (${currentContent.type} · ${currentContent.source})`}
-                      </p>
+                      <form action={handleDelete}>
+                        <input
+                          type="hidden"
+                          name="screenId"
+                          value={screen.screenId}
+                        />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                          Remove
+                        </Button>
+                      </form>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-col gap-3 pt-0">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Assigned:</span>
+                      <span className="font-semibold text-primary">
+                        {screen.contentId}
+                      </span>
+                      {currentContent && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {currentContent.type}
+                        </Badge>
+                      )}
                     </div>
 
-                    <form action={handleDelete}>
-                      <input type="hidden" name="screenId" value={screen.screenId} />
-                      <button
-                        type="submit"
-                        className="btn-remove"
-                        style={{
-                          border: "none",
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                          cursor: "pointer",
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "4px",
-                        }}
+                    <form
+                      action={handleAssign}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
+                    >
+                      <input
+                        type="hidden"
+                        name="screenId"
+                        value={screen.screenId}
+                      />
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        Change to:
+                      </span>
+                      <select
+                        name="contentId"
+                        defaultValue={screen.contentId}
+                        className={cn(selectClass, "bg-muted/50")}
                       >
-                        Remove
-                      </button>
+                        {contents.map((content: any) => (
+                          <option key={content.id} value={content.id}>
+                            {content.id} ({content.type})
+                          </option>
+                        ))}
+                      </select>
+                      <Button type="submit" size="sm" className="shrink-0">
+                        Update
+                      </Button>
                     </form>
-                  </div>
-
-                  {/* Assign Content Mini Form */}
-                  <form
-                    action={handleAssign}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      backgroundColor: "#09090b",
-                      padding: "0.75rem 1rem",
-                      borderRadius: "8px",
-                      border: "1px solid #27272a",
-                    }}
-                  >
-                    <input type="hidden" name="screenId" value={screen.screenId} />
-                    <span style={{ fontSize: "0.875rem", color: "#a1a1aa", whiteSpace: "nowrap" }}>Change content to:</span>
-                    <select
-                      name="contentId"
-                      defaultValue={screen.contentId}
-                      style={{
-                        flex: 1,
-                        backgroundColor: "#18181b",
-                        border: "1px solid #27272a",
-                        color: "#ffffff",
-                        borderRadius: "6px",
-                        padding: "0.4rem 0.75rem",
-                        fontSize: "0.875rem",
-                        outline: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {contents.map((content: any) => (
-                        <option key={content.id} value={content.id}>
-                          {content.id} ({content.type})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="submit"
-                      className="btn-update"
-                      style={{
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "0.4rem 1rem",
-                        fontSize: "0.875rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Update
-                    </button>
-                  </form>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
 
             {screens.length === 0 && (
-              <div
-                style={{
-                  padding: "3rem",
-                  textAlign: "center",
-                  backgroundColor: "#18181b",
-                  borderRadius: "12px",
-                  border: "1px solid #27272a",
-                  color: "#71717a",
-                }}
-              >
-                No screens configured. Use the form to configure your first signage display!
-              </div>
+              <Card className="bg-card">
+                <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                    <Tv2 className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    No screens configured yet. Register your first display using
+                    the form.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Sidebar: Add screen form */}
-        <div>
-          <div
-            style={{
-              backgroundColor: "#18181b",
-              borderRadius: "12px",
-              border: "1px solid #27272a",
-              padding: "1.5rem",
-              position: "sticky",
-              top: "2rem",
-            }}
-          >
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 1.25rem 0", color: "#ffffff" }}>
-              Add New Screen
-            </h2>
-
-            <form action={handleAdd} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#a1a1aa" }}>SCREEN ID</label>
-                <input
-                  type="text"
-                  name="screenId"
-                  placeholder="e.g. tv-03"
-                  required
-                  style={{
-                    backgroundColor: "#09090b",
-                    border: "1px solid #27272a",
-                    color: "#ffffff",
-                    borderRadius: "6px",
-                    padding: "0.6rem 0.75rem",
-                    fontSize: "0.875rem",
-                    outline: "none",
-                  }}
-                />
+        {/* Sidebar: Add Screen */}
+        <aside>
+          <Card className="sticky top-8 bg-card">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <PlusCircle className="h-4 w-4 text-primary" />
+                <CardTitle className="text-base">Add New Screen</CardTitle>
               </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#a1a1aa" }}>SCREEN NAME</label>
-                <input
-                  type="text"
-                  name="screenName"
-                  placeholder="e.g. Lounge Wall TV"
-                  required
-                  style={{
-                    backgroundColor: "#09090b",
-                    border: "1px solid #27272a",
-                    color: "#ffffff",
-                    borderRadius: "6px",
-                    padding: "0.6rem 0.75rem",
-                    fontSize: "0.875rem",
-                    outline: "none",
-                  }}
-                />
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#a1a1aa" }}>DEFAULT CONTENT</label>
-                <select
-                  name="contentId"
-                  required
-                  style={{
-                    backgroundColor: "#09090b",
-                    border: "1px solid #27272a",
-                    color: "#ffffff",
-                    borderRadius: "6px",
-                    padding: "0.6rem 0.75rem",
-                    fontSize: "0.875rem",
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  {contents.map((content: any) => (
-                    <option key={content.id} value={content.id}>
-                      {content.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="btn-register"
-                style={{
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  marginTop: "0.5rem",
-                }}
+              <CardDescription>
+                Register a display device to this CMS
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                action={handleAdd}
+                className="flex flex-col gap-4"
               >
-                Register Screen
-              </button>
-            </form>
-          </div>
-        </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Screen ID
+                  </label>
+                  <input
+                    type="text"
+                    name="screenId"
+                    placeholder="e.g. tv-03"
+                    required
+                    className={inputClass}
+                  />
+                </div>
 
-      </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Screen Name
+                  </label>
+                  <input
+                    type="text"
+                    name="screenName"
+                    placeholder="e.g. Lounge Wall TV"
+                    required
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Default Content
+                  </label>
+                  <select name="contentId" required className={selectClass}>
+                    {contents.map((content: any) => (
+                      <option key={content.id} value={content.id}>
+                        {content.id} ({content.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button type="submit" className="mt-1 w-full">
+                  Register Screen
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </aside>
+      </main>
     </div>
   );
 }

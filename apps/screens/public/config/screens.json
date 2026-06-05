@@ -3,7 +3,7 @@
     {
       "screenId": "tv-01",
       "screenName": "Reception TV",
-      "contentId": "idle-video"
+      "contentId": "event-video"
     },
     {
       "screenId": "tv-02",

@@ -1,6 +1,15 @@
 import React from "react";
 import Link from "next/link";
+import { Monitor, Film, Zap, ExternalLink } from "lucide-react";
 import { readScreensJson, readContentsJson } from "../lib/config-writer";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Badge,
+} from "@platform/ui";
 
 export default async function DashboardPage() {
   const [screensData, contentsData] = await Promise.all([
@@ -12,180 +21,173 @@ export default async function DashboardPage() {
   const contents = contentsData.contents || [];
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#09090b",
-        color: "#fafafa",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        padding: "3rem 2rem",
-      }}
-    >
-      {/* Upper Brand / Stats Header */}
-      <div style={{ maxWidth: "1100px", margin: "0 auto 3rem auto" }}>
-        <span style={{ fontSize: "0.875rem", color: "#3b82f6", fontWeight: 700, letterSpacing: "0.1em" }}>
-          CMS PLATFORM DASHBOARD
-        </span>
-        <h1 style={{ fontSize: "2.5rem", fontWeight: 850, margin: "0.25rem 0 0.5rem 0", color: "#ffffff" }}>
-          Control Center
-        </h1>
-        <p style={{ color: "#71717a", fontSize: "1.05rem", margin: 0 }}>
-          Real-time dynamic configuration for digital signage displays. Raw JSON synchronization powered.
-        </p>
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Top Nav */}
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-primary">
+              CMS Platform
+            </span>
+            <h1 className="mt-0.5 text-2xl font-bold text-foreground">
+              Control Center
+            </h1>
+          </div>
+          <nav className="flex gap-1">
+            <Link
+              href="/"
+              className="rounded-md bg-secondary px-3 py-2 text-sm font-semibold text-foreground"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/screens"
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Screens
+            </Link>
+            <Link
+              href="/contents"
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Content Library
+            </Link>
+          </nav>
+        </div>
+      </header>
 
-      {/* Grid: Stat widgets */}
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto 2.5rem auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "1.5rem",
-        }}
-      >
-        {/* Stat 1: Screens */}
-        <Link
-          href="/screens"
-          style={{
-            backgroundColor: "#18181b",
-            border: "1px solid #27272a",
-            borderRadius: "12px",
-            padding: "1.5rem",
-            textDecoration: "none",
-            color: "inherit",
-            transition: "border-color 0.2s, transform 0.2s",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#71717a", fontWeight: 600 }}>MONITORED SCREENS</div>
-          <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "#ffffff", margin: "0.5rem 0" }}>
-            {screens.length}
-          </div>
-          <div style={{ fontSize: "0.875rem", color: "#3b82f6", fontWeight: 500 }}>
-            Configure active screens →
-          </div>
-        </Link>
-
-        {/* Stat 2: Assets */}
-        <Link
-          href="/contents"
-          style={{
-            backgroundColor: "#18181b",
-            border: "1px solid #27272a",
-            borderRadius: "12px",
-            padding: "1.5rem",
-            textDecoration: "none",
-            color: "inherit",
-            transition: "border-color 0.2s, transform 0.2s",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#71717a", fontWeight: 600 }}>CONTENT ASSETS</div>
-          <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "#ffffff", margin: "0.5rem 0" }}>
-            {contents.length}
-          </div>
-          <div style={{ fontSize: "0.875rem", color: "#10b981", fontWeight: 500 }}>
-            Manage video library →
-          </div>
-        </Link>
-
-        {/* Info Box */}
-        <div
-          style={{
-            backgroundColor: "rgba(59, 130, 246, 0.05)",
-            border: "1px dashed rgba(59, 130, 246, 0.2)",
-            borderRadius: "12px",
-            padding: "1.5rem",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", color: "#3b82f6", fontWeight: 600, marginBottom: "0.25rem" }}>
-            ZERO-DATABASE DESIGNS
-          </div>
-          <p style={{ fontSize: "0.875rem", color: "#a1a1aa", margin: 0, lineHeight: "1.5" }}>
-            Updating content here writes files instantly. Player reload resolves changes instantly.
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {/* Hero */}
+        <div className="mb-8">
+          <p className="text-sm text-muted-foreground">
+            Real-time dynamic configuration for digital signage displays.
           </p>
         </div>
-      </div>
 
-      {/* Main Panel: Active map */}
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          backgroundColor: "#18181b",
-          border: "1px solid #27272a",
-          borderRadius: "12px",
-          padding: "1.5rem",
-        }}
-      >
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 1.5rem 0", color: "#ffffff" }}>
-          Active Screen Status Map
-        </h2>
+        {/* Stat Cards */}
+        <div className="mb-8 grid grid-cols-3 gap-4">
+          <Link href="/screens" className="group">
+            <Card className="bg-card transition-colors group-hover:border-primary/40">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardDescription className="text-xs font-semibold uppercase tracking-wider">
+                    Monitored Screens
+                  </CardDescription>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                    <Monitor className="h-4 w-4 text-primary" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground">
+                  {screens.length}
+                </div>
+                <p className="mt-1 text-xs font-medium text-primary">
+                  Configure active screens →
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "180px 180px 1fr 120px",
-              padding: "0.75rem 1rem",
-              borderBottom: "1px solid #27272a",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: "#71717a",
-            }}
-          >
-            <span>SCREEN NAME</span>
-            <span>SCREEN ID</span>
-            <span>ACTIVE CONTENT ID</span>
-            <span style={{ textAlign: "right" }}>PORTAL</span>
-          </div>
+          <Link href="/contents" className="group">
+            <Card className="bg-card transition-colors group-hover:border-primary/40">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardDescription className="text-xs font-semibold uppercase tracking-wider">
+                    Content Assets
+                  </CardDescription>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <Film className="h-4 w-4 text-emerald-500" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground">
+                  {contents.length}
+                </div>
+                <p className="mt-1 text-xs font-medium text-emerald-500">
+                  Manage video library →
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          {screens.map((screen: any) => (
-            <div
-              key={screen.screenId}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "180px 180px 1fr 120px",
-                alignItems: "center",
-                padding: "1rem",
-                backgroundColor: "#09090b",
-                borderRadius: "8px",
-                border: "1px solid #27272a",
-                fontSize: "0.875rem",
-              }}
-            >
-              <span style={{ fontWeight: 600, color: "#ffffff" }}>{screen.screenName}</span>
-              <span style={{ fontFamily: "monospace", color: "#a1a1aa" }}>{screen.screenId}</span>
-              <span style={{ color: "#3b82f6", fontWeight: 600 }}>{screen.contentId}</span>
-              <span style={{ textAlign: "right" }}>
-                <a
-                  href={`http://localhost:3001/${screen.screenId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    color: "#10b981",
-                    textDecoration: "none",
-                    fontWeight: 600,
-                    fontSize: "0.825rem",
-                  }}
-                >
-                  Live Player ↗
-                </a>
-              </span>
-            </div>
-          ))}
-
-          {screens.length === 0 && (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#71717a" }}>
-              No active displays configured. Get started by adding a screen!
-            </div>
-          )}
+          <Card className="border-dashed border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  Zero-Database
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Changes write to JSON instantly. Players reload and resolve
+                updates on the fly.
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+
+        {/* Screen Status Table */}
+        <Card className="bg-card">
+          <CardHeader>
+            <CardTitle className="text-base">Active Screen Status</CardTitle>
+            <CardDescription>
+              All registered displays and their current content assignment
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_140px_1fr_100px] border-b border-border px-6 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Screen Name</span>
+              <span>Screen ID</span>
+              <span>Active Content</span>
+              <span className="text-right">Portal</span>
+            </div>
+
+            {screens.map((screen: any) => (
+              <div
+                key={screen.screenId}
+                className="grid grid-cols-[1fr_140px_1fr_100px] items-center border-b border-border px-6 py-4 text-sm last:border-0 hover:bg-muted/20 transition-colors"
+              >
+                <span className="font-semibold text-foreground">
+                  {screen.screenName}
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {screen.screenId}
+                </span>
+                <span>
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {screen.contentId}
+                  </Badge>
+                </span>
+                <span className="text-right">
+                  <a
+                    href={`http://localhost:3001/${screen.screenId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 hover:text-emerald-400 transition-colors"
+                  >
+                    Live
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </span>
+              </div>
+            ))}
+
+            {screens.length === 0 && (
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                No active displays configured.{" "}
+                <Link href="/screens" className="text-primary hover:underline">
+                  Add a screen to get started.
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 }
