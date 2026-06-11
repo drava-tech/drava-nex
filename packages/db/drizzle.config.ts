@@ -1,5 +1,22 @@
 // @ts-nocheck
 import { defineConfig } from "drizzle-kit";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load environment variables from the root .env file
+try {
+  const envPath = resolve(__dirname, "../../.env");
+  const envContent = readFileSync(envPath, "utf-8");
+  for (const line of envContent.split(/\r?\n/)) {
+    const match = line.match(/^\s*DATABASE_URL\s*=\s*["']?(.*?)["']?\s*$/);
+    if (match && match[1]) {
+      process.env["DATABASE_URL"] = match[1].trim();
+      break;
+    }
+  }
+} catch (e) {
+  // Ignore if file doesn't exist or is not readable
+}
 
 
 /**
@@ -16,7 +33,7 @@ import { defineConfig } from "drizzle-kit";
  */
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/schema/index.ts",
+  schema: "./dist/schema/index.js",
   out: "./drizzle",
   dbCredentials: {
     // TODO: Set DATABASE_URL in your .env before running drizzle-kit commands

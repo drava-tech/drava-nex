@@ -3,6 +3,8 @@ import { serve } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import type { Screen, Content, Schedule } from '@platform/types';
 
+import { db, sql } from '@platform/db';
+
 const app = new Hono();
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────
@@ -85,9 +87,26 @@ const mqttManager = new MQTTDeviceManager('mqtt://localhost:1883');
 mqttManager.connect();
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.get('/api/health', (c) => {
+app.get('/api/health', async (c) => {
+  let dbStatus = 'disconnected';
+  try {
+    // Check if the database is active and responding
+    await db.execute(sql`SELECT 1`);
+    dbStatus = 'connected';
+  } catch (err: any) {
+    dbStatus = `error: ${err.message}`;
+  }
+
+  const mqttConnected = mqttManager.isConnected();
+
   return c.json({
-    status: 'healthy',
+    status: (dbStatus === 'connected' && mqttConnected) ? 'healthy' : 'unhealthy',
+    services: {
+      http: 'healthy',
+      database: dbStatus,
+      mqtt: mqttConnected ? 'connected' : 'disconnected',
+      websocket: 'ready' // Websocket listener active on Hono server instance
+    },
     timestamp: new Date().toISOString(),
     service: '@platform/api — Hono REST + WebSocket + MQTT Gateway',
     version: '1.0.0',

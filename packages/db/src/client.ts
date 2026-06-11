@@ -14,9 +14,28 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema/index.js";
 
-// TODO: Replace with your actual DATABASE_URL before running any DB operations.
-// Example: "postgresql://user:password@localhost:5432/cms_platform"
-const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load DATABASE_URL from root .env if not already defined in process.env
+let DATABASE_URL = process.env["DATABASE_URL"] ?? "";
+
+if (!DATABASE_URL) {
+  try {
+    const envPath = resolve(__dirname, "../../../.env");
+    const envContent = readFileSync(envPath, "utf-8");
+    for (const line of envContent.split(/\r?\n/)) {
+      const match = line.match(/^\s*DATABASE_URL\s*=\s*["']?(.*?)["']?\s*$/);
+      if (match && match[1]) {
+        DATABASE_URL = match[1].trim();
+        process.env["DATABASE_URL"] = DATABASE_URL;
+        break;
+      }
+    }
+  } catch (e) {
+    // Ignore if file doesn't exist
+  }
+}
 
 /**
  * Connection pool — shared across all queries in the process.

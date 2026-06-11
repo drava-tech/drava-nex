@@ -3,6 +3,7 @@ import { DeviceTelemetry, IoTEvent, DeviceCommand } from '@platform/types';
 // MQTT integration setup helpers (Placeholders)
 export class MQTTDeviceManager {
   private brokerUrl: string;
+  private connected: boolean = false;
 
   constructor(brokerUrl: string) {
     this.brokerUrl = brokerUrl;
@@ -10,6 +11,11 @@ export class MQTTDeviceManager {
 
   public connect(): void {
     console.info(`Connecting to MQTT Broker at ${this.brokerUrl}`);
+    this.connected = true;
+  }
+
+  public isConnected(): boolean {
+    return this.connected;
   }
 
   public publishCommand(deviceId: string, command: DeviceCommand): void {

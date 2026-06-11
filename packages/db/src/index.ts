@@ -13,3 +13,6 @@ export type { Database } from "./client.js";
 
 // ─── Schema (Tables + Enums + Relations) ──────────────────────────────────────
 export * from "./schema/index.js";
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+export { sql } from "drizzle-orm";
