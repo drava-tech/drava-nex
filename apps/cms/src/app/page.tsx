@@ -2,6 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { Monitor, Film, Zap, ExternalLink } from "lucide-react";
 import { readScreensJson, readContentsJson } from "../lib/config-writer";
+
+export const dynamic = "force-dynamic";
 import {
   Card,
   CardHeader,
@@ -165,7 +167,7 @@ export default async function DashboardPage() {
                 </span>
                 <span className="text-right">
                   <a
-                    href={`http://localhost:3001/${screen.screenId}`}
+                    href={`/screens/${screen.screenId}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 hover:text-emerald-400 transition-colors"

@@ -4,42 +4,77 @@ This document describes how data is requested, fetched, and pushed throughout th
 
 ---
 
-## 1. REST API Requests (Next.js ⇄ Hono)
-* **How it is called:** The admin dashboard (`apps/cms`) and screen player (`apps/screens`) make HTTP client calls to Hono backend endpoints.
-* **Flow:**
-  1. Frontend sends standard `fetch` call to `http://localhost:4000/api/screens` (or relative routes routed by Nginx).
-  2. The Hono router (`apps/api/src/index.ts`) intercepts the path and executes the handler.
-  3. API responds with structured JSON payload.
+## 1. REST API Requests (Next.js → Hono)
+
+- **Browser calls** use Nginx-relative paths: `fetch('/api/screens')` → Nginx routes to `api:4000`
+- **Server-side calls** (Next.js Server Actions) use direct container address: `http://api:4000/api/screens`
+- The Hono router (`apps/api/src/index.ts`) handles the path and returns structured JSON
 
 ---
 
-## 2. Database Queries (Hono ⇄ Postgres via Drizzle)
-* **How it is called:** The API backend loads the shared `@platform/db` pool connection client.
-* **Flow:**
-  1. Hono initiates a query using Drizzle select statements:
-     ```typescript
-     import { db, screens } from '@platform/db';
-     const result = await db.select().from(screens);
-     ```
-  2. Drizzle ORM converts this query to native PostgreSQL statements.
-  3. The `pg` client execution pool sends the query on port `5432` to the running Postgres database.
-  4. PostgreSQL responds with raw rows, which Drizzle compiles back into structured TypeScript objects.
+## 2. Database Queries (Hono → PostgreSQL via Drizzle)
+
+Only `apps/api` imports `@platform/db` — CMS and Screens never touch the database directly.
+
+```typescript
+import { db, screens } from '@platform/db';
+const result = await db.select().from(screens);
+```
+
+Flow:
+1. Drizzle converts the query to native PostgreSQL SQL
+2. `pg` pool sends it to `postgres:5432` (Docker) or `localhost:5432` (local dev)
+3. PostgreSQL returns rows; Drizzle maps them back to TypeScript objects
 
 ---
 
-## 3. Real-Time Telemetry and Messages (MQTT)
-* **How it is called:** IoT sensors and Edge displays broadcast topic-based messages via MQTT.
-* **Flow:**
-  1. An IoT device publishes a payload to the broker (`mqtt://localhost:1883`) on a specific topic (e.g. `device/screen-001/telemetry`).
-  2. The MQTT Client inside `apps/api` (wrapped in `@platform/iot`) is permanently subscribed to relevant topics.
-  3. When Mosquitto receives a payload, it broadcasts it to the API gateway client.
-  4. The gateway parses the event and executes local rules.
+## 3. Real-Time Telemetry (MQTT)
+
+IoT sensors and edge displays publish to Mosquitto on topic-based channels:
+
+1. Device publishes to `mqtt://mosquitto:1883` on topic e.g. `device/screen-001/telemetry`
+2. `apps/api` (via `@platform/iot` — `MQTTDeviceManager`) is subscribed to relevant topics
+3. Mosquitto forwards payload to the API gateway
+4. API parses the event and evaluates rules
+
+`MQTT_BROKER_URL=mqtt://mosquitto:1883` in Docker, `mqtt://localhost:1883` in local dev.
 
 ---
 
-## 4. Live Interface Pushes (WebSocket)
-* **How it is called:** The Hono API pushes instant commands to the Next.js screen players.
-* **Flow:**
-  1. When a content update trigger evaluates to true, Hono dispatches a WebSocket command.
-  2. The connected Screen Player (`apps/screens`) receives the JSON message in real-time.
-  3. React updates the screen layout instantly without requiring a page refresh.
+## 4. Live Interface Pushes (WebSocket — planned)
+
+Endpoint: `ws://localhost/ws` (through Nginx) → `api:4000`
+
+1. API dispatches a WebSocket command when content update rules trigger
+2. Screen player receives the JSON message in real-time
+3. React re-renders the screen layout without a page refresh
+
+WebSocket upgrade is configured in Nginx (`proxy_read_timeout 3600s`). Implementation in `apps/api` is currently a placeholder.
+
+---
+
+## 5. CMS → Screen Config (current interim approach)
+
+While the full API integration is being built, the CMS writes config directly to JSON files:
+- `apps/cms/src/actions/` — Next.js Server Actions write to `apps/screens/public/config/`
+- Screens reads `screens.json` and `contents.json` on load
+
+This will be replaced by API calls once the CMS→API wiring phase is complete.
+
+---
+
+## 6. Health Check Flow
+
+`GET /health` and `GET /api/health` both return:
+
+```json
+{
+  "status": "ok",
+  "api": "ok",
+  "database": "ok",
+  "mqtt": "ok",
+  "timestamp": "2026-..."
+}
+```
+
+The `buildHealthPayload()` function in `apps/api/src/index.ts` runs `SELECT 1` via Drizzle and checks `mqttManager.isConnected()`.

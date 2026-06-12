@@ -1,6 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { readContentsJson } from "../../lib/config-writer";
+
+export const dynamic = "force-dynamic";
 import { addContent, removeContent } from "../../actions/content-actions";
 
 export default async function ContentsPage() {

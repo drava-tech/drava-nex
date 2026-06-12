@@ -15,7 +15,8 @@
     "react-dom": "^19.0.0",
     "@platform/types": "workspace:*",
     "@platform/db": "workspace:*",
-    "@platform/ui": "workspace:*"
+    "@platform/ui": "workspace:*",
+    "lucide-react": "^1.17.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

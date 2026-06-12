@@ -2,28 +2,28 @@
 
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
+import { existsSync } from "fs";
 
-const CONFIG_PATH = join(
-  process.cwd(),
-  "..",
-  "screens",
-  "public",
-  "config"
-);
+const getConfigPath = () => {
+  const configInApp = join(process.cwd(), "apps", "screens", "public", "config");
+  return existsSync(configInApp)
+    ? configInApp
+    : join(process.cwd(), "..", "screens", "public", "config");
+};
 
 export async function readScreensJson() {
-  const raw = await readFile(join(CONFIG_PATH, "screens.json"), "utf-8");
+  const raw = await readFile(join(getConfigPath(), "screens.json"), "utf-8");
   return JSON.parse(raw);
 }
 
 export async function readContentsJson() {
-  const raw = await readFile(join(CONFIG_PATH, "contents.json"), "utf-8");
+  const raw = await readFile(join(getConfigPath(), "contents.json"), "utf-8");
   return JSON.parse(raw);
 }
 
 export async function writeScreensJson(data: object) {
   await writeFile(
-    join(CONFIG_PATH, "screens.json"),
+    join(getConfigPath(), "screens.json"),
     JSON.stringify(data, null, 2),
     "utf-8"
   );
@@ -31,7 +31,7 @@ export async function writeScreensJson(data: object) {
 
 export async function writeContentsJson(data: object) {
   await writeFile(
-    join(CONFIG_PATH, "contents.json"),
+    join(getConfigPath(), "contents.json"),
     JSON.stringify(data, null, 2),
     "utf-8"
   );

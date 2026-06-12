@@ -5,35 +5,66 @@ This document details the core technologies, libraries, and frameworks utilized 
 ---
 
 ## 1. Core Language & Build Runtime
-* **Node.js**: The Javascript runtime executing the servers and build commands.
-* **TypeScript**: Strict compile-time type-safety implemented workspace-wide using the shared base rules in `tsconfig.base.json`.
-* **pnpm Workspaces**: Package manager orchestrating dependency resolution and symlinking across local packages.
-* **Turborepo**: Build system caching tasks and managing pipeline build/execution order.
+
+- **Node.js 20 (Alpine)**: Runtime for all server processes. Docker images use `node:20-alpine`.
+- **TypeScript**: Strict compile-time type-safety workspace-wide via `tsconfig.base.json`.
+- **pnpm 9**: Package manager orchestrating dependency resolution and workspace symlinking.
+- **Turborepo**: Build pipeline manager — caches task outputs and enforces dependency order (`^build`).
+- **corepack**: Used inside Docker to activate pnpm at the exact pinned version.
 
 ---
 
 ## 2. Database & Data Mapping
-* **PostgreSQL (v18)**: Relational database storing all schemas and records (screens, templates, experiences, content, rules).
-* **Drizzle ORM**: TypeScript-first Object-Relational Mapper providing compile-time safe database queries, schemas, and relations.
-* **drizzle-kit**: Companion CLI tool managing schema introspection, migrations generation, and database updates.
-* **pg (node-postgres)**: PostgreSQL client driver powering the query connection pool.
+
+- **PostgreSQL 16 (Alpine)**: Relational database. Docker image: `postgres:16-alpine`.
+- **Drizzle ORM**: TypeScript-first ORM for compile-safe queries, schemas, and relations.
+- **drizzle-kit**: CLI tool for schema introspection, migration generation (`db:generate`), and push (`db:push`).
+- **pg (node-postgres)**: PostgreSQL driver powering the connection pool in `@platform/db`.
 
 ---
 
 ## 3. Applications & Gateways
-* **Hono**: Ultrafast lightweight web framework running the REST API server and WebSocket endpoint inside `apps/api`.
-* **Next.js (v15)**: Full-stack React framework running:
-  - **`apps/cms`**: The admin control dashboard.
-  - **`apps/screens`**: The edge device player.
-* **@hono/node-server**: Adapter to host Hono apps inside standard Node runtimes.
+
+- **Hono**: Lightweight web framework running REST + WebSocket in `apps/api`. Uses `@hono/node-server` adapter.
+- **hono/cors**: Built-in CORS middleware (no extra package). Configured to allow `localhost:3000`, `localhost:3001`, `localhost`.
+- **Next.js 15**: Full-stack React framework for both CMS and Screens apps.
+  - `output: 'standalone'` enabled on both — produces minimal self-contained Docker images.
+  - `outputFileTracingRoot` set to repo root so workspace packages are traced correctly.
+  - `transpilePackages: ['@platform/ui']` on both apps.
+- **tsx**: Dev-mode TypeScript runner for the API (`next dev` equivalent).
 
 ---
 
 ## 4. Message Broker & IoT Integration
-* **Mosquitto (Eclipse)**: Light message broker using the **MQTT** protocol to send/receive real-time telemetry from edge displays.
-* **mqtt**: Node client connecting `apps/api` to Mosquitto.
+
+- **Eclipse Mosquitto 2**: MQTT broker. Docker image: `eclipse-mosquitto:2`.
+  - Port 1883 — standard MQTT protocol
+  - Port 9001 — MQTT over WebSocket (browser clients)
+  - Both ports are internal-only in Docker (no host binding)
+- **mqtt (npm)**: Node client used by `@platform/iot` to connect `apps/api` to Mosquitto.
 
 ---
 
-## 5. Reverse Proxy & Networking
-* **NGINX**: Reverse proxy routing external web traffic to corresponding application ports.
+## 5. Infrastructure & Containerisation
+
+- **Docker / Docker Compose**: All 6 services run in Docker containers.
+  - `postgres`, `mosquitto`, `api`, `cms`, `screens` — on `internal` network only
+  - `nginx` — on both `internal` and `public` networks
+- **Nginx Alpine**: Reverse proxy. Docker image: `nginx:alpine`. Only service with a host port binding (`80:80`).
+  - Config: `infra/nginx/default.conf` (Docker mode, service names)
+  - Config: `infra/nginx/nginx.conf` (local dev mode, `host.docker.internal`)
+- **Two Docker networks:**
+  - `internal` (`internal: true`) — isolated, no external internet access
+  - `public` — nginx bridges host and internal services
+
+---
+
+## 6. Shared Packages
+
+| Package | Purpose |
+|---|---|
+| `@platform/types` | Shared TypeScript type definitions (Screen, Content, Schedule, IoT types) |
+| `@platform/db` | Drizzle client, schema, migrations, `checkDatabaseHealth()` |
+| `@platform/iot` | MQTT device manager wrapper |
+| `@platform/ui` | React component library (shadcn-style, Tailwind v4) |
+| `@platform/config` | Shared ESLint + TypeScript base configs (JSON exports, no build) |

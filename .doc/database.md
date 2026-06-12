@@ -5,37 +5,80 @@ This document details the architecture of the database package, schema definitio
 ---
 
 ## 1. Database Client Package (`@platform/db`)
+
 The database connection pool and client are wrapped inside the shared workspace package `packages/db`.
 
-* **Connection Pool:** Uses the `pg` Pool client. It dynamically manages multiple simultaneous queries and releases connections back to the database.
-* **Environment Resolution:** The connection string is resolved dynamically by reading the root workspace `.env` file via an automatic filesystem path crawler. If `DATABASE_URL` isn't preset in the shell, it locates:
+- **Connection Pool:** Uses the `pg` Pool client. Max 20 connections, idle timeout 30s, connection timeout 5s.
+- **Environment Resolution:** `process.env["DATABASE_URL"]` is checked first. If not set, the client falls back to reading the root workspace `.env` file via a filesystem path crawler:
   ```
-  e:\EC\cms-platform\.env
+  e:\EC\cms-platform\.env   (local dev)
   ```
-  and loads the credentials.
+  In Docker mode, `DATABASE_URL` is injected via `env_file` — the fallback never runs.
+- **Docker host:** `postgresql://cms_app:PASSWORD@postgres:5432/cms_db` (`postgres` = Docker service name)
+- **Local dev host:** `postgresql://cms_app:PASSWORD@localhost:5432/cms_db`
 
 ---
 
-## 2. Drizzle Schema & Table Layout
-The database schemas are split into individual TypeScript files in `packages/db/src/schema/`:
-* **`screens.ts`**: Displays metadata, connectivity states, and registered codes.
-* **`templates.ts`**: Layout skeletons and component configuration.
-* **`experiences.ts`**: The active templates that screens are displaying.
-* **`contents.ts`**: Asset properties, raw settings data, and layout specs.
-* **`screenAssignments.ts`**: Maps screens to content playlists.
-* **`devices.ts`**: IoT sensor information and MQTT telemetry routes.
-* **`rules.ts`**: Automated rule conditions and actions.
-* **`assets.ts`**: File URLs and properties linked to content objects.
+## 2. Health Check
+
+A `checkDatabaseHealth()` function is exported from `packages/db/src/client.ts` and re-exported via `packages/db/src/index.ts`:
+
+```typescript
+import { checkDatabaseHealth } from '@platform/db';
+const ok = await checkDatabaseHealth(); // true or throws
+```
+
+It opens a raw pool connection, runs `SELECT 1`, and releases it. Used internally by the API health route.
 
 ---
 
-## 3. Configuration & Migration Setup
-* **`drizzle.config.ts`**: Controls Drizzle Kit's migration settings:
-  - **dialect**: `postgresql`
-  - **schema**: Points to the compiled TypeScript schema outputs: `./dist/schema/index.js`
-  - **out**: Folder where SQL files are written: `./drizzle`
-* **Workflow:**
-  1. Add/modify TypeScript tables in `packages/db/src/schema/`.
-  2. Compile the database package using `pnpm build`.
-  3. Generate the SQL script by running `pnpm --filter @platform/db db:generate`.
-  4. Push the SQL statements to Postgres by running `pnpm --filter @platform/db db:migrate`.
+## 3. Drizzle Schema — 8 Tables
+
+Schema files live in `packages/db/src/schema/`:
+
+| Table | File | Purpose |
+|---|---|---|
+| `screens` | `screens.ts` | Display metadata, connectivity states, registered codes |
+| `templates` | `templates.ts` | Layout skeletons and component configuration |
+| `experiences` | `experiences.ts` | Active templates assigned to screens |
+| `contents` | `contents.ts` | Asset properties, raw settings data, layout specs |
+| `screen_assignments` | `screenAssignments.ts` | Junction: maps screens to content |
+| `devices` | `devices.ts` | IoT sensor info and MQTT telemetry routes |
+| `rules` | `rules.ts` | Automated rule conditions and actions |
+| `assets` | `assets.ts` | File URLs and properties linked to content |
+
+---
+
+## 4. Configuration & Migration Setup
+
+- **`drizzle.config.ts`** at `packages/db/`:
+  - dialect: `postgresql`
+  - schema: `./dist/schema/index.js` (compiled output)
+  - out: `./drizzle` (SQL migration files)
+  - Migration table: `__drizzle_migrations` in `public` schema
+  - Strict mode + verbose logging enabled
+
+**Workflow (local dev):**
+```powershell
+pnpm db:generate   # generate SQL from schema changes
+pnpm db:migrate    # apply pending migrations
+pnpm db:push       # push schema directly (dev shortcut, skips migration files)
+pnpm db:studio     # open Drizzle Studio browser UI
+```
+
+**Workflow (Docker — first boot):**
+```bash
+docker exec cms-api sh -c "pnpm --filter @platform/db db:push"
+```
+
+All `db:*` root scripts delegate to `pnpm --filter @platform/db <script>`.
+
+---
+
+## 5. API Guard
+
+`apps/api/src/index.ts` exits immediately with a clear message if `DATABASE_URL` is missing after startup:
+
+```
+[FATAL] DATABASE_URL is not set. Add it to your root .env file and restart.
+```

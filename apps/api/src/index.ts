@@ -9,8 +9,13 @@ import { db, sql } from '@platform/db';
 const app = new Hono();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
+// CORS_ORIGIN in .env: comma-separated list, e.g. "http://192.168.1.100,http://localhost"
+const corsOrigins = process.env['CORS_ORIGIN']
+  ? process.env['CORS_ORIGIN'].split(',').map(s => s.trim())
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost'];
+
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: corsOrigins,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,

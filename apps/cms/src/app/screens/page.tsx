@@ -2,6 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { Monitor, PlusCircle, Tv2, Trash2 } from "lucide-react";
 import { readScreensJson, readContentsJson } from "../../lib/config-writer";
+
+export const dynamic = "force-dynamic";
 import { assignContent, addScreen, removeScreen } from "../../actions/screen-actions";
 import {
   Card,
@@ -9,7 +11,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
   Button,
   Badge,
   cn,

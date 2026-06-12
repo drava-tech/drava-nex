@@ -14,10 +14,13 @@ import type {
  */
 async function readPublicJson<T>(filename: string): Promise<T> {
   const { readFile } = await import("fs/promises");
+  const { existsSync } = await import("fs");
   const { join } = await import("path");
 
-  // process.cwd() points to apps/screens at runtime
-  const filePath = join(process.cwd(), "public", "config", filename);
+  const configInApp = join(process.cwd(), "apps", "screens", "public", "config");
+  const filePath = existsSync(configInApp)
+    ? join(configInApp, filename)
+    : join(process.cwd(), "public", "config", filename);
 
   try {
     const raw = await readFile(filePath, "utf-8");
