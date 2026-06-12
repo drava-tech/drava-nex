@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import type { Screen, Content, Schedule } from '@platform/types';
@@ -6,6 +7,14 @@ import type { Screen, Content, Schedule } from '@platform/types';
 import { db, sql } from '@platform/db';
 
 const app = new Hono();
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+app.use('*', cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────
 const DEMO_SCREENS: Screen[] = [
@@ -82,37 +91,43 @@ const DEMO_SCHEDULES: Schedule[] = [
   },
 ];
 
+// ─── Startup Guard ────────────────────────────────────────────────────────────
+// packages/db loads DATABASE_URL from root .env if not already in process.env.
+// If it's still unset after that, fail fast with a clear message.
+if (!process.env['DATABASE_URL']) {
+  console.error('[FATAL] DATABASE_URL is not set. Add it to your root .env file and restart.');
+  process.exit(1);
+}
+
 // ─── MQTT Setup ───────────────────────────────────────────────────────────────
-const mqttManager = new MQTTDeviceManager('mqtt://localhost:1883');
+const mqttManager = new MQTTDeviceManager(
+  process.env['MQTT_BROKER_URL'] ?? 'mqtt://localhost:1883'
+);
 mqttManager.connect();
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-app.get('/api/health', async (c) => {
+// ─── Health ───────────────────────────────────────────────────────────────────
+async function buildHealthPayload() {
   let dbStatus = 'disconnected';
   try {
-    // Check if the database is active and responding
     await db.execute(sql`SELECT 1`);
-    dbStatus = 'connected';
-  } catch (err: any) {
-    dbStatus = `error: ${err.message}`;
+    dbStatus = 'ok';
+  } catch (err: unknown) {
+    dbStatus = `error: ${(err as Error).message}`;
   }
 
-  const mqttConnected = mqttManager.isConnected();
-
-  return c.json({
-    status: (dbStatus === 'connected' && mqttConnected) ? 'healthy' : 'unhealthy',
-    services: {
-      http: 'healthy',
-      database: dbStatus,
-      mqtt: mqttConnected ? 'connected' : 'disconnected',
-      websocket: 'ready' // Websocket listener active on Hono server instance
-    },
+  return {
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
+    api: 'ok',
+    database: dbStatus,
+    mqtt: mqttManager.isConnected() ? 'ok' : 'unavailable',
     timestamp: new Date().toISOString(),
-    service: '@platform/api — Hono REST + WebSocket + MQTT Gateway',
-    version: '1.0.0',
-  });
-});
+  };
+}
 
+app.get('/health', async (c) => c.json(await buildHealthPayload()));
+app.get('/api/health', async (c) => c.json(await buildHealthPayload()));
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
 app.get('/api/screens', (c: any) => {
   return c.json({ data: DEMO_SCREENS, total: DEMO_SCREENS.length });
 });
@@ -134,31 +149,29 @@ app.post('/api/rules/evaluate', async (c) => {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 const PORT = Number(process.env['PORT'] ?? 4000);
+const mqttUrl = process.env['MQTT_BROKER_URL'] ?? 'mqtt://localhost:1883';
 
 serve({ fetch: app.fetch, port: PORT }, () => {
   console.info('');
   console.info('┌─────────────────────────────────────────────────────────┐');
   console.info('│          @platform/api  —  CMS Platform Gateway         │');
   console.info('├─────────────────────────────────────────────────────────┤');
-  console.info(`│  🚀 Hono Server      →  http://localhost:${PORT}          │`);
-  console.info('│  📡 MQTT Broker      →  mqtt://localhost:1883            │');
-  console.info('│  🔌 WebSocket Gate   →  ws://localhost:4000/ws           │');
+  console.info(`│  API running on  →  http://localhost:${PORT}               │`);
+  console.info(`│  MQTT            →  ${mqttUrl}`);
+  console.info(`│  WebSocket       →  ws://localhost:${PORT}/ws`);
   console.info('├─────────────────────────────────────────────────────────┤');
-  console.info('│  DEMO DATA LOADED                                        │');
-  console.info(`│    Screens   : ${DEMO_SCREENS.length} registered                             │`);
-  console.info(`│    Content   : ${DEMO_CONTENT.length} items                                  │`);
-  console.info(`│    Schedules : ${DEMO_SCHEDULES.length} active                               │`);
-  console.info('├─────────────────────────────────────────────────────────┤');
-  console.info('│  ENDPOINTS                                               │');
-  console.info('│    GET  /api/health                                      │');
-  console.info('│    GET  /api/screens                                     │');
-  console.info('│    GET  /api/content                                     │');
-  console.info('│    GET  /api/schedules                                   │');
-  console.info('│    POST /api/rules/evaluate                              │');
+  console.info('│  GET  /health         (alias for /api/health)            │');
+  console.info('│  GET  /api/health                                        │');
+  console.info('│  GET  /api/screens                                       │');
+  console.info('│  GET  /api/content                                       │');
+  console.info('│  GET  /api/schedules                                     │');
+  console.info('│  POST /api/rules/evaluate                                │');
   console.info('└─────────────────────────────────────────────────────────┘');
   console.info('');
+  console.info(`Database : connecting... (verify at http://localhost:${PORT}/health)`);
+  console.info(`MQTT     : ${mqttUrl}`);
+  console.info('');
 
-  // Print demo screens summary
   console.info('📺 Registered Screens:');
   DEMO_SCREENS.forEach((s) => {
     const icon = s.status === 'online' ? '🟢' : s.status === 'offline' ? '🔴' : '🟡';

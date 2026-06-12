@@ -9,7 +9,15 @@
     "dev": "turbo run dev",
     "start": "turbo run start",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @platform/db db:generate",
+    "db:migrate": "pnpm --filter @platform/db db:migrate",
+    "db:push": "pnpm --filter @platform/db db:push",
+    "db:studio": "pnpm --filter @platform/db db:studio",
+    "infra:up": "docker compose --env-file .env -f infra/docker/docker-compose.local.yml up -d",
+    "infra:down": "docker compose -f infra/docker/docker-compose.local.yml down",
+    "infra:logs": "docker compose -f infra/docker/docker-compose.local.yml logs -f",
+    "healthcheck": "curl -sf http://localhost:4000/health || echo UNHEALTHY"
   },
   "keywords": [],
   "author": "",

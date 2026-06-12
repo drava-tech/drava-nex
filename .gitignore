@@ -28,3 +28,15 @@ Thumbs.db
 # Turborepo caches and logs
 .turbo/
 
+# PostgreSQL data (bind-mounted in docker-compose.yml MODE B)
+postgres-data/
+
+# Runtime data directories (keep outside the repo)
+uploads/
+logs/
+
+# Backup files
+backups/
+*.backup
+*.dump
+*.sql.gz

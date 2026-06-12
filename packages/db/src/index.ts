@@ -8,7 +8,7 @@
  */
 
 // ─── Database Client ──────────────────────────────────────────────────────────
-export { db, pool } from "./client.js";
+export { db, pool, checkDatabaseHealth } from "./client.js";
 export type { Database } from "./client.js";
 
 // ─── Schema (Tables + Enums + Relations) ──────────────────────────────────────
