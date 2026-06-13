@@ -1,12 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
+import screensConfig from '../../public/config/screens.json';
+
+type ScreenConfig = { screenId: string; screenName: string; contentId: string };
 
 export default function Page() {
-  const screens = [
-    { id: 'tv-01', name: 'Reception TV', location: 'Main Entrance Lobby' },
-    { id: 'tv-02', name: 'Experience TV', location: 'Customer Experience Center' },
-    { id: 'projector-01', name: 'Main Projector', location: 'Conference Hall' },
-  ];
+  const screens: ScreenConfig[] = screensConfig.screens;
 
   return (
     <div
@@ -37,64 +36,73 @@ export default function Page() {
           Signage Display Hub
         </h1>
         <p style={{ color: '#9ca3af', fontSize: '1.1rem', lineHeight: '1.6', margin: 0 }}>
-          Phase 1 MVP Runtime. Select an active physical screen configuration below to launch its dedicated full-screen media player.
+          Select an active screen configuration below to launch its dedicated full-screen media player.
         </p>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: '1.5rem',
-          width: '100%',
-          maxWidth: '640px',
-        }}
-      >
-        {screens.map((screen) => (
-          <Link
-            key={screen.id}
-            href={`/${screen.id}`}
+      <div style={{ display: 'grid', gap: '1.5rem', width: '100%', maxWidth: '640px' }}>
+        {screens.length === 0 ? (
+          <div
             style={{
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1.5rem',
+              padding: '2rem',
               backgroundColor: '#171717',
               borderRadius: '12px',
               border: '1px solid #262626',
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
+              textAlign: 'center',
+              color: '#737373',
             }}
           >
-            <div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.25rem' }}>
-                {screen.name}
+            No screens configured. Add entries to{' '}
+            <code style={{ color: '#9ca3af' }}>public/config/screens.json</code> to get started.
+          </div>
+        ) : (
+          screens.map((screen) => (
+            <Link
+              key={screen.screenId}
+              href={`/${screen.screenId}`}
+              style={{
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '1.5rem',
+                backgroundColor: '#171717',
+                borderRadius: '12px',
+                border: '1px solid #262626',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.25rem' }}>
+                  {screen.screenName}
+                </div>
+                <div style={{ fontSize: '0.875rem', color: '#737373' }}>
+                  {screen.screenId}
+                </div>
               </div>
-              <div style={{ fontSize: '0.875rem', color: '#737373' }}>
-                {screen.location}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '8px',
+                    height: '8px',
+                    backgroundColor: '#10b981',
+                    borderRadius: '50%',
+                    boxShadow: '0 0 8px #10b981',
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#3b82f6' }}>
+                  /{screen.screenId} →
+                </span>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '8px',
-                  height: '8px',
-                  backgroundColor: '#10b981',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 8px #10b981',
-                }}
-              />
-              <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#3b82f6' }}>
-                /{screen.id} →
-              </span>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          ))
+        )}
       </div>
 
       <div style={{ marginTop: '4rem', color: '#404040', fontSize: '0.875rem' }}>
-        Next.js 15 App Router • TypeScript MVP
+        Next.js 15 App Router • TypeScript
       </div>
     </div>
   );

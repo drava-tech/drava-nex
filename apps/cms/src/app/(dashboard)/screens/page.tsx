@@ -1,10 +1,9 @@
 import React from "react";
-import Link from "next/link";
 import { Monitor, PlusCircle, Tv2, Trash2 } from "lucide-react";
-import { readScreensJson, readContentsJson } from "../../lib/config-writer";
+import { readScreensJson, readContentsJson } from "../../../lib/config-writer";
 
 export const dynamic = "force-dynamic";
-import { assignContent, addScreen, removeScreen } from "../../actions/screen-actions";
+import { assignContent, addScreen, removeScreen } from "../../../actions/screen-actions";
 import {
   Card,
   CardHeader,
@@ -59,44 +58,15 @@ export default async function ScreensPage() {
     "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer";
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top Nav */}
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-primary">
-              CMS Control Center
-            </span>
-            <h1 className="mt-0.5 text-2xl font-bold text-foreground">
-              Screen Management
-            </h1>
-          </div>
-          <nav className="flex gap-1">
-            <Link
-              href="/"
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/screens"
-              className="rounded-md bg-secondary px-3 py-2 text-sm font-semibold text-foreground"
-            >
-              Screens
-            </Link>
-            <Link
-              href="/contents"
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              Content Library
-            </Link>
-          </nav>
-        </div>
-      </header>
+    <div className="text-foreground">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Screen Management</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Register and manage your digital signage displays.
+        </p>
+      </div>
 
-      {/* Main Content */}
-      <main className="mx-auto grid max-w-6xl grid-cols-[1fr_320px] gap-8 px-6 py-8">
-
+      <div className="grid grid-cols-[1fr_320px] gap-8">
         {/* Screen List */}
         <section className="flex flex-col gap-6">
           <div className="flex items-center gap-2">
@@ -211,7 +181,7 @@ export default async function ScreensPage() {
           </div>
         </section>
 
-        {/* Sidebar: Add Screen */}
+        {/* Add Screen Panel */}
         <aside>
           <Card className="sticky top-8 bg-card">
             <CardHeader>
@@ -224,10 +194,7 @@ export default async function ScreensPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form
-                action={handleAdd}
-                className="flex flex-col gap-4"
-              >
+              <form action={handleAdd} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Screen ID
@@ -274,7 +241,7 @@ export default async function ScreensPage() {
             </CardContent>
           </Card>
         </aside>
-      </main>
+      </div>
     </div>
   );
 }

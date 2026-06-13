@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Monitor, MapPin, Tag } from "lucide-react";
@@ -286,3 +288,14 @@ export const VideoPlayer = ({ url, className = "" }: VideoPlayerProps) => {
     </div>
   );
 };
+
+// UI Primitives
+export * from "./components/ui/avatar";
+export * from "./components/ui/breadcrumb";
+export * from "./components/ui/collapsible";
+export * from "./components/ui/dropdown-menu";
+export * from "./components/ui/separator";
+export * from "./components/ui/sheet";
+export * from "./components/ui/sidebar";
+export * from "./components/ui/tooltip";
+export { useIsMobile } from "./hooks/use-mobile";

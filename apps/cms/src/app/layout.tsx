@@ -1,5 +1,6 @@
 import '@platform/ui/globals.css';
 import React from 'react';
+import { ThemeProvider } from '../components/theme-provider';
 
 export default function RootLayout({
   children,
@@ -7,8 +8,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-background text-foreground">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-background text-foreground">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
