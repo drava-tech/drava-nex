@@ -84,9 +84,9 @@ services:
     env_file:
       - ../../.env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost/api
-      - NEXT_PUBLIC_WS_URL=ws://localhost/ws
-      - NEXT_PUBLIC_WS_GATEWAY_URL=ws://localhost/ws
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_WS_URL=/ws
+      - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
     expose:
@@ -109,9 +109,9 @@ services:
     env_file:
       - ../../.env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost/api
-      - NEXT_PUBLIC_WS_URL=ws://localhost/ws
-      - NEXT_PUBLIC_WS_GATEWAY_URL=ws://localhost/ws
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_WS_URL=/ws
+      - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
     expose:
