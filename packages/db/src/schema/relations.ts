@@ -1,72 +1,15 @@
 import { relations } from "drizzle-orm";
-import { templates } from "./templates.js";
-import { experiences } from "./experiences.js";
-import { contents } from "./contents.js";
-import { assets } from "./assets.js";
-import { screens } from "./screens.js";
-import { screenAssignments } from "./screenAssignments.js";
+import { user, session } from "./auth.js";
 
-// ─── Templates ────────────────────────────────────────────────────────────────
+// ─── Auth Relations ───────────────────────────────────────────────────────────
 
-export const templatesRelations = relations(templates, ({ many }) => ({
-  experiences: many(experiences),
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
 }));
 
-// ─── Experiences ──────────────────────────────────────────────────────────────
-
-export const experiencesRelations = relations(experiences, ({ one, many }) => ({
-  template: one(templates, {
-    fields: [experiences.templateId],
-    references: [templates.id],
-  }),
-  contents: many(contents),
-  screenAssignments: many(screenAssignments),
-}));
-
-// ─── Contents ─────────────────────────────────────────────────────────────────
-
-export const contentsRelations = relations(contents, ({ one, many }) => ({
-  experience: one(experiences, {
-    fields: [contents.experienceId],
-    references: [experiences.id],
-  }),
-  assets: many(assets),
-  screenAssignments: many(screenAssignments),
-}));
-
-// ─── Assets ───────────────────────────────────────────────────────────────────
-
-export const assetsRelations = relations(assets, ({ one }) => ({
-  content: one(contents, {
-    fields: [assets.contentId],
-    references: [contents.id],
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
   }),
 }));
-
-// ─── Screens ──────────────────────────────────────────────────────────────────
-
-export const screensRelations = relations(screens, ({ many }) => ({
-  screenAssignments: many(screenAssignments),
-}));
-
-// ─── Screen Assignments ───────────────────────────────────────────────────────
-
-export const screenAssignmentsRelations = relations(
-  screenAssignments,
-  ({ one }) => ({
-    screen: one(screens, {
-      fields: [screenAssignments.screenId],
-      references: [screens.id],
-    }),
-    experience: one(experiences, {
-      fields: [screenAssignments.experienceId],
-      references: [experiences.id],
-    }),
-    content: one(contents, {
-      fields: [screenAssignments.contentId],
-      references: [contents.id],
-    }),
-  })
-);
-
-// Note: `devices` and `rules` are standalone tables — no relations needed.

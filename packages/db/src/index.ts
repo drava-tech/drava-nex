@@ -1,10 +1,5 @@
 /**
  * @platform/db — Public API
- *
- * Import everything your app needs from this single entry point:
- *
- * @example
- * import { db, screens, experiences, type Screen } from '@platform/db';
  */
 
 // ─── Database Client ──────────────────────────────────────────────────────────
@@ -14,5 +9,5 @@ export type { Database } from "./client.js";
 // ─── Schema (Tables + Enums + Relations) ──────────────────────────────────────
 export * from "./schema/index.js";
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
-export { sql } from "drizzle-orm";
+// ─── Drizzle Utilities ────────────────────────────────────────────────────────
+export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count } from "drizzle-orm";

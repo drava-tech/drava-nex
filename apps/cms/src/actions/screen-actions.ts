@@ -2,8 +2,11 @@
 
 import { readScreensJson, writeScreensJson } from "../lib/config-writer";
 import { revalidatePath } from "next/cache";
+import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 
 export async function assignContent(screenId: string, contentId: string) {
+  await requireGuestOrAdmin();
+
   const config = await readScreensJson();
 
   config.screens = config.screens.map((s: { screenId: string; screenName: string; contentId: string }) =>
@@ -16,9 +19,10 @@ export async function assignContent(screenId: string, contentId: string) {
 }
 
 export async function addScreen(screenId: string, screenName: string, contentId: string) {
+  await requireAdmin();
+
   const config = await readScreensJson();
-  
-  // Guard for duplicate screen ID
+
   if (config.screens.some((s: { screenId: string }) => s.screenId === screenId)) {
     throw new Error(`Screen ID "${screenId}" already exists.`);
   }
@@ -30,6 +34,8 @@ export async function addScreen(screenId: string, screenName: string, contentId:
 }
 
 export async function removeScreen(screenId: string) {
+  await requireAdmin();
+
   const config = await readScreensJson();
   config.screens = config.screens.filter(
     (s: { screenId: string }) => s.screenId !== screenId

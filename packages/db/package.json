@@ -20,12 +20,12 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.45.2",
     "pg": "^8.11.3",
     "@platform/types": "workspace:*"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.0",
+    "drizzle-kit": "^0.31.4",
     "@types/pg": "^8.11.2",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.5"

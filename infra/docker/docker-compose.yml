@@ -19,7 +19,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"          # exposed to host so host migrations can run
+      - "5432:5432"          # exposed to host for drizzle-kit and local dev tools
     volumes:
       - E:/EC/cms-platform-data/postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -30,6 +30,7 @@ services:
       start_period: 30s
     networks:
       - internal
+      - public          # must be on public so the host port binding resolves (internal: true blocks it)
 
   # ─── Mosquitto MQTT Broker ──────────────────────────────────────────────────
   mosquitto:

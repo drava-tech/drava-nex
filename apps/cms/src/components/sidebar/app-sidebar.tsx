@@ -1,168 +1,95 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
+import { NavMain } from "./nav-main";
+import { NavUser } from "./nav-user";
 import {
-    AudioWaveform,
-    BookOpen,
-    Bot,
-    Command,
-    Frame,
-    GalleryVerticalEnd,
-    Map,
-    PieChart,
-    Settings2,
-    SquareTerminal,
-} from "lucide-react"
-import { NavProjects } from "./nav-projects"
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@platform/ui"
-import { TeamSwitcher } from "./team-switcher"
-import { NavMain } from "./nav-main"
-import { NavUser } from "./nav-user"
+  BookOpen,
+  Bot,
+  LayoutDashboard,
+  Monitor,
+  Settings2,
+  SquareTerminal,
+  Users,
+  Film,
+} from "lucide-react";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarRail } from "@platform/ui";
+import { useSession } from "@/lib/auth-client";
 
-// This is sample data.
-const data = {
-    user: {
-        name: "shadcn",
-        email: "m@example.com",
-        avatar: "/avatars/shadcn.jpg",
-    },
-    teams: [
-        {
-            name: "Acme Inc",
-            logo: GalleryVerticalEnd,
-            plan: "Enterprise",
-        },
-        {
-            name: "Acme Corp.",
-            logo: AudioWaveform,
-            plan: "Startup",
-        },
-        {
-            name: "Evil Corp.",
-            logo: Command,
-            plan: "Free",
-        },
-    ],
-    navMain: [
-        {
-            title: "Playground",
-            url: "#",
-            icon: SquareTerminal,
-            isActive: true,
-            items: [
-                {
-                    title: "History",
-                    url: "#",
-                },
-                {
-                    title: "Starred",
-                    url: "#",
-                },
-                {
-                    title: "Settings",
-                    url: "#",
-                },
-            ],
-        },
-        {
-            title: "Models",
-            url: "#",
-            icon: Bot,
-            items: [
-                {
-                    title: "Genesis",
-                    url: "#",
-                },
-                {
-                    title: "Explorer",
-                    url: "#",
-                },
-                {
-                    title: "Quantum",
-                    url: "#",
-                },
-            ],
-        },
-        {
-            title: "Documentation",
-            url: "#",
-            icon: BookOpen,
-            items: [
-                {
-                    title: "Introduction",
-                    url: "#",
-                },
-                {
-                    title: "Get Started",
-                    url: "#",
-                },
-                {
-                    title: "Tutorials",
-                    url: "#",
-                },
-                {
-                    title: "Changelog",
-                    url: "#",
-                },
-            ],
-        },
-        {
-            title: "Settings",
-            url: "#",
-            icon: Settings2,
-            items: [
-                {
-                    title: "General",
-                    url: "#",
-                },
-                {
-                    title: "Team",
-                    url: "#",
-                },
-                {
-                    title: "Billing",
-                    url: "#",
-                },
-                {
-                    title: "Limits",
-                    url: "#",
-                },
-            ],
-        },
-    ],
-    projects: [
-        {
-            name: "Design Engineering",
-            url: "#",
-            icon: Frame,
-        },
-        {
-            name: "Sales & Marketing",
-            url: "#",
-            icon: PieChart,
-        },
-        {
-            name: "Travel",
-            url: "#",
-            icon: Map,
-        },
-    ],
-}
+const ALL_NAV = [
+  {
+    title: "Dashboard",
+    url: "/",
+    icon: LayoutDashboard,
+    roles: ["ADMIN", "GUEST"] as string[],
+  },
+  {
+    title: "Projects",
+    url: "/projects",
+    icon: SquareTerminal,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Screens",
+    url: "/screens",
+    icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+  },
+  {
+    title: "Contents",
+    url: "/contents",
+    icon: Film,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Interactions",
+    url: "#",
+    icon: Bot,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Users",
+    url: "/users",
+    icon: Users,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Environment",
+    url: "#",
+    icon: BookOpen,
+    roles: ["ADMIN"] as string[],
+  },
+];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-    return (
-        <Sidebar collapsible="icon" {...props}>
-            <SidebarHeader>
-                <TeamSwitcher teams={data.teams} />
-            </SidebarHeader>
-            <SidebarContent>
-                <NavMain items={data.navMain} />
-                <NavProjects projects={data.projects} />
-            </SidebarContent>
-            <SidebarFooter>
-                <NavUser user={data.user} />
-            </SidebarFooter>
-            <SidebarRail />
-        </Sidebar>
-    )
+  const { data: sessionData } = useSession();
+  const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
+
+  const navItems = ALL_NAV.filter((item) => item.roles.includes(role));
+
+  const user = sessionData?.user
+    ? {
+        name: sessionData.user.name,
+        email: sessionData.user.email,
+        avatar: (sessionData.user as { image?: string | null }).image ?? "",
+      }
+    : { name: "Loading…", email: "", avatar: "" };
+
+  return (
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarContent>
+        <NavMain items={navItems} />
+      </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={user} />
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
 }
