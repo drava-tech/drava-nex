@@ -36,9 +36,9 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
-    title: "Contents",
-    url: "/contents",
-    icon: Film,
+    title: "Environment",
+    url: "#",
+    icon: BookOpen,
     roles: ["ADMIN"] as string[],
   },
   {
@@ -54,15 +54,15 @@ const ALL_NAV = [
     roles: ["ADMIN"] as string[],
   },
   {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings2,
+    title: "Media",
+    url: "/media",
+    icon: Film,
     roles: ["ADMIN"] as string[],
   },
   {
-    title: "Environment",
-    url: "#",
-    icon: BookOpen,
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
     roles: ["ADMIN"] as string[],
   },
 ];
@@ -75,10 +75,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const user = sessionData?.user
     ? {
-        name: sessionData.user.name,
-        email: sessionData.user.email,
-        avatar: (sessionData.user as { image?: string | null }).image ?? "",
-      }
+      name: sessionData.user.name,
+      email: sessionData.user.email,
+      avatar: (sessionData.user as { image?: string | null }).image ?? "",
+    }
     : { name: "Loading…", email: "", avatar: "" };
 
   return (

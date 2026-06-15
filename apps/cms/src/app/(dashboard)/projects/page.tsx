@@ -20,15 +20,15 @@ export default async function ProjectsPage() {
                 {projects.map((project) => (
                     <div
                         key={project.id}
-                        className="group relative flex flex-col h-[350px] md:h-[400px] bg-[#d6d6d6] dark:bg-black dark:border dark:border-white/10 shadow-xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:hover:border-white/30"
+                        className="group relative flex flex-col h-[350px] md:h-[400px] bg-[#d6d6d6] dark:bg-black dark:border dark:border-white/10 shadow-xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl dark:hover:border-white/30 p-8 pt-0"
                     >
                         {/* Large background number */}
-                        <div className="absolute top-[-2rem] left-0 text-[14rem] md:text-[16rem] font-light leading-none text-white dark:text-white/10 select-none pointer-events-none transition-colors duration-300">
+                        <div className="text-[12rem] md:text-[14rem] font-light leading-none text-white dark:text-white/10 select-none pointer-events-none transition-colors duration-300 -mt-6 -ml-4">
                             {project.id}
                         </div>
 
-                        {/* Text content positioned vertically */}
-                        <div className="relative z-10 mt-[55%] px-8">
+                        {/* Text content positioned naturally below the number */}
+                        <div className="relative z-10 mt-2">
                             <h3 className="text-xl md:text-2xl font-normal text-zinc-800 dark:text-white whitespace-pre-line leading-tight">
                                 {project.title}
                             </h3>

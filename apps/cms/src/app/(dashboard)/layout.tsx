@@ -3,16 +3,11 @@ import {
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
   Separator,
 } from "@platform/ui";
 import { ThemeToggle } from '@/components/theme-toggle';
-import { AppSidebar } from '@/components/sidebar/app-sidebar';
+import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
+import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
 
 export default function DashboardLayout({
   children,
@@ -23,26 +18,14 @@ export default function DashboardLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-auto shrink-0 items-center justify-between border-b gap-2 px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
+        <header className="flex h-auto shrink-0 items-center justify-between border-b gap-2 p-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1 h-5 w-5 [&>svg]:size-4" />
             <Separator
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Build Your Application
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+            <DashboardBreadcrumb />
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
