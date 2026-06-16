@@ -2,8 +2,8 @@
 
 import { createAuthClient } from "better-auth/react";
 
-export const authClient: ReturnType<typeof createAuthClient> = createAuthClient({
-  baseURL: process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000",
-});
+// No baseURL — client uses the current page's origin so auth works from any
+// host (localhost, LAN IP, hostname) without rebuilding.
+export const authClient: ReturnType<typeof createAuthClient> = createAuthClient();
 
 export const { signIn, signOut, signUp, useSession } = authClient;

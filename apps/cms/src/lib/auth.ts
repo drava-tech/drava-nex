@@ -39,6 +39,10 @@ export const auth = betterAuth({
   baseURL: process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000",
   trustedOrigins: [
     process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000",
+    ...(process.env["BETTER_AUTH_TRUSTED_ORIGINS"]
+      ?.split(",")
+      .map((o) => o.trim())
+      .filter(Boolean) ?? []),
   ],
 });
 
