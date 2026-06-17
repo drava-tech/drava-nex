@@ -16,6 +16,25 @@ import * as schema from "./schema/index.js";
 
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
+import dns from "dns";
+
+// Override global dns.lookup to map ec-cms to the host machine's IP (192.168.1.11)
+const originalLookup = dns.lookup;
+dns.lookup = function(this: any, hostname: string, options: any, callback: any) {
+  let cb = callback;
+  let opt = options;
+  if (typeof options === 'function') {
+    cb = options;
+    opt = {};
+  }
+  if (hostname === 'ec-cms') {
+    if (opt && opt.all) {
+      return cb(null, [{ address: '192.168.1.11', family: 4 }]);
+    }
+    return cb(null, '192.168.1.11', 4);
+  }
+  return (originalLookup as any).call(this, hostname, options, cb);
+} as any;
 
 // Load DATABASE_URL from root .env if not already defined in process.env
 let DATABASE_URL = process.env["DATABASE_URL"] ?? "";
@@ -70,6 +89,7 @@ export const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
+  ssl: false,
 });
 
 /**
