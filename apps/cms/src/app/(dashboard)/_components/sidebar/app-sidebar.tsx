@@ -4,8 +4,6 @@ import * as React from "react";
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
 import {
-  BookOpen,
-  Bot,
   LayoutDashboard,
   Monitor,
   Settings2,
@@ -27,25 +25,13 @@ const ALL_NAV = [
     title: "Projects",
     url: "/projects",
     icon: SquareTerminal,
-    roles: ["ADMIN"] as string[],
+    roles: ["ADMIN"] as string[]
   },
   {
     title: "Screens",
     url: "/screens",
     icon: Monitor,
     roles: ["ADMIN", "GUEST"] as string[],
-  },
-  {
-    title: "Environment",
-    url: "#",
-    icon: BookOpen,
-    roles: ["ADMIN"] as string[],
-  },
-  {
-    title: "Interactions",
-    url: "#",
-    icon: Bot,
-    roles: ["ADMIN"] as string[],
   },
   {
     title: "Users",

@@ -60,17 +60,24 @@ if (!DATABASE_URL) {
 console.log("[@platform/db] DATABASE_URL during initialization:", DATABASE_URL ? DATABASE_URL.replace(/:[^:@]+@/, ":****@") : "empty/undefined");
 
 
+// Prevent multiple instances of pg Pool in development
+declare global {
+  // eslint-disable-next-line no-var
+  var pgPool: Pool | undefined;
+}
 
-/**
- * Connection pool — shared across all queries in the process.
- * Max connections tuned for a medium-load API server.
- */
-export const pool = new Pool({
+const poolConfig = {
   connectionString: DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-});
+};
+
+export const pool = globalThis.pgPool ?? new Pool(poolConfig);
+
+if (process.env.NODE_ENV !== "production") {
+  globalThis.pgPool = pool;
+}
 
 /**
  * Drizzle ORM client — use this everywhere in your app.
