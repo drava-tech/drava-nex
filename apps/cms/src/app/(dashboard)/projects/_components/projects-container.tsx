@@ -22,17 +22,20 @@ const verticals = [
   {
     id: "experience-center",
     title: "Experience Center",
-    videoUrl: "/experience_intro.mp4"
+    videoUrl: "/experience_intro.mp4",
+    thumbnailUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=650&q=80"
   },
   {
     id: "architecture-interiors",
     title: "Architecture & Interiors",
-    videoUrl: "/tusker_presentation.mov"
+    videoUrl: "/tusker_presentation.mov",
+    thumbnailUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=650&q=80"
   },
   {
     id: "brand-solutions",
     title: "Brand Solutions",
-    videoUrl: "/brand_solutions_loop.webm"
+    videoUrl: "/brand_solutions_loop.webm",
+    thumbnailUrl: "https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=650&q=80"
   },
 ];
 
@@ -151,10 +154,10 @@ export function ProjectsContainer({ user: _user, projectId: _projectId }: Projec
   };
 
   return (
-    <div className="flex flex-col h-full w-full relative">
+    <div className="flex flex-col h-full w-full relative overflow-hidden">
       {/* Content Area - occupy full page width */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto h-full flex flex-col">
+      <div className="flex-1 overflow-hidden">
+        <div className="w-full h-full flex flex-col">
           {renderActiveView()}
         </div>
       </div>

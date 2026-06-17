@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import { Play } from "lucide-react";
 
 interface Vertical {
   id: string;
   title: string;
   videoUrl: string;
+  thumbnailUrl: string;
 }
 
 interface VerticalsGridProps {
@@ -44,14 +44,13 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo }: Ver
               {vertical.title}
             </h3>
 
-            {/* Gray Box */}
-            <div
-              onClick={() => onWatchVideo(vertical.videoUrl)}
-              className="flex-1 min-h-[160px] bg-white/40 dark:bg-zinc-800/50 rounded-xl border border-zinc-350/40 dark:border-zinc-700/20 cursor-pointer group relative overflow-hidden flex items-center justify-center transition-all duration-300 hover:bg-white/60 dark:hover:bg-zinc-850"
-            >
-              <div className="w-12 h-12 rounded-full bg-white/90 dark:bg-zinc-900/90 flex items-center justify-center shadow-md transition-transform duration-300 group-hover:scale-110">
-                <Play className="h-5 w-5 text-zinc-800 dark:text-zinc-200 fill-zinc-800 dark:fill-zinc-200 ml-0.5" />
-              </div>
+            {/* Thumbnail Box (Non-clickable, no play button) */}
+            <div className="flex-1 min-h-[160px] bg-white/40 dark:bg-zinc-800/50 rounded-xl border border-zinc-350/40 dark:border-zinc-700/20 relative overflow-hidden flex items-center justify-center">
+              <img
+                src={vertical.thumbnailUrl}
+                alt={vertical.title}
+                className="absolute inset-0 w-full h-full object-cover opacity-90 dark:opacity-85 pointer-events-none"
+              />
             </div>
 
             {/* Action Buttons */}
