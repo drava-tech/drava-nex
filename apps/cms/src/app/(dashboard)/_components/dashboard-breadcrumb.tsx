@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Breadcrumb,
@@ -20,8 +20,20 @@ const ROUTE_LABELS: Record<string, string> = {
   "settings": "Settings",
 };
 
+const SUB_PROJECT_LABELS: Record<string, string> = {
+  "1": "The White Tusker PORT-FOLIO",
+  "2": "Gamified Explainer Story",
+  "3": "Human Aping",
+  "4": "Analytics Dashboard (Digital Twin)",
+  "5": "Object Recognition",
+  "6": "Lego Kits",
+  "7": "Assembly Simulator",
+  "8": "EHS Training",
+};
+
 export function DashboardBreadcrumb() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
 
   const breadcrumbs = [
@@ -32,6 +44,25 @@ export function DashboardBreadcrumb() {
       return { label, href };
     })
   ];
+
+  if (pathname.startsWith("/projects")) {
+    const projectParam = searchParams.get("project");
+    const dashboardParam = searchParams.get("dashboard");
+
+    if (projectParam && SUB_PROJECT_LABELS[projectParam]) {
+      breadcrumbs.push({
+        label: SUB_PROJECT_LABELS[projectParam],
+        href: `/projects?project=${projectParam}`
+      });
+
+      if (dashboardParam === "true") {
+        breadcrumbs.push({
+          label: "Experience Center",
+          href: `/projects?project=${projectParam}&dashboard=true`
+        });
+      }
+    }
+  }
 
   return (
     <Breadcrumb>
