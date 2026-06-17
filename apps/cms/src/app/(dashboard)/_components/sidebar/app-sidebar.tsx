@@ -10,6 +10,8 @@ import {
   SquareTerminal,
   Users,
   Film,
+  Hand,
+  Cpu,
 } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarRail } from "@platform/ui";
 import { useSession } from "@/lib/auth-client";
@@ -26,6 +28,12 @@ const ALL_NAV = [
     url: "/projects",
     icon: SquareTerminal,
     roles: ["ADMIN"] as string[]
+  },
+  {
+    title: "Environment",
+    url: "/environment",
+    icon: Cpu,
+    roles: ["ADMIN"] as string[],
   },
   {
     title: "Screens",
