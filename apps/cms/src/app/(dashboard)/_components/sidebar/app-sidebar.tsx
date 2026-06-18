@@ -10,7 +10,6 @@ import {
   SquareTerminal,
   Users,
   Film,
-  Hand,
   Cpu,
 } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarRail } from "@platform/ui";

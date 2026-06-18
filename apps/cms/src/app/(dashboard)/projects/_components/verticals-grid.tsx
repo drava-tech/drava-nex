@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ArrowLeft } from "lucide-react";
 
 interface Vertical {
   id: string;
@@ -13,16 +14,26 @@ interface VerticalsGridProps {
   verticals: Vertical[];
   onSelectVertical: (id: string) => void;
   onWatchVideo: (url: string) => void;
+  onBack?: () => void;
 }
 
-export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo }: VerticalsGridProps) {
+export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo, onBack }: VerticalsGridProps) {
   return (
     <div className="flex-1 w-full flex flex-col gap-6 select-none h-full">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-zinc-400/30">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-2.5 bg-[#d6d6d6] hover:bg-[#c8c8c8] dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-xl transition-all shadow-sm flex items-center justify-center mr-1"
+              title="Go back to projects"
+            >
+              <ArrowLeft className="h-5 w-5 stroke-[2.5]" />
+            </button>
+          )}
           <div>
-            <h1 className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight leading-none">
+            <h1 className="text-2xl font-normal text-zinc-900 dark:text-zinc-50 tracking-tight leading-none">
               The White Tusker PORT-FOLIO
             </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
@@ -40,7 +51,7 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo }: Ver
             className="bg-[#d6d6d6] dark:bg-zinc-900 border border-zinc-350 dark:border-zinc-800/80 rounded-2xl p-6 flex flex-col gap-6 shadow-sm h-full"
           >
             {/* Title Section */}
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
+            <h3 className="text-xl font-normal text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
               {vertical.title}
             </h3>
 
@@ -57,13 +68,13 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo }: Ver
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => onWatchVideo(vertical.videoUrl)}
-                className="w-full py-2.5 bg-[#8a8a8a] hover:bg-[#7a7a7a] dark:bg-zinc-850 dark:hover:bg-zinc-850/80 text-white rounded-full text-xs font-semibold transition-all duration-205 shadow-sm text-center"
+                className="w-full py-2.5 bg-[#8a8a8a] hover:bg-[#7a7a7a] dark:bg-zinc-850 dark:hover:bg-zinc-850/80 text-white rounded-full text-xs font-normal transition-all duration-205 shadow-sm text-center"
               >
                 Watch Video
               </button>
               <button
                 onClick={() => onSelectVertical(vertical.id)}
-                className="w-full py-2.5 bg-black hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 text-white rounded-full text-xs font-semibold transition-all duration-200 shadow-sm text-center"
+                className="w-full py-2.5 bg-black hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 text-white rounded-full text-xs font-normal transition-all duration-200 shadow-sm text-center"
               >
                 Projects
               </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Breadcrumb,
@@ -11,6 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@platform/ui";
+import projectsData from "../projects/_components/projects-data.json";
 
 const ROUTE_LABELS: Record<string, string> = {
   "projects": "Projects",
@@ -20,49 +21,53 @@ const ROUTE_LABELS: Record<string, string> = {
   "settings": "Settings",
 };
 
-const SUB_PROJECT_LABELS: Record<string, string> = {
-  "1": "The White Tusker PORT-FOLIO",
-  "2": "Gamified Explainer Story",
-  "3": "Human Aping",
-  "4": "Analytics Dashboard (Digital Twin)",
-  "5": "Object Recognition",
-  "6": "Lego Kits",
-  "7": "Assembly Simulator",
-  "8": "EHS Training",
-};
+const toLabel = (segment: string) =>
+  segment.charAt(0).toUpperCase() + segment.slice(1).replace(/[-_]/g, " ");
 
 export function DashboardBreadcrumb() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
 
-  const breadcrumbs = [
+  const breadcrumbs: { label: string; href: string }[] = [
     { label: "Dashboard", href: "/" },
-    ...segments.map((segment, index) => {
-      const href = "/" + segments.slice(0, index + 1).join("/");
-      const label = ROUTE_LABELS[segment] || (segment.charAt(0).toUpperCase() + segment.slice(1).replace(/[-_]/g, " "));
-      return { label, href };
-    })
   ];
 
-  if (pathname.startsWith("/projects")) {
-    const projectParam = searchParams.get("project");
-    const dashboardParam = searchParams.get("dashboard");
+  segments.forEach((segment, index) => {
+    const href = "/" + segments.slice(0, index + 1).join("/");
 
-    if (projectParam && SUB_PROJECT_LABELS[projectParam]) {
-      breadcrumbs.push({
-        label: SUB_PROJECT_LABELS[projectParam],
-        href: `/projects?project=${projectParam}`
-      });
-
-      if (dashboardParam === "true") {
-        breadcrumbs.push({
-          label: "Experience Center",
-          href: `/projects?project=${projectParam}&dashboard=true`
-        });
-      }
+    if (segment === "projects") {
+      breadcrumbs.push({ label: "Projects", href });
+      return;
     }
-  }
+
+    // Segment[1]: project or portfolio slug
+    if (index === 1 && segments[0] === "projects") {
+      if (segment === "the-white-tusker-portfolio") {
+        breadcrumbs.push({ label: "The White Tusker PORT-FOLIO", href });
+      } else {
+        const proj = projectsData.flatMap(c => c.projects).find(p => p.slug === segment);
+        breadcrumbs.push({ label: proj?.title ?? toLabel(segment), href });
+      }
+      return;
+    }
+
+    // Segment[2]: category ID under portfolio
+    if (index === 2 && segments[1] === "the-white-tusker-portfolio") {
+      const vertical = projectsData.find(v => v.id === segment);
+      breadcrumbs.push({ label: vertical?.title ?? toLabel(segment), href });
+      return;
+    }
+
+    // Segment[3]: project slug under portfolio category
+    if (index === 3 && segments[1] === "the-white-tusker-portfolio") {
+      const proj = projectsData.flatMap(v => v.projects).find(p => p.slug === segment);
+      breadcrumbs.push({ label: proj?.title ?? toLabel(segment), href });
+      return;
+    }
+
+    // Segment[4+]: template sub-pages — title-case the slug
+    breadcrumbs.push({ label: ROUTE_LABELS[segment] ?? toLabel(segment), href });
+  });
 
   return (
     <Breadcrumb>
@@ -77,9 +82,7 @@ export function DashboardBreadcrumb() {
                   <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link href={crumb.href}>
-                      {crumb.label}
-                    </Link>
+                    <Link href={crumb.href}>{crumb.label}</Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

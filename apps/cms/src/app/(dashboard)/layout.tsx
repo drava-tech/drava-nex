@@ -1,8 +1,8 @@
 "use client";
 
 import React, { Suspense } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Menu, Plus } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Menu, Plus } from 'lucide-react';
 import {
   SidebarProvider,
   SidebarInset,
@@ -20,30 +20,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: sessionData } = useSession();
   const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
 
   const isProjectsPage = pathname.startsWith("/projects");
-  const canGoBack = pathname !== "/";
-
-  const handleBack = () => {
-    if (isProjectsPage) {
-      const projectParam = searchParams.get("project");
-      const dashboardParam = searchParams.get("dashboard");
-
-      if (dashboardParam === "true") {
-        router.push(`${pathname}?project=${projectParam}`);
-        return;
-      }
-      if (projectParam) {
-        router.push(pathname);
-        return;
-      }
-    }
-    router.back();
-  };
 
   return (
     <SidebarProvider>
@@ -56,15 +36,6 @@ export default function DashboardLayout({
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
-            {canGoBack && (
-              <button
-                onClick={handleBack}
-                className="p-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-900 dark:text-zinc-50 mr-2 transition-all flex items-center justify-center shadow-sm"
-                title="Go back"
-              >
-                <ChevronLeft className="h-4 w-4 stroke-[2.5]" />
-              </button>
-            )}
             <Suspense fallback={<div className="h-4 w-20 animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded" />}>
               <DashboardBreadcrumb />
             </Suspense>

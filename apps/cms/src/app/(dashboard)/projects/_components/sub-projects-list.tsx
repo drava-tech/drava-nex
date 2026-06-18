@@ -4,31 +4,32 @@ import React from "react";
 
 interface SubProject {
   id: number;
+  slug: string;
   title: string;
 }
 
 interface SubProjectsListProps {
   subProjects: SubProject[];
-  onSelectProject: (id: number) => void;
+  onSelectProject: (slug: string) => void;
 }
 
 export function SubProjectsList({ subProjects, onSelectProject }: SubProjectsListProps) {
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full w-full p-2">
-      <div className="grid grid-cols-2 lg:grid-cols-4 grid-rows-4 lg:grid-rows-2 gap-4 w-full flex-1 min-h-0">
+    <div className="w-full h-full flex flex-col justify-between p-2 overflow-hidden flex-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 grid-rows-4 lg:grid-rows-2 gap-6 w-full h-full flex-1 min-h-0">
         {subProjects.map((sub) => (
           <div
-            key={sub.id}
-            onClick={() => onSelectProject(sub.id)}
-            className="bg-[#d6d6d6] dark:bg-zinc-900 rounded-[24px] p-6 flex flex-col justify-start items-start gap-2 cursor-pointer hover:scale-[1.02] hover:bg-[#c8c8c8] dark:hover:bg-zinc-850 transition-all duration-200 border border-zinc-350/30 dark:border-zinc-800/40 group relative overflow-hidden shadow-sm h-full"
+            key={sub.slug}
+            onClick={() => onSelectProject(sub.slug)}
+            className="bg-[#d6d6d6] dark:bg-zinc-900 rounded-[28px] p-8 pb-10 flex flex-col justify-start gap-4 cursor-pointer hover:scale-[1.01] hover:bg-[#c8c8c8] dark:hover:bg-zinc-800 transition-all duration-200 border border-zinc-300/40 dark:border-zinc-800/50 group relative overflow-hidden shadow-sm h-full min-h-0 select-none"
           >
             {/* Huge Number */}
-            <span className="text-[110px] font-black leading-[0.8] text-white dark:text-zinc-800/50 select-none transition-transform duration-200 group-hover:scale-105 inline-block">
+            <span className="text-[100px] sm:text-[120px] lg:text-[140px] xl:text-[160px] font-normal leading-[0.75] text-white dark:text-zinc-800/35 select-none transition-transform duration-200 group-hover:scale-105 inline-block -mt-5 -ml-4">
               {sub.id}
             </span>
             {/* Title */}
-            <span className="text-[17px] font-extrabold text-zinc-900 dark:text-zinc-100 leading-tight uppercase tracking-wide select-none mt-2">
-              {sub.title}
+            <span className="text-[17px] font-normal text-zinc-900 dark:text-zinc-100 leading-snug uppercase tracking-wide select-none">
+              {sub.title.toLowerCase() === "the white tusker portfolio" ? "The White Tusker PORT-FOLIO" : sub.title}
             </span>
           </div>
         ))}
