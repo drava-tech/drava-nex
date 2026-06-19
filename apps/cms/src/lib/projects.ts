@@ -1,10 +1,7 @@
 import type { Vertical, SubProject } from "@/types/projects";
 
-// JSON import — swap this single file when moving to a DB
-import rawData from "@/app/(dashboard)/projects/_components/projects-data.json";
-
 export async function getVerticals(): Promise<Vertical[]> {
-  return rawData as Vertical[];
+  return [];
 }
 
 export async function getVerticalById(id: string): Promise<Vertical | undefined> {

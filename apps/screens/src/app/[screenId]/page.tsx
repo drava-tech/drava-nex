@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { resolveDisplayConfig, DisplayConfigError } from "@/lib/display-config";
 import { LiveScreenPlayer } from "@/components/display/LiveScreenPlayer";
+import { IdleDisplay } from "@/components/display/IdleDisplay";
 
 export async function generateMetadata({
   params,
@@ -31,6 +32,7 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
   } catch (error) {
     if (error instanceof DisplayConfigError) {
       if (error.code === "SCREEN_NOT_FOUND") notFound();
+      if (error.code === "CONTENT_NOT_FOUND") return <IdleDisplay screenId={screenId} />;
       return <DisplayError code={error.code} message={error.message} />;
     }
     throw error;

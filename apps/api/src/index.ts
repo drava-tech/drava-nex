@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
-import { db, sql } from '@platform/db';
+import { db, sql, project, and, eq, isNull, isNotNull } from '@platform/db';
 import { requireAuth } from './middleware/auth.js';
 import { createGateway, broadcast, broadcastToCms, getContentCache } from './ws/gateway.js';
 import { readFile, existsSync } from 'node:fs';
@@ -74,6 +74,32 @@ type SessionUser = { id: string; name: string; email: string; role: string };
 app.get('/api/me', requireAuth, async (c) => {
   const user = c.get('user' as never) as SessionUser;
   return c.json({ user });
+});
+
+// ─── Projects list (portfolio verticals with videoUrl) ───────────────────────
+app.get('/api/projects', async (c) => {
+  const rows = await db
+    .select({
+      slug: project.slug,
+      name: project.name,
+      videoUrl: project.videoUrl,
+      thumbnailUrl: project.thumbnailUrl,
+    })
+    .from(project)
+    .where(
+      and(
+        eq(project.status, 'ACTIVE'),
+        isNotNull(project.videoUrl),
+        isNull(project.deletedAt)
+      )
+    );
+  const verticals = rows.map((r) => ({
+    id: r.slug,
+    title: r.name,
+    videoUrl: r.videoUrl!,
+    thumbnailUrl: r.thumbnailUrl ?? '',
+  }));
+  return c.json({ verticals });
 });
 
 // ─── Contents list (public — screens picker reads this) ───────────────────────

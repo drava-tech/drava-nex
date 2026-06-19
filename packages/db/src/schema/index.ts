@@ -2,7 +2,7 @@
 export { user, session, account, verification, userRoleEnum } from "./auth.js";
 
 // ─── CMS Tables ───────────────────────────────────────────────────────────────
-export { project, projectStatusEnum } from "./projects.js";
+export { project } from "./projects.js";
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 export { userRelations, sessionRelations, projectRelations } from "./relations.js";

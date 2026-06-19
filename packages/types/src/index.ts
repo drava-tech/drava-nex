@@ -105,6 +105,7 @@ export interface WsContent {
   source: string;
   loop?: boolean;
   muted?: boolean;
+  title?: string;
 }
 
 export type WsServerMessage =

@@ -15,6 +15,20 @@
       "when": 1781526595331,
       "tag": "0001_woozy_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781854724935,
+      "tag": "0002_amused_landau",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781862073853,
+      "tag": "0003_big_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

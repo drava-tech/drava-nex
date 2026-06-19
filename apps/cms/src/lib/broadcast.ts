@@ -44,3 +44,24 @@ export async function broadcastContentUpdate(screenId: string): Promise<void> {
     // Non-fatal: the CMS saved the change; screen recovers on reconnect
   }
 }
+
+export async function broadcastWsContentDirect(
+  screenId: string,
+  content: WsContent
+): Promise<void> {
+  const apiUrl = process.env["INTERNAL_API_URL"] ?? "http://localhost:4000";
+  const secret = process.env["BROADCAST_SECRET"] ?? "dev-secret";
+
+  try {
+    await fetch(`${apiUrl}/api/internal/broadcast`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-broadcast-secret": secret,
+      },
+      body: JSON.stringify({ screenId, content, source: "cms" }),
+    });
+  } catch (err) {
+    console.error("[broadcast] broadcastWsContentDirect failed for screen", screenId, err);
+  }
+}

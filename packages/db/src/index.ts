@@ -10,4 +10,4 @@ export type { Database } from "./client.js";
 export * from "./schema/index.js";
 
 // ─── Drizzle Utilities ────────────────────────────────────────────────────────
-export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count } from "drizzle-orm";
+export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count, isNull, isNotNull } from "drizzle-orm";

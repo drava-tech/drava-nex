@@ -1,6 +1,7 @@
 import React from "react";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { getVerticals } from "@/lib/projects";
+import { db, project, eq, and, isNull } from "@platform/db";
+import { notFound } from "next/navigation";
 import { ProjectRouter } from "./_components/project-router";
 
 interface ProjectPageProps {
@@ -11,12 +12,20 @@ interface ProjectPageProps {
 }
 
 export default async function ProjectDetailPage({ params }: ProjectPageProps) {
-  const [user, verticals] = await Promise.all([requireAdmin(), getVerticals()]);
+  await requireAdmin();
   const { id, subpath = [] } = await params;
+
+  const [dbProject] = await db
+    .select()
+    .from(project)
+    .where(and(eq(project.slug, id), isNull(project.deletedAt)))
+    .limit(1);
+
+  if (!dbProject) notFound();
 
   return (
     <div className="flex flex-1 flex-col p-6 md:p-8 bg-zinc-100 dark:bg-black h-0 overflow-hidden">
-      <ProjectRouter user={user} projectId={id} subpath={subpath} verticals={verticals} />
+      <ProjectRouter project={dbProject} subpath={subpath} />
     </div>
   );
 }

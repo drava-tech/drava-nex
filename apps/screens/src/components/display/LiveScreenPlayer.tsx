@@ -7,6 +7,7 @@ import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
+import { ContentTitleOverlay } from "./ContentTitleOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
@@ -79,6 +80,7 @@ export function LiveScreenPlayer({
   return (
     <>
       <ContentRenderer content={displayContent} />
+      {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
       {pickerEnabled && (
         <ContentPickerOverlay
           apiUrl={apiUrl}

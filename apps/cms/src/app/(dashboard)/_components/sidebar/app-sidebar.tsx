@@ -23,7 +23,7 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
-    title: "Projects",
+    title: "Experiences",
     url: "/projects",
     icon: SquareTerminal,
     roles: ["ADMIN"] as string[]

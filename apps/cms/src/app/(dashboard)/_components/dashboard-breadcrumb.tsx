@@ -11,10 +11,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@platform/ui";
-import projectsData from "../projects/_components/projects-data.json";
 
 const ROUTE_LABELS: Record<string, string> = {
-  "projects": "Projects",
+  "projects": "Experiences",
   "screens": "Screens",
   "media": "Media",
   "users": "Users",
@@ -36,7 +35,7 @@ export function DashboardBreadcrumb() {
     const href = "/" + segments.slice(0, index + 1).join("/");
 
     if (segment === "projects") {
-      breadcrumbs.push({ label: "Projects", href });
+      breadcrumbs.push({ label: "Experiences", href });
       return;
     }
 
@@ -45,23 +44,20 @@ export function DashboardBreadcrumb() {
       if (segment === "the-white-tusker-portfolio") {
         breadcrumbs.push({ label: "The White Tusker PORT-FOLIO", href });
       } else {
-        const proj = projectsData.flatMap(c => c.projects).find(p => p.slug === segment);
-        breadcrumbs.push({ label: proj?.title ?? toLabel(segment), href });
+        breadcrumbs.push({ label: toLabel(segment), href });
       }
       return;
     }
 
     // Segment[2]: category ID under portfolio
     if (index === 2 && segments[1] === "the-white-tusker-portfolio") {
-      const vertical = projectsData.find(v => v.id === segment);
-      breadcrumbs.push({ label: vertical?.title ?? toLabel(segment), href });
+      breadcrumbs.push({ label: toLabel(segment), href });
       return;
     }
 
     // Segment[3]: project slug under portfolio category
     if (index === 3 && segments[1] === "the-white-tusker-portfolio") {
-      const proj = projectsData.flatMap(v => v.projects).find(p => p.slug === segment);
-      breadcrumbs.push({ label: proj?.title ?? toLabel(segment), href });
+      breadcrumbs.push({ label: toLabel(segment), href });
       return;
     }
 
