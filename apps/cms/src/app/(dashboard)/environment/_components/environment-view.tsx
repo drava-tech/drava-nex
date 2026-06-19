@@ -72,9 +72,9 @@ export function EnvironmentView() {
           </div>
 
           {/* Vertical Timeline Picker - flexible size */}
-          <div className="relative pl-4 flex flex-col justify-around flex-1 py-4 min-h-0">
+          <div className="relative pl-6 flex flex-col justify-between flex-1 py-4 min-h-0">
             {/* Vertical connector line */}
-            <div className="absolute left-[26px] top-6 bottom-6 w-[2px] bg-zinc-400/60 dark:bg-zinc-700/60" />
+            <div className="absolute left-10 top-8 bottom-8 w-[2px] bg-zinc-400/60 dark:bg-zinc-700/60 -translate-x-1/2" />
 
             {lightingModes.map((mode) => {
               const isActive = activeLightingMode === mode;
@@ -86,13 +86,13 @@ export function EnvironmentView() {
                 >
                   {/* Radio Circle */}
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm ${isActive
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm ${isActive
                       ? "bg-zinc-800 dark:bg-zinc-150 ring-4 ring-zinc-350 dark:ring-zinc-700 scale-105"
                       : "bg-[#9a9a9a] group-hover:bg-zinc-650 dark:bg-zinc-800 dark:group-hover:bg-zinc-700"
                       }`}
                   >
                     {isActive && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-zinc-900" />
+                      <div className="w-3 h-3 rounded-full bg-white dark:bg-zinc-900" />
                     )}
                   </div>
 
@@ -139,7 +139,9 @@ export function EnvironmentView() {
             >
               {/* Filled progress bar */}
               <div
-                className="h-full bg-white dark:bg-zinc-150 absolute left-0 top-0 transition-all duration-150 shadow-sm"
+                className={`h-full bg-white dark:bg-zinc-150 absolute left-0 top-0 shadow-sm ${
+                  isVolumeDragging ? "" : "transition-all duration-150"
+                }`}
                 style={{ width: `${volume}%` }}
               />
               <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-800 dark:text-zinc-300 mix-blend-difference relative z-10">

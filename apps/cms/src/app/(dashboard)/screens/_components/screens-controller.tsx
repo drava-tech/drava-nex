@@ -17,7 +17,7 @@ interface ScreenConfig {
 
 const defaultScreens: ScreenConfig[] = [
   { id: "screen-1", name: "Main Exhibition Screen", contentType: "image", contentValue: "", contentLabel: undefined },
-  { id: "screen-2", name: "Lobby Screen",            contentType: "image", contentValue: "", contentLabel: undefined },
+  { id: "screen-2", name: "Lobby Screen", contentType: "image", contentValue: "", contentLabel: undefined },
 ];
 
 const STORAGE_KEY = "exhibition_screens_config_v5";
@@ -62,7 +62,7 @@ export function ScreensController() {
       contentLabel: content.title,
     });
     setLiveUpdates((prev) => ({ ...prev, [screenId]: Date.now() }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useCmsScreenSync({ onScreenUpdated: handleScreenUpdated });
