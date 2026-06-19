@@ -1,13 +1,13 @@
 import { relations } from "drizzle-orm";
 import { user, session } from "./auth.js";
-import { project } from "./projects.js";
+import { experience } from "./projects.js";
 
 // ─── Auth Relations ───────────────────────────────────────────────────────────
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
-  createdProjects: many(project, { relationName: "projectCreatedBy" }),
-  updatedProjects: many(project, { relationName: "projectUpdatedBy" }),
+  createdExperiences: many(experience, { relationName: "experienceCreatedBy" }),
+  updatedExperiences: many(experience, { relationName: "experienceUpdatedBy" }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -17,17 +17,17 @@ export const sessionRelations = relations(session, ({ one }) => ({
   }),
 }));
 
-// ─── Project Relations ────────────────────────────────────────────────────────
+// ─── Experience Relations ─────────────────────────────────────────────────────
 
-export const projectRelations = relations(project, ({ one }) => ({
+export const experienceRelations = relations(experience, ({ one }) => ({
   createdBy: one(user, {
-    fields: [project.createdByUserId],
+    fields: [experience.createdByUserId],
     references: [user.id],
-    relationName: "projectCreatedBy",
+    relationName: "experienceCreatedBy",
   }),
   updatedBy: one(user, {
-    fields: [project.updatedByUserId],
+    fields: [experience.updatedByUserId],
     references: [user.id],
-    relationName: "projectUpdatedBy",
+    relationName: "experienceUpdatedBy",
   }),
 }));

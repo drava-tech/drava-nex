@@ -2,11 +2,11 @@
 export { user, session, account, verification, userRoleEnum } from "./auth.js";
 
 // ─── CMS Tables ───────────────────────────────────────────────────────────────
-export { project } from "./projects.js";
+export { experience } from "./projects.js";
 
 // ─── Relations ────────────────────────────────────────────────────────────────
-export { userRelations, sessionRelations, projectRelations } from "./relations.js";
+export { userRelations, sessionRelations, experienceRelations } from "./relations.js";
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 export type { User, NewUser, Session, Account } from "./auth.js";
-export type { Project, NewProject } from "./projects.js";
+export type { Experience, NewExperience } from "./projects.js";

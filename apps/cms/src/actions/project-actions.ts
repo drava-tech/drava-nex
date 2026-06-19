@@ -1,6 +1,6 @@
 "use server";
 
-import { db, project, eq, and, isNull } from "@platform/db";
+import { db, experience, eq, and, isNull } from "@platform/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 
@@ -30,9 +30,9 @@ export async function createProject(
   }
 
   const [existing] = await db
-    .select({ id: project.id })
-    .from(project)
-    .where(and(eq(project.slug, trimmedSlug), isNull(project.deletedAt)))
+    .select({ id: experience.id })
+    .from(experience)
+    .where(and(eq(experience.slug, trimmedSlug), isNull(experience.deletedAt)))
     .limit(1);
 
   if (existing) {
@@ -42,7 +42,7 @@ export async function createProject(
     };
   }
 
-  await db.insert(project).values({
+  await db.insert(experience).values({
     name: trimmedName,
     slug: trimmedSlug,
     createdByUserId: currentUser.id,
@@ -50,5 +50,23 @@ export async function createProject(
   });
 
   revalidatePath("/projects");
+  return { success: true };
+}
+
+export async function reorderExperiences(
+  orderedIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx
+        .update(experience)
+        .set({ position: i })
+        .where(eq(experience.id, orderedIds[i]!));
+    }
+  });
+
+  revalidatePath("/experiences");
   return { success: true };
 }

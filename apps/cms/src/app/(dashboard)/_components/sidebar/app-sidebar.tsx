@@ -24,7 +24,7 @@ const ALL_NAV = [
   },
   {
     title: "Experiences",
-    url: "/projects",
+    url: "/experiences",
     icon: SquareTerminal,
     roles: ["ADMIN"] as string[]
   },

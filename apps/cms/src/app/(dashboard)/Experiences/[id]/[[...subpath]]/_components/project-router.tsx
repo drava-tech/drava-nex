@@ -3,10 +3,10 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Project } from "@platform/db";
+import type { Experience } from "@platform/db";
 
 interface ProjectRouterProps {
-  project: Project;
+  project: Experience;
   subpath: string[];
 }
 

@@ -2,20 +2,22 @@ import {
   pgTable,
   text,
   timestamp,
+  integer,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth.js";
 
-export const project = pgTable(
-  "project",
+export const experience = pgTable(
+  "experience",
   {
     id: text("id")
       .primaryKey()
       .default(sql`gen_random_uuid()::text`),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    position: integer("position").notNull().default(0),
     createdByUserId: text("created_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -31,13 +33,13 @@ export const project = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex("project_slug_unique_idx")
+    uniqueIndex("experience_slug_unique_idx")
       .on(table.slug)
       .where(sql`${table.deletedAt} IS NULL`),
-    index("project_created_by_idx").on(table.createdByUserId),
-    index("project_deleted_at_idx").on(table.deletedAt),
+    index("experience_created_by_idx").on(table.createdByUserId),
+    index("experience_deleted_at_idx").on(table.deletedAt),
   ]
 );
 
-export type Project = typeof project.$inferSelect;
-export type NewProject = typeof project.$inferInsert;
+export type Experience = typeof experience.$inferSelect;
+export type NewExperience = typeof experience.$inferInsert;

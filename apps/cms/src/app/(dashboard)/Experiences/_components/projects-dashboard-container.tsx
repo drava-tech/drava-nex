@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { SubProjectsList } from "./sub-projects-list";
 import { ProjectsList } from "./projects-list";
 import type { Vertical } from "@/types/projects";
-import type { Project } from "@platform/db";
+import type { Experience } from "@platform/db";
 
 interface ProjectsDashboardContainerProps {
   user: {
@@ -14,7 +14,7 @@ interface ProjectsDashboardContainerProps {
     email?: string;
   };
   verticals: Vertical[];
-  dbProjects: Project[];
+  dbProjects: Experience[];
 }
 
 export function ProjectsDashboardContainer({ user: _user, verticals, dbProjects }: ProjectsDashboardContainerProps) {

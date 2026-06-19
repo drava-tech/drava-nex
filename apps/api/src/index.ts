@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
-import { db, sql, project, and, eq, isNull, isNotNull } from '@platform/db';
+import { db, sql, experience, isNull } from '@platform/db';
+import { asc, desc } from 'drizzle-orm';
 import { requireAuth } from './middleware/auth.js';
 import { createGateway, broadcast, broadcastToCms, getContentCache } from './ws/gateway.js';
 import { readFile, existsSync } from 'node:fs';
@@ -76,29 +77,14 @@ app.get('/api/me', requireAuth, async (c) => {
   return c.json({ user });
 });
 
-// ─── Projects list (portfolio verticals with videoUrl) ───────────────────────
+// ─── Experiences list ─────────────────────────────────────────────────────────
 app.get('/api/projects', async (c) => {
   const rows = await db
-    .select({
-      slug: project.slug,
-      name: project.name,
-      videoUrl: project.videoUrl,
-      thumbnailUrl: project.thumbnailUrl,
-    })
-    .from(project)
-    .where(
-      and(
-        eq(project.status, 'ACTIVE'),
-        isNotNull(project.videoUrl),
-        isNull(project.deletedAt)
-      )
-    );
-  const verticals = rows.map((r) => ({
-    id: r.slug,
-    title: r.name,
-    videoUrl: r.videoUrl!,
-    thumbnailUrl: r.thumbnailUrl ?? '',
-  }));
+    .select({ slug: experience.slug, name: experience.name, position: experience.position })
+    .from(experience)
+    .where(isNull(experience.deletedAt))
+    .orderBy(asc(experience.position), desc(experience.createdAt));
+  const verticals = rows.map((r) => ({ id: r.slug, title: r.name, position: r.position }));
   return c.json({ verticals });
 });
 

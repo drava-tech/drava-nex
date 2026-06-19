@@ -1,22 +1,154 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { CreateProjectModal } from "./create-project-modal";
-import type { Project } from "@platform/db";
+import { reorderExperiences } from "@/actions/project-actions";
+import type { Experience } from "@platform/db";
 
 interface ProjectsListProps {
-  projects: Project[];
+  projects: Experience[];
+}
+
+function getCardSpanClasses(index: number): string {
+  if (index === 0) return "col-span-2 row-span-1 md:col-span-2 md:row-span-2";
+  if ((index - 3) % 6 === 0) return "col-span-1 row-span-1 md:col-span-2 md:row-span-1";
+  return "col-span-1 row-span-1 md:col-span-1 md:row-span-1";
+}
+
+interface SortableCardProps {
+  proj: Experience;
+  index: number;
+  isLarge: boolean;
+  spanClasses: string;
+}
+
+function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) {
+  const router = useRouter();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: proj.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 30 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={() => router.push(`/projects/${proj.slug}`)}
+      className={[
+        spanClasses,
+        "bg-[#d6d6d6] hover:bg-[#c8c8c8] dark:bg-zinc-900 dark:hover:bg-zinc-800",
+        "rounded-2xl flex flex-col justify-start gap-3 cursor-pointer",
+        "border border-zinc-300/40 dark:border-zinc-800/50",
+        "group relative overflow-hidden shadow-sm select-none",
+        isLarge ? "p-8 pb-10" : "p-5 pb-7",
+      ].join(" ")}
+    >
+      {/* Reorder Grip Handle */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150 z-20"
+        onClick={(e) => {
+          // Stop propagation to prevent triggering parent onClick navigation
+          e.stopPropagation();
+        }}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      <span
+        className={[
+          "font-normal leading-[0.75] text-white dark:text-zinc-800/35",
+          "select-none transition-transform duration-200 group-hover:scale-105 inline-block",
+          isLarge ? "text-[140px] -mt-4 -ml-4" : "text-[80px] -mt-3 -ml-3",
+        ].join(" ")}
+      >
+        {index + 1}
+      </span>
+      <span
+        className={[
+          "font-normal text-zinc-900 dark:text-zinc-100 leading-snug uppercase tracking-wide select-none",
+          isLarge ? "text-[20px]" : "text-[15px]",
+        ].join(" ")}
+      >
+        {proj.name}
+      </span>
+      <span className="text-[10px] text-zinc-500 dark:text-zinc-600 font-mono select-none -mt-1">
+        /{proj.slug}
+      </span>
+      {isLarge && (
+        <div className="absolute bottom-0 right-0 w-48 h-48 rounded-full bg-white/5 dark:bg-white/[0.02] -mr-16 -mb-16 pointer-events-none" />
+      )}
+    </div>
+  );
 }
 
 export function ProjectsList({ projects }: ProjectsListProps) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
+  const [items, setItems] = useState<Experience[]>(projects);
+  const [saving, setSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
+
+  useEffect(() => {
+    setItems(projects);
+  }, [projects]);
 
   const handleClose = () => {
     setShowModal(false);
     router.refresh();
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = items.findIndex((i) => i.id === active.id);
+      const newIndex = items.findIndex((i) => i.id === over.id);
+      const newItems = arrayMove(items, oldIndex, newIndex);
+      
+      setItems(newItems);
+      setSaving(true);
+      try {
+        await reorderExperiences(newItems.map((i) => i.id));
+        router.refresh();
+      } catch (error) {
+        console.error("Failed to reorder experiences:", error);
+        // Rollback on failure
+        setItems(projects);
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
   return (
@@ -24,22 +156,33 @@ export function ProjectsList({ projects }: ProjectsListProps) {
       {showModal && <CreateProjectModal onClose={handleClose} />}
 
       <div className="flex flex-col gap-4 w-full">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-[9px] font-bold text-zinc-500 tracking-[0.25em] uppercase">
-            Experiences
-          </p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
-          >
-            <Plus className="h-3 w-3" />
-            New Experience
-          </button>
+          <div className="flex items-center gap-3">
+            <p className="text-[9px] font-bold text-zinc-500 tracking-[0.25em] uppercase">
+              Experiences
+            </p>
+            {saving && (
+              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                Saving order...
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
+            >
+              <Plus className="h-3 w-3" />
+              New Experience
+            </button>
+          </div>
         </div>
 
+        {/* Empty state */}
         {projects.length === 0 ? (
           <div
-            className="flex flex-col items-center justify-center gap-4 p-12 rounded-[28px] border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-center cursor-pointer transition-colors group"
+            className="flex flex-col items-center justify-center gap-4 p-12 rounded-2xl border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-center cursor-pointer transition-colors group"
             onClick={() => setShowModal(true)}
           >
             <div className="h-10 w-10 rounded-2xl bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-900 dark:group-hover:bg-zinc-800 flex items-center justify-center transition-colors">
@@ -53,37 +196,42 @@ export function ProjectsList({ projects }: ProjectsListProps) {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-            <div
-              onClick={() => setShowModal(true)}
-              className="bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 rounded-[28px] p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 group min-h-[160px]"
-            >
-              <div className="h-8 w-8 rounded-xl bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-800 dark:group-hover:bg-zinc-700 flex items-center justify-center transition-colors">
-                <Plus className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300" />
-              </div>
-              <span className="text-[10px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400 uppercase tracking-wider transition-colors">
-                New Experience
-              </span>
-            </div>
-
-            {projects.map((proj, index) => (
+          /* Sortable Bento grid */
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
               <div
-                key={proj.id}
-                onClick={() => router.push(`/projects/${proj.slug}`)}
-                className="bg-[#d6d6d6] hover:bg-[#c8c8c8] dark:bg-zinc-900 dark:hover:bg-zinc-800 rounded-[28px] p-6 pb-8 flex flex-col justify-start gap-3 cursor-pointer hover:scale-[1.01] transition-all duration-200 border border-zinc-300/40 dark:border-zinc-800/50 group relative overflow-hidden shadow-sm min-h-[160px] select-none"
+                className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full"
+                style={{ gridAutoRows: "140px", gridAutoFlow: "dense" }}
               >
-                <span className="text-[80px] font-normal leading-[0.75] text-white dark:text-zinc-800/35 select-none transition-transform duration-200 group-hover:scale-105 inline-block -mt-3 -ml-3">
-                  {index + 1}
-                </span>
-                <span className="text-[15px] font-normal text-zinc-900 dark:text-zinc-100 leading-snug uppercase tracking-wide select-none">
-                  {proj.name}
-                </span>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-600 font-mono select-none -mt-1">
-                  /{proj.slug}
-                </span>
+                {items.map((proj, index) => {
+                  const isLarge = index === 0;
+                  const spanClasses = getCardSpanClasses(index);
+
+                  return (
+                    <SortableCard
+                      key={proj.id}
+                      proj={proj}
+                      index={index}
+                      isLarge={isLarge}
+                      spanClasses={spanClasses}
+                    />
+                  );
+                })}
+
+                <div
+                  onClick={() => setShowModal(true)}
+                  className="col-span-1 row-span-1 bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 group"
+                >
+                  <div className="h-8 w-8 rounded-xl bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-800 dark:group-hover:bg-zinc-700 flex items-center justify-center transition-colors">
+                    <Plus className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300" />
+                  </div>
+                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400 uppercase tracking-wider transition-colors">
+                    New Experience
+                  </span>
+                </div>
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </>
