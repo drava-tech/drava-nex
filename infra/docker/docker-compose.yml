@@ -62,11 +62,14 @@ services:
       - MQTT_HOST=mosquitto
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
+      - CONFIG_DIR=/app/apps/screens/public/config
     expose:
       - "4000"          # internal only
     volumes:
       - E:/EC/cms-platform-data/uploads:/data/uploads
       - E:/EC/cms-platform-data/logs:/data/logs
+      - ../../apps/screens/public/config:/app/apps/screens/public/config
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +94,8 @@ services:
       - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
+      - BROADCAST_SECRET=${BROADCAST_SECRET}
+      - INTERNAL_API_URL=http://api:4000
     expose:
       - "3000"          # internal only
     volumes:

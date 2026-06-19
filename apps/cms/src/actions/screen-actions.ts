@@ -1,6 +1,7 @@
 "use server";
 
 import { readScreensJson, writeScreensJson } from "../lib/config-writer";
+import { broadcastContentUpdate } from "../lib/broadcast";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 
@@ -14,6 +15,7 @@ export async function assignContent(screenId: string, contentId: string) {
   );
 
   await writeScreensJson(config);
+  await broadcastContentUpdate(screenId);
   revalidatePath("/screens");
   revalidatePath("/");
 }

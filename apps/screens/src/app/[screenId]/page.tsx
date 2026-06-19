@@ -2,9 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { resolveDisplayConfig, DisplayConfigError } from "@/lib/display-config";
-import { ContentRenderer } from "@/components/display/ContentRenderer";
-
-// ─── Metadata ────────────────────────────────────────────────────────────────
+import { LiveScreenPlayer } from "@/components/display/LiveScreenPlayer";
 
 export async function generateMetadata({
   params,
@@ -18,47 +16,42 @@ export async function generateMetadata({
   };
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 interface PageProps {
   params: Promise<{ screenId: string }>;
+  searchParams: Promise<{ picker?: string }>;
 }
 
-export default async function DisplayPage({ params }: PageProps) {
-  const { screenId } = await params;
+export default async function DisplayPage({ params, searchParams }: PageProps) {
+  const [{ screenId }, sp] = await Promise.all([params, searchParams]);
+  const pickerEnabled = sp.picker !== "false";
 
   let config;
-
   try {
     config = await resolveDisplayConfig(screenId);
   } catch (error) {
     if (error instanceof DisplayConfigError) {
-      if (error.code === "SCREEN_NOT_FOUND") {
-        // Triggers Next.js 404 page
-        notFound();
-      }
-
-      // Other known errors — render a readable message
+      if (error.code === "SCREEN_NOT_FOUND") notFound();
       return <DisplayError code={error.code} message={error.message} />;
     }
-
-    // Unknown errors — re-throw so Next.js error boundary catches it
     throw error;
   }
 
+  const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
+  const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
+
   return (
     <Suspense fallback={<LoadingDisplay />}>
-      {/* Global CSS reset for fullscreen display */}
-      <style>{`
-        html, body { margin: 0; padding: 0; overflow: hidden; background: #000; }
-      `}</style>
-
-      <ContentRenderer content={config.content} />
+      <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+      <LiveScreenPlayer
+        screenId={screenId}
+        initialContent={config.content}
+        wsUrl={wsUrl}
+        apiUrl={apiUrl}
+        pickerEnabled={pickerEnabled}
+      />
     </Suspense>
   );
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function LoadingDisplay() {
   return (
@@ -81,13 +74,7 @@ function LoadingDisplay() {
   );
 }
 
-function DisplayError({
-  code,
-  message,
-}: {
-  code: string;
-  message: string;
-}) {
+function DisplayError({ code, message }: { code: string; message: string }) {
   return (
     <div
       style={{

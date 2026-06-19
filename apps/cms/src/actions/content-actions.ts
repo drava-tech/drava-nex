@@ -1,6 +1,7 @@
 "use server";
 
-import { readContentsJson, writeContentsJson } from "../lib/config-writer";
+import { readContentsJson, writeContentsJson, readScreensJson } from "../lib/config-writer";
+import { broadcastContentUpdate } from "../lib/broadcast";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
 
@@ -20,6 +21,16 @@ export async function addContent(
 
   config.contents.push({ id, type: "video", source, loop, muted });
   await writeContentsJson(config);
+
+  // Broadcast to any screen already showing this content
+  const screensConfig = await readScreensJson();
+  const affected = screensConfig.screens.filter(
+    (s: { contentId: string }) => s.contentId === id
+  );
+  await Promise.all(
+    affected.map((s: { screenId: string }) => broadcastContentUpdate(s.screenId))
+  );
+
   revalidatePath("/contents");
   revalidatePath("/screens");
   revalidatePath("/");

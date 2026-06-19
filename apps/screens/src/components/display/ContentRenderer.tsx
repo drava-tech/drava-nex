@@ -1,27 +1,20 @@
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
+import { ImageRenderer } from "./ImageRenderer";
+import { HtmlRenderer } from "./HtmlRenderer";
+import { StreamRenderer } from "./StreamRenderer";
 
-interface ContentRendererProps {
-  content: Content;
-}
-
-/**
- * Switch-based dispatcher. Add new content types here as branches.
- * TypeScript exhaustive-check ensures all union members are handled.
- */
-export function ContentRenderer({ content }: ContentRendererProps) {
+export function ContentRenderer({ content }: { content: Content }) {
   switch (content.type) {
     case "video":
       return <VideoRenderer content={content} />;
-
-    // Future:
-    // case "stream":
-    //   return <StreamRenderer content={content} />;
-    // case "experience":
-    //   return <ExperienceRenderer content={content} />;
-
+    case "image":
+      return <ImageRenderer content={content} />;
+    case "html":
+      return <HtmlRenderer content={content} />;
+    case "stream":
+      return <StreamRenderer content={content} />;
     default: {
-      // Exhaustive check — TS will error if a union member is unhandled
       const _exhaustive = content as never;
       return (
         <div style={{ color: "#ef4444", padding: "2rem" }}>

@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { Upload, Loader2, AlertCircle } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Upload, Loader2, AlertCircle, Wifi } from "lucide-react";
+import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
+import type { WsContent } from "@platform/types";
 
 interface ScreenConfig {
   id: string;
@@ -35,6 +37,8 @@ export function ScreensController() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Tracks which screen IDs received a live update (for pulse animation)
+  const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load from localStorage on mount
@@ -50,6 +54,26 @@ export function ScreensController() {
       }
     }
   }, []);
+
+  // Real-time sync: update a screen card when a physical screen changes its own content
+  const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {
+    setScreens((prev) => {
+      const next = prev.map((screen) => {
+        if (screen.id !== screenId) return screen;
+        const contentType: "video" | "image" =
+          content.type === "video" ? "video" : "image";
+        return { ...screen, contentType, contentValue: content.source };
+      });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exhibition_screens_config_v4", JSON.stringify(next));
+      }
+      return next;
+    });
+    // Trigger brief pulse on the updated card
+    setLiveUpdates((prev) => ({ ...prev, [screenId]: Date.now() }));
+  }, []);
+
+  useCmsScreenSync({ onScreenUpdated: handleScreenUpdated });
 
   const updateScreen = (screenId: string, updates: Partial<ScreenConfig>) => {
     setScreens((prev) => {
@@ -104,8 +128,9 @@ export function ScreensController() {
       } else {
         throw new Error(data.error || "Failed to process uploaded file");
       }
-    } catch (err: any) {
-      setUploadError(`${uploadTargetId}:${err.message || "An unexpected error occurred during upload"}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred during upload";
+      setUploadError(`${uploadTargetId}:${msg}`);
     } finally {
       setIsUploading(false);
       setUploadTargetId(null);
@@ -117,7 +142,6 @@ export function ScreensController() {
 
   return (
     <div className="flex-1 w-full h-full flex flex-col justify-center select-none py-2 min-h-0 overflow-hidden">
-      {/* Hidden file input */}
       <input
         type="file"
         accept="video/*,image/*"
@@ -127,34 +151,39 @@ export function ScreensController() {
         disabled={isUploading}
       />
 
-      {/* 3-Column Screen Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 w-full max-w-[1280px] mx-auto items-center">
         {screens.map((screen) => {
           const mediaUrl = screen.contentValue.startsWith("http")
             ? screen.contentValue
             : `/${screen.contentValue}`;
-          
+
           const isCurrentUploading = isUploading && uploadTargetId === screen.id;
-          const currentError = uploadError?.startsWith(`${screen.id}:`) 
-            ? uploadError.split(`${screen.id}:`)[1] 
+          const currentError = uploadError?.startsWith(`${screen.id}:`)
+            ? uploadError.split(`${screen.id}:`)[1]
             : null;
+          const hasLiveUpdate = Boolean(liveUpdates[screen.id]);
 
           return (
             <div
               key={screen.id}
               className="flex flex-col items-center gap-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-900 rounded-[28px] p-6 shadow-sm hover:border-zinc-300 dark:hover:border-zinc-800 transition-all duration-300"
             >
-              {/* Screen Title */}
               <div className="flex flex-col items-center">
                 <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1">
                   exhibition monitor
                 </span>
-                <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
-                  {screen.name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
+                    {screen.name}
+                  </h3>
+                  {hasLiveUpdate && (
+                    <span title="Updated from screen" className="flex items-center">
+                      <Wifi className="h-3 w-3 text-green-500 animate-pulse" />
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Screen Display Preview Box */}
               <div className="w-full aspect-[16/9] relative rounded-2xl border-4 border-zinc-800 dark:border-zinc-800 shadow-lg bg-black overflow-hidden flex items-center justify-center shrink-0">
                 <div className="absolute inset-0 w-full h-full z-0 pointer-events-none">
                   {screen.contentType === "video" ? (
@@ -178,7 +207,6 @@ export function ScreensController() {
                 </div>
               </div>
 
-              {/* Upload Button */}
               <div className="w-full flex flex-col items-center gap-2 mt-2">
                 <button
                   onClick={() => triggerUpload(screen.id)}

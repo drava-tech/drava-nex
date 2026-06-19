@@ -94,3 +94,35 @@ export interface DeviceCommand {
   payload?: Record<string, unknown>;
   sentAt: number;
 }
+
+// --- WebSocket Protocol Types ---
+
+export type WsContentType = 'video' | 'image' | 'html' | 'stream';
+
+export interface WsContent {
+  id: string;
+  type: WsContentType;
+  source: string;
+  loop?: boolean;
+  muted?: boolean;
+}
+
+export type WsServerMessage =
+  | { type: 'WELCOME'; screenId: string; content: WsContent }
+  | { type: 'CONTENT_UPDATE'; screenId: string; content: WsContent; timestamp: number }
+  | { type: 'PING' };
+
+export type WsClientMessage =
+  | { type: 'REGISTER'; screenId: string }
+  | { type: 'CMS_REGISTER' }
+  | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
+  | { type: 'PONG' };
+
+export type WsCmsMessage =
+  | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' };
+
+export interface BroadcastRequest {
+  screenId: string;
+  content: WsContent;
+  source?: 'screen' | 'cms';
+}

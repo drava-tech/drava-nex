@@ -12,7 +12,7 @@ export interface ScreensConfig {
 
 // ─── Content ─────────────────────────────────────────────────────────────────
 
-export type ContentType = "video" | "stream" | "experience";
+export type ContentType = "video" | "image" | "html" | "stream";
 
 export interface BaseContent {
   id: string;
@@ -26,8 +26,23 @@ export interface VideoContent extends BaseContent {
   muted: boolean;
 }
 
-// Union — extend here as new content types are added
-export type Content = VideoContent;
+export interface ImageContent extends BaseContent {
+  type: "image";
+  source: string;
+}
+
+export interface HtmlContent extends BaseContent {
+  type: "html";
+  source: string;
+}
+
+export interface StreamContent extends BaseContent {
+  type: "stream";
+  source: string;
+  muted?: boolean;
+}
+
+export type Content = VideoContent | ImageContent | HtmlContent | StreamContent;
 
 export interface ContentsConfig {
   contents: Content[];
