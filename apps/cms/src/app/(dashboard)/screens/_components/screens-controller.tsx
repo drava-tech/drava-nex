@@ -20,16 +20,11 @@ export function ScreensController() {
     },
     {
       id: "screen-2",
-      name: "Outside Screen 1",
+      name: "Outside Screen",
       contentType: "image",
       contentValue: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80",
     },
-    {
-      id: "screen-3",
-      name: "Outside Screen 2",
-      contentType: "image",
-      contentValue: "https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=1200&q=80",
-    },
+
   ]);
 
   const [isUploading, setIsUploading] = useState(false);
@@ -127,35 +122,35 @@ export function ScreensController() {
         disabled={isUploading}
       />
 
-      {/* 3-Column Screen Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 w-full max-w-[1280px] mx-auto items-center">
+      {/* 2-Column Screen Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 w-full h-full items-stretch min-h-0">
         {screens.map((screen) => {
           const mediaUrl = screen.contentValue.startsWith("http")
             ? screen.contentValue
             : `/${screen.contentValue}`;
-          
+
           const isCurrentUploading = isUploading && uploadTargetId === screen.id;
-          const currentError = uploadError?.startsWith(`${screen.id}:`) 
-            ? uploadError.split(`${screen.id}:`)[1] 
+          const currentError = uploadError?.startsWith(`${screen.id}:`)
+            ? uploadError.split(`${screen.id}:`)[1]
             : null;
 
           return (
             <div
               key={screen.id}
-              className="flex flex-col items-center gap-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-900 rounded-[28px] p-6 shadow-sm hover:border-zinc-300 dark:hover:border-zinc-800 transition-all duration-300"
+              className="flex flex-col items-center justify-between gap-4 bg-[#d6d6d6] dark:bg-zinc-900 border border-zinc-350/30 dark:border-zinc-800/40 rounded-[28px] p-6 shadow-sm hover:bg-[#c8c8c8]/80 dark:hover:bg-zinc-850/50 hover:border-zinc-400/40 dark:hover:border-zinc-700/60 transition-all duration-300 h-full w-full min-h-0"
             >
               {/* Screen Title */}
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1">
+              <div className="flex flex-col items-center shrink-0">
+                <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 tracking-[0.25em] uppercase mb-1">
                   exhibition monitor
                 </span>
-                <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 tracking-wide uppercase">
                   {screen.name}
                 </h3>
               </div>
 
               {/* Screen Display Preview Box */}
-              <div className="w-full aspect-[16/9] relative rounded-2xl border-4 border-zinc-800 dark:border-zinc-800 shadow-lg bg-black overflow-hidden flex items-center justify-center shrink-0">
+              <div className="w-full flex-1 relative rounded-2xl border-4 border-zinc-950 dark:border-zinc-950 shadow-lg bg-black overflow-hidden flex items-center justify-center min-h-0">
                 <div className="absolute inset-0 w-full h-full z-0 pointer-events-none">
                   {screen.contentType === "video" ? (
                     <video
@@ -179,11 +174,11 @@ export function ScreensController() {
               </div>
 
               {/* Upload Button */}
-              <div className="w-full flex flex-col items-center gap-2 mt-2">
+              <div className="w-full flex flex-col items-center gap-2 mt-2 shrink-0">
                 <button
                   onClick={() => triggerUpload(screen.id)}
                   disabled={isUploading}
-                  className="w-full py-3 bg-zinc-100 hover:bg-zinc-250 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 bg-[#8a8a8a] hover:bg-[#7a7a7a] dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isCurrentUploading ? (
                     <>
