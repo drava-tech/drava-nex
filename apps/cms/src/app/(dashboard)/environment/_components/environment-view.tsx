@@ -139,7 +139,9 @@ export function EnvironmentView() {
             >
               {/* Filled progress bar */}
               <div
-                className="h-full bg-white dark:bg-zinc-150 absolute left-0 top-0 transition-all duration-150 shadow-sm"
+                className={`h-full bg-white dark:bg-zinc-150 absolute left-0 top-0 shadow-sm ${
+                  isVolumeDragging ? "" : "transition-all duration-150"
+                }`}
                 style={{ width: `${volume}%` }}
               />
               <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-800 dark:text-zinc-300 mix-blend-difference relative z-10">
