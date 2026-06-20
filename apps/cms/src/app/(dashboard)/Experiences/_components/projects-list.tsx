@@ -58,10 +58,10 @@ function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) 
       onClick={() => router.push(`/projects/${proj.slug}`)}
       className={[
         spanClasses,
-        "bg-[#d6d6d6] hover:bg-[#c8c8c8] dark:bg-zinc-900 dark:hover:bg-zinc-800",
+        "bg-[#d6d6d6] dark:bg-zinc-900",
         "rounded-2xl flex flex-col justify-start gap-3 cursor-pointer",
         "border border-zinc-300/40 dark:border-zinc-800/50",
-        "group relative overflow-hidden shadow-sm select-none",
+        "relative overflow-hidden shadow-sm select-none",
         isLarge ? "p-8 pb-10" : "p-5 pb-7",
       ].join(" ")}
     >
@@ -82,7 +82,7 @@ function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) 
       <span
         className={[
           "font-normal leading-[0.75] text-white dark:text-zinc-800/35",
-          "select-none transition-transform duration-200 group-hover:scale-105 inline-block",
+          "select-none inline-block",
           isLarge ? "text-[140px] -mt-4 -ml-4" : "text-[80px] -mt-3 -ml-3",
         ].join(" ")}
       >

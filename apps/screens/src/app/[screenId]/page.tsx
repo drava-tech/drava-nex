@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { resolveDisplayConfig, DisplayConfigError } from "@/lib/display-config";
 import { LiveScreenPlayer } from "@/components/display/LiveScreenPlayer";
-import { IdleDisplay } from "@/components/display/IdleDisplay";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -25,34 +26,49 @@ interface PageProps {
 export default async function DisplayPage({ params, searchParams }: PageProps) {
   const [{ screenId }, sp] = await Promise.all([params, searchParams]);
   const pickerEnabled = sp.picker !== "false";
+  const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
+  const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
 
-  let config;
   try {
-    config = await resolveDisplayConfig(screenId);
+    const config = await resolveDisplayConfig(screenId);
+
+    return (
+      <Suspense fallback={<LoadingDisplay />}>
+        <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+        <LiveScreenPlayer
+          screenId={screenId}
+          initialContent={config.content}
+          wsUrl={wsUrl}
+          apiUrl={apiUrl}
+          pickerEnabled={pickerEnabled}
+        />
+      </Suspense>
+    );
   } catch (error) {
     if (error instanceof DisplayConfigError) {
       if (error.code === "SCREEN_NOT_FOUND") notFound();
-      if (error.code === "CONTENT_NOT_FOUND") return <IdleDisplay screenId={screenId} />;
+
+      if (error.code === "CONTENT_NOT_FOUND") {
+        // No content assigned yet — show idle UI but keep WebSocket alive
+        // so the screen auto-updates the moment the CMS assigns something.
+        return (
+          <>
+            <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+            <LiveScreenPlayer
+              screenId={screenId}
+              initialContent={null}
+              wsUrl={wsUrl}
+              apiUrl={apiUrl}
+              pickerEnabled={pickerEnabled}
+            />
+          </>
+        );
+      }
+
       return <DisplayError code={error.code} message={error.message} />;
     }
     throw error;
   }
-
-  const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
-  const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
-
-  return (
-    <Suspense fallback={<LoadingDisplay />}>
-      <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
-      <LiveScreenPlayer
-        screenId={screenId}
-        initialContent={config.content}
-        wsUrl={wsUrl}
-        apiUrl={apiUrl}
-        pickerEnabled={pickerEnabled}
-      />
-    </Suspense>
-  );
 }
 
 function LoadingDisplay() {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { WsContent } from "@platform/types";
+import { resolveBrowserApiEndpoint } from "@/lib/client-urls";
 
 interface ContentPickerOverlayProps {
   apiUrl: string;
@@ -22,16 +23,15 @@ export function ContentPickerOverlay({ apiUrl, onSelect }: ContentPickerOverlayP
     setOpen(true);
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/contents`);
+      const res = await fetch(resolveBrowserApiEndpoint(apiUrl, "/api/experiences"));
       const data = await res.json();
-      const items: WsContent[] = (data.contents ?? []).map((c: {
-        id: string; type?: string; source: string; loop?: boolean; muted?: boolean;
+      const items: WsContent[] = (data.experiences ?? []).map((e: {
+        id: string; title: string;
       }) => ({
-        id: c.id,
-        type: (c.type ?? "video") as WsContent["type"],
-        source: c.source,
-        loop: c.loop,
-        muted: c.muted,
+        id: e.id,
+        type: "experience" as const,
+        source: "",
+        title: e.title,
       }));
       setContents(items);
     } catch {
@@ -152,7 +152,7 @@ export function ContentPickerOverlay({ apiUrl, onSelect }: ContentPickerOverlayP
                     }}>
                       {c.type}
                     </span>
-                    <span style={{ wordBreak: "break-all" }}>{c.id}</span>
+                    <span style={{ wordBreak: "break-word" }}>{c.title ?? c.id}</span>
                   </button>
                 ))}
               </div>

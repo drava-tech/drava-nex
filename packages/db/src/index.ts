@@ -9,5 +9,9 @@ export type { Database } from "./client.js";
 // ─── Schema (Tables + Enums + Relations) ──────────────────────────────────────
 export * from "./schema/index.js";
 
+// ─── Queries ──────────────────────────────────────────────────────────────────
+export * from "./queries/screens.js";
+export * from "./queries/experiences.js";
+
 // ─── Drizzle Utilities ────────────────────────────────────────────────────────
 export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count, isNull, isNotNull } from "drizzle-orm";

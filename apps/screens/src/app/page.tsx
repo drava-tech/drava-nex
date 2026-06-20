@@ -1,11 +1,20 @@
 import React from 'react';
 import Link from 'next/link';
-import screensConfig from '../../public/config/screens.json';
 
-type ScreenConfig = { screenId: string; screenName: string; contentId: string };
+type ScreenConfig = { screenId: string; screenName: string };
 
-export default function Page() {
-  const screens: ScreenConfig[] = screensConfig.screens;
+const INTERNAL_API_URL = process.env['INTERNAL_API_URL'] ?? 'http://localhost:4000';
+
+export const dynamic = 'force-dynamic';
+
+export default async function Page() {
+  let screens: ScreenConfig[] = [];
+  try {
+    const res = await fetch(`${INTERNAL_API_URL}/api/screens`, { cache: 'no-store' });
+    if (res.ok) screens = (await res.json()).screens ?? [];
+  } catch {
+    screens = [];
+  }
 
   return (
     <div
@@ -52,8 +61,8 @@ export default function Page() {
               color: '#737373',
             }}
           >
-            No screens configured. Add entries to{' '}
-            <code style={{ color: '#9ca3af' }}>public/config/screens.json</code> to get started.
+            No screens configured. Add a screen from the{' '}
+            <code style={{ color: '#9ca3af' }}>CMS → Screens</code> page to get started.
           </div>
         ) : (
           screens.map((screen) => (

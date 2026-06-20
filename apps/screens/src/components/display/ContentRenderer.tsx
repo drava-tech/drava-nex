@@ -3,8 +3,9 @@ import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
+import { ExperienceDisplay } from "./ExperienceDisplay";
 
-export function ContentRenderer({ content }: { content: Content }) {
+export function ContentRenderer({ content, screenId }: { content: Content; screenId?: string }) {
   switch (content.type) {
     case "video":
       return <VideoRenderer content={content} />;
@@ -14,6 +15,8 @@ export function ContentRenderer({ content }: { content: Content }) {
       return <HtmlRenderer content={content} />;
     case "stream":
       return <StreamRenderer content={content} />;
+    case "experience":
+      return <ExperienceDisplay title={content.title} screenId={screenId} />;
     default: {
       const _exhaustive = content as never;
       return (

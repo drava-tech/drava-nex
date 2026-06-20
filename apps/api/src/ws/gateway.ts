@@ -1,8 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { getScreenContent, setScreenExperience } from '@platform/db';
 import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, BroadcastRequest } from '@platform/types';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -10,32 +8,8 @@ import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, Broadca
 const screenRegistry = new Map<string, Set<WebSocket>>();
 // CMS browser clients (all admin tabs)
 const cmsRegistry = new Set<WebSocket>();
-// Last known content per screen — for WELCOME on reconnect
+// Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
-
-// ─── Config path resolution ───────────────────────────────────────────────────
-function getConfigDir(): string {
-  if (process.env['CONFIG_DIR']) return process.env['CONFIG_DIR'];
-  const fromApiDir = join(process.cwd(), '..', 'screens', 'public', 'config');
-  if (existsSync(fromApiDir)) return fromApiDir;
-  const fromRoot = join(process.cwd(), 'apps', 'screens', 'public', 'config');
-  if (existsSync(fromRoot)) return fromRoot;
-  throw new Error('[gateway] Cannot locate config dir. Set CONFIG_DIR env var.');
-}
-
-async function persistScreenAssignment(screenId: string, contentId: string): Promise<void> {
-  try {
-    const dir = getConfigDir();
-    const raw = await readFile(join(dir, 'screens.json'), 'utf-8');
-    const config = JSON.parse(raw) as { screens: { screenId: string; screenName: string; contentId: string }[] };
-    config.screens = config.screens.map((s) =>
-      s.screenId === screenId ? { ...s, contentId } : s
-    );
-    await writeFile(join(dir, 'screens.json'), JSON.stringify(config, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('[gateway] Failed to persist screen assignment:', err);
-  }
-}
 
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
 export function broadcast(req: BroadcastRequest): number {
@@ -98,20 +72,32 @@ export function createGateway(): WebSocketServer {
 
       switch (msg.type) {
         case 'REGISTER': {
-          registeredScreenId = msg.screenId;
-          if (!screenRegistry.has(msg.screenId)) {
-            screenRegistry.set(msg.screenId, new Set());
+          const sid = msg.screenId;
+          registeredScreenId = sid;
+          if (!screenRegistry.has(sid)) {
+            screenRegistry.set(sid, new Set());
           }
-          screenRegistry.get(msg.screenId)!.add(ws);
+          screenRegistry.get(sid)!.add(ws);
 
-          const cached = contentCache.get(msg.screenId);
-          if (cached) {
-            const welcome: WsServerMessage = {
-              type: 'WELCOME',
-              screenId: msg.screenId,
-              content: cached,
-            };
+          const sendWelcome = (content: WsContent) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const welcome: WsServerMessage = { type: 'WELCOME', screenId: sid, content };
             ws.send(JSON.stringify(welcome));
+          };
+
+          const cached = contentCache.get(sid);
+          if (cached) {
+            sendWelcome(cached);
+          } else {
+            // Cache is empty (e.g. right after an API restart). Fall back to the
+            // authoritative DB so the screen syncs to current content on connect
+            // instead of staying on stale page-load content.
+            void getScreenContent(sid).then((content) => {
+              if (content) {
+                contentCache.set(sid, content);
+                sendWelcome(content);
+              }
+            }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;
         }
@@ -149,8 +135,10 @@ export function createGateway(): WebSocketServer {
           // Notify CMS browsers
           broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'screen' });
 
-          // Persist assignment asynchronously
-          persistScreenAssignment(screenId, content.id).catch(() => null);
+          // Persist assignment asynchronously (content.id is the experience id)
+          setScreenExperience(screenId, content.id).catch((err) =>
+            console.error('[gateway] Failed to persist screen assignment:', err)
+          );
           break;
         }
 

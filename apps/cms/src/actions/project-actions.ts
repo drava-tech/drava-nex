@@ -1,8 +1,9 @@
 "use server";
 
 import { db, experience, eq, and, isNull } from "@platform/db";
+import { asc, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -69,4 +70,14 @@ export async function reorderExperiences(
 
   revalidatePath("/experiences");
   return { success: true };
+}
+
+export async function getExperiences(): Promise<{ id: string; title: string }[]> {
+  await requireGuestOrAdmin();
+  const rows = await db
+    .select({ id: experience.id, name: experience.name })
+    .from(experience)
+    .where(isNull(experience.deletedAt))
+    .orderBy(asc(experience.position), desc(experience.createdAt));
+  return rows.map((r) => ({ id: r.id, title: r.name }));
 }

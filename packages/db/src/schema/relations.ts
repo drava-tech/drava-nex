@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { user, session } from "./auth.js";
 import { experience } from "./projects.js";
+import { screen } from "./screens.js";
 
 // ─── Auth Relations ───────────────────────────────────────────────────────────
 
@@ -29,5 +30,14 @@ export const experienceRelations = relations(experience, ({ one }) => ({
     fields: [experience.updatedByUserId],
     references: [user.id],
     relationName: "experienceUpdatedBy",
+  }),
+}));
+
+// ─── Screen Relations ─────────────────────────────────────────────────────────
+
+export const screenRelations = relations(screen, ({ one }) => ({
+  currentExperience: one(experience, {
+    fields: [screen.currentExperienceId],
+    references: [experience.id],
   }),
 }));

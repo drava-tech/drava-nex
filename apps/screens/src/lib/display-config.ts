@@ -1,86 +1,72 @@
-import type {
-  ScreensConfig,
-  ContentsConfig,
-  DisplayConfig,
-  Screen,
-  Content,
-} from "@/types/display";
+import type { DisplayConfig, Content } from "@/types/display";
+import type { WsContent } from "@platform/types";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Server-side base URL for reaching the API gateway (http://api:4000 in Docker).
+const INTERNAL_API_URL = process.env["INTERNAL_API_URL"] ?? "http://localhost:4000";
 
-/**
- * Reads a JSON file from /public/config at BUILD/RUN TIME (server-side only).
- * Uses Node `fs` — safe in Next.js App Router Server Components & generateStaticParams.
- */
-async function readPublicJson<T>(filename: string): Promise<T> {
-  const { readFile } = await import("fs/promises");
-  const { existsSync } = await import("fs");
-  const { join } = await import("path");
-
-  const configInApp = join(process.cwd(), "apps", "screens", "public", "config");
-  const filePath = existsSync(configInApp)
-    ? join(configInApp, filename)
-    : join(process.cwd(), "public", "config", filename);
-
-  try {
-    const raw = await readFile(filePath, "utf-8");
-    return JSON.parse(raw) as T;
-  } catch (cause) {
-    throw new Error(
-      `[display-config] Failed to load "${filename}": ${String(cause)}`
-    );
+function wsContentToDisplayContent(ws: WsContent): Content {
+  switch (ws.type) {
+    case "video":
+      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? true };
+    case "image":
+      return { id: ws.id, type: "image", source: ws.source };
+    case "html":
+      return { id: ws.id, type: "html", source: ws.source };
+    case "stream":
+      return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
+    case "experience":
+      return { id: ws.id, type: "experience", title: ws.title };
+    default:
+      return { id: ws.id, type: "video", source: ws.source, loop: true, muted: true };
   }
-}
-
-// ─── Loaders ─────────────────────────────────────────────────────────────────
-
-export async function loadScreens(): Promise<Screen[]> {
-  const config = await readPublicJson<ScreensConfig>("screens.json");
-
-  if (!Array.isArray(config.screens)) {
-    throw new Error("[display-config] screens.json: 'screens' must be an array");
-  }
-
-  return config.screens;
-}
-
-export async function loadContents(): Promise<Content[]> {
-  const config = await readPublicJson<ContentsConfig>("contents.json");
-
-  if (!Array.isArray(config.contents)) {
-    throw new Error("[display-config] contents.json: 'contents' must be an array");
-  }
-
-  return config.contents;
 }
 
 // ─── Resolver ────────────────────────────────────────────────────────────────
 
-export async function resolveDisplayConfig(
-  screenId: string
-): Promise<DisplayConfig> {
-  const [screens, contents] = await Promise.all([
-    loadScreens(),
-    loadContents(),
-  ]);
-
-  const screen = screens.find((s) => s.screenId === screenId);
-  if (!screen) {
+/**
+ * Resolve the content currently assigned to a screen by asking the API gateway
+ * (DB-authoritative). The screens app never touches the database directly.
+ */
+export async function resolveDisplayConfig(screenId: string): Promise<DisplayConfig> {
+  let res: Response;
+  try {
+    res = await fetch(
+      `${INTERNAL_API_URL}/api/screens/${encodeURIComponent(screenId)}/config`,
+      { cache: "no-store" }
+    );
+  } catch (cause) {
     throw new DisplayConfigError(
-      `Screen "${screenId}" not found. Valid IDs: ${screens.map((s) => s.screenId).join(", ")}`,
-      "SCREEN_NOT_FOUND"
+      `[display-config] Failed to reach API for "${screenId}": ${String(cause)}`,
+      "INVALID_CONFIG"
     );
   }
 
-  const content = contents.find((c) => c.id === screen.contentId);
-  if (!content) {
+  if (res.status === 404) {
+    // No content assigned (or unknown screen) — show idle UI but keep WS alive.
     throw new DisplayConfigError(
-      `Content "${screen.contentId}" assigned to screen "${screenId}" was not found in contents.json`,
+      `No content assigned to screen "${screenId}"`,
+      "CONTENT_NOT_FOUND"
+    );
+  }
+  if (!res.ok) {
+    throw new DisplayConfigError(
+      `[display-config] API returned HTTP ${res.status} for "${screenId}"`,
+      "INVALID_CONFIG"
+    );
+  }
+
+  const data = (await res.json()) as { content: WsContent | null };
+  if (!data.content) {
+    throw new DisplayConfigError(
+      `No content assigned to screen "${screenId}"`,
       "CONTENT_NOT_FOUND"
     );
   }
 
-  return { screen, content };
+  return {
+    screen: { screenId, screenName: screenId, contentId: "" },
+    content: wsContentToDisplayContent(data.content),
+  };
 }
 
 // ─── Custom Error ─────────────────────────────────────────────────────────────

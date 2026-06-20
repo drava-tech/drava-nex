@@ -1,9 +1,12 @@
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
+import type { WsContent } from "@platform/types";
+
 export interface Screen {
   screenId: string;
   screenName: string;
   contentId: string;
+  currentContent?: WsContent;
 }
 
 export interface ScreensConfig {
@@ -12,7 +15,7 @@ export interface ScreensConfig {
 
 // ─── Content ─────────────────────────────────────────────────────────────────
 
-export type ContentType = "video" | "image" | "html" | "stream";
+export type ContentType = "video" | "image" | "html" | "stream" | "experience";
 
 export interface BaseContent {
   id: string;
@@ -42,7 +45,12 @@ export interface StreamContent extends BaseContent {
   muted?: boolean;
 }
 
-export type Content = VideoContent | ImageContent | HtmlContent | StreamContent;
+export interface ExperienceContent extends BaseContent {
+  type: "experience";
+  title?: string;
+}
+
+export type Content = VideoContent | ImageContent | HtmlContent | StreamContent | ExperienceContent;
 
 export interface ContentsConfig {
   contents: Content[];

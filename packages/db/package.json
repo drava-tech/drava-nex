@@ -12,13 +12,15 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -b",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
-    "db:seed-projects": "tsx src/seed-projects.ts"
+    "db:seed-projects": "tsx src/seed-projects.ts",
+    "db:migrate-screen": "tsx src/migrate-screen.ts",
+    "db:seed-screens": "tsx src/seed-screens.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

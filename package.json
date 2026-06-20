@@ -6,7 +6,7 @@
   "description": "Production-grade digital signage, CMS, and IoT platform monorepo",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run build --filter=./packages/* --force && turbo run dev",
     "start": "turbo run start",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

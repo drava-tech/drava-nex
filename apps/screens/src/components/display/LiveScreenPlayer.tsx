@@ -11,20 +11,22 @@ import { ContentTitleOverlay } from "./ContentTitleOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
-  initialContent: Content;
+  initialContent: Content | null;
   wsUrl: string;
   apiUrl: string;
   pickerEnabled?: boolean;
 }
 
-// Map display Content → WsContent (for preloader + WS)
+// Sentinel used when screen has no content assigned yet
+const IDLE_WS_CONTENT: WsContent = { id: "__idle__", type: "experience", source: "" };
+
 function toWsContent(c: Content): WsContent {
   const base = { id: c.id, type: c.type as WsContent["type"], source: (c as { source?: string }).source ?? "" };
   if (c.type === "video") return { ...base, loop: c.loop, muted: c.muted };
+  if (c.type === "experience") return { ...base, title: c.title };
   return base;
 }
 
-// Map WsContent → display Content (for ContentRenderer)
 function toDisplayContent(ws: WsContent): Content {
   switch (ws.type) {
     case "video":
@@ -35,8 +37,10 @@ function toDisplayContent(ws: WsContent): Content {
       return { id: ws.id, type: "html", source: ws.source };
     case "stream":
       return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
+    case "experience":
+      return { id: ws.id, type: "experience", title: ws.title };
     default:
-      return { id: ws.id, type: "video", source: (ws as WsContent).source, loop: true, muted: true };
+      return { id: ws.id, type: "experience", title: undefined };
   }
 }
 
@@ -47,7 +51,8 @@ export function LiveScreenPlayer({
   apiUrl,
   pickerEnabled = true,
 }: LiveScreenPlayerProps) {
-  const { activeContent, queueContent } = useContentPreloader(toWsContent(initialContent));
+  const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
+  const { activeContent, queueContent } = useContentPreloader(initial);
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -60,26 +65,44 @@ export function LiveScreenPlayer({
     wsUrl,
   });
 
-  // HTTP fallback: re-fetch config every 60s while WS is disconnected
+  // On every (re)connect, sync to the authoritative current content from
+  // screens.json. Covers API restarts (in-memory cache wiped) and broadcasts
+  // missed during a reconnect gap. queueContent dedups by content key, so this
+  // is a no-op when the screen is already current.
+  useEffect(() => {
+    if (status !== "connected") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/config/${screenId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.content) queueContent(data.content as WsContent);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [status, screenId, queueContent]);
+
+  // HTTP fallback: poll local screens.json every 5s while WS is disconnected
   useEffect(() => {
     if (status !== "disconnected") return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/screens/${screenId}/config`);
+        const res = await fetch(`/api/config/${screenId}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.content) queueContent(data.content);
+          if (data.content) queueContent(data.content as WsContent);
         }
       } catch { /* silent */ }
-    }, 60_000);
+    }, 5_000);
     return () => clearInterval(interval);
-  }, [status, screenId, apiUrl, queueContent]);
+  }, [status, screenId, queueContent]);
 
   const displayContent = toDisplayContent(activeContent);
 
   return (
     <>
-      <ContentRenderer content={displayContent} />
+      <ContentRenderer content={displayContent} screenId={screenId} />
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
       {pickerEnabled && (
         <ContentPickerOverlay

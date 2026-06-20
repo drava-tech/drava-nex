@@ -5,7 +5,9 @@ import type { WsContent } from "@platform/types";
 
 interface PreloadState {
   active: WsContent;
+  activeKey: string;
   staged: WsContent | null;
+  stagedKey: string | null;
 }
 
 interface UseContentPreloaderReturn {
@@ -14,20 +16,26 @@ interface UseContentPreloaderReturn {
 }
 
 export function useContentPreloader(initial: WsContent): UseContentPreloaderReturn {
-  const [state, setState] = useState<PreloadState>({ active: initial, staged: null });
+  const [state, setState] = useState<PreloadState>({
+    active: initial,
+    activeKey: getContentKey(initial),
+    staged: null,
+    stagedKey: null,
+  });
   const preloadAbortRef = useRef<AbortController | null>(null);
 
   const queueContent = useCallback((incoming: WsContent) => {
-    // Skip if it's already what we're showing or preloading
+    const incomingKey = getContentKey(incoming);
     setState((prev) => {
-      if (prev.active.id === incoming.id) return prev;
-      return { ...prev, staged: incoming };
+      if (prev.activeKey === incomingKey || prev.stagedKey === incomingKey) return prev;
+      return { ...prev, staged: incoming, stagedKey: incomingKey };
     });
   }, []);
 
   useEffect(() => {
-    if (!state.staged) return;
+    if (!state.staged || !state.stagedKey) return;
     const content = state.staged;
+    const contentKey = state.stagedKey;
 
     // Cancel any in-flight preload
     preloadAbortRef.current?.abort();
@@ -39,7 +47,7 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
 
     const promote = () => {
       if (!cancelled) {
-        setState({ active: content, staged: null });
+        setState({ active: content, activeKey: contentKey, staged: null, stagedKey: null });
       }
     };
 
@@ -57,11 +65,22 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
       video.src = content.source;
       video.load();
     } else {
-      // html / stream — promote immediately
+      // html / stream / experience — promote immediately
       promote();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.staged?.id]);
+  }, [state.stagedKey]);
 
   return { activeContent: state.active, queueContent };
+}
+
+function getContentKey(content: WsContent): string {
+  return JSON.stringify([
+    content.id,
+    content.type,
+    content.source,
+    content.loop ?? null,
+    content.muted ?? null,
+    content.title ?? null,
+  ]);
 }

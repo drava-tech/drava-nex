@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { WsServerMessage, WsClientMessage, WsContent } from "@platform/types";
+import { resolveBrowserWsUrl } from "@/lib/client-urls";
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
 
@@ -28,9 +29,7 @@ export function useScreenWebSocket({
   onContentUpdateRef.current = onContentUpdate;
 
   const connect = useCallback(() => {
-    const resolved = wsUrl.startsWith("/")
-      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${wsUrl}`
-      : wsUrl;
+    const resolved = resolveBrowserWsUrl(wsUrl);
 
     const ws = new WebSocket(resolved);
     wsRef.current = ws;

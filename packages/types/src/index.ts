@@ -97,7 +97,7 @@ export interface DeviceCommand {
 
 // --- WebSocket Protocol Types ---
 
-export type WsContentType = 'video' | 'image' | 'html' | 'stream';
+export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
 
 export interface WsContent {
   id: string;
