@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { VideoContent } from "@/types/display";
 
 interface VideoRendererProps {
@@ -7,6 +8,21 @@ interface VideoRendererProps {
 }
 
 export function VideoRenderer({ content }: VideoRendererProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const handleMuteEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ muted: boolean }>;
+      if (videoRef.current) {
+        videoRef.current.muted = customEvent.detail.muted;
+      }
+    };
+    window.addEventListener("screen-mute", handleMuteEvent);
+    return () => {
+      window.removeEventListener("screen-mute", handleMuteEvent);
+    };
+  }, []);
+
   if (!content.source) {
     return (
       <ErrorOverlay message="Video source is missing from the content configuration." />
@@ -15,6 +31,7 @@ export function VideoRenderer({ content }: VideoRendererProps) {
 
   return (
     <video
+      ref={videoRef}
       key={content.source}       // force remount if source changes
       src={content.source}
       autoPlay

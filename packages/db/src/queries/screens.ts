@@ -49,6 +49,33 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
 
   if (!row || !row.experienceId) return null;
 
+  const expName = row.experienceName ?? "";
+  if (expName.startsWith("[MEDIA:video] ")) {
+    const sourceVal = expName.replace("[MEDIA:video] ", "");
+    const title = sourceVal.startsWith("http")
+      ? sourceVal.split("/").pop()?.split("?")[0] ?? "Media Video"
+      : sourceVal;
+    return {
+      id: row.experienceId,
+      type: "video",
+      source: sourceVal.startsWith("http") ? sourceVal : `/media/${sourceVal}`,
+      title,
+    };
+  }
+
+  if (expName.startsWith("[MEDIA:image] ")) {
+    const sourceVal = expName.replace("[MEDIA:image] ", "");
+    const title = sourceVal.startsWith("http")
+      ? sourceVal.split("/").pop()?.split("?")[0] ?? "Media Image"
+      : sourceVal;
+    return {
+      id: row.experienceId,
+      type: "image",
+      source: sourceVal.startsWith("http") ? sourceVal : `/media/${sourceVal}`,
+      title,
+    };
+  }
+
   return {
     id: row.experienceId,
     type: "experience",

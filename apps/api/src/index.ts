@@ -40,7 +40,7 @@ import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import { db, sql, experience, isNull, listScreens, getScreenContent, listExperiences } from '@platform/db';
 import { requireAuth } from './middleware/auth.js';
-import { createGateway, broadcast, broadcastToCms } from './ws/gateway.js';
+import { createGateway, broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds } from './ws/gateway.js';
 import type { BroadcastRequest } from '@platform/types';
 
 const app = new Hono();
@@ -119,6 +119,11 @@ app.get('/api/screens', async (c) => {
   return c.json({ screens: await listScreens() });
 });
 
+// ─── Active screens list (public) ─────────────────────────────────────────────
+app.get('/api/screens/active', (c) => {
+  return c.json({ activeScreenIds: getConnectedScreenIds() });
+});
+
 // ─── Screen config (DB-authoritative; used on connect/reload to sync) ─────────
 app.get('/api/screens/:screenId/config', async (c) => {
   const screenId = c.req.param('screenId');
@@ -141,6 +146,17 @@ app.post('/api/internal/broadcast', async (c) => {
   console.info(`[api] Broadcast for screen "${body.screenId}" delivered to ${delivered} clients`);
   // Also notify CMS clients so multiple admin tabs stay in sync
   broadcastToCms({ type: 'SCREEN_UPDATED', screenId: body.screenId, content: body.content, source: 'cms' });
+  return c.json({ ok: true, delivered });
+});
+
+// ─── Internal screen command (called by CMS Server Actions) ───────────────────
+app.post('/api/internal/command', async (c) => {
+  if (c.req.header('x-broadcast-secret') !== BROADCAST_SECRET) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+  const body = await c.req.json<{ screenId: string; command: string; value?: any }>();
+  const delivered = sendCommandToScreen(body.screenId, body.command, body.value);
+  console.info(`[api] Command "${body.command}" for screen "${body.screenId}" delivered to ${delivered} clients`);
   return c.json({ ok: true, delivered });
 });
 

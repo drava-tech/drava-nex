@@ -111,7 +111,8 @@ export interface WsContent {
 export type WsServerMessage =
   | { type: 'WELCOME'; screenId: string; content: WsContent }
   | { type: 'CONTENT_UPDATE'; screenId: string; content: WsContent; timestamp: number }
-  | { type: 'PING' };
+  | { type: 'PING' }
+  | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string }
@@ -120,7 +121,8 @@ export type WsClientMessage =
   | { type: 'PONG' };
 
 export type WsCmsMessage =
-  | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' };
+  | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
+  | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] };
 
 export interface BroadcastRequest {
   screenId: string;

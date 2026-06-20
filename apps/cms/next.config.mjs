@@ -10,6 +10,9 @@ const nextConfig = {
   output: 'standalone',
   // Trace files from monorepo root so workspace packages are included in the bundle
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  experimental: {
+    middlewareClientMaxBodySize: '100mb',
+  },
 };
 
 export default nextConfig;

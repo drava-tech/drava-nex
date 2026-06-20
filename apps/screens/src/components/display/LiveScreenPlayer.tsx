@@ -18,7 +18,13 @@ interface LiveScreenPlayerProps {
 }
 
 // Sentinel used when screen has no content assigned yet
-const IDLE_WS_CONTENT: WsContent = { id: "__idle__", type: "experience", source: "" };
+const IDLE_WS_CONTENT: WsContent = {
+  id: "__idle__",
+  type: "video",
+  source: "/media/4k_render_intro_animation_0003.mp4",
+  loop: true,
+  muted: true,
+};
 
 function toWsContent(c: Content): WsContent {
   const base = { id: c.id, type: c.type as WsContent["type"], source: (c as { source?: string }).source ?? "" };
@@ -59,9 +65,31 @@ export function LiveScreenPlayer({
     [queueContent]
   );
 
+  const handleCommand = useCallback((command: string, value?: any) => {
+    if (command === "RELOAD") {
+      window.location.reload();
+    } else if (command === "MUTE" || command === "UNMUTE") {
+      const event = new CustomEvent("screen-mute", {
+        detail: { muted: command === "MUTE" },
+      });
+      window.dispatchEvent(event);
+    } else if (command === "NEXT_PAGE" || command === "PREV_PAGE") {
+      const event = new CustomEvent("screen-navigate", {
+        detail: { direction: command === "NEXT_PAGE" ? "next" : "prev" },
+      });
+      window.dispatchEvent(event);
+    } else if (command === "SET_SLIDE") {
+      const event = new CustomEvent("screen-set-slide", {
+        detail: { slideIndex: Number(value) },
+      });
+      window.dispatchEvent(event);
+    }
+  }, []);
+
   const { status, sendContentChangeRequest } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
+    onCommand: handleCommand,
     wsUrl,
   });
 

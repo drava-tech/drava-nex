@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, GripVertical } from "lucide-react";
+import { Plus, GripVertical, Trash2 } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -19,11 +19,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CreateProjectModal } from "./create-project-modal";
-import { reorderExperiences } from "@/actions/project-actions";
+import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import type { Experience } from "@platform/db";
 
 interface ProjectsListProps {
   projects: Experience[];
+  isAdmin?: boolean;
 }
 
 function getCardSpanClasses(index: number): string {
@@ -37,12 +38,14 @@ interface SortableCardProps {
   index: number;
   isLarge: boolean;
   spanClasses: string;
+  isAdmin?: boolean;
+  onDelete: (id: string) => void;
 }
 
-function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) {
+function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: SortableCardProps) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: proj.id });
+    useSortable({ id: proj.id, disabled: !isAdmin });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -65,19 +68,35 @@ function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) 
         isLarge ? "p-8 pb-10" : "p-5 pb-7",
       ].join(" ")}
     >
-      {/* Reorder Grip Handle */}
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="absolute top-4 right-4 p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150 z-20"
-        onClick={(e) => {
-          // Stop propagation to prevent triggering parent onClick navigation
-          e.stopPropagation();
-        }}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
+      {/* Action Controls for Admin */}
+      {isAdmin && (
+        <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20">
+          <button
+            type="button"
+            className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-red-500/10 hover:text-red-500 dark:bg-zinc-800/40 dark:hover:bg-red-950/30 dark:hover:text-red-400 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(proj.id);
+            }}
+            title="Delete Experience"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            title="Drag to Reorder"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <span
         className={[
@@ -106,7 +125,7 @@ function SortableCard({ proj, index, isLarge, spanClasses }: SortableCardProps) 
   );
 }
 
-export function ProjectsList({ projects }: ProjectsListProps) {
+export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [items, setItems] = useState<Experience[]>(projects);
@@ -151,6 +170,22 @@ export function ProjectsList({ projects }: ProjectsListProps) {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this experience?")) return;
+    try {
+      const res = await deleteProject(id);
+      if (res.success) {
+        setItems((prev) => prev.filter((item) => item.id !== id));
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to delete experience.");
+      }
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      alert("An error occurred while deleting the experience.");
+    }
+  };
+
   return (
     <>
       {showModal && <CreateProjectModal onClose={handleClose} />}
@@ -168,31 +203,41 @@ export function ProjectsList({ projects }: ProjectsListProps) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
-            >
-              <Plus className="h-3 w-3" />
-              New Experience
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
+              >
+                <Plus className="h-3 w-3" />
+                New Experience
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Empty state */}
         {projects.length === 0 ? (
           <div
-            className="flex flex-col items-center justify-center gap-4 p-12 rounded-2xl border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-center cursor-pointer transition-colors group"
-            onClick={() => setShowModal(true)}
+            className={`flex flex-col items-center justify-center gap-4 p-12 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-center ${
+              isAdmin ? "cursor-pointer hover:border-zinc-400 dark:hover:border-zinc-700 group" : ""
+            }`}
+            onClick={() => {
+              if (isAdmin) setShowModal(true);
+            }}
           >
-            <div className="h-10 w-10 rounded-2xl bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-900 dark:group-hover:bg-zinc-800 flex items-center justify-center transition-colors">
-              <Plus className="h-5 w-5 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400" />
-            </div>
+            {isAdmin && (
+              <div className="h-10 w-10 rounded-2xl bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-900 dark:group-hover:bg-zinc-800 flex items-center justify-center transition-colors">
+                <Plus className="h-5 w-5 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400" />
+              </div>
+            )}
             <div>
               <p className="text-sm font-normal text-zinc-500 dark:text-zinc-400">No experiences yet</p>
-              <p className="text-[11px] text-zinc-400 dark:text-zinc-600 mt-0.5">
-                Click to create your first experience
-              </p>
+              {isAdmin && (
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-600 mt-0.5">
+                  Click to create your first experience
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -214,21 +259,25 @@ export function ProjectsList({ projects }: ProjectsListProps) {
                       index={index}
                       isLarge={isLarge}
                       spanClasses={spanClasses}
+                      isAdmin={isAdmin}
+                      onDelete={handleDelete}
                     />
                   );
                 })}
 
-                <div
-                  onClick={() => setShowModal(true)}
-                  className="col-span-1 row-span-1 bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 group"
-                >
-                  <div className="h-8 w-8 rounded-xl bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-800 dark:group-hover:bg-zinc-700 flex items-center justify-center transition-colors">
-                    <Plus className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300" />
+                {isAdmin && (
+                  <div
+                    onClick={() => setShowModal(true)}
+                    className="col-span-1 row-span-1 bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 group"
+                  >
+                    <div className="h-8 w-8 rounded-xl bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-800 dark:group-hover:bg-zinc-700 flex items-center justify-center transition-colors">
+                      <Plus className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400 uppercase tracking-wider transition-colors">
+                      New Experience
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400 uppercase tracking-wider transition-colors">
-                    New Experience
-                  </span>
-                </div>
+                )}
               </div>
             </SortableContext>
           </DndContext>

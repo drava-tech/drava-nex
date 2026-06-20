@@ -9,6 +9,7 @@ export type WsStatus = "connecting" | "connected" | "disconnected";
 interface UseScreenWebSocketOptions {
   screenId: string;
   onContentUpdate: (content: WsContent) => void;
+  onCommand?: (command: string, value?: any) => void;
   wsUrl: string;
 }
 
@@ -20,6 +21,7 @@ interface UseScreenWebSocketReturn {
 export function useScreenWebSocket({
   screenId,
   onContentUpdate,
+  onCommand,
   wsUrl,
 }: UseScreenWebSocketOptions): UseScreenWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -27,6 +29,8 @@ export function useScreenWebSocket({
   const [status, setStatus] = useState<WsStatus>("connecting");
   const onContentUpdateRef = useRef(onContentUpdate);
   onContentUpdateRef.current = onContentUpdate;
+  const onCommandRef = useRef(onCommand);
+  onCommandRef.current = onCommand;
 
   const connect = useCallback(() => {
     const resolved = resolveBrowserWsUrl(wsUrl);
@@ -54,6 +58,8 @@ export function useScreenWebSocket({
       } else if (msg.type === "PING") {
         const pong: WsClientMessage = { type: "PONG" };
         ws.send(JSON.stringify(pong));
+      } else if (msg.type === "SCREEN_COMMAND") {
+        onCommandRef.current?.(msg.command, msg.value);
       }
     };
 

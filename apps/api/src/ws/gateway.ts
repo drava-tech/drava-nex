@@ -11,6 +11,35 @@ const cmsRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
 
+export function sendCommandToScreen(screenId: string, command: string, value?: any): number {
+  const msg = {
+    type: 'SCREEN_COMMAND',
+    command,
+    value,
+    timestamp: Date.now(),
+  };
+  const frame = JSON.stringify(msg);
+
+  const sockets = screenRegistry.get(screenId);
+  if (!sockets) return 0;
+  let count = 0;
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(frame);
+      count++;
+    }
+  }
+  return count;
+}
+
+export function broadcastActiveScreensToCms() {
+  const msg = {
+    type: 'ACTIVE_SCREENS_LIST',
+    activeScreenIds: getConnectedScreenIds(),
+  };
+  broadcastToCms(msg as any);
+}
+
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
 export function broadcast(req: BroadcastRequest): number {
   contentCache.set(req.screenId, req.content);
@@ -49,9 +78,23 @@ export function getContentCache(screenId: string): WsContent | undefined {
 }
 
 export function getConnectedScreenIds(): string[] {
-  return Array.from(screenRegistry.keys()).filter(
-    (id) => (screenRegistry.get(id)?.size ?? 0) > 0
-  );
+  return Array.from(screenRegistry.keys()).filter((id) => {
+    const sockets = screenRegistry.get(id);
+    if (!sockets) return false;
+    let activeCount = 0;
+    for (const ws of sockets) {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        activeCount++;
+      } else {
+        sockets.delete(ws);
+      }
+    }
+    if (activeCount === 0) {
+      screenRegistry.delete(id);
+      return false;
+    }
+    return true;
+  });
 }
 
 // ─── Gateway factory ──────────────────────────────────────────────────────────
@@ -78,6 +121,7 @@ export function createGateway(): WebSocketServer {
             screenRegistry.set(sid, new Set());
           }
           screenRegistry.get(sid)!.add(ws);
+          broadcastActiveScreensToCms();
 
           const sendWelcome = (content: WsContent) => {
             if (ws.readyState !== WebSocket.OPEN) return;
@@ -105,6 +149,12 @@ export function createGateway(): WebSocketServer {
         case 'CMS_REGISTER': {
           isCmsClient = true;
           cmsRegistry.add(ws);
+          // Send initial active screens list on registration
+          const welcomeMsg = {
+            type: 'ACTIVE_SCREENS_LIST',
+            activeScreenIds: getConnectedScreenIds(),
+          };
+          ws.send(JSON.stringify(welcomeMsg));
           break;
         }
 
@@ -149,7 +199,14 @@ export function createGateway(): WebSocketServer {
 
     ws.on('close', () => {
       if (registeredScreenId) {
-        screenRegistry.get(registeredScreenId)?.delete(ws);
+        const sockets = screenRegistry.get(registeredScreenId);
+        if (sockets) {
+          sockets.delete(ws);
+          if (sockets.size === 0) {
+            screenRegistry.delete(registeredScreenId);
+          }
+        }
+        broadcastActiveScreensToCms();
       }
       if (isCmsClient) {
         cmsRegistry.delete(ws);

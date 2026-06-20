@@ -9,6 +9,14 @@ const nextConfig = {
   transpilePackages: ['@platform/ui'],
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  async rewrites() {
+    return [
+      {
+        source: '/media/:path*',
+        destination: 'http://localhost:3000/media/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

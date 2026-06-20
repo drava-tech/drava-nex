@@ -81,3 +81,20 @@ export async function getExperiences(): Promise<{ id: string; title: string }[]>
     .orderBy(asc(experience.position), desc(experience.createdAt));
   return rows.map((r) => ({ id: r.id, title: r.name }));
 }
+
+export async function deleteProject(id: string): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+
+  try {
+    await db
+      .update(experience)
+      .set({ deletedAt: new Date() })
+      .where(eq(experience.id, id));
+    
+    revalidatePath("/experiences");
+    revalidatePath("/projects");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to delete experience." };
+  }
+}
