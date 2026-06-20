@@ -12,7 +12,12 @@ import {
 import { broadcastWsContentDirect } from "../lib/broadcast";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 
-export async function getScreens(): Promise<{ screenId: string; screenName: string }[]> {
+export async function getScreens(): Promise<{
+  screenId: string;
+  screenName: string;
+  currentExperienceId: string | null;
+  experienceName: string | null;
+}[]> {
   await requireGuestOrAdmin();
   return listScreens();
 }

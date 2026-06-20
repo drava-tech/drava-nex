@@ -18,25 +18,26 @@ interface ScreenConfig {
 }
 
 interface ScreensControllerProps {
-  initialScreens: { screenId: string; screenName: string }[];
+  initialScreens: {
+    screenId: string;
+    screenName: string;
+    currentExperienceId: string | null;
+    experienceName: string | null;
+  }[];
   isAdmin: boolean;
   experiences: { id: string; title: string }[];
 }
-
-// Stores only content-assignment state keyed by screenId
-type ContentState = Record<string, Pick<ScreenConfig, "contentType" | "contentValue" | "contentLabel">>;
-const STORAGE_KEY = "exhibition_screens_content_v1";
 
 export function ScreensController({ initialScreens, isAdmin, experiences }: ScreensControllerProps) {
   const router = useRouter();
 
   const [screens, setScreens] = useState<ScreenConfig[]>(() =>
-    initialScreens.map(({ screenId, screenName }) => ({
+    initialScreens.map(({ screenId, screenName, currentExperienceId, experienceName }) => ({
       id: screenId,
       name: screenName,
-      contentType: "image" as const,
-      contentValue: "",
-      contentLabel: undefined,
+      contentType: currentExperienceId ? ("experience" as const) : ("image" as const),
+      contentValue: currentExperienceId ?? "",
+      contentLabel: experienceName ?? undefined,
     }))
   );
   const [pickerTargetId, setPickerTargetId] = useState<string | null>(null);
@@ -44,43 +45,21 @@ export function ScreensController({ initialScreens, isAdmin, experiences }: Scre
   const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
 
   // Re-sync state whenever the server-provided screen list changes (e.g. after add/remove)
-  // and merge with any saved content assignments from localStorage.
   useEffect(() => {
-    const saved: ContentState = (() => {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"); } catch { return {}; }
-    })();
     setScreens(
-      initialScreens.map(({ screenId, screenName }) => ({
+      initialScreens.map(({ screenId, screenName, currentExperienceId, experienceName }) => ({
         id: screenId,
         name: screenName,
-        contentType: saved[screenId]?.contentType ?? "image",
-        contentValue: saved[screenId]?.contentValue ?? "",
-        contentLabel: saved[screenId]?.contentLabel,
+        contentType: currentExperienceId ? "experience" : "image",
+        contentValue: currentExperienceId ?? "",
+        contentLabel: experienceName ?? undefined,
       }))
     );
-    // JSON.stringify avoids re-running on every render while still catching list changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(initialScreens)]);
 
-  const persistContent = (next: ScreenConfig[]) => {
-    if (typeof window === "undefined") return;
-    const contentState: ContentState = {};
-    for (const s of next) {
-      contentState[s.id] = {
-        contentType: s.contentType,
-        contentValue: s.contentValue,
-        contentLabel: s.contentLabel,
-      };
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(contentState));
-  };
-
   const updateScreen = (id: string, updates: Partial<ScreenConfig>) => {
-    setScreens((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, ...updates } : s);
-      persistContent(next);
-      return next;
-    });
+    setScreens((prev) => prev.map((s) => s.id === id ? { ...s, ...updates } : s));
   };
 
   const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {

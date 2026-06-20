@@ -9,10 +9,24 @@ import { experience } from "../schema/projects.js";
  * "what is playing on which screen" (replaces the old screens.json files).
  */
 
-export async function listScreens(): Promise<{ screenId: string; screenName: string }[]> {
+export async function listScreens(): Promise<{
+  screenId: string;
+  screenName: string;
+  currentExperienceId: string | null;
+  experienceName: string | null;
+}[]> {
   return db
-    .select({ screenId: screen.screenId, screenName: screen.screenName })
+    .select({
+      screenId: screen.screenId,
+      screenName: screen.screenName,
+      currentExperienceId: screen.currentExperienceId,
+      experienceName: experience.name,
+    })
     .from(screen)
+    .leftJoin(
+      experience,
+      and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
     .where(isNull(screen.deletedAt))
     .orderBy(asc(screen.position), desc(screen.createdAt));
 }
