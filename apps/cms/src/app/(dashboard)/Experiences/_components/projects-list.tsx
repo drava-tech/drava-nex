@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, GripVertical, Trash2 } from "lucide-react";
+import { Plus, GripVertical, Trash2, Pencil, Eye } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -18,9 +18,13 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import type { Experience } from "@platform/db";
+
+const ACTION_BTN =
+  "p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150";
 
 interface ProjectsListProps {
   projects: Experience[];
@@ -58,7 +62,7 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
     <div
       ref={setNodeRef}
       style={style}
-      onClick={() => router.push(`/projects/${proj.slug}`)}
+      onClick={() => router.push(`/experiences/${proj.slug}`)}
       className={[
         spanClasses,
         "bg-[#d6d6d6] dark:bg-zinc-900",
@@ -71,30 +75,72 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
       {/* Action Controls for Admin */}
       {isAdmin && (
         <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20">
-          <button
-            type="button"
-            className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-red-500/10 hover:text-red-500 dark:bg-zinc-800/40 dark:hover:bg-red-950/30 dark:hover:text-red-400 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(proj.id);
-            }}
-            title="Delete Experience"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            title="Drag to Reorder"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+          <TooltipProvider delayDuration={200}>
+            {proj.templateKey && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={`/edit/experiences/${proj.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className={ACTION_BTN}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit template content</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={`/preview/experiences/${proj.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className={ACTION_BTN}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>Open full preview in a new tab</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-red-500/10 hover:text-red-500 dark:bg-zinc-800/40 dark:hover:bg-red-950/30 dark:hover:text-red-400 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(proj.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Delete experience</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  {...attributes}
+                  {...listeners}
+                  className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <GripVertical className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Drag to reorder</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       )}
 

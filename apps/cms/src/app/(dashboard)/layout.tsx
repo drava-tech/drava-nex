@@ -23,7 +23,7 @@ export default function DashboardLayout({
   const { data: sessionData } = useSession();
   const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
 
-  const isProjectsPage = pathname.startsWith("/projects");
+  const isProjectsPage = pathname.startsWith("/experiences");
 
   return (
     <SidebarProvider>

@@ -5,6 +5,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth.js";
@@ -18,6 +19,12 @@ export const experience = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     position: integer("position").notNull().default(0),
+    // Which code-defined template is assigned to this experience (e.g. 'portfolio').
+    // Null = no template assigned yet.
+    templateKey: text("template_key"),
+    // Per-template content, keyed by templateKey: { [templateKey]: <content> }.
+    // Keyed so switching templates never erases another template's content.
+    templateContent: jsonb("template_content").$type<Record<string, unknown>>(),
     createdByUserId: text("created_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),

@@ -107,7 +107,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               className="w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-900 dark:border-zinc-800 dark:focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 outline-none transition-colors font-mono disabled:opacity-50"
             />
             <p className="text-[10px] text-zinc-400 dark:text-zinc-600">
-              URL: /projects/{slug || "…"}
+              URL: /experiences/{slug || "…"}
             </p>
           </div>
 

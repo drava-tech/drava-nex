@@ -26,7 +26,7 @@ export function ProjectsDashboardContainer({ user: _user, verticals, dbProjects 
   ];
 
   const handleSelectProject = (slug: string) => {
-    router.push(`/projects/${slug}`);
+    router.push(`/experiences/${slug}`);
   };
 
   return (

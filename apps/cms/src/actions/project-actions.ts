@@ -50,7 +50,7 @@ export async function createProject(
     updatedByUserId: currentUser.id,
   });
 
-  revalidatePath("/projects");
+  revalidatePath("/experiences");
   return { success: true };
 }
 
