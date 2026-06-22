@@ -1,6 +1,6 @@
 # Backs up the Dockerized Postgres (cms-postgres) to a timestamped .sql in $OutDir.
-# Read-only: pg_dump never modifies the database. Default target: D:\cms-backups
-param([string]$OutDir = "D:\cms-backups")
+# Read-only: pg_dump never modifies the database. Default target: D:\cms-backups\daily-db
+param([string]$OutDir = "D:\cms-backups\daily-db")
 $ErrorActionPreference = "Stop"
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
