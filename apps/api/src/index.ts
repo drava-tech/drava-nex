@@ -196,8 +196,8 @@ httpServer.listen(PORT, () => {
   console.info('┌─────────────────────────────────────────────────────────┐');
   console.info('│          @platform/api  —  CMS Platform Gateway         │');
   console.info('├─────────────────────────────────────────────────────────┤');
-  console.info(`│  HTTP  →  http://localhost:${PORT}                          │`);
-  console.info(`│  WS    →  ws://localhost:${PORT}/ws/                         │`);
+  console.info(`│  HTTP  →  http://localhost:${PORT}                      │`);
+  console.info(`│  WS    →  ws://localhost:${PORT}/ws/                    │`);
   console.info('└─────────────────────────────────────────────────────────┘');
   console.info('');
 });
