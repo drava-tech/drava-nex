@@ -133,9 +133,9 @@ export function PortfolioEditorWorkspace({
       <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            href={`/experiences/${experience.slug}`}
+            href="/experiences"
             className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
-            title="Back to experience"
+            title="Back to experiences"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

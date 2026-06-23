@@ -4,12 +4,14 @@ import { db, experience, eq, and, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
+import { isTemplateKey } from "@/lib/templates";
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export async function createProject(
   name: string,
-  slug: string
+  slug: string,
+  templateKey?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   const currentUser = await requireAdmin();
 
@@ -29,6 +31,9 @@ export async function createProject(
         "Slug must use only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen.",
     };
   }
+  if (templateKey != null && !isTemplateKey(templateKey)) {
+    return { success: false, error: `Unknown template: "${templateKey}".` };
+  }
 
   const [existing] = await db
     .select({ id: experience.id })
@@ -46,6 +51,7 @@ export async function createProject(
   await db.insert(experience).values({
     name: trimmedName,
     slug: trimmedSlug,
+    templateKey: templateKey ?? null,
     createdByUserId: currentUser.id,
     updatedByUserId: currentUser.id,
   });

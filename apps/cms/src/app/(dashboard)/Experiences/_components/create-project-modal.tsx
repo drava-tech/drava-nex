@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { X, Loader2 } from "lucide-react";
 import { createProject } from "@/actions/project-actions";
+import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 
 interface CreateProjectModalProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ function deriveSlug(name: string): string {
 export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [templateKey, setTemplateKey] = useState<string>("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -40,7 +42,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createProject(name, slug);
+      const result = await createProject(name, slug, templateKey || null);
       if (result.success) {
         onClose();
       } else {
@@ -109,6 +111,25 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
             <p className="text-[10px] text-zinc-400 dark:text-zinc-600">
               URL: /experiences/{slug || "…"}
             </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
+              Template
+            </label>
+            <select
+              value={templateKey}
+              onChange={(e) => setTemplateKey(e.target.value)}
+              disabled={isPending}
+              className="w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-900 dark:border-zinc-800 dark:focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50"
+            >
+              <option value="">None (assign later)</option>
+              {TEMPLATE_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {TEMPLATE_LABELS[key]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {error && (

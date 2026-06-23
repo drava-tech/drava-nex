@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db, experience, eq, and, isNull } from "@platform/db";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { isTemplateKey } from "@/lib/templates";
-import { TEMPLATE_DEFINITIONS } from "@/app/(dashboard)/experiences/[id]/[[...subpath]]/_components/templates/definitions";
+import { TEMPLATE_DEFINITIONS } from "@/templates/definitions";
 
 interface PreviewPageProps {
   params: Promise<{ id: string; subpath?: string[] }>;

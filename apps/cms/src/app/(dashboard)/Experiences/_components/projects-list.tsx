@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, GripVertical, Trash2, Pencil, Eye } from "lucide-react";
+import { Plus, Trash2, Pencil, Eye, MoreVertical, Check } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -18,13 +18,21 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@platform/ui";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
+import { assignExperienceTemplate } from "@/actions/experience-actions";
+import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
-
-const ACTION_BTN =
-  "p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150";
 
 interface ProjectsListProps {
   projects: Experience[];
@@ -48,6 +56,7 @@ interface SortableCardProps {
 
 function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: SortableCardProps) {
   const router = useRouter();
+  const [, startAssign] = useTransition();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !isAdmin });
 
@@ -58,89 +67,103 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
     zIndex: isDragging ? 30 : undefined,
   };
 
+  const assign = (key: string | null) =>
+    startAssign(async () => {
+      await assignExperienceTemplate(proj.id, key);
+      router.refresh();
+    });
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      onClick={() => router.push(`/experiences/${proj.slug}`)}
+      // The whole card is the drag handle (admins only); the kebab is the only control.
+      {...(isAdmin ? { ...attributes, ...listeners } : {})}
       className={[
         spanClasses,
         "bg-[#d6d6d6] dark:bg-zinc-900",
-        "rounded-2xl flex flex-col justify-start gap-3 cursor-pointer",
+        "rounded-2xl flex flex-col justify-start gap-3",
+        isAdmin ? "cursor-grab active:cursor-grabbing" : "",
         "border border-zinc-300/40 dark:border-zinc-800/50",
         "relative overflow-hidden shadow-sm select-none",
         isLarge ? "p-8 pb-10" : "p-5 pb-7",
       ].join(" ")}
     >
-      {/* Action Controls for Admin */}
+      {/* Admin: 3-dot actions menu (the only visible control) */}
       {isAdmin && (
-        <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20">
-          <TooltipProvider delayDuration={200}>
-            {proj.templateKey && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a
-                      href={`/edit/experiences/${proj.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className={ACTION_BTN}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit template content</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a
-                      href={`/preview/experiences/${proj.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className={ACTION_BTN}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>Open full preview in a new tab</TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-red-500/10 hover:text-red-500 dark:bg-zinc-800/40 dark:hover:bg-red-950/30 dark:hover:text-red-400 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(proj.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Delete experience</TooltipContent>
-            </Tooltip>
+        <div className="absolute top-4 right-4 z-20">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Experience actions"
+                // Don't let a click on the menu start a card drag.
+                onPointerDown={(e) => e.stopPropagation()}
+                className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
+              {/* Edit / Preview need a template assigned */}
+              {proj.templateKey ? (
+                <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                  <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
+                    <Pencil className="h-4 w-4" /> Edit content
+                  </a>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled className="gap-2">
+                  <Pencil className="h-4 w-4" /> Edit content
+                </DropdownMenuItem>
+              )}
+              {proj.templateKey ? (
+                <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                  <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
+                    <Eye className="h-4 w-4" /> Preview
+                  </a>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled className="gap-2">
+                  <Eye className="h-4 w-4" /> Preview
+                </DropdownMenuItem>
+              )}
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  {...attributes}
-                  {...listeners}
-                  className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all duration-150"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  <GripVertical className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Drag to reorder</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              {/* Assign / change template */}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="gap-2">Assign template</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {TEMPLATE_KEYS.map((key) => (
+                    <DropdownMenuItem
+                      key={key}
+                      className="cursor-pointer gap-2"
+                      onSelect={() => assign(key)}
+                    >
+                      {proj.templateKey === key ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <span className="w-4" />
+                      )}
+                      {TEMPLATE_LABELS[key]}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer gap-2" onSelect={() => assign(null)}>
+                    {!proj.templateKey ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                    None
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                onSelect={() => onDelete(proj.id)}
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
