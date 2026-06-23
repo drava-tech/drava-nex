@@ -19,35 +19,34 @@ const { sql } = require("drizzle-orm") as typeof import("drizzle-orm");
 async function run() {
   const type = "video";
   const filename = "4k_render_intro_animation_0003.mp4";
-  const mediaName = `[MEDIA:${type}] ${filename}`;
-  const mediaSlug = `media-${type}-${filename.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
+  const url = `/media/${filename}`;
 
   console.log(`Assigning ${filename} to main-screen...`);
 
-  // 1. Insert/update experience
-  const expRes = await db.execute(sql`
-    INSERT INTO "experience" (name, slug)
-    VALUES (${mediaName}, ${mediaSlug})
-    ON CONFLICT (slug) WHERE deleted_at IS NULL
-    DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
-    RETURNING id
+  // 1. Ensure a media asset exists for this file.
+  const found = await db.execute(sql`
+    SELECT id FROM "media_asset" WHERE url = ${url} AND deleted_at IS NULL LIMIT 1
   `);
-
-  const expId = (expRes.rows?.[0] as { id: string })?.id;
-  if (!expId) {
-    throw new Error("Failed to get experience ID");
+  let assetId = (found.rows?.[0] as { id: string } | undefined)?.id;
+  if (!assetId) {
+    const inserted = await db.execute(sql`
+      INSERT INTO "media_asset" (type, url, name) VALUES (${type}, ${url}, ${filename}) RETURNING id
+    `);
+    assetId = (inserted.rows[0] as { id: string }).id;
   }
 
-  // 2. Assign to main-screen
+  // 2. Point main-screen at the media asset (kind = 'media').
   await db.execute(sql`
-    INSERT INTO "screen" (screen_id, screen_name, current_experience_id)
-    VALUES ('main-screen', 'tv-86inch', ${expId})
+    INSERT INTO "screen" (screen_id, screen_name, current_content_kind, current_media_asset_id)
+    VALUES ('main-screen', 'tv-86inch', 'media', ${assetId})
     ON CONFLICT (screen_id) DO UPDATE SET
-      current_experience_id = EXCLUDED.current_experience_id,
+      current_content_kind = 'media',
+      current_media_asset_id = EXCLUDED.current_media_asset_id,
+      current_experience_id = NULL,
       updated_at = NOW()
   `);
 
-  console.log(`✓ Successfully assigned video experience "${mediaName}" (ID: ${expId}) to 'main-screen'.`);
+  console.log(`✓ Assigned media "${filename}" (asset ${assetId}) to 'main-screen'.`);
 }
 
 run().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

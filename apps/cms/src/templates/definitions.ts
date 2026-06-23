@@ -30,7 +30,7 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: PortfolioLayout,
     defaultContent: DEFAULT_PORTFOLIO_CONTENT,
     Workspace: PortfolioEditorWorkspace,
-  },
+  }
 };
 
 export const TEMPLATE_OPTIONS: TemplateDefinition[] = Object.values(TEMPLATE_DEFINITIONS);

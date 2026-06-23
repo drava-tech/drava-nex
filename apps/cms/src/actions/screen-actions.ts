@@ -6,23 +6,14 @@ import {
   createScreen,
   deleteScreen,
   setScreenExperience,
+  setScreenMedia,
   getScreenContent,
   screenExists,
-  db,
-  experience,
-  eq,
-  and,
-  isNull,
 } from "@platform/db";
 import { broadcastWsContentDirect } from "../lib/broadcast";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 
-export async function getScreens(): Promise<{
-  screenId: string;
-  screenName: string;
-  currentExperienceId: string | null;
-  experienceName: string | null;
-}[]> {
+export async function getScreens() {
   await requireGuestOrAdmin();
   return listScreens();
 }
@@ -92,45 +83,15 @@ export async function getActiveScreens(): Promise<string[]> {
   return [];
 }
 
-export async function assignMedia(screenId: string, filename: string, type: "video" | "image") {
+/**
+ * Assign a media-library asset to a screen. Media is a first-class entity, so we
+ * point the screen straight at the media asset (no placeholder experience).
+ */
+export async function assignMedia(screenId: string, mediaAssetId: string) {
   await requireGuestOrAdmin();
-
-  const mediaName = `[MEDIA:${type}] ${filename}`;
-  // Clean slug: replace non-alphanumeric chars with dashes and lowercase
-  const mediaSlug = `media-${type}-${filename.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
-
-  // 1. Find if the placeholder experience already exists
-  const [existing] = await db
-    .select()
-    .from(experience)
-    .where(and(eq(experience.name, mediaName), isNull(experience.deletedAt)))
-    .limit(1);
-
-  let experienceId: string;
-  if (existing) {
-    experienceId = existing.id;
-  } else {
-    // 2. Insert new placeholder experience
-    const [inserted] = await db
-      .insert(experience)
-      .values({
-        name: mediaName,
-        slug: mediaSlug,
-      })
-      .returning();
-    if (!inserted) {
-      throw new Error("Failed to register media asset experience placeholder");
-    }
-    experienceId = inserted.id;
-  }
-
-  // 3. Assign this experience to the screen
-  await setScreenExperience(screenId, experienceId);
-
-  // 4. Push the update over WebSocket
+  await setScreenMedia(screenId, mediaAssetId);
   const content = await getScreenContent(screenId);
   if (content) await broadcastWsContentDirect(screenId, content);
-
   revalidatePath("/screens");
   revalidatePath("/");
 }

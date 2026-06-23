@@ -3,29 +3,46 @@ import type { WsContent } from "@platform/types";
 import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
+import { mediaAsset } from "../schema/media.js";
 
 /**
- * Screen ↔ experience data access. This is the single source of truth for
- * "what is playing on which screen" (replaces the old screens.json files).
+ * Screen ↔ content data access. This is the single source of truth for
+ * "what is playing on which screen". A screen points at either an experience or
+ * a media asset, chosen by `currentContentKind` (the typed refs are mutually
+ * exclusive).
  */
 
 export async function listScreens(): Promise<{
   screenId: string;
   screenName: string;
+  currentContentKind: string | null;
   currentExperienceId: string | null;
   experienceName: string | null;
+  currentMediaAssetId: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  mediaName: string | null;
 }[]> {
   return db
     .select({
       screenId: screen.screenId,
       screenName: screen.screenName,
+      currentContentKind: screen.currentContentKind,
       currentExperienceId: screen.currentExperienceId,
       experienceName: experience.name,
+      currentMediaAssetId: screen.currentMediaAssetId,
+      mediaType: mediaAsset.type,
+      mediaUrl: mediaAsset.url,
+      mediaName: mediaAsset.name,
     })
     .from(screen)
     .leftJoin(
       experience,
       and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
+    .leftJoin(
+      mediaAsset,
+      and(eq(screen.currentMediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt))
     )
     .where(isNull(screen.deletedAt))
     .orderBy(asc(screen.position), desc(screen.createdAt));
@@ -33,62 +50,59 @@ export async function listScreens(): Promise<{
 
 /**
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
- * assigned (or the assigned experience was deleted). Joins the experience and
- * derives the wire shape the screens render.
+ * assigned (or the referenced content was deleted). Resolves by the screen's
+ * content kind: a media asset → a video/image, an experience → its template.
  */
 export async function getScreenContent(screenId: string): Promise<WsContent | null> {
   const [row] = await db
     .select({
+      kind: screen.currentContentKind,
       experienceId: experience.id,
       experienceName: experience.name,
       templateKey: experience.templateKey,
       templateContent: experience.templateContent,
+      mediaAssetId: mediaAsset.id,
+      mediaType: mediaAsset.type,
+      mediaUrl: mediaAsset.url,
+      mediaName: mediaAsset.name,
     })
     .from(screen)
     .leftJoin(
       experience,
       and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
     )
+    .leftJoin(
+      mediaAsset,
+      and(eq(screen.currentMediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt))
+    )
     .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
     .limit(1);
 
-  if (!row || !row.experienceId) return null;
+  if (!row) return null;
 
-  const expName = row.experienceName ?? "";
-  if (expName.startsWith("[MEDIA:video] ")) {
-    const sourceVal = expName.replace("[MEDIA:video] ", "");
-    const title = sourceVal.startsWith("http")
-      ? sourceVal.split("/").pop()?.split("?")[0] ?? "Media Video"
-      : sourceVal;
+  // Media asset assigned → video/image wire content.
+  if (row.kind === "media" && row.mediaAssetId) {
     return {
-      id: row.experienceId,
-      type: "video",
-      source: sourceVal.startsWith("http") ? sourceVal : `/media/${sourceVal}`,
-      title,
+      id: row.mediaAssetId,
+      type: row.mediaType === "video" ? "video" : "image",
+      source: row.mediaUrl ?? "",
+      title: row.mediaName ?? undefined,
     };
   }
 
-  if (expName.startsWith("[MEDIA:image] ")) {
-    const sourceVal = expName.replace("[MEDIA:image] ", "");
-    const title = sourceVal.startsWith("http")
-      ? sourceVal.split("/").pop()?.split("?")[0] ?? "Media Image"
-      : sourceVal;
+  // Experience assigned → template wire content.
+  if (row.kind === "experience" && row.experienceId) {
     return {
       id: row.experienceId,
-      type: "image",
-      source: sourceVal.startsWith("http") ? sourceVal : `/media/${sourceVal}`,
-      title,
+      type: "experience",
+      source: "",
+      title: row.experienceName ?? undefined,
+      templateKey: row.templateKey ?? undefined,
+      templateContent: row.templateContent ?? undefined,
     };
   }
 
-  return {
-    id: row.experienceId,
-    type: "experience",
-    source: "",
-    title: row.experienceName ?? undefined,
-    templateKey: row.templateKey ?? undefined,
-    templateContent: row.templateContent ?? undefined,
-  };
+  return null;
 }
 
 export async function screenExists(screenId: string): Promise<boolean> {
@@ -118,12 +132,34 @@ export async function deleteScreen(screenId: string): Promise<void> {
     .where(eq(screen.screenId, screenId));
 }
 
+/** Assign an experience (or clear with null). Clears any media assignment. */
 export async function setScreenExperience(
   screenId: string,
   experienceId: string | null
 ): Promise<void> {
   await db
     .update(screen)
-    .set({ currentExperienceId: experienceId, updatedAt: new Date() })
+    .set({
+      currentContentKind: experienceId ? "experience" : null,
+      currentExperienceId: experienceId,
+      currentMediaAssetId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
+/** Assign a media asset (or clear with null). Clears any experience assignment. */
+export async function setScreenMedia(
+  screenId: string,
+  mediaAssetId: string | null
+): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: mediaAssetId ? "media" : null,
+      currentMediaAssetId: mediaAssetId,
+      currentExperienceId: null,
+      updatedAt: new Date(),
+    })
     .where(eq(screen.screenId, screenId));
 }

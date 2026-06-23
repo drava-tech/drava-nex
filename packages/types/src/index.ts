@@ -119,9 +119,12 @@ export type WsServerMessage =
   | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string }
+  | { type: 'REGISTER'; screenId: string; preview?: boolean }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
+  // A user interaction on one client (e.g. CMS control view or a touchscreen)
+  // that should be applied on every client of the screen, keeping them in sync.
+  | { type: 'SCREEN_INTERACTION'; screenId: string; command: string; value?: any }
   | { type: 'PONG' };
 
 export type WsCmsMessage =

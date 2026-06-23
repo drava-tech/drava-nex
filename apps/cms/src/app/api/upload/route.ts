@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
+import { createMediaAsset } from "@platform/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,8 +27,7 @@ export async function POST(req: NextRequest) {
     // Write file to disk
     await fs.writeFile(filePath, buffer);
 
-    // Metadata details
-    const id = `m${Date.now()}`;
+    // Classify by mime/extension.
     let type = "document";
     const nameLower = file.name.toLowerCase();
     if (file.type.startsWith("image/") || /\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(nameLower)) {
@@ -41,38 +41,31 @@ export async function POST(req: NextRequest) {
       ? `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`
       : `${(sizeInBytes / 1024).toFixed(1)} KB`;
 
-    const dateOptions: Intl.DateTimeFormatOptions = { month: "short", day: "2-digit", year: "numeric" };
-    const date = new Date().toLocaleDateString("en-US", dateOptions);
-
-    const newItem = {
-      id,
-      name: safeName,
+    // Persist as a first-class media asset (DB-backed library).
+    const asset = await createMediaAsset({
       type,
       url: `/media/${safeName}`,
-      size,
-      date,
-      selected: false
-    };
+      name: safeName,
+      sizeBytes: sizeInBytes,
+    });
 
-    // Update metadata.json
-    const metadataPath = path.join(mediaDir, "metadata.json");
-    let metadata: any[] = [];
-    try {
-      const existingData = await fs.readFile(metadataPath, "utf-8");
-      metadata = JSON.parse(existingData);
-      if (!Array.isArray(metadata)) {
-        metadata = [];
-      }
-    } catch {
-      metadata = [];
-    }
-
-    metadata.push(newItem);
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
+    const date = new Date(asset.createdAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
 
     return NextResponse.json({
       success: true,
-      media: newItem,
+      media: {
+        id: asset.id,
+        name: asset.name,
+        type: asset.type,
+        url: asset.url,
+        size,
+        date,
+        selected: false,
+      },
     });
   } catch (error: any) {
     console.error("Local file upload failed:", error);

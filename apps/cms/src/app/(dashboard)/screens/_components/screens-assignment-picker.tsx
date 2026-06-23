@@ -61,7 +61,7 @@ export function ScreenAssignmentPicker({
 
   const handleSelectMedia = (item: MediaItem) => {
     onAssign({
-      id: "", // Will be resolved dynamically on the server
+      id: item.id, // media_asset id — the screen points straight at it
       type: item.type as "video" | "image",
       source: item.url,
       title: item.name,

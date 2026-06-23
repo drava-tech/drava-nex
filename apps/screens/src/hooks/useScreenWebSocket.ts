@@ -11,11 +11,15 @@ interface UseScreenWebSocketOptions {
   onContentUpdate: (content: WsContent) => void;
   onCommand?: (command: string, value?: any) => void;
   wsUrl: string;
+  /** Registers as a preview mirror (e.g. CMS embed) — excluded from online count. */
+  preview?: boolean;
 }
 
 interface UseScreenWebSocketReturn {
   status: WsStatus;
   sendContentChangeRequest: (content: WsContent) => void;
+  /** Relay a local interaction so every client of this screen applies it. */
+  sendInteraction: (command: string, value?: unknown) => void;
 }
 
 export function useScreenWebSocket({
@@ -23,6 +27,7 @@ export function useScreenWebSocket({
   onContentUpdate,
   onCommand,
   wsUrl,
+  preview = false,
 }: UseScreenWebSocketOptions): UseScreenWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,7 +46,7 @@ export function useScreenWebSocket({
 
     ws.onopen = () => {
       setStatus("connected");
-      const reg: WsClientMessage = { type: "REGISTER", screenId };
+      const reg: WsClientMessage = { type: "REGISTER", screenId, preview };
       ws.send(JSON.stringify(reg));
     };
 
@@ -69,7 +74,7 @@ export function useScreenWebSocket({
     };
 
     ws.onerror = () => ws.close();
-  }, [screenId, wsUrl]);
+  }, [screenId, wsUrl, preview]);
 
   useEffect(() => {
     connect();
@@ -91,5 +96,13 @@ export function useScreenWebSocket({
     }
   }, [screenId]);
 
-  return { status, sendContentChangeRequest };
+  const sendInteraction = useCallback((command: string, value?: unknown) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const msg: WsClientMessage = { type: "SCREEN_INTERACTION", screenId, command, value };
+      ws.send(JSON.stringify(msg));
+    }
+  }, [screenId]);
+
+  return { status, sendContentChangeRequest, sendInteraction };
 }

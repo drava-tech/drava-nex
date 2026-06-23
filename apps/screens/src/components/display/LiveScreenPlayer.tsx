@@ -15,6 +15,8 @@ interface LiveScreenPlayerProps {
   wsUrl: string;
   apiUrl: string;
   pickerEnabled?: boolean;
+  /** Registers as a preview mirror (CMS embed): no picker, excluded from online count. */
+  preview?: boolean;
 }
 
 // Sentinel used when screen has no content assigned yet
@@ -63,6 +65,7 @@ export function LiveScreenPlayer({
   wsUrl,
   apiUrl,
   pickerEnabled = true,
+  preview = false,
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, queueContent } = useContentPreloader(initial);
@@ -93,12 +96,25 @@ export function LiveScreenPlayer({
     }
   }, []);
 
-  const { status, sendContentChangeRequest } = useScreenWebSocket({
+  const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCommand: handleCommand,
     wsUrl,
+    preview,
   });
+
+  // Content dispatches a `screen-control` event when the user interacts (touch/
+  // click). Relay it over WS so every client of this screen (the TV and any CMS
+  // mirror) applies the same navigation — keeping the page identical everywhere.
+  useEffect(() => {
+    const onControl = (e: Event) => {
+      const { command, value } = (e as CustomEvent<{ command: string; value?: unknown }>).detail;
+      if (command) sendInteraction(command, value);
+    };
+    window.addEventListener("screen-control", onControl);
+    return () => window.removeEventListener("screen-control", onControl);
+  }, [sendInteraction]);
 
   // On every (re)connect, sync to the authoritative current content from
   // screens.json. Covers API restarts (in-memory cache wiped) and broadcasts

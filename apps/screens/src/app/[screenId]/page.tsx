@@ -20,12 +20,13 @@ export async function generateMetadata({
 
 interface PageProps {
   params: Promise<{ screenId: string }>;
-  searchParams: Promise<{ picker?: string }>;
+  searchParams: Promise<{ picker?: string; preview?: string }>;
 }
 
 export default async function DisplayPage({ params, searchParams }: PageProps) {
   const [{ screenId }, sp] = await Promise.all([params, searchParams]);
-  const pickerEnabled = sp.picker !== "false";
+  const preview = sp.preview === "1" || sp.preview === "true";
+  const pickerEnabled = sp.picker !== "false" && !preview;
   const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
   const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
 
@@ -41,6 +42,7 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
           wsUrl={wsUrl}
           apiUrl={apiUrl}
           pickerEnabled={pickerEnabled}
+          preview={preview}
         />
       </Suspense>
     );
@@ -60,6 +62,7 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
               wsUrl={wsUrl}
               apiUrl={apiUrl}
               pickerEnabled={pickerEnabled}
+              preview={preview}
             />
           </>
         );

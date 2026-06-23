@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import { user, session } from "./auth.js";
 import { experience } from "./projects.js";
 import { screen } from "./screens.js";
+import { mediaAsset } from "./media.js";
 
 // ─── Auth Relations ───────────────────────────────────────────────────────────
 
@@ -39,5 +40,18 @@ export const screenRelations = relations(screen, ({ one }) => ({
   currentExperience: one(experience, {
     fields: [screen.currentExperienceId],
     references: [experience.id],
+  }),
+  currentMedia: one(mediaAsset, {
+    fields: [screen.currentMediaAssetId],
+    references: [mediaAsset.id],
+  }),
+}));
+
+// ─── Media Asset Relations ────────────────────────────────────────────────────
+
+export const mediaAssetRelations = relations(mediaAsset, ({ one }) => ({
+  uploadedBy: one(user, {
+    fields: [mediaAsset.uploadedByUserId],
+    references: [user.id],
   }),
 }));

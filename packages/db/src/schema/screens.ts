@@ -6,6 +6,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { experience } from "./projects.js";
+import { mediaAsset } from "./media.js";
 
 export const screen = pgTable(
   "screen",
@@ -13,9 +14,18 @@ export const screen = pgTable(
     // Natural key — the id the physical screen registers with over WebSocket.
     screenId: text("screen_id").primaryKey(),
     screenName: text("screen_name").notNull(),
-    // The experience currently assigned to this screen (null = nothing assigned).
+    // Discriminated "what is currently displayed" reference. Exactly one of the
+    // typed refs below is set, chosen by the kind. null = nothing assigned.
+    // 'experience' | 'media' (text so future kinds don't need an enum migration).
+    currentContentKind: text("current_content_kind"),
+    // The experience currently assigned (set when kind = 'experience').
     currentExperienceId: text("current_experience_id").references(
       () => experience.id,
+      { onDelete: "set null" }
+    ),
+    // The media asset currently assigned (set when kind = 'media').
+    currentMediaAssetId: text("current_media_asset_id").references(
+      () => mediaAsset.id,
       { onDelete: "set null" }
     ),
     position: integer("position").notNull().default(0),
@@ -29,6 +39,7 @@ export const screen = pgTable(
   },
   (table) => [
     index("screen_current_experience_idx").on(table.currentExperienceId),
+    index("screen_current_media_asset_idx").on(table.currentMediaAssetId),
     index("screen_deleted_at_idx").on(table.deletedAt),
   ]
 );

@@ -81,19 +81,20 @@ export function getConnectedScreenIds(): string[] {
   return Array.from(screenRegistry.keys()).filter((id) => {
     const sockets = screenRegistry.get(id);
     if (!sockets) return false;
-    let activeCount = 0;
+    let liveCount = 0; // real (non-preview) players only
     for (const ws of sockets) {
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        activeCount++;
+        if (!(ws as WebSocket & { isPreview?: boolean }).isPreview) liveCount++;
       } else {
         sockets.delete(ws);
       }
     }
-    if (activeCount === 0) {
+    if (sockets.size === 0) {
       screenRegistry.delete(id);
       return false;
     }
-    return true;
+    // Online only when at least one real player (not just CMS preview iframes) is connected.
+    return liveCount > 0;
   });
 }
 
@@ -117,6 +118,9 @@ export function createGateway(): WebSocketServer {
         case 'REGISTER': {
           const sid = msg.screenId;
           registeredScreenId = sid;
+          // Preview clients (CMS embeds) get content + commands like any client,
+          // but must NOT count as a live screen for online/offline status.
+          if (msg.preview) (ws as WebSocket & { isPreview?: boolean }).isPreview = true;
           if (!screenRegistry.has(sid)) {
             screenRegistry.set(sid, new Set());
           }
@@ -189,6 +193,13 @@ export function createGateway(): WebSocketServer {
           setScreenExperience(screenId, content.id).catch((err) =>
             console.error('[gateway] Failed to persist screen assignment:', err)
           );
+          break;
+        }
+
+        case 'SCREEN_INTERACTION': {
+          // Relay an interaction from one client to every client of the screen
+          // (including the sender) so all instances apply it identically.
+          sendCommandToScreen(msg.screenId, msg.command, msg.value);
           break;
         }
 

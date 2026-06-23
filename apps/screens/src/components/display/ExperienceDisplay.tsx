@@ -139,7 +139,11 @@ export function ExperienceDisplay({ title, screenId }: ExperienceDisplayProps) {
         {[0, 1, 2].map((idx) => (
           <button
             key={idx}
-            onClick={() => setCurrentSlide(idx)}
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent("screen-control", { detail: { command: "SET_SLIDE", value: idx } })
+              )
+            }
             className={`h-2 rounded-full transition-all duration-300 ${
               currentSlide === idx ? "w-7 bg-zinc-100" : "w-2 bg-zinc-800 hover:bg-zinc-700"
             }`}
