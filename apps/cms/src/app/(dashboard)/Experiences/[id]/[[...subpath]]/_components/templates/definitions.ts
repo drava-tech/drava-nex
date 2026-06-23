@@ -3,7 +3,7 @@ import type { Experience } from "@platform/db";
 import { TEMPLATE_LABELS, type TemplateKey } from "@/lib/templates";
 import { PortfolioLayout } from "./portfolio/portfolio-layout";
 import { PortfolioEditorWorkspace } from "./portfolio/editor-workspace";
-import { DEFAULT_PORTFOLIO_CONTENT } from "./portfolio/content";
+import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an

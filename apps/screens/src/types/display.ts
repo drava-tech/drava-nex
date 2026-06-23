@@ -48,6 +48,10 @@ export interface StreamContent extends BaseContent {
 export interface ExperienceContent extends BaseContent {
   type: "experience";
   title?: string;
+  /** Code-defined template assigned to the experience (e.g. "portfolio"). */
+  templateKey?: string;
+  /** Per-template authored content, keyed by templateKey. */
+  templateContent?: Record<string, unknown>;
 }
 
 export type Content = VideoContent | ImageContent | HtmlContent | StreamContent | ExperienceContent;

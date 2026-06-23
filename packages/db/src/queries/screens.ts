@@ -38,7 +38,12 @@ export async function listScreens(): Promise<{
  */
 export async function getScreenContent(screenId: string): Promise<WsContent | null> {
   const [row] = await db
-    .select({ experienceId: experience.id, experienceName: experience.name })
+    .select({
+      experienceId: experience.id,
+      experienceName: experience.name,
+      templateKey: experience.templateKey,
+      templateContent: experience.templateContent,
+    })
     .from(screen)
     .leftJoin(
       experience,
@@ -81,6 +86,8 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
     type: "experience",
     source: "",
     title: row.experienceName ?? undefined,
+    templateKey: row.templateKey ?? undefined,
+    templateContent: row.templateContent ?? undefined,
   };
 }
 

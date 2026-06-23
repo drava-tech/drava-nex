@@ -9,6 +9,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./templates/portfolio": {
+      "import": "./dist/templates/portfolio/index.js",
+      "types": "./dist/templates/portfolio/index.d.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

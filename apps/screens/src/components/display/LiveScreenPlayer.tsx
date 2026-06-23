@@ -29,7 +29,8 @@ const IDLE_WS_CONTENT: WsContent = {
 function toWsContent(c: Content): WsContent {
   const base = { id: c.id, type: c.type as WsContent["type"], source: (c as { source?: string }).source ?? "" };
   if (c.type === "video") return { ...base, loop: c.loop, muted: c.muted };
-  if (c.type === "experience") return { ...base, title: c.title };
+  if (c.type === "experience")
+    return { ...base, title: c.title, templateKey: c.templateKey, templateContent: c.templateContent };
   return base;
 }
 
@@ -44,7 +45,13 @@ function toDisplayContent(ws: WsContent): Content {
     case "stream":
       return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
     case "experience":
-      return { id: ws.id, type: "experience", title: ws.title };
+      return {
+        id: ws.id,
+        type: "experience",
+        title: ws.title,
+        templateKey: ws.templateKey,
+        templateContent: ws.templateContent,
+      };
     default:
       return { id: ws.id, type: "experience", title: undefined };
   }

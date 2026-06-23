@@ -82,5 +82,7 @@ function getContentKey(content: WsContent): string {
     content.loop ?? null,
     content.muted ?? null,
     content.title ?? null,
+    content.templateKey ?? null,
+    content.templateContent ?? null,
   ]);
 }

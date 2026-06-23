@@ -1,25 +1,17 @@
-import React from "react";
-import type { Experience } from "@platform/db";
 import {
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
   type PortfolioContent,
-} from "../content";
+} from "./content";
 
 /**
  * Overview view — 3 columns, each: Title · 4:3 Image · two label buttons.
  * Authored in real 1920×1080 px (inside ScreenStage), fixed light palette.
  * Renders the saved content when present; falls back to the default placeholders.
  */
-export function OverviewView({
-  experience: _experience,
-  content,
-}: {
-  experience: Experience;
-  content?: PortfolioContent;
-}) {
+export function OverviewView({ content }: { content?: PortfolioContent }) {
   const cards =
     content?.overview?.cards?.length
       ? content.overview.cards

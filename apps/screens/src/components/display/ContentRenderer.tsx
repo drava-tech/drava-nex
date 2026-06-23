@@ -1,3 +1,4 @@
+import { PortfolioRenderer, type PortfolioContent } from "@platform/ui/templates/portfolio";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -15,8 +16,16 @@ export function ContentRenderer({ content, screenId }: { content: Content; scree
       return <HtmlRenderer content={content} />;
     case "stream":
       return <StreamRenderer content={content} />;
-    case "experience":
+    case "experience": {
+      // An experience assigned a code-defined template renders that template
+      // full-screen (the authored content). Without a template, fall back to the
+      // standby/demo display.
+      if (content.templateKey === "portfolio") {
+        const portfolio = content.templateContent?.["portfolio"] as PortfolioContent | undefined;
+        return <PortfolioRenderer content={portfolio} />;
+      }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
+    }
     default: {
       const _exhaustive = content as never;
       return (

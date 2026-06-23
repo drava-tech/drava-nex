@@ -11,7 +11,7 @@ interface ScreenStageProps {
    * "fit-width" (default): scales to the container width, keeps 16:9, shows a
    * badge + border — for the in-CMS preview.
    * "fit-screen": fills the parent and scales to fit BOTH dimensions, centered on
-   * black, no chrome — for the full-screen preview tab.
+   * black, no chrome — for the full-screen preview tab and the live screen.
    */
   variant?: "fit-width" | "fit-screen";
   children: React.ReactNode;

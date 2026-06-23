@@ -7,7 +7,7 @@ import { TEMPLATE_DEFINITIONS } from "@/app/(dashboard)/experiences/[id]/[[...su
 import {
   DEFAULT_PORTFOLIO_CONTENT,
   readPortfolioContent,
-} from "@/app/(dashboard)/experiences/[id]/[[...subpath]]/_components/templates/portfolio/content";
+} from "@platform/ui/templates/portfolio";
 
 interface EditPageProps {
   params: Promise<{ id: string }>;

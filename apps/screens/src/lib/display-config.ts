@@ -15,7 +15,13 @@ function wsContentToDisplayContent(ws: WsContent): Content {
     case "stream":
       return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
     case "experience":
-      return { id: ws.id, type: "experience", title: ws.title };
+      return {
+        id: ws.id,
+        type: "experience",
+        title: ws.title,
+        templateKey: ws.templateKey,
+        templateContent: ws.templateContent,
+      };
     default:
       return { id: ws.id, type: "video", source: ws.source, loop: true, muted: true };
   }

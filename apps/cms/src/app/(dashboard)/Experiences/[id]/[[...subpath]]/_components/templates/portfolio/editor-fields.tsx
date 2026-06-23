@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { ImageIcon } from "lucide-react";
 import { MediaPicker } from "@/components/media-picker";
-import type { OverviewCard } from "./content";
+import type { OverviewCard } from "@platform/ui/templates/portfolio";
 
 const FIELD =
   "w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";

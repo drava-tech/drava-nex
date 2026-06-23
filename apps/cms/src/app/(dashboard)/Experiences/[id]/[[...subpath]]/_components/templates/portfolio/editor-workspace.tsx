@@ -5,18 +5,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Loader2, Check } from "lucide-react";
 import type { Experience } from "@platform/db";
-import { ScreenStage } from "@/components/screen-stage";
 import { updateExperienceTemplateContent } from "@/actions/experience-actions";
-import { OverviewView } from "./views/overview";
 import { PortfolioFields } from "./editor-fields";
 import {
+  ScreenStage,
+  OverviewView,
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
   type OverviewCard,
   type PortfolioContent,
-} from "./content";
+} from "@platform/ui/templates/portfolio";
 
 function clampNum(v: number, min: number, max: number) {
   if (Number.isNaN(v)) return min;
@@ -214,7 +214,7 @@ export function PortfolioEditorWorkspace({
 
         <main className="flex-1 min-w-0 p-6 bg-zinc-200 dark:bg-zinc-900/40">
           <ScreenStage variant="fit-screen">
-            <OverviewView experience={experience} content={content} />
+            <OverviewView content={content} />
           </ScreenStage>
         </main>
       </div>

@@ -1,16 +1,19 @@
 import React from "react";
 import Link from "next/link";
 import type { Experience } from "@platform/db";
-import { ScreenStage } from "@/components/screen-stage";
-import { OverviewView } from "./views/overview";
-import { readPortfolioContent, type PortfolioContent } from "./content";
+import {
+  ScreenStage,
+  OverviewView,
+  readPortfolioContent,
+  type PortfolioContent,
+} from "@platform/ui/templates/portfolio";
 
 interface PortfolioView {
   key: string;
   label: string;
   /** URL sub-path segment for this view ("" = base / Overview). */
   segment: string;
-  View: React.ComponentType<{ experience: Experience; content?: PortfolioContent }>;
+  View: React.ComponentType<{ content?: PortfolioContent }>;
 }
 
 /** Predefined views (tabs). Adding a tab later = one entry here + its view file. */
@@ -41,7 +44,7 @@ export function PortfolioLayout({
   if (mode === "preview") {
     return (
       <ScreenStage variant="fit-screen">
-        <ActiveView experience={experience} content={content} />
+        <ActiveView content={content} />
       </ScreenStage>
     );
   }
@@ -74,7 +77,7 @@ export function PortfolioLayout({
       </div>
 
       <ScreenStage>
-        <ActiveView experience={experience} content={content} />
+        <ActiveView content={content} />
       </ScreenStage>
     </div>
   );

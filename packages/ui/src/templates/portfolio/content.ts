@@ -1,5 +1,6 @@
-// Content shape for the Portfolio template (CMS-side). Stored on the experience as
+// Content shape for the Portfolio template. Stored on the experience as
 // experience.templateContent.portfolio. Per-view so future views add their own slice.
+// Shared by the CMS (editor + preview) and the screens app (live render).
 
 export interface OverviewCard {
   title: string;

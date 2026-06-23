@@ -106,6 +106,10 @@ export interface WsContent {
   loop?: boolean;
   muted?: boolean;
   title?: string;
+  /** Code-defined template assigned to the experience (e.g. "portfolio"). */
+  templateKey?: string;
+  /** Per-template authored content, keyed by templateKey. */
+  templateContent?: Record<string, unknown>;
 }
 
 export type WsServerMessage =
