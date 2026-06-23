@@ -50,7 +50,7 @@ export function EnvironmentView() {
       const wave1 = Math.sin(i * 0.3) * 20;
       const wave2 = Math.cos(i * 0.7) * 15;
       const base = 20;
-      return Math.max(10, Math.abs(wave1 + wave2 + base));
+      return Number(Math.max(10, Math.abs(wave1 + wave2 + base)).toFixed(1));
     });
   }, []);
 
