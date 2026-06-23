@@ -85,3 +85,45 @@ graph TD
 3. Spin up the infrastructure components: `docker compose -f infra/docker/docker-compose.yml up -d`.
 4. Run all services in development mode: `pnpm dev`.
 5. Build all packages and applications: `pnpm build`.
+
+## Team / Contributor Setup (shared host database)
+
+If a host machine on your LAN is already running the platform (its Postgres holds
+the shared data), you can develop against it **without installing or seeding your
+own database**. You run the apps locally; only the database lives on the host.
+
+**Prerequisites:** Node 20+, pnpm 9+ (`corepack enable`), and the host's LAN IP +
+DB password (ask the host owner — the password is *not* stored in this repo).
+
+```bash
+# 1. Clone
+git clone https://github.com/vamsi80/cms-platform.git
+cd cms-platform
+
+# 2. Create the three env files from the templates
+cp .env.team.example          .env
+cp apps/cms/.env.example       apps/cms/.env
+cp apps/screens/.env.example   apps/screens/.env.local
+
+# 3. Edit ONLY the root .env:
+#    - set <HOST_IP>      → e.g. 192.168.1.250
+#    - set <DB_PASSWORD>  → the password from the host owner
+#    (apps/cms/.env: generate your own BETTER_AUTH_SECRET via `openssl rand -hex 32`)
+
+# 4. Install and run
+pnpm install
+pnpm dev          # → http://localhost:3000  (CMS),  http://localhost:3001  (Screens)
+```
+
+Notes:
+- The root `.env` is the single source of `DATABASE_URL` — `@platform/db` loads it
+  automatically, so the per-app env files don't repeat the DB connection.
+- **Do NOT run** `pnpm db:migrate`, `db:push`, or any seed script — the host owns
+  the schema and shared data.
+- MQTT is optional in dev; the host doesn't publish the broker on the LAN, so
+  IoT/MQTT features stay "unavailable" locally unless you run your own broker.
+- **Host owner**, for teammates to reach the DB, open the firewall for Postgres on
+  the host (Administrator PowerShell):
+  ```powershell
+  New-NetFirewallRule -DisplayName "CMS Platform Postgres" -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow
+  ```

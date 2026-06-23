@@ -40,3 +40,6 @@ backups/
 *.backup
 *.dump
 *.sql.gz
+# Root-level DB dumps (NOT the drizzle migrations under packages/db/drizzle/*.sql)
+/backup_*.sql
+/*.dump.sql

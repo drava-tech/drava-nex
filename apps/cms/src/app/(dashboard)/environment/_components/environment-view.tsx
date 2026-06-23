@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Lightbulb, Volume2, Thermometer, Sparkles, Wind, Flame, Power, Droplets, Zap, Sun, Moon, Settings2 } from "lucide-react";
+import { Sparkles, Wind, Flame, Power, Droplets, Zap, Sun, Moon, Settings2 } from "lucide-react";
 
 // Helper for dynamic temperature color
 const getTempColor = (temp: number) => {
