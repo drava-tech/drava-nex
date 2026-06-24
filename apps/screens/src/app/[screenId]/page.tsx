@@ -26,7 +26,9 @@ interface PageProps {
 export default async function DisplayPage({ params, searchParams }: PageProps) {
   const [{ screenId }, sp] = await Promise.all([params, searchParams]);
   const preview = sp.preview === "1" || sp.preview === "true";
-  const pickerEnabled = sp.picker !== "false" && !preview;
+  // `preview` only controls the WS "don't count as online" flag — the picker is
+  // independent, so a control console (?preview=1) is still fully interactive.
+  const pickerEnabled = sp.picker !== "false";
   const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
   const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
 

@@ -23,3 +23,13 @@ function resolveScreensBase(): string {
 export function screenMirrorUrl(screenId: string): string {
   return `${resolveScreensBase()}/${encodeURIComponent(screenId)}?picker=false&preview=1`;
 }
+
+/**
+ * URL of the screens player opened as an interactive control console (new tab):
+ * the long-press content picker is on and touch-navigation is enabled, and it
+ * registers as a preview client (not counted as an online TV). Interactions
+ * there replicate to the real screen in realtime. Call client-side.
+ */
+export function screenControlUrl(screenId: string): string {
+  return `${resolveScreensBase()}/${encodeURIComponent(screenId)}?preview=1`;
+}

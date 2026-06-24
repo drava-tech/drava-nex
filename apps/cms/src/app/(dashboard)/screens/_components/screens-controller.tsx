@@ -7,7 +7,6 @@ import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import { ScreenMirror } from "./screen-mirror";
-import { ScreenControlModal } from "./screen-control-modal";
 import { AddScreenModal } from "./add-screen-modal";
 import type { WsContent } from "@platform/types";
 
@@ -79,8 +78,10 @@ export function ScreensController({
     }))
   );
   const [pickerTargetId, setPickerTargetId] = useState<string | null>(null);
-  const [controlTargetId, setControlTargetId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Open the full-page control view for a screen (Dashboard / Screens / <id>).
+  const openControl = (screenId: string) => router.push(`/screen/${encodeURIComponent(screenId)}`);
   const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
 
@@ -142,7 +143,6 @@ export function ScreensController({
   };
 
   const pickerTarget = screens.find((s) => s.id === pickerTargetId) ?? null;
-  const controlTarget = screens.find((s) => s.id === controlTargetId) ?? null;
 
   return (
     <>
@@ -153,19 +153,6 @@ export function ScreensController({
           experiences={experiences}
           onAssign={(content) => handleAssign(pickerTarget.id, content)}
           onClose={() => setPickerTargetId(null)}
-        />
-      )}
-
-      {controlTarget && (
-        <ScreenControlModal
-          screenId={controlTarget.id}
-          screenName={controlTarget.name}
-          isOnline={activeScreenIds.has(controlTarget.id)}
-          onChangeContent={() => {
-            setControlTargetId(null);
-            setPickerTargetId(controlTarget.id);
-          }}
-          onClose={() => setControlTargetId(null)}
         />
       )}
 
@@ -250,7 +237,7 @@ export function ScreensController({
                     {/* Live mirror — exactly what the TV is showing (template/media/idle) */}
                     <button
                       type="button"
-                      onClick={() => setControlTargetId(screen.id)}
+                      onClick={() => openControl(screen.id)}
                       title="Open control"
                       className="group w-full aspect-[16/9] relative rounded-2xl border-[5px] border-zinc-800 dark:border-zinc-900 shadow-xl bg-zinc-950 overflow-hidden shrink-0 cursor-pointer"
                     >
@@ -273,7 +260,7 @@ export function ScreensController({
                     {/* Actions: open the full control view, or change what's playing */}
                     <div className="w-full grid grid-cols-2 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
                       <button
-                        onClick={() => setControlTargetId(screen.id)}
+                        onClick={() => openControl(screen.id)}
                         className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
                       >
                         <SlidersHorizontal className="h-3.5 w-3.5" />
