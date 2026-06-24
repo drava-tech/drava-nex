@@ -1,150 +1,67 @@
 # infra/docker — Docker Compose Stack
 
-> **Contains:** `docker-compose.yml` that spins up all platform backing services.
-> **Run with:** `docker compose -f infra/docker/docker-compose.yml up -d`
+> **Contains:** `docker-compose.yml` — the full production stack (all services).
+> **Run with:** `pnpm infra:up` (= `docker compose --env-file .env -f infra/docker/docker-compose.yml up -d`)
 
 ---
 
 ## What Lives Here
 
 ```
-infra/docker/              ← YOU ARE HERE
-└── docker-compose.yml     → defines postgres + mosquitto + nginx containers
+infra/docker/
+├── docker-compose.yml        → the full stack (6 services)
+└── docker-compose.local.yml  → backing services only (for local-dev app runs)
 ```
 
 ---
 
-## File: `docker-compose.yml`
+## Services (6)
 
-### Service 1: `postgres`
+| Container | Image / build | Internal port | Host port |
+|---|---|---|---|
+| `cms-postgres` | `postgres:16-alpine` | 5432 | **5432:5432** (drizzle-kit/seeds) |
+| `cms-mosquitto` | `eclipse-mosquitto:2` | 1883, 9001 | — internal |
+| `cms-api` | `apps/api/Dockerfile` | 4000 | — internal |
+| `cms-admin` | `apps/cms/Dockerfile` | 3000 | — internal |
+| `cms-screens` | `apps/screens/Dockerfile` | 3001 | — internal |
+| `cms-nginx` | `nginx:alpine` | 80 | **80:80** (sole public web port) |
 
-```yaml
-image: postgres:16-alpine
-container_name: platform-postgres
-ports:
-  - "5432:5432"
-environment:
-  POSTGRES_USER: postgres
-  POSTGRES_PASSWORD: postgres
-  POSTGRES_DB: cms_platform
-volumes:
-  - postgres_data:/var/lib/postgresql/data  ← data persists across restarts
-restart: unless-stopped
-```
+Two networks: **`internal`** (`internal: true`, no outbound internet) holds everything;
+**`public`** carries only `nginx` (and the published postgres port).
 
-**Purpose:** Relational database — stores all platform data.
-
-**Who connects to it:**
-```
-apps/api → @platform/db → pg Pool → postgres:5432
-  DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/cms_platform"
-```
-
-**What it stores (when schema is wired):**
-
-| Table | Contains |
-|---|---|
-| `screens` | All registered display screens |
-| `content` | Uploaded media items (images, videos, widgets) |
-| `playlists` | Ordered sequences of content |
-| `playlist_items` | Individual items with sequence + duration |
-| `schedules` | When to play which playlist on which screen |
-| `rules` | IoT trigger → action mappings |
+Startup order: `postgres` (healthcheck) + `mosquitto` → `api` → `cms` + `screens` → `nginx`.
 
 ---
 
-### Service 2: `mosquitto`
+## Data persistence (bind mounts, outside the repo)
 
-```yaml
-image: eclipse-mosquitto:2.0
-container_name: platform-mosquitto
-ports:
-  - "1883:1883"   ← MQTT/TCP for server and device clients
-  - "9001:9001"   ← MQTT/WebSocket for browser clients
-volumes:
-  - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-restart: unless-stopped
-```
-
-**Purpose:** MQTT message broker — routes all IoT messages between devices and the API.
-
-**Data flow through this container:**
+Persistent data lives at `E:\EC\cms-platform-data\` (NOT named volumes):
 
 ```
-IoT Sensor
-  │  publish to topic: platform/screens/screen-001/telemetry
-  │  payload: { "deviceId": "s-001", "metrics": { "motionDetected": true } }
-  ▼
-[mosquitto container routes it]
-  ▼
-apps/api → @platform/iot (subscribed to platform/screens/+/telemetry)
-  │  normalizeTelemetry(buffer) → DeviceTelemetry object
-  ▼
-Rule Engine evaluates → action taken
-  ▼
-publishCommand() → mosquitto routes back to device
+postgres-data/   mosquitto-data/   uploads/   logs/{,/mosquitto,/nginx}
 ```
+
+`docker compose down` keeps this data; the screens `public/config` dir is also bind-mounted
+into api/cms/screens.
 
 ---
 
-### Service 3: `nginx`
+## What the database stores
 
-```yaml
-image: nginx:alpine
-container_name: platform-nginx
-ports:
-  - "80:80"
-volumes:
-  - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-depends_on:
-  - postgres
-  - mosquitto
-restart: unless-stopped
-```
-
-**Purpose:** Public-facing reverse proxy — single entry point for all web traffic.
-
-**Routing:**
-
-| Domain | Goes to |
-|---|---|
-| `cms.platform.local` | `apps/cms :3000` |
-| `screens.platform.local` | `apps/screens :3001` |
-| `api.platform.local` | `apps/api :4000` (+ WebSocket upgrade) |
-
----
-
-## Named Volumes
-
-```yaml
-volumes:
-  postgres_data:   ← persists DB data between docker restarts
-```
-
-Without this, every `docker compose down` would wipe your database.
+`user/session/account/verification` (auth) · `experience` (`templateKey` + `templateContent`)
+· `media_asset` · `screen`. See [`.doc/database.md`](../../.doc/database.md).
 
 ---
 
 ## Commands
 
-```bash
-# Start all services
-docker compose -f infra/docker/docker-compose.yml up -d
-
-# View running containers
-docker compose -f infra/docker/docker-compose.yml ps
-
-# View logs
-docker compose -f infra/docker/docker-compose.yml logs -f mosquitto
-
-# Stop all (keeps data)
-docker compose -f infra/docker/docker-compose.yml stop
-
-# Stop + destroy containers (keeps volume data)
-docker compose -f infra/docker/docker-compose.yml down
-
-# Stop + destroy EVERYTHING including the database
-docker compose -f infra/docker/docker-compose.yml down -v
+```powershell
+pnpm infra:build     # build api/cms/screens images
+pnpm infra:up        # start the stack
+docker restart cms-nginx   # after recreating app containers (re-resolve IPs)
+pnpm infra:logs      # tail logs
+pnpm infra:down      # stop + remove containers (bind-mounted data preserved)
+pnpm healthcheck     # http://localhost/health
 ```
 
 ---
@@ -153,8 +70,6 @@ docker compose -f infra/docker/docker-compose.yml down -v
 
 | Direction | Target | How |
 |---|---|---|
-| ← config from | `infra/mosquitto/mosquitto.conf` | volume-mounted into mosquitto container |
-| ← config from | `infra/nginx/nginx.conf` | volume-mounted into nginx container |
-| → serves | `apps/api` | PostgreSQL connection via `DATABASE_URL` |
-| → serves | `apps/api` + `@platform/iot` | MQTT broker via `MQTT_BROKER_URL` |
-| → routes to | `apps/cms`, `apps/screens`, `apps/api` | Nginx reverse proxy |
+| ← config | `infra/mosquitto/mosquitto.conf`, `infra/nginx/default.conf` | volume mounts |
+| → runs | api / cms / screens / postgres / mosquitto / nginx | the containers |
+| → routes | all web traffic | through `cms-nginx :80` |

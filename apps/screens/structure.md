@@ -1,144 +1,78 @@
 # apps/screens — Screen Player
 
 > **Package name:** `@platform/screens`
-> **Port:** `3001`
+> **Port:** `3001` (dev). In production served under **`/screens`** via Nginx (`basePath`).
 > **Framework:** Next.js 15 (App Router)
-> **Who uses it:** Each physical display screen (runs in a browser kiosk mode)
+> **Who uses it:** each physical display, opened in a kiosk browser at `…/screens/<screenId>`
 
 ---
 
 ## What Lives Here
 
 ```
-apps/screens/              ← YOU ARE HERE
+apps/screens/
 ├── src/
-│   └── app/
-│       ├── layout.tsx     → root HTML shell
-│       └── page.tsx       → player UI (renders content full-screen)
-├── next.config.mjs        → Next.js configuration
-├── package.json           → dependencies + npm scripts
-└── tsconfig.json          → TypeScript config (Next.js bundler mode)
+│   ├── app/
+│   │   ├── layout.tsx              → root HTML shell (black, no-scroll)
+│   │   ├── page.tsx                → launcher: lists screens to open
+│   │   ├── [screenId]/page.tsx     → THE player route — resolves a screen's content
+│   │   └── api/config/[screenId]/route.ts → server route that returns a screen's content
+│   ├── components/display/
+│   │   ├── LiveScreenPlayer.tsx    → client shell: WS + preloader + renderer + picker
+│   │   ├── ContentRenderer.tsx     → switch on content.type → the right renderer
+│   │   ├── VideoRenderer / ImageRenderer / HtmlRenderer / StreamRenderer
+│   │   ├── LiveStreamRenderer.tsx  → live WebSocket video (WebCodecs/MJPEG canvas)
+│   │   ├── ExperienceDisplay.tsx   → fallback for an experience with no/standby template
+│   │   ├── ContentPickerOverlay.tsx→ long-press touch picker (screen-side content switch)
+│   │   ├── ContentTitleOverlay.tsx, IdleDisplay.tsx, IdleScreenPlayer.tsx
+│   ├── hooks/
+│   │   ├── useScreenWebSocket.ts   → content WS: REGISTER + receive CONTENT_UPDATE
+│   │   └── useContentPreloader.ts  → preload next asset, swap with ~0 flicker
+│   ├── lib/
+│   │   ├── client-urls.ts          → resolve relative /api, /ws to absolute (dev + prod)
+│   │   └── display-config.ts       → server-side: fetch a screen's content from the API
+│   └── types/display.ts            → Content union (video/image/html/stream/experience)
+├── next.config.mjs                 → standalone output + conditional basePath /screens
+└── package.json
 ```
+
+(The live-stream **decode** hook + canvas live in `@platform/ui` `templates/live-stream` and
+are reused by both this app and the CMS preview.)
 
 ---
 
 ## What This App Does
 
-The **screen player** — software running on a physical screen that:
-
 ```
-Screen boots → opens http://screens.platform.local in kiosk browser
+TV opens  http://192.168.1.250/screens/<screenId>
     │
     ▼
-apps/screens page.tsx loads
-    │
-    ├── reads SCREEN_ID from env         ← which physical screen is this?
-    ├── GET /api/screens/{SCREEN_ID}     ← fetch this screen's metadata
-    ├── GET /api/screens/{SCREEN_ID}/playlist  ← fetch its content queue
-    │
+[screenId]/page.tsx (server)
+    ├── resolveDisplayConfig(screenId)  → GET INTERNAL_API_URL/api/screens/<id>/config
+    │       └── current content from Postgres (experience+template, media, or idle)
     ▼
-Player loop starts:
-    ├── show content[0] for duration[0] seconds
-    ├── show content[1] for duration[1] seconds
-    └── repeat forever
-    │
-    ▼ (simultaneously)
-WebSocket connection open to ws://localhost:4000/ws
-    └── on PLAYLIST_CHANGE → switch immediately  (IoT trigger scenario)
-    └── on BRIGHTNESS_SET  → dim/brighten screen
-    └── on REBOOT          → restart player
+<LiveScreenPlayer> (client) renders <ContentRenderer> and:
+    ├── opens a WebSocket (useScreenWebSocket) → REGISTER {screenId}
+    │       └── on WELCOME / CONTENT_UPDATE → preload + swap content instantly
+    ├── on (re)connect → re-fetch /api/config/<id> to converge on the DB (authoritative)
+    └── long-press → ContentPickerOverlay → CONTENT_CHANGE_REQUEST (touch-side switch)
 ```
+
+A change made in the CMS reaches the screen in milliseconds — no polling, no reload.
 
 ---
 
-## File: `src/app/layout.tsx`
+## Content types (`ContentRenderer`)
 
-```
-Purpose:  Root HTML shell for the player app.
+| `content.type` | Renderer | Notes |
+|---|---|---|
+| `video` / `image` / `html` | Video/Image/Html renderer | media assets |
+| `stream` | `StreamRenderer` | a `<video>` URL (HLS/progressive) |
+| `experience` | template renderer | `templateKey==="portfolio"` → portfolio; `"live-stream"` → **LiveStreamRenderer**; else `ExperienceDisplay` |
 
-Current:
-  <html lang="en">
-    <body>{children}</body>
-  </html>
-
-Future additions for a physical screen:
-  - style={{ margin: 0, padding: 0, overflow: 'hidden' }}
-  - body height: 100vh width: 100vw
-  - cursor: none  (hide mouse on kiosk)
-  - background: black (default between content)
-```
-
----
-
-## File: `src/app/page.tsx`
-
-```
-Purpose:  Main player page — the content that the physical screen sees.
-
-Current (demo placeholder):
-  Renders:
-    - Screen name (Lobby Display)
-    - Location + status (🟢 online)
-    - Active playlist name
-    - Playlist queue list (3 items with types + durations)
-
-Future:
-  const screenId = process.env.SCREEN_ID
-  const playlist = await fetch(`/api/screens/${screenId}/playlist`)
-
-  // Player loop
-  for each content item:
-    if type === 'image'   → <img src={url} />      for {duration} seconds
-    if type === 'video'   → <VideoPlayer url={url} />
-    if type === 'html'    → <iframe src={url} />
-    if type === 'weather' → <iframe src={url} />
-```
-
-**Data flow (future):**
-```
-page.tsx renders
-  ├── REST: GET /api/screens/{SCREEN_ID}/playlist
-  │           ↓
-  │   { items: [ {contentId, type, url, duration}, ... ] }
-  │           ↓
-  │   display each item in sequence
-  │
-  └── WebSocket: connect to ws://localhost:4000/ws
-        on('PLAYLIST_CHANGE', newPlaylistId) → re-fetch + restart loop
-```
-
----
-
-## File: `next.config.mjs`
-
-```js
-const nextConfig = {
-  reactStrictMode: true,
-  transpilePackages: ['@platform/ui'],
-};
-```
-
-Same as CMS — allows `@platform/ui`'s VideoPlayer and StatusBadge components to hot-reload without pre-building.
-
----
-
-## File: `package.json`
-
-```
-name: @platform/screens
-scripts:
-  dev   → next dev -p 3001   ← NOTE: port 3001, not 3000 (CMS takes 3000)
-  build → next build
-  start → next start
-```
-
-**Key dependencies:**
-
-| Package | Why |
-|---|---|
-| `@platform/types` | Screen, Content, IoTEvent types |
-| `@platform/ui` | VideoPlayer, ScreenCard, StatusBadge components |
-| `@platform/iot` | Future: subscribe directly to MQTT via browser WS (port 9001) |
+**LiveStreamRenderer** subscribes (`STREAM_SUBSCRIBE`) to the experience's `streamId` over the
+gateway and decodes incoming binary frames (WebCodecs H.264 / MJPEG) onto a `<canvas>`; shows
+"Waiting for stream…" until a publisher is live.
 
 ---
 
@@ -146,11 +80,11 @@ scripts:
 
 | Direction | Target | How |
 |---|---|---|
-| → calls | `apps/api :4000` | REST — fetch screen + playlist |
-| ← receives | `apps/api :4000/ws` | WebSocket — real-time playlist/command events |
-| → imports | `@platform/ui` | VideoPlayer, StatusBadge components |
-| → imports | `@platform/types` | Screen, Content, IoTEvent types |
-| ← traffic from | Nginx `:80` | `screens.platform.local → :3001` |
+| → server-side | `apps/api` (`INTERNAL_API_URL`) | REST — resolve current content |
+| ↔ browser | `apps/api` `/ws` | WebSocket — content updates + live-stream frames |
+| → imports | `@platform/ui` | ScreenStage, portfolio + live-stream renderers/hook |
+| → imports | `@platform/types` | `WsContent`, `Ws*Message` |
+| ← traffic from | Nginx `:80` | `/screens/...` → `screens:3001` (basePath `/screens`) |
 
 ---
 
@@ -158,6 +92,7 @@ scripts:
 
 | Variable | Purpose |
 |---|---|
-| `SCREEN_ID` | Unique identifier of this physical screen (e.g. `screen-001`) |
-| `NEXT_PUBLIC_API_URL` | Base URL for REST calls (e.g. `http://localhost:4000`) |
-| `NEXT_PUBLIC_WS_GATEWAY_URL` | WebSocket URL (e.g. `ws://localhost:4000/ws`) |
+| `INTERNAL_API_URL` | Server-side base URL to reach the API (`http://api:4000` in Docker) |
+| `NEXT_PUBLIC_API_URL` | Browser REST base (relative `/api` in prod) |
+| `NEXT_PUBLIC_WS_GATEWAY_URL` | Browser WebSocket base (relative `/ws` in prod) |
+| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/screens` in the prod image so routes/assets live under `/screens` |

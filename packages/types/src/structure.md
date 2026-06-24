@@ -27,61 +27,40 @@ Every type exported here is:
 ## Section Map
 
 ```
-Lines 1-13    CMS/Signage types ──► Screen interface
-Lines 15-23                    ──► Content interface
-Lines 25-36                    ──► Playlist + PlaylistItem interfaces
-Lines 38-46                    ──► Schedule interface
-Lines 48-66                    ──► Rule + RuleCondition + RuleAction interfaces
+WebSocket protocol (the live contracts)
+  WsContentType / WsContent      ──► what the gateway delivers to a screen
+  StreamFormat                   ──► 'h264' | 'mjpeg' (live-stream wire format)
+  WsServerMessage                ──► WELCOME | CONTENT_UPDATE | PING | SCREEN_COMMAND | STREAM_STATUS
+  WsClientMessage                ──► REGISTER | CMS_REGISTER | CONTENT_CHANGE_REQUEST |
+                                     SCREEN_INTERACTION | STREAM_PUBLISH/SUBSCRIBE/UNSUBSCRIBE | PONG
+  WsCmsMessage                   ──► SCREEN_UPDATED | ACTIVE_SCREENS_LIST
+  BroadcastRequest               ──► body of POST /api/internal/broadcast
 
-Lines 69-88   IoT types        ──► DeviceTelemetry interface
-Lines 82-88                    ──► IoTEvent interface
-Lines 90-96                    ──► DeviceCommand interface
+Legacy signage / IoT interfaces (some historical)
+  Screen, Content, Playlist, Schedule, Rule
+  DeviceTelemetry, IoTEvent, DeviceCommand   (used by @platform/iot)
 ```
 
 ---
 
-## Data Journey of Each Type
+## Data Journey of the Live Contracts
 
 ```
-Screen
-  Created at: PostgreSQL (screens table)
-  Fetched by: apps/api → GET /api/screens
-  Consumed by: apps/cms (admin view) + apps/screens (player self-identifies)
+WsContent
+  Built by:    @platform/db getScreenContent() (join screen → experience/media)
+  Pushed by:   apps/api gateway as WELCOME / CONTENT_UPDATE
+  Rendered by: apps/screens ContentRenderer (by type / templateKey)
 
-Content
-  Created at: PostgreSQL (content table) via CMS upload
-  Fetched by: apps/api → GET /api/content
-  Consumed by: apps/cms (content library) + apps/screens (renders it)
+WsClientMessage / WsServerMessage
+  Spoken by:   screens (REGISTER, CONTENT_CHANGE_REQUEST, STREAM_SUBSCRIBE),
+               CMS tabs (CMS_REGISTER), publishers (STREAM_PUBLISH + binary frames)
+  Routed by:   apps/api/src/ws/gateway.ts (per-screen rooms + stream relay)
 
-Playlist / PlaylistItem
-  Assembled by: apps/cms admin
-  Stored in:    PostgreSQL (playlists + playlist_items tables)
-  Fetched by:   apps/screens on startup (what to play)
-
-Schedule
-  Created by:   apps/cms admin (with cron or time range)
-  Evaluated by: apps/api scheduler (checks current time → picks playlist)
-  Affects:      apps/screens (told which playlist to show)
-
-Rule / RuleCondition / RuleAction
-  Written by:   apps/cms admin
-  Triggered by: IoT events arriving from MQTT
-  Evaluated in: apps/api rule engine
-  Result:       DeviceCommand sent to screen via WebSocket
-
-DeviceTelemetry
-  Produced by:  Physical sensor (raw JSON over MQTT)
-  Normalized:   @platform/iot.normalizeTelemetry(buffer)
-  Evaluated:    apps/api rule engine checks metrics
-  Example:      metrics.motionDetected === true → trigger rule
-
-IoTEvent
-  Produced by:  @platform/iot.normalizeEvent(buffer)
-  Consumed by:  apps/api rule engine
-  Contains:     eventId, deviceId, topic, payload, timestamp
-
-DeviceCommand
-  Produced by:  apps/api rule engine after evaluation
-  Published by: @platform/iot.publishCommand(deviceId, command)
-  Delivered to: Physical device via Mosquitto broker
+BroadcastRequest
+  Sent by:     apps/cms broadcastWsContentDirect → POST /api/internal/broadcast
+  Auth:        x-broadcast-secret == BROADCAST_SECRET
+  Effect:      gateway broadcast() → CONTENT_UPDATE to the screen's room
 ```
+
+> The IoT types still back `@platform/iot`; the `Playlist`/`Schedule`/`Rule` interfaces remain
+> for compatibility but are not part of the current experience/template flow.

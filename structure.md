@@ -57,15 +57,28 @@ cms-platform/                 ← YOU ARE HERE
 
 ---
 
+## Core Concepts
+
+- **Screen** — a physical display. One DB row (`screen` table), one URL `…/screens/<screenId>`,
+  one assigned piece of content. Many screens run independently.
+- **Experience** — a unit of content backed by a **code-defined template** (`portfolio`,
+  `live-stream`). Per-experience content lives in `experience.templateContent` (JSONB).
+- **Live Stream** — a template whose picture is pushed live from an external publisher
+  (Unity/AR glasses) over the WebSocket gateway and decoded on the screen in real time.
+
 ## Full Data Flow (One Sentence Per Step)
 
-1. **Admin** opens browser → hits Nginx → forwarded to `apps/cms` (:3000)
-2. **CMS page** calls `GET http://localhost:4000/api/screens` → `apps/api` responds with screen list
-3. **API** reads that data from PostgreSQL via `packages/db` → returns JSON
-4. **IoT sensor** publishes MQTT to Mosquitto `:1883` → `packages/iot` in `apps/api` receives it
-5. **Rule engine** in `apps/api` evaluates the event → decides to change content
-6. **WebSocket** push from `apps/api` → `apps/screens` receives it → switches playlist instantly
-7. **Screen** player renders new content full-screen on the physical display
+1. **Admin** opens the CMS through Nginx (`/` → `apps/cms`) and assigns an experience to a screen.
+2. **CMS server action** writes the assignment to PostgreSQL via `@platform/db` (source of truth),
+   then `POST`s the derived content to `apps/api` `/api/internal/broadcast` (with `BROADCAST_SECRET`).
+3. **API WebSocket hub** (`apps/api/src/ws/gateway.ts`) fans the update out to that screen's room
+   as `CONTENT_UPDATE` and notifies CMS tabs as `SCREEN_UPDATED`.
+4. **Screen player** (`apps/screens` `[screenId]`) receives it over its WebSocket and renders the
+   new experience/template full-screen — sub-10ms, no reload.
+5. **Live streams:** a publisher sends `STREAM_PUBLISH` + binary video frames over `/ws/`; the
+   gateway relays them to every screen showing that `streamId`, which decodes (WebCodecs/MJPEG).
+6. **IoT (secondary):** devices publish telemetry to Mosquitto `:1883`; `@platform/iot` inside
+   `apps/api` consumes it (device status / future rule-driven content changes).
 
 ---
 

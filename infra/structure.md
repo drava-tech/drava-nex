@@ -32,12 +32,16 @@ infra/docker → starts Mosquitto :1883 + :9001
                        └── apps/api → @platform/iot connects to :1883
                            browser → subscribes to :9001 (WebSocket MQTT)
 
-infra/docker → starts Nginx :80
+infra/docker → starts Nginx :80   (sole public entry; routes by PATH)
                        │
-                       ├── cms.platform.local → apps/cms :3000
-                       ├── screens.platform.local → apps/screens :3001
-                       └── api.platform.local → apps/api :4000
+                       ├── /            → apps/cms :3000
+                       ├── /screens/    → apps/screens :3001  (basePath /screens)
+                       └── /api/, /ws   → apps/api :4000      (REST + WebSocket)
 ```
+
+In production the apps run **in Docker too** (not just the backing services); Nginx is the only
+published port. See [`docker/structure.md`](./docker/structure.md) +
+[`.doc/networking.md`](../.doc/networking.md).
 
 ---
 

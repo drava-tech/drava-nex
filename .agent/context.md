@@ -2,7 +2,12 @@
 
 ## What this is
 
-A digital signage CMS + IoT edge platform. Operators manage content and screen layouts via a web admin; screens (edge devices) pull and display that content; an API bridges the two and communicates with IoT devices over MQTT. Early MVP — some placeholder data and stubs still in place.
+A digital signage CMS + IoT edge platform. Operators author *experiences* (backed by
+code-defined templates) and assign them to screens in a web admin; each screen renders its
+assigned content full-screen and updates in real time over a WebSocket; the API bridges the two
+(REST + WebSocket gateway) and talks to IoT devices over MQTT. Includes a **Live Stream**
+template (a publisher pushes video over the gateway; screens decode it via WebCodecs/MJPEG) and
+runs as a shared Docker stack on the office LAN behind Nginx.
 
 ## Apps and ports
 
@@ -24,7 +29,10 @@ All three are routed through Nginx on port 80: `/` → CMS, `/api/` → API, `/s
 | `@platform/ui` | Shared React component library (Tailwind 4, CVA, clsx, tailwind-merge) |
 | `@platform/config` | Shared ESLint and TypeScript config presets |
 
-Only `apps/api` has a direct DB connection. The CMS currently writes JSON files, not API calls — this is a known MVP gap.
+Only `apps/api` has a direct DB connection (Postgres is the single source of truth). The CMS
+writes the DB via server actions, then pushes content to screens over the WebSocket (via
+`POST /api/internal/broadcast`, guarded by `BROADCAST_SECRET`). `@platform/ui` also holds the
+content **templates** (`portfolio`, `live-stream`) shared by the CMS and screens.
 
 ## Runtime modes
 
@@ -64,9 +72,12 @@ Two endpoints must both return `"status":"ok"`:
 
 If the second fails but the first succeeds, the problem is Nginx routing, not the API.
 
-## Current MVP gaps (as of 2026-06-13)
+## Current state & known gaps (as of 2026-06)
 
-- API returns hardcoded/demo data for several routes — real DB queries not yet wired
-- WebSocket endpoint is a placeholder stub
-- CMS writes layout/content data to JSON files instead of calling the API
-- `AGENTS.md` and `CLAUDE.md` do not yet exist
+- REST routes are DB-backed; the WebSocket gateway (per-screen rooms, content broadcast,
+  live-stream binary relay) is fully implemented; CMS↔screen sync works in production.
+- In production, app clients connect to `/ws` (no slash) — Nginx needs the exact `= /ws`
+  upgrade block (already in `default.conf`), else the handshake 301s and sync silently breaks.
+- **Live-stream smoothness:** the current MJPEG-over-WebSocket transport stutters over Wi-Fi;
+  the planned fix is WebRTC via a media server (adaptive bitrate, loss-resilient).
+- IoT/MQTT is connected but the rule engine is still basic (telemetry in; limited automation).

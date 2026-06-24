@@ -1,135 +1,65 @@
 # packages/db — Database Package
 
 > **Package name:** `@platform/db`
-> **Purpose:** Database client + Drizzle ORM schema (Postgres access layer)
-> **Depends on:** `@platform/types` · `drizzle-orm` · `pg`
-> **Used by:** `apps/api` · `apps/cms`
+> **Purpose:** the Postgres access layer — Drizzle client, schema, queries
+> **Depends on:** `drizzle-orm` · `pg` · `@platform/types`
+> **Used by:** `apps/api` (and CMS server actions / route handlers)
 
 ---
 
 ## What Lives Here
 
 ```
-packages/db/               ← YOU ARE HERE
-├── src/
-│   └── index.ts           → db client + schema + type re-exports
-├── package.json           → deps: drizzle-orm, pg, @platform/types
-└── tsconfig.json          → compiles to dist/
+packages/db/src/
+├── client.ts              → pg Pool + drizzle() client; loads root .env DATABASE_URL
+├── index.ts               → re-exports client + schema + all query helpers
+├── schema/
+│   ├── auth.ts            → better-auth tables (user, session, account, verification)
+│   ├── projects.ts        → experience table (name, slug, templateKey, templateContent)
+│   ├── media.ts           → media_asset table
+│   ├── screens.ts         → screen table (currentExperienceId / currentMediaAssetId, …)
+│   ├── relations.ts       → FK relations    └── index.ts → barrel
+├── queries/
+│   ├── screens.ts         → getScreenContent, setScreenExperience/Media, list/create/delete
+│   ├── experiences.ts     → listExperiences …
+│   └── media.ts           → media queries
+├── migrate-screen.ts / migrate-experience-template.ts / migrate-media.ts  → one-off DDL
+└── seed-screens.ts / seed-projects.ts / assign-idle-video.ts              → seeds/utilities
 ```
+
+Builds to `dist/`; `drizzle.config.ts` points at the compiled schema.
 
 ---
 
 ## What This Package Does
 
-`@platform/db` is the **only place** that talks to PostgreSQL.
+The **only** place that talks to PostgreSQL — apps import query helpers, never raw SQL or `pg`.
 
 ```
-apps/api  ──imports──►  @platform/db  ──queries──►  PostgreSQL :5432
-apps/cms  ──imports──►  @platform/db  ──queries──►  PostgreSQL :5432
+apps/api / CMS server actions ──► @platform/db ──► PostgreSQL :5432
 ```
 
-Apps never write raw SQL or import `pg` directly — they go through this package. This means if you swap PostgreSQL for a different database, only this package changes.
+The central query is **`getScreenContent(screenId)`** — it joins `screen` → `experience`
+(or `media_asset`) and returns the `WsContent` shape the gateway broadcasts. Because content
+is a *join* (not a frozen copy), renaming/editing an experience reflects on screens live.
 
 ---
 
-## File: `src/index.ts`
+## Schema (tables)
 
-### Current State (Placeholder)
-
-```typescript
-// Re-exports all domain types (single import point for apps)
-export type { Screen, Content, Playlist, PlaylistItem,
-              Schedule, Rule } from '@platform/types';
-
-// Stub database client
-export const dbClient = {
-  connect: () => console.info('[db] Database client placeholder connected.'),
-  query: async (sql: string) => {
-    console.info(`[db] Executing query: ${sql}`)
-    return []
-  }
-}
-
-// Stub schema (table name strings as placeholders)
-export const schema = {
-  screens:   'screens_table_definition_placeholder',
-  content:   'content_table_definition_placeholder',
-  playlists: 'playlists_table_definition_placeholder',
-  schedules: 'schedules_table_definition_placeholder',
-  rules:     'rules_table_definition_placeholder',
-} as const
-
-export type DatabaseType = typeof dbClient
-```
-
-### Future State (Real Drizzle ORM)
-
-```typescript
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { Pool } from 'pg'
-import * as schema from './schema'        // Drizzle table definitions
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-export const db = drizzle(pool, { schema })
-
-// Usage in apps/api:
-const screens = await db.query.screens.findMany()    // → Screen[]
-const content = await db.query.content.findFirst({
-  where: eq(schema.content.id, 'c-001')
-})
-```
+`user/session/account/verification` (auth) · `experience` (`templateKey` + `templateContent`
+JSONB) · `media_asset` · `screen` (points at one experience **or** one media asset). See
+[`.doc/database.md`](../../.doc/database.md) for columns + migration workflow.
 
 ---
 
-## Data Flow
+## Scripts (run from root, delegate here)
 
 ```
-apps/api route handler:
-  import { db } from '@platform/db'
-
-  GET /api/screens:
-    db.query.screens.findMany()
-      ─── SQL: SELECT * FROM screens ───►  PostgreSQL
-      ◄── rows: [{ id, name, status, ... }]
-      mapped to Screen[] by Drizzle
-      returned as JSON response
-
-  POST /api/schedules:
-    db.insert(schema.schedules).values({ playlistId, screenId, startTime, ... })
-      ─── SQL: INSERT INTO schedules ───►  PostgreSQL
-      ◄── inserted row with generated id
+pnpm db:generate / db:migrate / db:push / db:studio
+pnpm --filter @platform/db db:seed-screens   # idempotent screen seeding
 ```
-
----
-
-## File: `package.json`
-
-| Dependency | Type | Why |
-|---|---|---|
-| `drizzle-orm` | runtime | ORM — type-safe SQL query builder |
-| `@platform/types` | runtime | Screen/Content/etc shapes |
-| `pg` | devDep | PostgreSQL Node.js driver |
-| `drizzle-kit` | devDep | CLI for generating + running DB migrations |
-| `@types/pg` | devDep | TypeScript types for pg |
-
----
-
-## What Gets Added in Future
-
-```
-packages/db/src/
-├── index.ts          ← stays: exports db client
-├── schema/
-│   ├── screens.ts    ← Drizzle table definition for screens
-│   ├── content.ts    ← Drizzle table definition for content
-│   ├── playlists.ts  ← Drizzle table definition for playlists
-│   ├── schedules.ts  ← Drizzle table definition for schedules
-│   └── rules.ts      ← Drizzle table definition for rules
-└── migrations/       ← generated by drizzle-kit (auto-created)
-```
+DB connections from the host use `localhost:5432` (published); inside Docker, `postgres:5432`.
 
 ---
 
@@ -137,7 +67,7 @@ packages/db/src/
 
 | Direction | Target | How |
 |---|---|---|
-| → imports | `@platform/types` | Screen, Content, etc type contracts |
-| ← imported by | `apps/api` | DB queries for all REST routes |
-| ← imported by | `apps/cms` | Future: server-side DB queries in Server Components |
-| → connects to | PostgreSQL `:5432` | TCP via `pg` connection pool |
+| → imports | `@platform/types` | `WsContent` and shared shapes |
+| ← imported by | `apps/api` | every DB read/write + the gateway's content lookups |
+| ← imported by | `apps/cms` | server actions / route handlers |
+| → connects to | PostgreSQL `:5432` | `pg` pool |

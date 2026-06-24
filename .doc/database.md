@@ -28,24 +28,30 @@ import { checkDatabaseHealth } from '@platform/db';
 const ok = await checkDatabaseHealth(); // true or throws
 ```
 
-It opens a raw pool connection, runs `SELECT 1`, and releases it. Used internally by the API health route.
+It opens a raw pool connection, runs `SELECT 1`, and releases it. The API health route
+(`apps/api/src/index.ts` → `buildHealthPayload`) runs the same `SELECT 1` via Drizzle.
 
 ---
 
-## 3. Drizzle Schema — 8 Tables
+## 3. Drizzle Schema
 
-Schema files live in `packages/db/src/schema/`:
+Schema files live in `packages/db/src/schema/` (wired together by `index.ts` + `relations.ts`):
 
-| Table | File | Purpose |
+| Table(s) | File | Purpose |
 |---|---|---|
-| `screens` | `screens.ts` | Display metadata, connectivity states, registered codes |
-| `templates` | `templates.ts` | Layout skeletons and component configuration |
-| `experiences` | `experiences.ts` | Active templates assigned to screens |
-| `contents` | `contents.ts` | Asset properties, raw settings data, layout specs |
-| `screen_assignments` | `screenAssignments.ts` | Junction: maps screens to content |
-| `devices` | `devices.ts` | IoT sensor info and MQTT telemetry routes |
-| `rules` | `rules.ts` | Automated rule conditions and actions |
-| `assets` | `assets.ts` | File URLs and properties linked to content |
+| `user`, `session`, `account`, `verification` | `auth.ts` | better-auth identity — admin login + roles |
+| `experience` | `projects.ts` | Experiences: `name`, `slug`, the assigned `templateKey` (e.g. `portfolio`, `live-stream`), and per-template content in `templateContent` (JSONB) |
+| `media_asset` | `media.ts` | Uploaded media (image/video): `type`, `url`, `name`, size, soft-delete |
+| `screen` | `screens.ts` | Displays: `screenId` (PK), `screenName`, `currentContentKind` (`experience`/`media`), FK `currentExperienceId` / `currentMediaAssetId`, `position`, soft-delete `deletedAt` |
+
+**A screen points at exactly one piece of content** (an experience or a media asset). Query
+helpers live in `packages/db/src/queries/` — `getScreenContent` (the join that derives the
+`WsContent` pushed over the WebSocket), `setScreenExperience`, `setScreenMedia`, `listScreens`,
+`listExperiences`, etc. — so apps never write raw SQL.
+
+> Schema evolved via `db:push` plus a few one-off scripts in `packages/db/src/`
+> (`migrate-screen.ts`, `migrate-experience-template.ts`, `migrate-media.ts`) and seeds
+> (`seed-screens.ts`, `seed-projects.ts`).
 
 ---
 

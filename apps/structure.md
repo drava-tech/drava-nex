@@ -20,18 +20,18 @@ apps/                   ← YOU ARE HERE
 
 ```
 apps/cms  (Admin Dashboard)
-  │  Admin manages content, playlists, schedules, rules
-  │  Calls REST API ──────────────────────────────────►  apps/api
-  │                                                          │
-  │                                                    reads/writes DB
-  │                                                    listens to MQTT
-  │                                                          │
-apps/screens  (Screen Player)                               │
-  │  Fetches its playlist via REST ──────────────────► apps/api
-  │  Connects via WebSocket  ◄──────── real-time push  apps/api
-  │  Shows content full-screen
+  │  Admin authors experiences (templates) + assigns content to screens
+  │  Writes Postgres (via @platform/db) and POSTs a content push ──► apps/api
+  │                                                                     │
+apps/api  (REST + WebSocket gateway + MQTT)                            │
+  │  Source of truth lives in Postgres; broadcasts CONTENT_UPDATE ─────┤
+  │  Relays live-stream video frames publisher → screens               │
+  ▼                                                                     │
+apps/screens  (Screen Player)  ◄──────── real-time push over WebSocket ┘
+  │  Renders the assigned experience/template full-screen (incl. live streams)
+  │  Touch interactions relay back to the CMS
   │
-  └── Both cms + screens share UI components from packages/ui
+  └── cms + screens share templates + UI from packages/ui
 ```
 
 ---

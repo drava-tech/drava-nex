@@ -8,11 +8,11 @@ This document maps the network ports, Docker network topology, and proxy configu
 
 | Service | Port | Exposed to host | Context |
 |---|---|---|---|
-| **Nginx** | `80` | Yes — only public port | Sole entry point for all web traffic |
+| **Nginx** | `80` | Yes — sole public **web** entry | All HTTP/WS traffic (CMS, screens, API, gateway) |
 | **CMS (Next.js)** | `3000` | No — internal only | Admin dashboard |
-| **Screens (Next.js)** | `3001` | No — internal only | Screen player app |
-| **API (Hono)** | `4000` | No — internal only | REST + WebSocket + MQTT gateway |
-| **PostgreSQL** | `5432` | No — internal only | Never reachable from host or internet |
+| **Screens (Next.js)** | `3001` | No — internal only | Screen player app (served under `/screens`) |
+| **API (Hono)** | `4000` | No — internal only | REST + WebSocket gateway + MQTT |
+| **PostgreSQL** | `5432` | **Yes — `5432:5432`** | Published for drizzle-kit / seeds on the host (not the public web path) |
 | **Mosquitto MQTT** | `1883` | No — internal only | MQTT protocol |
 | **Mosquitto WS** | `9001` | No — internal only | WebSocket-based MQTT |
 
@@ -48,19 +48,27 @@ Two Docker networks are defined in `infra/docker/docker-compose.yml`:
 
 ## 3. Nginx Routing (Docker mode — `infra/nginx/default.conf`)
 
-Single `server_name localhost` block. Routes by **path**, not hostname:
+Routes by **path**, not hostname. Order matters — more specific blocks come first:
 
-| Path | Upstream | Notes |
+| Location | Upstream | Notes |
 |---|---|---|
-| `/api/` | `api:4000` | REST API |
-| `/health` | `api:4000` | Health check alias |
-| `/ws/` | `api:4000` | WebSocket (upgrade headers + 3600s timeout) |
-| `/screens/` | `screens:3001/` | Trailing slash strips prefix |
+| `^~ /api/auth/` | `cms:3000` | Auth/session — lives in the CMS Next app, **not** the API |
+| `^~ /api/upload`, `^~ /api/media` | `cms:3000` | Uploads + media streaming — CMS-owned routes |
+| `/api/` | `api:4000` | Hono REST API (everything else under `/api`) |
+| `/health` | `api:4000` | Health alias |
+| `= /ws`  and  `/ws/` | `api:4000` | WebSocket upgrade (headers + 3600s timeout). The **exact `= /ws`** block exists because app clients connect to `/ws` (no slash); without it Nginx 301-redirects and the WS handshake fails |
+| `~* ^/screens/_next/static/` | `screens:3001` | Screens hashed assets (cache-forever) |
+| `~* ^/_next/static/` | `cms:3000` | CMS hashed assets |
+| `= /screens` (exact) | `cms:3000` | Exact `/screens` → CMS (avoids a redirect loop) |
+| `/screens/` | `screens:3001` | Screen player. **Prefix is NOT stripped** — the screens app sets `basePath:/screens`, so it serves under `/screens` directly |
 | `/` | `cms:3000` | CMS catch-all (must be last) |
 
-Config: `client_max_body_size 500M`, full proxy headers on all locations.
+Config: `client_max_body_size 500M`, full proxy headers on all locations. Nginx config is a
+read-only volume mount → apply changes with `docker exec cms-nginx nginx -s reload` (no rebuild).
+After recreating app containers, **restart Nginx** so it re-resolves their new IPs (otherwise 502).
 
-**Local dev mode** (Windows-native Nginx, no Docker for apps): Uses `host.docker.internal` instead of service names. Config at `infra/nginx/nginx.conf`.
+**Local dev mode** (Windows-native Nginx, no Docker for apps): uses `host.docker.internal`
+instead of service names. Config at `infra/nginx/nginx.conf`.
 
 ---
 
@@ -82,19 +90,33 @@ Browser-side requests from CMS/Screens always go through Nginx (`http://localhos
 
 ## 5. CORS Configuration
 
-`apps/api/src/index.ts` allows origins:
-- `http://localhost:3000` (CMS — local dev)
-- `http://localhost:3001` (Screens — local dev)
-- `http://localhost` (Nginx port 80 — Docker mode)
+`apps/api/src/index.ts` reads `CORS_ORIGIN` (comma-separated), defaulting to
+`http://localhost:3000`, `http://localhost:3001`, `http://localhost`. For the office LAN, add
+the host origin (e.g. `http://192.168.1.250`) to `CORS_ORIGIN` in the root `.env`.
 
 ---
 
 ## 6. WebSocket Routing
 
-WebSocket connections from browsers go through Nginx at `/ws/` with upgrade headers:
+Browser/app and publisher WebSocket connections go through Nginx to the API gateway. Both
+`/ws` and `/ws/` upgrade (see the route table) with:
 ```nginx
 proxy_set_header Upgrade    $http_upgrade;
 proxy_set_header Connection "upgrade";
 proxy_read_timeout 3600s;
 ```
-`NEXT_PUBLIC_WS_URL=ws://localhost/ws` is baked into CMS/Screens at build time.
+`NEXT_PUBLIC_WS_GATEWAY_URL` (baked at build) defaults to `/ws`; clients resolve it against
+`window.location` (`wss://` under HTTPS). The live-stream publisher connects to
+`ws://<host>/ws/`. **Gotcha:** clients using the no-slash `/ws` only work because of the exact
+`= /ws` Nginx block above — a bare `/ws` against only `location /ws/` 301-redirects and the
+handshake dies (this silently broke all real-time sync until the exact block was added).
+
+---
+
+## 7. Production LAN Deployment
+
+The stack runs on one host (e.g. `192.168.1.250`); only Nginx is published (`80:80`). All
+devices use one shared instance via relative `/api` and `/ws` URLs. Per-service server-side
+calls use `INTERNAL_API_URL=http://api:4000` (set for **both** cms and screens). The screens
+app is built with `NEXT_PUBLIC_SCREENS_BASE_PATH=/screens` so its routes/assets live under
+`/screens` and match the Nginx routing.

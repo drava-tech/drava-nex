@@ -2,12 +2,32 @@
 
 Welcome to the Experience Center Digital Signage and Content Management Platform. This is a production-grade monorepo setup powered by **pnpm**, **Turborepo**, and **TypeScript**.
 
+## Key Features
+
+- **Template / experience system** — content is authored as *experiences* backed by
+  code-defined templates (`portfolio`, `live-stream`). Each experience stores its own content
+  in Postgres (`experience.templateContent`) and is edited in a full-screen CMS editor with a
+  live preview.
+- **Real-time CMS ↔ screen sync** — assigning content in the CMS pushes it to the matching
+  display over a WebSocket in milliseconds; touch interactions on a screen reflect back into
+  the CMS. No polling.
+- **Live Stream template** — a publisher (e.g. a Unity/AR-glasses app) pushes video frames
+  over the WebSocket gateway; screens decode them in real time (WebCodecs H.264 / MJPEG) and
+  show the live feed. One `streamId` per experience.
+- **Multi-screen** — every display is an independent screen (its own assigned content + its own
+  URL `…/screens/<screenId>`), managed from the CMS.
+- **Media library, auth, IoT** — media uploads, role-based admin auth (better-auth), and an
+  MQTT gateway for device telemetry.
+
 ## Architecture & System Topology
 
-The platform integrates three main core domains:
-1. **CMS**: React-based admin control panel for content curation, scheduling, and live device telemetry viewing.
-2. **Screen Player**: Edge device renderer that reads playlists/templates and plays scheduled dynamic content.
-3. **IoT and Messaging Gateway**: High-throughput message broker processing sensor events, evaluating edge rules, and publishing layout adjustments.
+The platform integrates three main applications:
+1. **CMS** (`@platform/cms`): Next.js admin console for experiences/templates, media, screen
+   management, and live device status.
+2. **Screen Player** (`@platform/screens`): Next.js renderer per display; subscribes over
+   WebSocket and renders the assigned experience/template (incl. live streams) full-screen.
+3. **API + Gateway** (`@platform/api`): Hono REST API, the WebSocket hub (per-screen rooms,
+   content broadcast, live-stream relay), and the MQTT device gateway.
 
 ```mermaid
 graph TD
@@ -76,7 +96,7 @@ graph TD
 
 ### Prerequisites
 - Node.js v20+
-- pnpm v11+
+- pnpm v9 (`corepack enable` — the repo pins `pnpm@9.0.0`)
 - Docker & Docker Compose
 
 ### Get Started
@@ -85,6 +105,36 @@ graph TD
 3. Spin up the infrastructure components: `docker compose -f infra/docker/docker-compose.yml up -d`.
 4. Run all services in development mode: `pnpm dev`.
 5. Build all packages and applications: `pnpm build`.
+
+In dev the apps run directly: CMS `http://localhost:3000`, Screens `http://localhost:3001`
+(a screen is at `http://localhost:3001/<screenId>`), API `http://localhost:4000`.
+
+## Production Deployment (office LAN)
+
+The whole stack runs as Docker containers on one host (e.g. `192.168.1.250`); **only Nginx is
+published, on port 80**. Everyone on the LAN uses one shared instance — no per-device installs.
+
+```powershell
+pnpm infra:build      # build the api/cms/screens images
+pnpm infra:up         # start the full stack (postgres, mosquitto, api, cms, screens, nginx)
+# after recreating app containers, refresh nginx so it re-resolves their IPs:
+docker restart cms-nginx
+pnpm healthcheck      # http://localhost/health → all "ok"
+```
+
+URLs (replace the IP with your host):
+
+| Purpose | URL |
+|---|---|
+| CMS admin | `http://192.168.1.250/` |
+| A screen / TV | `http://192.168.1.250/screens/<screenId>` |
+| Live-stream publisher endpoint | `ws://192.168.1.250/ws/` |
+| Health | `http://192.168.1.250/health` |
+
+The frontends use **relative** `/api` and `/ws` paths resolved from `window.location`, and the
+screens app is served under `/screens` (Next.js `basePath`), so one build serves every device.
+See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
+[`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
 
 ## Team / Contributor Setup (shared host database)
 

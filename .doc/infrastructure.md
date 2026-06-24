@@ -10,7 +10,7 @@ Six Docker services defined in `infra/docker/docker-compose.yml`:
 
 | Container | Image | Internal port | Host port |
 |---|---|---|---|
-| `cms-postgres` | `postgres:16-alpine` | `5432` | none — internal only |
+| `cms-postgres` | `postgres:16-alpine` | `5432` | **`5432:5432`** — for drizzle-kit / seeds on the host |
 | `cms-mosquitto` | `eclipse-mosquitto:2` | `1883`, `9001` | none — internal only |
 | `cms-api` | built from `apps/api/Dockerfile` | `4000` | none — internal only |
 | `cms-admin` | built from `apps/cms/Dockerfile` | `3000` | none — internal only |
@@ -58,7 +58,15 @@ All three app Dockerfiles share the same two-stage pattern:
 - **API:** Full workspace copy so `pnpm --filter @platform/db db:push` works inside the container for migrations
 - **CMS / Screens:** Uses Next.js standalone output — copies only `/.next/standalone`, `/.next/static`, `/public`; no pnpm needed at runtime
 
-`NEXT_PUBLIC_*` environment variables are injected via `ARG → ENV` in the CMS/Screens builder stage — they are baked in at image build time.
+`NEXT_PUBLIC_*` environment variables are injected via `ARG → ENV` in the CMS/Screens builder
+stage — they are baked in at image build time. The **screens** image bakes
+`NEXT_PUBLIC_SCREENS_BASE_PATH=/screens` so the app serves under `/screens` (matching Nginx).
+At runtime, `docker-compose.yml` sets `INTERNAL_API_URL=http://api:4000` for **both** cms and
+screens (server-side calls reach the API by service name, never `localhost`).
+
+> **Turbo strict-env gotcha:** a custom build var is pruned before `next build` unless it is
+> `NEXT_PUBLIC_*` (auto-passed for Next apps) or declared in `turbo.json`. That's why the
+> basePath var is `NEXT_PUBLIC_`-prefixed.
 
 ---
 
@@ -119,9 +127,11 @@ docker exec -it cms-postgres sh
 # Connect to PostgreSQL (internal access only)
 docker exec -it cms-postgres psql -U cms_app -d cms_db
 
-# Rebuild a single service after code changes
-docker compose -f infra/docker/docker-compose.yml build api
-docker compose -f infra/docker/docker-compose.yml up -d --no-deps api
+# Redeploy after code changes (images do NOT auto-update)
+pnpm infra:build          # or: docker compose ... build <service>
+pnpm infra:up
+docker restart cms-nginx  # re-resolve recreated container IPs, else routes 502
+pnpm healthcheck          # http://localhost/health → all "ok"
 
 # Confirm port 5432 is NOT bound to host (security check)
 netstat -ano | findstr :5432

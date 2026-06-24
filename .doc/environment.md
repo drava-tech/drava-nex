@@ -31,11 +31,25 @@ This file is **gitignored** — it must never be committed. Copy `.env.example` 
 ### Next.js Public URLs (baked in at build time)
 | Variable | Docker value | Local dev value |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `http://localhost/api` | `http://localhost:4000/api` |
-| `NEXT_PUBLIC_WS_URL` | `ws://localhost/ws` | `ws://localhost:4000/ws` |
-| `NEXT_PUBLIC_WS_GATEWAY_URL` | `ws://localhost/ws` | `ws://localhost:4000/ws` |
+| `NEXT_PUBLIC_API_URL` | `/api` (relative) | `http://localhost:4000/api` |
+| `NEXT_PUBLIC_WS_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
+| `NEXT_PUBLIC_WS_GATEWAY_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
+| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/screens` (screens image only) | *(unset → app at root on :3001)* |
 
-These are `NEXT_PUBLIC_*` variables — they are embedded into the JavaScript bundle at `docker compose build` time. Changing them after build requires a rebuild.
+Docker bakes **relative** paths so one build works for any host/IP; clients resolve them against
+`window.location`. These are `NEXT_PUBLIC_*` — embedded into the JS bundle at `docker compose
+build` time, so changing them needs a rebuild.
+
+### Real-time, Internal & Auth
+| Variable | Example | Notes |
+|---|---|---|
+| `BROADCAST_SECRET` | `<32-byte hex>` | Shared secret the CMS sends (`x-broadcast-secret`) when POSTing to the API `/api/internal/broadcast`; must match on both sides |
+| `INTERNAL_API_URL` | `http://api:4000` | Server-side base URL the CMS **and** screens use to reach the API by service name (`http://localhost:4000` in local dev) |
+| `CORS_ORIGIN` | `http://192.168.1.250,http://localhost` | Comma-separated allowed origins for the API |
+| `BETTER_AUTH_URL` | `http://192.168.1.250` | Base URL for better-auth (CMS login/session) |
+| `BETTER_AUTH_SECRET` | `<hex>` | Session signing secret (each dev generates their own) |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | `http://192.168.1.250` | Trusted origins for auth |
+| `CONFIG_DIR` | `/app/apps/screens/public/config` | Docker-only mount path the API can read (legacy config dir) |
 
 ### MQTT Broker
 | Variable | Docker value | Local dev value |
@@ -84,5 +98,8 @@ When running **local dev** (apps run on Windows, no Docker for app services):
 
 - Never commit `.env` — it is in `.gitignore`
 - Never put real passwords in `.env.example` — use `CHANGE_ME` placeholders
-- PostgreSQL port `5432` is never bound to the host — only accessible inside Docker via `postgres:5432`
+- PostgreSQL port `5432` **is** published to the host (`5432:5432`) for drizzle-kit/seeds — keep
+  it behind the firewall; it is not reachable through the public web path (Nginx)
 - MQTT ports `1883` and `9001` are never bound to the host — Docker internal only
+- `BROADCAST_SECRET` and the `BETTER_AUTH_*` secrets must be real random values in production
+  (not the `dev-secret` / `CHANGE_ME` defaults)
