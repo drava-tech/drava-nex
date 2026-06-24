@@ -101,6 +101,8 @@ export function PortfolioEditorWorkspace({
   const [cardPadding, setCardPadding] = useState<number>(
     initialContent?.overview?.cardPadding ?? DEFAULT_CARD_PADDING
   );
+  const [activeCardIndex, setActiveCardIndex] = useState<number | null>(null);
+
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,44 +179,71 @@ export function PortfolioEditorWorkspace({
             Content
           </h2>
 
-          {/* Style — one set of values shared by all 3 cards */}
-          <div className="flex flex-col gap-4 mb-4 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
-              Style (all cards)
-            </h3>
-            <NumberControl
-              label="Title font size"
-              value={titleFontSize}
-              min={24}
-              max={120}
-              disabled={isPending}
-              onChange={(v) => { setSaved(false); setTitleFontSize(v); }}
-            />
-            <NumberControl
-              label="Button font size"
-              value={buttonFontSize}
-              min={10}
-              max={48}
-              disabled={isPending}
-              onChange={(v) => { setSaved(false); setButtonFontSize(v); }}
-            />
-            <NumberControl
-              label="Card padding (spacing)"
-              value={cardPadding}
-              min={0}
-              max={120}
-              disabled={isPending}
-              onChange={(v) => { setSaved(false); setCardPadding(v); }}
-            />
-          </div>
+          {activeCardIndex !== null ? (
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => setActiveCardIndex(null)}
+                className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors w-fit"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to Overview
+              </button>
+              
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col items-center text-center gap-3 bg-zinc-50 dark:bg-zinc-900/50 mt-4">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Editing: {cards[activeCardIndex]?.title}
+                </p>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Build & Technology content editing fields are currently using placeholders and will be editable here soon.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Style — one set of values shared by all 3 cards */}
+              <div className="flex flex-col gap-4 mb-4 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                  Style (all cards)
+                </h3>
+                <NumberControl
+                  label="Title font size"
+                  value={titleFontSize}
+                  min={24}
+                  max={120}
+                  disabled={isPending}
+                  onChange={(v) => { setSaved(false); setTitleFontSize(v); }}
+                />
+                <NumberControl
+                  label="Button font size"
+                  value={buttonFontSize}
+                  min={10}
+                  max={48}
+                  disabled={isPending}
+                  onChange={(v) => { setSaved(false); setButtonFontSize(v); }}
+                />
+                <NumberControl
+                  label="Card padding (spacing)"
+                  value={cardPadding}
+                  min={0}
+                  max={120}
+                  disabled={isPending}
+                  onChange={(v) => { setSaved(false); setCardPadding(v); }}
+                />
+              </div>
 
-          <PortfolioFields cards={cards} disabled={isPending} onChange={onChange} />
+              <PortfolioFields cards={cards} disabled={isPending} onChange={onChange} />
+            </>
+          )}
+
           {error && <p className="text-xs text-red-500 dark:text-red-400 mt-3">{error}</p>}
         </aside>
 
         <main className="flex-1 min-w-0 p-6 bg-zinc-200 dark:bg-zinc-900/40">
           <ScreenStage variant="fit-screen">
-            <OverviewView content={content} />
+            <OverviewView 
+              content={content} 
+              activeCardIndex={activeCardIndex}
+              onActiveCardChange={setActiveCardIndex}
+            />
           </ScreenStage>
         </main>
       </div>

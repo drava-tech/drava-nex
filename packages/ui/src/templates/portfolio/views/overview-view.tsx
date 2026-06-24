@@ -1,20 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
   type PortfolioContent,
-} from "./content";
+} from "../content";
+import { ProjectShowcaseView } from "./project-showcase";
+import { VideoPopup } from "../components/video-popup";
 
 /**
  * Overview view — 3 columns, each: Title · 4:3 Image · two label buttons.
  * Authored in real 1920×1080 px (inside ScreenStage), fixed light palette.
  * Tapping the first ("Watch Video") button opens the card's video in a popup.
  */
-export function OverviewView({ content }: { content?: PortfolioContent }) {
+export function OverviewView({ 
+  content,
+  activeCardIndex: externalActiveCardIndex,
+  onActiveCardChange,
+}: { 
+  content?: PortfolioContent;
+  activeCardIndex?: number | null;
+  onActiveCardChange?: (index: number | null) => void;
+}) {
   const cards =
     content?.overview?.cards?.length
       ? content.overview.cards
@@ -25,6 +35,14 @@ export function OverviewView({ content }: { content?: PortfolioContent }) {
   const cardPadding = ov?.cardPadding ?? DEFAULT_CARD_PADDING;
 
   const [openVideo, setOpenVideo] = useState<string | null>(null);
+  const [localActiveCardIndex, setLocalActiveCardIndex] = useState<number | null>(null);
+
+  const activeCardIndex = externalActiveCardIndex !== undefined ? externalActiveCardIndex : localActiveCardIndex;
+
+  const setActiveCardIndex = (i: number | null) => {
+    setLocalActiveCardIndex(i);
+    onActiveCardChange?.(i);
+  };
 
   const buttonStyle = {
     background: "#4d4d4d",
@@ -35,6 +53,15 @@ export function OverviewView({ content }: { content?: PortfolioContent }) {
     fontSize: buttonFontSize,
     fontWeight: 400,
   } as const;
+
+  if (activeCardIndex !== null) {
+    return (
+      <ProjectShowcaseView 
+        card={cards[activeCardIndex]!} 
+        onBack={() => setActiveCardIndex(null)} 
+      />
+    );
+  }
 
   return (
     <div className="w-full h-full" style={{ background: "#d4d4d4", padding: 48 }}>
@@ -71,7 +98,13 @@ export function OverviewView({ content }: { content?: PortfolioContent }) {
                 </div>
               ) : null}
               {!card.videoUrl && card.button2 && card.button2.trim() ? (
-                <div className="flex items-center justify-center" style={buttonStyle}>
+                <div 
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveCardIndex(i)}
+                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity" 
+                  style={buttonStyle}
+                >
                   {card.button2}
                 </div>
               ) : null}
@@ -81,87 +114,6 @@ export function OverviewView({ content }: { content?: PortfolioContent }) {
       </div>
 
       {openVideo ? <VideoPopup src={openVideo} onClose={() => setOpenVideo(null)} /> : null}
-    </div>
-  );
-}
-
-/** Full-stage video popup with Fullscreen + Close controls. */
-function VideoPopup({ src, onClose }: { src: string; onClose: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  const goFullscreen = () => {
-    const el = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-    if (!el) return;
-    if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
-    else if (el.webkitEnterFullscreen) el.webkitEnterFullscreen();
-  };
-
-  const close = () => {
-    if (typeof document !== "undefined" && document.fullscreenElement) {
-      void document.exitFullscreen().catch(() => {});
-    }
-    onClose();
-  };
-
-  return (
-    <div
-      onClick={close}
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "rgba(0,0,0,0.88)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
-      <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "78%", maxWidth: 1500 }}>
-        {/* Controls */}
-        <div style={{ position: "absolute", top: -64, right: 0, display: "flex", gap: 16 }}>
-          <button
-            onClick={goFullscreen}
-            style={{
-              background: "#ffffff",
-              color: "#1f1f1f",
-              border: "none",
-              borderRadius: 999,
-              padding: "12px 28px",
-              fontSize: 24,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            ⛶ Fullscreen
-          </button>
-          <button
-            onClick={close}
-            aria-label="Close"
-            style={{
-              background: "rgba(255,255,255,0.16)",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: 999,
-              width: 56,
-              height: 56,
-              fontSize: 28,
-              lineHeight: 1,
-              cursor: "pointer",
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <video
-          ref={videoRef}
-          src={src}
-          controls
-          autoPlay
-          playsInline
-          style={{ width: "100%", height: "auto", maxHeight: "82vh", borderRadius: 18, background: "#000", display: "block" }}
-        />
-      </div>
     </div>
   );
 }

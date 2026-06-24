@@ -1,5 +1,5 @@
-import { ScreenStage } from "./screen-stage";
-import { OverviewView } from "./overview";
+import { ScreenStage } from "./components/screen-stage";
+import { OverviewView } from "./views/overview-view";
 import type { PortfolioContent } from "./content";
 
 /**
