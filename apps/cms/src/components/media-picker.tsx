@@ -23,7 +23,7 @@ export function MediaPicker({
   open: boolean;
   onClose: () => void;
   onSelect: (url: string) => void;
-  accept?: "image" | "all";
+  accept?: "image" | "video" | "all";
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,8 @@ export function MediaPicker({
 
   if (!open) return null;
 
-  const visible = accept === "image" ? items.filter((i) => i.type === "image") : items;
+  const visible = accept === "all" ? items : items.filter((i) => i.type === accept);
+  const uploadAccept = accept === "video" ? "video/*" : accept === "all" ? "image/*,video/*" : "image/*";
 
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,7 +73,7 @@ export function MediaPicker({
         <header className="flex items-center justify-between gap-3 p-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Select media</h2>
           <div className="flex items-center gap-2">
-            <input type="file" ref={fileRef} className="hidden" accept="image/*" onChange={upload} />
+            <input type="file" ref={fileRef} className="hidden" accept={uploadAccept} onChange={upload} />
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
@@ -112,8 +113,12 @@ export function MediaPicker({
                   className="group relative aspect-video rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"
                   title={m.name}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.url} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                  {m.type === "video" ? (
+                    <video src={m.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                  )}
                   <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[10px] text-white bg-black/50 truncate text-left">
                     {m.name}
                   </span>

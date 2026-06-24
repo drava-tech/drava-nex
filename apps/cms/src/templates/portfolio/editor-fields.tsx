@@ -20,6 +20,7 @@ export function PortfolioFields({
   onChange: (index: number, key: keyof OverviewCard, value: string) => void;
 }) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+  const [videoPickerIndex, setVideoPickerIndex] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,27 +82,67 @@ export function PortfolioFields({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <label className={LABEL}>Button 1</label>
-              <input
-                className={FIELD}
-                value={card.button1}
+          {/* Video — optional; played in a popup when "Watch Video" (button 1) is tapped */}
+          <div className="flex flex-col gap-1.5">
+            <label className={LABEL}>Video (Watch Video popup)</label>
+            {card.videoUrl ? (
+              <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-black group">
+                <video src={card.videoUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setVideoPickerIndex(i)}
+                    className="px-3 py-1.5 rounded-lg bg-white text-zinc-900 text-xs font-semibold disabled:opacity-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(i, "videoUrl", "")}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-900/80 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
                 disabled={disabled}
-                placeholder="label"
-                onChange={(e) => onChange(i, "button1", e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className={LABEL}>Button 2</label>
-              <input
-                className={FIELD}
-                value={card.button2}
-                disabled={disabled}
-                placeholder="label"
-                onChange={(e) => onChange(i, "button2", e.target.value)}
-              />
-            </div>
+                onClick={() => setVideoPickerIndex(i)}
+                className="flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+              >
+                ▶ Select video from media
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2">
+            {card.videoUrl ? (
+              <div className="flex flex-col gap-1">
+                <label className={LABEL}>Button 1</label>
+                <input
+                  className={FIELD}
+                  value={card.button1}
+                  disabled={disabled}
+                  placeholder="label"
+                  onChange={(e) => onChange(i, "button1", e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <label className={LABEL}>Button 2</label>
+                <input
+                  className={FIELD}
+                  value={card.button2}
+                  disabled={disabled}
+                  placeholder="label"
+                  onChange={(e) => onChange(i, "button2", e.target.value)}
+                />
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -111,6 +152,15 @@ export function PortfolioFields({
         onClose={() => setPickerIndex(null)}
         onSelect={(url) => {
           if (pickerIndex !== null) onChange(pickerIndex, "imageUrl", url);
+        }}
+      />
+
+      <MediaPicker
+        open={videoPickerIndex !== null}
+        onClose={() => setVideoPickerIndex(null)}
+        accept="video"
+        onSelect={(url) => {
+          if (videoPickerIndex !== null) onChange(videoPickerIndex, "videoUrl", url);
         }}
       />
     </div>

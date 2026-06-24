@@ -5,6 +5,8 @@
 export interface OverviewCard {
   title: string;
   imageUrl: string;
+  /** Video played in a popup when the first ("Watch Video") button is tapped. */
+  videoUrl?: string;
   button1: string;
   button2: string;
 }
@@ -31,9 +33,9 @@ export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContent = {
     buttonFontSize: DEFAULT_BUTTON_FONT_SIZE,
     cardPadding: DEFAULT_CARD_PADDING,
     cards: [
-      { title: "Experience Center", imageUrl: "", button1: "Watch Video", button2: "Projects" },
-      { title: "Architecture & Interiors", imageUrl: "", button1: "Watch Video", button2: "Projects" },
-      { title: "Brand Solutions", imageUrl: "", button1: "Watch Video", button2: "Projects" },
+      { title: "Experience Center", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects" },
+      { title: "Architecture & Interiors", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects" },
+      { title: "Brand Solutions", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects" },
     ],
   },
 };
