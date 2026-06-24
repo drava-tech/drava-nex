@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import { getScreenContent, setScreenExperience } from '@platform/db';
-import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, BroadcastRequest } from '@platform/types';
+import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, BroadcastRequest, StreamFormat } from '@platform/types';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Per-screen WebSocket connections (one screen can have multiple tabs/devices)
@@ -10,6 +10,35 @@ const screenRegistry = new Map<string, Set<WebSocket>>();
 const cmsRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
+
+// ─── Live-stream relay ──────────────────────────────────────────────────────────
+// One publisher EXE per streamId pushes binary media frames; the gateway fans them
+// out to every subscribing screen. The media never touches the DB or HTTP layer.
+const streamPublishers = new Map<string, WebSocket>();
+const streamSubscribers = new Map<string, Set<WebSocket>>();
+// Latest decoder-init (config) + last keyframe per stream, so a late-joining screen
+// can start decoding immediately instead of waiting for the next keyframe.
+interface StreamCacheEntry {
+  format: StreamFormat;
+  config?: Buffer;
+  lastKeyframe?: Buffer;
+}
+const streamCache = new Map<string, StreamCacheEntry>();
+
+function broadcastStreamStatus(streamId: string, active: boolean): void {
+  const subs = streamSubscribers.get(streamId);
+  if (!subs) return;
+  const msg: WsServerMessage = {
+    type: 'STREAM_STATUS',
+    streamId,
+    active,
+    format: streamCache.get(streamId)?.format,
+  };
+  const frame = JSON.stringify(msg);
+  for (const ws of subs) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+  }
+}
 
 export function sendCommandToScreen(screenId: string, command: string, value?: any): number {
   const msg = {
@@ -105,8 +134,31 @@ export function createGateway(): WebSocketServer {
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     let registeredScreenId: string | null = null;
     let isCmsClient = false;
+    // Live-stream roles for this socket
+    let publishingStreamId: string | null = null;
+    const subscribedStreamIds = new Set<string>();
 
-    ws.on('message', (raw: Buffer) => {
+    ws.on('message', (raw: Buffer, isBinary: boolean) => {
+      // Binary frames are live media from a registered publisher → relay verbatim
+      // to every subscriber of that stream. Never JSON-parse these.
+      if (isBinary) {
+        if (!publishingStreamId) return;
+        const streamId = publishingStreamId;
+        const frameType = raw.length > 0 ? raw.readUInt8(0) : 2;
+        const entry = streamCache.get(streamId);
+        if (entry) {
+          if (frameType === 0) entry.config = Buffer.from(raw);
+          else if (frameType === 1) entry.lastKeyframe = Buffer.from(raw);
+        }
+        const subs = streamSubscribers.get(streamId);
+        if (subs) {
+          for (const sub of subs) {
+            if (sub.readyState === WebSocket.OPEN) sub.send(raw, { binary: true });
+          }
+        }
+        return;
+      }
+
       let msg: WsClientMessage;
       try {
         msg = JSON.parse(raw.toString()) as WsClientMessage;
@@ -203,6 +255,47 @@ export function createGateway(): WebSocketServer {
           break;
         }
 
+        case 'STREAM_PUBLISH': {
+          // This socket becomes the publisher (EXE) for the stream.
+          publishingStreamId = msg.streamId;
+          streamPublishers.set(msg.streamId, ws);
+          streamCache.set(msg.streamId, { format: msg.format });
+          broadcastStreamStatus(msg.streamId, true);
+          break;
+        }
+
+        case 'STREAM_SUBSCRIBE': {
+          const { streamId } = msg;
+          if (!streamSubscribers.has(streamId)) streamSubscribers.set(streamId, new Set());
+          streamSubscribers.get(streamId)!.add(ws);
+          subscribedStreamIds.add(streamId);
+
+          const entry = streamCache.get(streamId);
+          const status: WsServerMessage = {
+            type: 'STREAM_STATUS',
+            streamId,
+            active: streamPublishers.has(streamId),
+            format: entry?.format,
+          };
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(status));
+            // Bootstrap a late joiner: replay decoder init + last keyframe.
+            if (entry?.config) ws.send(entry.config, { binary: true });
+            if (entry?.lastKeyframe) ws.send(entry.lastKeyframe, { binary: true });
+          }
+          break;
+        }
+
+        case 'STREAM_UNSUBSCRIBE': {
+          const subs = streamSubscribers.get(msg.streamId);
+          if (subs) {
+            subs.delete(ws);
+            if (subs.size === 0) streamSubscribers.delete(msg.streamId);
+          }
+          subscribedStreamIds.delete(msg.streamId);
+          break;
+        }
+
         case 'PONG':
           break;
       }
@@ -221,6 +314,21 @@ export function createGateway(): WebSocketServer {
       }
       if (isCmsClient) {
         cmsRegistry.delete(ws);
+      }
+      // Publisher gone → drop its cache and tell subscribers the stream stopped.
+      if (publishingStreamId && streamPublishers.get(publishingStreamId) === ws) {
+        const stoppedId = publishingStreamId;
+        streamPublishers.delete(stoppedId);
+        streamCache.delete(stoppedId);
+        broadcastStreamStatus(stoppedId, false);
+      }
+      // Subscriber gone → remove from each stream it was watching.
+      for (const sid of subscribedStreamIds) {
+        const subs = streamSubscribers.get(sid);
+        if (subs) {
+          subs.delete(ws);
+          if (subs.size === 0) streamSubscribers.delete(sid);
+        }
       }
     });
   });

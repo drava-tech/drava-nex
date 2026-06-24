@@ -8,6 +8,10 @@ import {
   DEFAULT_PORTFOLIO_CONTENT,
   readPortfolioContent,
 } from "@platform/ui/templates/portfolio";
+import {
+  DEFAULT_LIVE_STREAM_CONTENT,
+  readLiveStreamContent,
+} from "@platform/ui/templates/live-stream";
 
 interface EditPageProps {
   params: Promise<{ id: string }>;
@@ -44,6 +48,9 @@ export default async function ExperienceEditPage({ params }: EditPageProps) {
   const Workspace = def.Workspace;
   if (!Workspace) return <FullScreenMessage>This template has no content editor.</FullScreenMessage>;
 
-  const initialContent = readPortfolioContent(exp.templateContent) ?? DEFAULT_PORTFOLIO_CONTENT;
+  const initialContent =
+    key === "live-stream"
+      ? readLiveStreamContent(exp.templateContent) ?? DEFAULT_LIVE_STREAM_CONTENT
+      : readPortfolioContent(exp.templateContent) ?? DEFAULT_PORTFOLIO_CONTENT;
   return <Workspace experience={exp} initialContent={initialContent} />;
 }

@@ -13,6 +13,10 @@
       "import": "./dist/templates/portfolio/index.js",
       "types": "./dist/templates/portfolio/index.d.ts"
     },
+    "./templates/live-stream": {
+      "import": "./dist/templates/live-stream/index.js",
+      "types": "./dist/templates/live-stream/index.d.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

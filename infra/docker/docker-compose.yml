@@ -120,6 +120,7 @@ services:
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_WS_URL=/ws
       - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
+      - INTERNAL_API_URL=http://api:4000   # server-side: reach the Hono API by service name (not localhost)
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
     expose:

@@ -99,6 +99,9 @@ export interface DeviceCommand {
 
 export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
 
+/** Wire format the publisher EXE pushes for a live stream. */
+export type StreamFormat = 'h264' | 'mjpeg';
+
 export interface WsContent {
   id: string;
   type: WsContentType;
@@ -116,7 +119,10 @@ export type WsServerMessage =
   | { type: 'WELCOME'; screenId: string; content: WsContent }
   | { type: 'CONTENT_UPDATE'; screenId: string; content: WsContent; timestamp: number }
   | { type: 'PING' }
-  | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number };
+  | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number }
+  // Live-stream relay: tells a subscriber whether a publisher is currently
+  // pushing this stream (drives the "stream is going on" vs "waiting" state).
+  | { type: 'STREAM_STATUS'; streamId: string; active: boolean; format?: StreamFormat };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -125,6 +131,11 @@ export type WsClientMessage =
   // A user interaction on one client (e.g. CMS control view or a touchscreen)
   // that should be applied on every client of the screen, keeping them in sync.
   | { type: 'SCREEN_INTERACTION'; screenId: string; command: string; value?: any }
+  // Live-stream relay handshakes. The publisher EXE sends STREAM_PUBLISH then
+  // pushes binary media frames; a viewing screen sends STREAM_SUBSCRIBE.
+  | { type: 'STREAM_PUBLISH'; streamId: string; format: StreamFormat }
+  | { type: 'STREAM_SUBSCRIBE'; streamId: string }
+  | { type: 'STREAM_UNSUBSCRIBE'; streamId: string }
   | { type: 'PONG' };
 
 export type WsCmsMessage =

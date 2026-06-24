@@ -1,9 +1,11 @@
 import { PortfolioRenderer, type PortfolioContent } from "@platform/ui/templates/portfolio";
+import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
+import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
 export function ContentRenderer({ content, screenId }: { content: Content; screenId?: string }) {
@@ -23,6 +25,13 @@ export function ContentRenderer({ content, screenId }: { content: Content; scree
       if (content.templateKey === "portfolio") {
         const portfolio = content.templateContent?.["portfolio"] as PortfolioContent | undefined;
         return <PortfolioRenderer content={portfolio} />;
+      }
+      if (content.templateKey === "live-stream") {
+        const ls = readLiveStreamContent(content.templateContent);
+        if (ls?.streamId) {
+          return <LiveStreamRenderer key={ls.streamId} streamId={ls.streamId} fit={ls.fit} label={ls.label} />;
+        }
+        return <ExperienceDisplay title={content.title} screenId={screenId} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

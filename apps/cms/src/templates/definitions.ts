@@ -3,7 +3,10 @@ import type { Experience } from "@platform/db";
 import { TEMPLATE_LABELS, type TemplateKey } from "@/lib/templates";
 import { PortfolioLayout } from "./portfolio/portfolio-layout";
 import { PortfolioEditorWorkspace } from "./portfolio/editor-workspace";
+import { LiveStreamLayout } from "./live-stream/live-stream-layout";
+import { LiveStreamEditorWorkspace } from "./live-stream/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
+import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -30,7 +33,14 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: PortfolioLayout,
     defaultContent: DEFAULT_PORTFOLIO_CONTENT,
     Workspace: PortfolioEditorWorkspace,
-  }
+  },
+  "live-stream": {
+    key: "live-stream",
+    label: TEMPLATE_LABELS["live-stream"],
+    Layout: LiveStreamLayout,
+    defaultContent: DEFAULT_LIVE_STREAM_CONTENT,
+    Workspace: LiveStreamEditorWorkspace,
+  },
 };
 
 export const TEMPLATE_OPTIONS: TemplateDefinition[] = Object.values(TEMPLATE_DEFINITIONS);
