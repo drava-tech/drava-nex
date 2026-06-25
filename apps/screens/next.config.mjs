@@ -14,7 +14,7 @@ const basePath = process.env.NEXT_PUBLIC_SCREENS_BASE_PATH || undefined;
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@platform/ui'],
-  output: 'standalone',
+  output: process.platform === 'win32' ? undefined : 'standalone', // ponytail: disable standalone on Windows to avoid EPERM symlink errors
   outputFileTracingRoot: path.join(__dirname, '../../'),
   ...(basePath ? { basePath } : {}),
   async rewrites() {
