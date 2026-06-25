@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { X, Loader2 } from "lucide-react";
+import { Button } from "@platform/ui";
 import { createProject } from "@/actions/project-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 
@@ -17,6 +18,11 @@ function deriveSlug(name: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 }
+
+const inputClasses =
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-50";
+
+const labelClasses = "text-xs font-medium text-muted-foreground";
 
 export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
   const [name, setName] = useState("");
@@ -53,37 +59,36 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-50 flex items-end justify-center md:items-center"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black/60 dark:bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       <div
-        className="relative w-full max-w-md bg-white border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6"
+        className="relative w-full max-w-md rounded-t-2xl border bg-card p-6 text-card-foreground shadow-lg md:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
-              new experience
+        <div className="mb-6 flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              New experience
             </p>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-wide">
-              Create Experience
-            </h2>
+            <h2 className="text-lg font-semibold tracking-tight">Create Experience</h2>
           </div>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
-              Project Name
-            </label>
+            <label className={labelClasses}>Project Name</label>
             <input
               type="text"
               value={name}
@@ -91,14 +96,12 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               placeholder="My New Project"
               required
               disabled={isPending}
-              className="w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-900 dark:border-zinc-800 dark:focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50"
+              className={inputClasses}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
-              Slug
-            </label>
+            <label className={labelClasses}>Slug</label>
             <input
               type="text"
               value={slug}
@@ -106,22 +109,20 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
               placeholder="my-new-project"
               required
               disabled={isPending}
-              className="w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-900 dark:border-zinc-800 dark:focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 outline-none transition-colors font-mono disabled:opacity-50"
+              className={`${inputClasses} font-mono`}
             />
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-600">
+            <p className="text-xs text-muted-foreground">
               URL: /experiences/{slug || "…"}
             </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em]">
-              Template
-            </label>
+            <label className={labelClasses}>Template</label>
             <select
               value={templateKey}
               onChange={(e) => setTemplateKey(e.target.value)}
               disabled={isPending}
-              className="w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-900 dark:border-zinc-800 dark:focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50"
+              className={inputClasses}
             >
               <option value="">None (assign later)</option>
               {TEMPLATE_KEYS.map((key) => (
@@ -133,23 +134,23 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
           </div>
 
           {error && (
-            <p className="text-xs text-red-500 dark:text-red-400 font-medium -mt-1">{error}</p>
+            <p className="-mt-1 text-xs font-medium text-destructive">{error}</p>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={isPending || !name.trim() || !slug.trim()}
-            className="w-full py-3 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+            className="mt-1 w-full"
           >
             {isPending ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Creating…</span>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating…
               </>
             ) : (
-              <span>Create Experience</span>
+              "Create Experience"
             )}
-          </button>
+          </Button>
         </form>
       </div>
     </div>
