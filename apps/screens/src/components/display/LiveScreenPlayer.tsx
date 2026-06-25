@@ -93,6 +93,11 @@ export function LiveScreenPlayer({
         detail: { slideIndex: Number(value) },
       });
       window.dispatchEvent(event);
+    } else if (command === "SET_PORTFOLIO_VIEW") {
+      // Inbound portfolio view change from another client of this screen.
+      window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
+    } else if (command === "SET_PORTFOLIO_VIDEO") {
+      window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
     }
   }, []);
 

@@ -51,14 +51,29 @@ export function ContentPickerOverlay({ apiUrl, onSelect }: ContentPickerOverlayP
     if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
   };
 
-  // Long-press detection on the whole screen
-  const onPointerDown = useCallback(() => {
-    pressTimerRef.current = setTimeout(openPicker, LONG_PRESS_MS);
-  }, [openPicker]);
-
-  const onPointerUp = useCallback(() => {
-    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
-  }, []);
+  // Long-press detection via window listeners (NOT a full-screen overlay div).
+  // A capture <div> over the content would swallow every tap, so normal taps
+  // never reached the template buttons. Window listeners observe pointer events
+  // without consuming them — taps still trigger the content's onClick, while a
+  // long-press anywhere still opens the picker.
+  useEffect(() => {
+    if (open) return;
+    const onDown = () => {
+      pressTimerRef.current = setTimeout(openPicker, LONG_PRESS_MS);
+    };
+    const onUp = () => {
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    };
+  }, [open, openPicker]);
 
   useEffect(() => {
     return () => {
@@ -69,16 +84,6 @@ export function ContentPickerOverlay({ apiUrl, onSelect }: ContentPickerOverlayP
 
   return (
     <>
-      {/* Invisible overlay that captures long-press */}
-      {!open && (
-        <div
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
-          style={{ position: "fixed", inset: 0, zIndex: 10, touchAction: "none" }}
-        />
-      )}
-
       {/* Content picker bottom sheet */}
       {open && (
         <div

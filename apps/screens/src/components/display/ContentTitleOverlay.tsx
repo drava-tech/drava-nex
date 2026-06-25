@@ -12,6 +12,7 @@ export function ContentTitleOverlay({ title }: ContentTitleOverlayProps) {
         bottom: "24px",
         left: "24px",
         zIndex: 20,
+        pointerEvents: "none",
         display: "flex",
         alignItems: "center",
         gap: "8px",

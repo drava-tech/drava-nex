@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
@@ -39,10 +39,48 @@ export function OverviewView({
 
   const activeCardIndex = externalActiveCardIndex !== undefined ? externalActiveCardIndex : localActiveCardIndex;
 
-  const setActiveCardIndex = (i: number | null) => {
+  // Emit a `screen-control` window event so the player shell relays this view/
+  // video change over WebSocket to every client of this screen (the physical TV
+  // and any CMS mirror), keeping them in lockstep. Transport-agnostic: the UI
+  // package never imports WS — the shell owns the relay.
+  const emitScreenControl = (command: string, value: unknown) => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("screen-control", { detail: { command, value } }));
+  };
+
+  // `emit: false` is used when APPLYING a remote command (the shell dispatched
+  // it from an inbound SCREEN_COMMAND) — applying must not re-broadcast, or the
+  // gateway's echo-to-sender would loop. Absolute values make any echo a no-op.
+  const applyCardIndex = (i: number | null, opts?: { emit?: boolean }) => {
     setLocalActiveCardIndex(i);
     onActiveCardChange?.(i);
+    if (opts?.emit) emitScreenControl("SET_PORTFOLIO_VIEW", { cardIndex: i });
   };
+
+  const applyVideo = (url: string | null, opts?: { emit?: boolean }) => {
+    setOpenVideo(url);
+    if (opts?.emit) emitScreenControl("SET_PORTFOLIO_VIDEO", { videoUrl: url });
+  };
+
+  // Apply view/video changes pushed from other clients of this screen (relayed
+  // by the shell as `portfolio-set-*` window events). Apply without re-emitting.
+  useEffect(() => {
+    const onSetView = (e: Event) => {
+      const detail = (e as CustomEvent<{ cardIndex?: number | null }>).detail;
+      applyCardIndex(detail?.cardIndex ?? null, { emit: false });
+    };
+    const onSetVideo = (e: Event) => {
+      const detail = (e as CustomEvent<{ videoUrl?: string | null }>).detail;
+      applyVideo(detail?.videoUrl ?? null, { emit: false });
+    };
+    window.addEventListener("portfolio-set-view", onSetView);
+    window.addEventListener("portfolio-set-video", onSetVideo);
+    return () => {
+      window.removeEventListener("portfolio-set-view", onSetView);
+      window.removeEventListener("portfolio-set-video", onSetVideo);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const buttonStyle = {
     background: "#4d4d4d",
@@ -56,9 +94,9 @@ export function OverviewView({
 
   if (activeCardIndex !== null) {
     return (
-      <ProjectShowcaseView 
-        card={cards[activeCardIndex]!} 
-        onBack={() => setActiveCardIndex(null)} 
+      <ProjectShowcaseView
+        card={cards[activeCardIndex]!}
+        onBack={() => applyCardIndex(null, { emit: true })}
       />
     );
   }
@@ -90,7 +128,7 @@ export function OverviewView({
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => card.videoUrl && setOpenVideo(card.videoUrl)}
+                  onClick={() => card.videoUrl && applyVideo(card.videoUrl, { emit: true })}
                   className="flex items-center justify-center"
                   style={{ ...buttonStyle, cursor: card.videoUrl ? "pointer" : "default" }}
                 >
@@ -101,7 +139,7 @@ export function OverviewView({
                 <div 
                   role="button"
                   tabIndex={0}
-                  onClick={() => setActiveCardIndex(i)}
+                  onClick={() => applyCardIndex(i, { emit: true })}
                   className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity" 
                   style={buttonStyle}
                 >
@@ -113,7 +151,7 @@ export function OverviewView({
         ))}
       </div>
 
-      {openVideo ? <VideoPopup src={openVideo} onClose={() => setOpenVideo(null)} /> : null}
+      {openVideo ? <VideoPopup src={openVideo} onClose={() => applyVideo(null, { emit: true })} /> : null}
     </div>
   );
 }

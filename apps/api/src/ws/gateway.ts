@@ -10,6 +10,10 @@ const screenRegistry = new Map<string, Set<WebSocket>>();
 const cmsRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
+// Last in-template view state per screen (absolute "SET_*" interaction), so a
+// client that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
+// reconnecting TV) converges to the current view. Cleared when content changes.
+const viewStateCache = new Map<string, { command: string; value?: unknown }>();
 
 // ─── Live-stream relay ──────────────────────────────────────────────────────────
 // One publisher EXE per streamId pushes binary media frames; the gateway fans them
@@ -72,6 +76,8 @@ export function broadcastActiveScreensToCms() {
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
 export function broadcast(req: BroadcastRequest): number {
   contentCache.set(req.screenId, req.content);
+  // New content resets the in-template view — drop any stale view state.
+  viewStateCache.delete(req.screenId);
 
   const msg: WsServerMessage = {
     type: 'CONTENT_UPDATE',
@@ -185,9 +191,23 @@ export function createGateway(): WebSocketServer {
             ws.send(JSON.stringify(welcome));
           };
 
+          // After WELCOME, replay the screen's current in-template view state to
+          // THIS socket only, so a late joiner lands on the same page/video.
+          const replayViewState = () => {
+            const vs = viewStateCache.get(sid);
+            if (!vs || ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({
+              type: 'SCREEN_COMMAND',
+              command: vs.command,
+              value: vs.value,
+              timestamp: Date.now(),
+            }));
+          };
+
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
+            replayViewState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
@@ -196,6 +216,7 @@ export function createGateway(): WebSocketServer {
               if (content) {
                 contentCache.set(sid, content);
                 sendWelcome(content);
+                replayViewState();
               }
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
@@ -217,6 +238,8 @@ export function createGateway(): WebSocketServer {
         case 'CONTENT_CHANGE_REQUEST': {
           const { screenId, content } = msg;
           contentCache.set(screenId, content);
+          // New content resets the in-template view — drop any stale view state.
+          viewStateCache.delete(screenId);
 
           // Confirm to the requesting screen immediately
           const update: WsServerMessage = {
@@ -249,6 +272,10 @@ export function createGateway(): WebSocketServer {
         }
 
         case 'SCREEN_INTERACTION': {
+          // Cache absolute view-state interactions so late joiners can converge.
+          if (msg.command.startsWith('SET_')) {
+            viewStateCache.set(msg.screenId, { command: msg.command, value: msg.value });
+          }
           // Relay an interaction from one client to every client of the screen
           // (including the sender) so all instances apply it identically.
           sendCommandToScreen(msg.screenId, msg.command, msg.value);
@@ -308,6 +335,9 @@ export function createGateway(): WebSocketServer {
           sockets.delete(ws);
           if (sockets.size === 0) {
             screenRegistry.delete(registeredScreenId);
+            // No clients left for this screen — forget its view state so a
+            // returning screen starts from its content's default view.
+            viewStateCache.delete(registeredScreenId);
           }
         }
         broadcastActiveScreensToCms();
