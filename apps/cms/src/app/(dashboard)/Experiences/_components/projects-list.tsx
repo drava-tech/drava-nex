@@ -2,7 +2,18 @@
 
 import React, { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Pencil, Eye, MoreVertical, Check } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  Eye,
+  MoreVertical,
+  Check,
+  Layers,
+  Radio,
+  Loader2,
+  type LucideIcon,
+} from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -19,6 +30,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  Badge,
+  Button,
+  Card,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -27,6 +41,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
+  cn,
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
@@ -39,22 +54,58 @@ interface ProjectsListProps {
   isAdmin?: boolean;
 }
 
-function getCardSpanClasses(index: number): string {
-  if (index === 0) return "col-span-2 row-span-1 md:col-span-2 md:row-span-2";
-  if ((index - 3) % 6 === 0) return "col-span-1 row-span-1 md:col-span-2 md:row-span-1";
-  return "col-span-1 row-span-1 md:col-span-1 md:row-span-1";
+interface TemplateMeta {
+  icon: LucideIcon | null;
+  label: string;
+  badge: string;
+  number: string;
+}
+
+const NO_TEMPLATE_META: TemplateMeta = {
+  icon: null,
+  label: "No template",
+  badge: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+  number: "text-red-500/15 dark:text-red-400/30",
+};
+
+const TEMPLATE_META: Record<string, TemplateMeta> = {
+  portfolio: {
+    icon: Layers,
+    label: TEMPLATE_LABELS.portfolio,
+    badge: "border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    number: "text-violet-500/15 dark:text-violet-400/30",
+  },
+  "live-stream": {
+    icon: Radio,
+    label: TEMPLATE_LABELS["live-stream"],
+    badge: "border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    number: "text-sky-500/15 dark:text-sky-400/30",
+  },
+};
+
+function getTemplateMeta(templateKey: string | null): TemplateMeta {
+  if (!templateKey) return NO_TEMPLATE_META;
+  return TEMPLATE_META[templateKey] ?? NO_TEMPLATE_META;
+}
+
+function TemplateBadge({ meta }: { meta: TemplateMeta }) {
+  const Icon = meta.icon;
+  return (
+    <Badge variant="outline" className={cn("gap-1.5", meta.badge)}>
+      {Icon && <Icon className="h-3 w-3" />}
+      {meta.label}
+    </Badge>
+  );
 }
 
 interface SortableCardProps {
   proj: Experience;
   index: number;
-  isLarge: boolean;
-  spanClasses: string;
   isAdmin?: boolean;
   onDelete: (id: string) => void;
 }
 
-function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: SortableCardProps) {
+function SortableCard({ proj, index, isAdmin, onDelete }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -73,25 +124,35 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
       router.refresh();
     });
 
+  const meta = getTemplateMeta(proj.templateKey);
+
   return (
-    <div
+    <Card
       ref={setNodeRef}
       style={style}
       // The whole card is the drag handle (admins only); the kebab is the only control.
       {...(isAdmin ? { ...attributes, ...listeners } : {})}
-      className={[
-        spanClasses,
-        "bg-[#d6d6d6] dark:bg-zinc-900",
-        "rounded-2xl flex flex-col justify-start gap-3",
-        isAdmin ? "cursor-grab active:cursor-grabbing" : "",
-        "border border-zinc-300/40 dark:border-zinc-800/50",
-        "relative overflow-hidden shadow-sm select-none",
-        isLarge ? "p-8 pb-10" : "p-5 pb-7",
-      ].join(" ")}
+      className={cn(
+        "group relative flex min-h-[168px] flex-col justify-between overflow-hidden p-5 transition-all duration-200 select-none",
+        "hover:-translate-y-0.5 hover:shadow-md",
+        isAdmin && "cursor-grab active:cursor-grabbing"
+      )}
     >
-      {/* Admin: 3-dot actions menu (the only visible control) */}
-      {isAdmin && (
-        <div className="absolute top-4 right-4 z-20">
+      {/* Signature watermark index number, tinted to the template color */}
+      <span
+        className={cn(
+          "pointer-events-none absolute -bottom-6 -right-2 select-none text-[110px] font-semibold leading-none tabular-nums",
+          meta.number
+        )}
+      >
+        {index + 1}
+      </span>
+
+      {/* Top row: template badge + actions */}
+      <div className="relative flex items-start justify-between gap-2">
+        <TemplateBadge meta={meta} />
+
+        {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -99,7 +160,7 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
                 aria-label="Experience actions"
                 // Don't let a click on the menu start a card drag.
                 onPointerDown={(e) => e.stopPropagation()}
-                className="p-1.5 rounded-lg bg-zinc-200/50 hover:bg-zinc-300/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-700/60 border border-zinc-300/30 dark:border-zinc-700/30 text-zinc-600 dark:text-zinc-400 hover:scale-105 active:scale-95 transition-all duration-150"
+                className="-mr-1 -mt-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>
@@ -157,40 +218,24 @@ function SortableCard({ proj, index, isLarge, spanClasses, isAdmin, onDelete }: 
 
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="cursor-pointer gap-2 text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                className="cursor-pointer gap-2 text-destructive focus:text-destructive"
                 onSelect={() => onDelete(proj.id)}
               >
                 <Trash2 className="h-4 w-4" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
+        )}
+      </div>
 
-      <span
-        className={[
-          "font-normal leading-[0.75] text-white dark:text-zinc-800/35",
-          "select-none inline-block",
-          isLarge ? "text-[140px] -mt-4 -ml-4" : "text-[80px] -mt-3 -ml-3",
-        ].join(" ")}
-      >
-        {index + 1}
-      </span>
-      <span
-        className={[
-          "font-normal text-zinc-900 dark:text-zinc-100 leading-snug uppercase tracking-wide select-none",
-          isLarge ? "text-[20px]" : "text-[15px]",
-        ].join(" ")}
-      >
-        {proj.name}
-      </span>
-      <span className="text-[10px] text-zinc-500 dark:text-zinc-600 font-mono select-none -mt-1">
-        /{proj.slug}
-      </span>
-      {isLarge && (
-        <div className="absolute bottom-0 right-0 w-48 h-48 rounded-full bg-white/5 dark:bg-white/[0.02] -mr-16 -mb-16 pointer-events-none" />
-      )}
-    </div>
+      {/* Bottom: name + slug */}
+      <div className="relative flex flex-col gap-1">
+        <span className="text-sm font-medium uppercase tracking-wide text-foreground">
+          {proj.name}
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">/{proj.slug}</span>
+      </div>
+    </Card>
   );
 }
 
@@ -223,7 +268,7 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
       const oldIndex = items.findIndex((i) => i.id === active.id);
       const newIndex = items.findIndex((i) => i.id === over.id);
       const newItems = arrayMove(items, oldIndex, newIndex);
-      
+
       setItems(newItems);
       setSaving(true);
       try {
@@ -261,91 +306,83 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
 
       <div className="flex flex-col gap-4 w-full">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-3">
-            <p className="text-[9px] font-bold text-zinc-500 tracking-[0.25em] uppercase">
-              Experiences
-            </p>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Experiences</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage your signage experiences
+              </p>
+            </div>
+            <Badge variant="secondary" className="tabular-nums">
+              {items.length}
+            </Badge>
             {saving && (
-              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
-                Saving order...
-              </span>
+              <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Saving order…
+              </Badge>
             )}
           </div>
           {isAdmin && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
-              >
-                <Plus className="h-3 w-3" />
-                New Experience
-              </button>
-            </div>
+            <Button size="sm" onClick={() => setShowModal(true)}>
+              <Plus className="h-4 w-4" />
+              New Experience
+            </Button>
           )}
         </div>
 
         {/* Empty state */}
-        {projects.length === 0 ? (
-          <div
-            className={`flex flex-col items-center justify-center gap-4 p-12 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 text-center ${
-              isAdmin ? "cursor-pointer hover:border-zinc-400 dark:hover:border-zinc-700 group" : ""
-            }`}
+        {items.length === 0 ? (
+          <Card
             onClick={() => {
               if (isAdmin) setShowModal(true);
             }}
+            className={cn(
+              "flex flex-col items-center justify-center gap-4 border-dashed bg-muted/30 p-12 text-center shadow-none",
+              isAdmin && "group cursor-pointer transition-colors hover:border-border hover:bg-muted/50"
+            )}
           >
             {isAdmin && (
-              <div className="h-10 w-10 rounded-2xl bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-900 dark:group-hover:bg-zinc-800 flex items-center justify-center transition-colors">
-                <Plus className="h-5 w-5 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground">
+                <Plus className="h-5 w-5" />
               </div>
             )}
             <div>
-              <p className="text-sm font-normal text-zinc-500 dark:text-zinc-400">No experiences yet</p>
+              <p className="text-sm text-muted-foreground">No experiences yet</p>
               {isAdmin && (
-                <p className="text-[11px] text-zinc-400 dark:text-zinc-600 mt-0.5">
+                <p className="mt-0.5 text-xs text-muted-foreground/70">
                   Click to create your first experience
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         ) : (
-          /* Sortable Bento grid */
+          /* Uniform sortable grid */
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
-              <div
-                className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full"
-                style={{ gridAutoRows: "140px", gridAutoFlow: "dense" }}
-              >
-                {items.map((proj, index) => {
-                  const isLarge = index === 0;
-                  const spanClasses = getCardSpanClasses(index);
-
-                  return (
-                    <SortableCard
-                      key={proj.id}
-                      proj={proj}
-                      index={index}
-                      isLarge={isLarge}
-                      spanClasses={spanClasses}
-                      isAdmin={isAdmin}
-                      onDelete={handleDelete}
-                    />
-                  );
-                })}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {items.map((proj, index) => (
+                  <SortableCard
+                    key={proj.id}
+                    proj={proj}
+                    index={index}
+                    isAdmin={isAdmin}
+                    onDelete={handleDelete}
+                  />
+                ))}
 
                 {isAdmin && (
-                  <div
+                  <button
+                    type="button"
                     onClick={() => setShowModal(true)}
-                    className="col-span-1 row-span-1 bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 border border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200 group"
+                    className="group flex min-h-[168px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 p-6 text-muted-foreground transition-colors hover:border-border hover:bg-muted/50 hover:text-foreground"
                   >
-                    <div className="h-8 w-8 rounded-xl bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-800 dark:group-hover:bg-zinc-700 flex items-center justify-center transition-colors">
-                      <Plus className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground">
+                      <Plus className="h-4 w-4" />
                     </div>
-                    <span className="text-[10px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-600 dark:group-hover:text-zinc-400 uppercase tracking-wider transition-colors">
-                      New Experience
-                    </span>
-                  </div>
+                    <span className="text-xs font-medium">New Experience</span>
+                  </button>
                 )}
               </div>
             </SortableContext>

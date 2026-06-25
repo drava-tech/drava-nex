@@ -15,7 +15,7 @@ export default async function ProjectsPage() {
     .orderBy(asc(experience.position), desc(experience.createdAt));
 
   return (
-    <div className="flex flex-1 flex-col p-6 md:p-8 bg-zinc-100 dark:bg-black overflow-y-auto">
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
       <ProjectsList projects={experiences} isAdmin={isAdmin} />
     </div>
   );
