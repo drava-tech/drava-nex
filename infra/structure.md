@@ -34,8 +34,8 @@ infra/docker → starts Mosquitto :1883 + :9001
 
 infra/docker → starts Nginx :80   (sole public entry; routes by PATH)
                        │
-                       ├── /            → apps/cms :3000
-                       ├── /screens/    → apps/screens :3001  (basePath /screens)
+                       ├── /            → apps/cms :3000      (incl. /screens admin + control)
+                       ├── /display/    → apps/screens :3001  (basePath /display, TV display)
                        └── /api/, /ws   → apps/api :4000      (REST + WebSocket)
 ```
 

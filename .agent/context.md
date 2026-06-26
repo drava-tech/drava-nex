@@ -17,7 +17,7 @@ runs as a shared Docker stack on the office LAN behind Nginx.
 | Screen player | `@platform/screens` | 3001 | Next.js 15 full-screen content player on edge devices |
 | API gateway | `@platform/api` | 4000 | Hono 4 REST + WebSocket + MQTT bridge |
 
-All three are routed through Nginx on port 80: `/` → CMS, `/api/` → API, `/screens/` → Screens player.
+All three are routed through Nginx on port 80: `/` → CMS (incl. `/screens` admin + control), `/api/` → API, `/display/` → Screens player (TV display).
 
 ## Packages
 

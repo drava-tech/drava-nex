@@ -9,7 +9,7 @@ import {
 
 // ─── Role Enum ────────────────────────────────────────────────────────────────
 
-export const userRoleEnum = pgEnum("user_role", ["ADMIN", "GUEST"]);
+export const userRoleEnum = pgEnum("user_role", ["ADMIN", "GUEST", "SUPERADMIN"]);
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 // Table name "user" matches Better Auth Drizzle adapter convention.

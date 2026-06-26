@@ -41,6 +41,14 @@ export async function deleteUser(targetUserId: string) {
     throw new Error("You cannot delete your own account.");
   }
 
+  const target = await db.query.user.findFirst({
+    where: eq(user.id, targetUserId),
+  });
+
+  if (target?.role === "SUPERADMIN") {
+    throw new Error("The super admin account cannot be deleted.");
+  }
+
   await db.delete(user).where(eq(user.id, targetUserId));
   revalidatePath("/users");
 }

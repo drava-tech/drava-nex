@@ -25,16 +25,16 @@ LAN browser / TV / stream publisher
         ▼
       cms-nginx ──┬─ /api/auth|upload|media   → cms:3000   (CMS-owned API routes)
                   ├─ /api/ · /health · /ws · /ws/ → api:4000 (REST + WebSocket)
-                  ├─ /screens/ (+ /screens/_next/static) → screens:3001 (basePath /screens)
-                  ├─ = /screens (exact)        → cms:3000   (avoids a redirect loop)
-                  └─ /                          → cms:3000   (catch-all, last)
+                  ├─ /display (+ /display/_next/static) → screens:3001 (basePath /display, TV)
+                  └─ /                          → cms:3000   (catch-all, last; incl. /screens + /screens/<id>)
 ```
 
 Key points:
 - **Both `= /ws` and `/ws/` upgrade** to the API gateway. The exact `= /ws` block is required
   because the app clients connect to `/ws` (no slash) — without it Nginx 301-redirects and the
   WebSocket handshake fails (this silently broke all real-time sync once).
-- The screens app uses `basePath:/screens`, so `/screens/...` is **proxied without stripping**.
+- The screens app uses `basePath:/display`, so `/display/...` is **proxied without stripping**.
+  `/screens` and `/screens/<id>` are CMS routes (admin list + per-screen control).
 - `client_max_body_size 500M`; all locations forward `Host` / `X-Forwarded-*` headers.
 
 ---

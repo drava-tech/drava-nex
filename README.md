@@ -15,7 +15,7 @@ Welcome to the Experience Center Digital Signage and Content Management Platform
   over the WebSocket gateway; screens decode them in real time (WebCodecs H.264 / MJPEG) and
   show the live feed. One `streamId` per experience.
 - **Multi-screen** — every display is an independent screen (its own assigned content + its own
-  URL `…/screens/<screenId>`), managed from the CMS.
+  display URL `…/display/<screenId>`), managed from the CMS at `…/screens/<screenId>`.
 - **Media library, auth, IoT** — media uploads, role-based admin auth (better-auth), and an
   MQTT gateway for device telemetry.
 
@@ -127,12 +127,13 @@ URLs (replace the IP with your host):
 | Purpose | URL |
 |---|---|
 | CMS admin | `http://192.168.1.250/` |
-| A screen / TV | `http://192.168.1.250/screens/<screenId>` |
+| Screen control (CMS) | `http://192.168.1.250/screens/<screenId>` |
+| A screen / TV (display) | `http://192.168.1.250/display/<screenId>` |
 | Live-stream publisher endpoint | `ws://192.168.1.250/ws/` |
 | Health | `http://192.168.1.250/health` |
 
 The frontends use **relative** `/api` and `/ws` paths resolved from `window.location`, and the
-screens app is served under `/screens` (Next.js `basePath`), so one build serves every device.
+screens app is served under `/display` (Next.js `basePath`), so one build serves every device.
 See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
 [`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
 

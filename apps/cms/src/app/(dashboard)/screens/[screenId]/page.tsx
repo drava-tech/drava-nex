@@ -9,9 +9,10 @@ interface PageProps {
 }
 
 /**
- * Full-page in-CMS control surface for a single screen (Dashboard / Screens /
- * <screen>). Shows the live, interactive screen — touch/explore here and it is
- * mirrored on the TV in realtime — plus a content picker.
+ * Full-page in-CMS control surface for a single screen, served at
+ * /screens/<screenId> (Dashboard / Screens / <screen>). Shows the live,
+ * interactive screen — touch/explore here and it is mirrored on the TV in
+ * realtime — plus a content picker. The public TV display lives at /display/<id>.
  */
 export default async function ScreenControlPage({ params }: PageProps) {
   await requireGuestOrAdmin();

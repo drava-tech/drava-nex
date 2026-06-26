@@ -1,9 +1,9 @@
 # apps/screens — Screen Player
 
 > **Package name:** `@platform/screens`
-> **Port:** `3001` (dev). In production served under **`/screens`** via Nginx (`basePath`).
+> **Port:** `3001` (dev). In production served under **`/display`** via Nginx (`basePath`).
 > **Framework:** Next.js 15 (App Router)
-> **Who uses it:** each physical display, opened in a kiosk browser at `…/screens/<screenId>`
+> **Who uses it:** each physical display, opened in a kiosk browser at `…/display/<screenId>`
 
 ---
 
@@ -32,7 +32,7 @@ apps/screens/
 │   │   ├── client-urls.ts          → resolve relative /api, /ws to absolute (dev + prod)
 │   │   └── display-config.ts       → server-side: fetch a screen's content from the API
 │   └── types/display.ts            → Content union (video/image/html/stream/experience)
-├── next.config.mjs                 → standalone output + conditional basePath /screens
+├── next.config.mjs                 → standalone output + conditional basePath /display
 └── package.json
 ```
 
@@ -44,7 +44,7 @@ are reused by both this app and the CMS preview.)
 ## What This App Does
 
 ```
-TV opens  http://192.168.1.250/screens/<screenId>
+TV opens  http://192.168.1.250/display/<screenId>
     │
     ▼
 [screenId]/page.tsx (server)
@@ -84,7 +84,7 @@ gateway and decodes incoming binary frames (WebCodecs H.264 / MJPEG) onto a `<ca
 | ↔ browser | `apps/api` `/ws` | WebSocket — content updates + live-stream frames |
 | → imports | `@platform/ui` | ScreenStage, portfolio + live-stream renderers/hook |
 | → imports | `@platform/types` | `WsContent`, `Ws*Message` |
-| ← traffic from | Nginx `:80` | `/screens/...` → `screens:3001` (basePath `/screens`) |
+| ← traffic from | Nginx `:80` | `/display/...` → `screens:3001` (basePath `/display`) |
 
 ---
 
@@ -95,4 +95,4 @@ gateway and decodes incoming binary frames (WebCodecs H.264 / MJPEG) onto a `<ca
 | `INTERNAL_API_URL` | Server-side base URL to reach the API (`http://api:4000` in Docker) |
 | `NEXT_PUBLIC_API_URL` | Browser REST base (relative `/api` in prod) |
 | `NEXT_PUBLIC_WS_GATEWAY_URL` | Browser WebSocket base (relative `/ws` in prod) |
-| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/screens` in the prod image so routes/assets live under `/screens` |
+| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/display` in the prod image so routes/assets live under `/display` |

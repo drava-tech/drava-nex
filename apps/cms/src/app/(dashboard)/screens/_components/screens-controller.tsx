@@ -81,7 +81,7 @@ export function ScreensController({
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Open the full-page control view for a screen (Dashboard / Screens / <id>).
-  const openControl = (screenId: string) => router.push(`/screen/${encodeURIComponent(screenId)}`);
+  const openControl = (screenId: string) => router.push(`/screens/${encodeURIComponent(screenId)}`);
   const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
 

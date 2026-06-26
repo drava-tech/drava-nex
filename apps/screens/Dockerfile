@@ -28,9 +28,9 @@ COPY packages     ./packages
 ARG NEXT_PUBLIC_API_URL=/api
 ARG NEXT_PUBLIC_WS_URL=/ws
 ARG NEXT_PUBLIC_WS_GATEWAY_URL=/ws
-# Served under /screens by nginx in production → basePath must match.
+# Served under /display by nginx in production → basePath must match.
 # NEXT_PUBLIC_* so Turbo's strict env mode passes it through to `next build`.
-ARG NEXT_PUBLIC_SCREENS_BASE_PATH=/screens
+ARG NEXT_PUBLIC_SCREENS_BASE_PATH=/display
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_WS_GATEWAY_URL=${NEXT_PUBLIC_WS_GATEWAY_URL}

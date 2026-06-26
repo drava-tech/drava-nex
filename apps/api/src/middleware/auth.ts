@@ -5,7 +5,7 @@ type SessionUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "GUEST";
+  role: "ADMIN" | "GUEST" | "SUPERADMIN";
   emailVerified: boolean;
   image: string | null;
   createdAt: Date;
@@ -48,7 +48,9 @@ export async function requireAuth(c: Context, next: Next): Promise<Response | vo
 export async function requireAdmin(c: Context, next: Next): Promise<Response | void> {
   const currentUser = await verifySession(c);
   if (!currentUser) return c.json({ error: "Unauthorized" }, 401);
-  if (currentUser.role !== "ADMIN") return c.json({ error: "Forbidden" }, 403);
+  if (currentUser.role !== "ADMIN" && currentUser.role !== "SUPERADMIN") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   c.set("user", currentUser);
   return next();
 }
@@ -56,7 +58,11 @@ export async function requireAdmin(c: Context, next: Next): Promise<Response | v
 export async function requireGuestOrAdmin(c: Context, next: Next): Promise<Response | void> {
   const currentUser = await verifySession(c);
   if (!currentUser) return c.json({ error: "Unauthorized" }, 401);
-  if (currentUser.role !== "ADMIN" && currentUser.role !== "GUEST") {
+  if (
+    currentUser.role !== "ADMIN" &&
+    currentUser.role !== "GUEST" &&
+    currentUser.role !== "SUPERADMIN"
+  ) {
     return c.json({ error: "Forbidden" }, 403);
   }
   c.set("user", currentUser);

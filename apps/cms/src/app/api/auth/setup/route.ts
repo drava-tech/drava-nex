@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@platform/db";
 import { user } from "@platform/db";
-import { eq, count } from "drizzle-orm";
+import { eq, count, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    // Only allow setup when no ADMIN exists
+    // Only allow setup when no privileged user (ADMIN or SUPERADMIN) exists
     const rows = await db
       .select({ adminCount: count() })
       .from(user)
-      .where(eq(user.role, "ADMIN"));
+      .where(inArray(user.role, ["ADMIN", "SUPERADMIN"]));
 
     const adminCount = rows[0]?.adminCount ?? 0;
 

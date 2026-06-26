@@ -17,13 +17,14 @@ export async function requireAuth() {
 
 export async function requireAdmin() {
   const user = await requireAuth();
-  if ((user as { role?: string }).role !== "ADMIN") redirect("/403");
-  return user as typeof user & { role: "ADMIN" };
+  const role = (user as { role?: string }).role;
+  if (role !== "ADMIN" && role !== "SUPERADMIN") redirect("/403");
+  return user as typeof user & { role: "ADMIN" | "SUPERADMIN" };
 }
 
 export async function requireGuestOrAdmin() {
   const user = await requireAuth();
   const role = (user as { role?: string }).role;
-  if (role !== "ADMIN" && role !== "GUEST") redirect("/403");
-  return user as typeof user & { role: "ADMIN" | "GUEST" };
+  if (role !== "ADMIN" && role !== "GUEST" && role !== "SUPERADMIN") redirect("/403");
+  return user as typeof user & { role: "ADMIN" | "GUEST" | "SUPERADMIN" };
 }

@@ -34,7 +34,7 @@ This document details the core technologies, libraries, and frameworks utilized 
   - `output: 'standalone'` on both — minimal self-contained Docker images.
   - `outputFileTracingRoot` set to repo root so workspace packages are traced correctly.
   - `transpilePackages: ['@platform/ui']` on both apps.
-  - Screens sets `basePath:/screens` (via `NEXT_PUBLIC_SCREENS_BASE_PATH`) in production.
+  - Screens sets `basePath:/display` (via `NEXT_PUBLIC_SCREENS_BASE_PATH`) in production.
 - **better-auth**: Authentication for the CMS (admin login, sessions, roles) — routes live in
   the CMS Next app under `/api/auth/*`.
 - **WebCodecs / Canvas**: Browser APIs used by the screens to decode the live-stream feed —

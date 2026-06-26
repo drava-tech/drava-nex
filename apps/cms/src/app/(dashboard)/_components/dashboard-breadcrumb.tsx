@@ -39,13 +39,6 @@ export function DashboardBreadcrumb() {
       return;
     }
 
-    // Single-screen control page (/screen/<id>) reads as "Screens / <id>",
-    // linking back to the Screens list.
-    if (index === 0 && segment === "screen") {
-      breadcrumbs.push({ label: "Screens", href: "/screens" });
-      return;
-    }
-
     // Segment[1]: project or portfolio slug
     if (index === 1 && segments[0] === "projects") {
       if (segment === "the-white-tusker-portfolio") {

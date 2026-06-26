@@ -2,7 +2,7 @@
 // mirror of a screen inside the CMS. Works in both modes, mirroring the screens
 // app's own client-urls.ts logic:
 //   • direct localhost dev (CMS :3000) → the standalone screens dev server :3001
-//   • behind nginx → same-origin "/screens" (override via NEXT_PUBLIC_SCREENS_URL)
+//   • behind nginx → same-origin "/display" (override via NEXT_PUBLIC_SCREENS_URL)
 function resolveScreensBase(): string {
   const configured = (process.env["NEXT_PUBLIC_SCREENS_URL"] ?? "").replace(/\/$/, "");
   if (typeof window !== "undefined") {
@@ -12,7 +12,7 @@ function resolveScreensBase(): string {
       (port === "3000" || port === "3001");
     if (isDirectDev) return `${protocol}//${hostname}:3001`;
   }
-  return configured || "/screens";
+  return configured || "/display";
 }
 
 /**
