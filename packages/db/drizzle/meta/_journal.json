@@ -43,6 +43,13 @@
       "when": 1781862073855,
       "tag": "0005_add_superadmin_role",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781862073856,
+      "tag": "0006_experience_types",
+      "breakpoints": true
     }
   ]
 }

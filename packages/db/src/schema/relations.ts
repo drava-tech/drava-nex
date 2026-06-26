@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { user, session } from "./auth.js";
 import { experience } from "./projects.js";
+import { experienceType, experienceToType } from "./experience-types.js";
 import { screen } from "./screens.js";
 import { mediaAsset } from "./media.js";
 
@@ -21,7 +22,7 @@ export const sessionRelations = relations(session, ({ one }) => ({
 
 // ─── Experience Relations ─────────────────────────────────────────────────────
 
-export const experienceRelations = relations(experience, ({ one }) => ({
+export const experienceRelations = relations(experience, ({ one, many }) => ({
   createdBy: one(user, {
     fields: [experience.createdByUserId],
     references: [user.id],
@@ -31,6 +32,24 @@ export const experienceRelations = relations(experience, ({ one }) => ({
     fields: [experience.updatedByUserId],
     references: [user.id],
     relationName: "experienceUpdatedBy",
+  }),
+  types: many(experienceToType),
+}));
+
+// ─── Experience Type Relations ────────────────────────────────────────────────
+
+export const experienceTypeRelations = relations(experienceType, ({ many }) => ({
+  experiences: many(experienceToType),
+}));
+
+export const experienceToTypeRelations = relations(experienceToType, ({ one }) => ({
+  experience: one(experience, {
+    fields: [experienceToType.experienceId],
+    references: [experience.id],
+  }),
+  type: one(experienceType, {
+    fields: [experienceToType.typeId],
+    references: [experienceType.id],
   }),
 }));
 

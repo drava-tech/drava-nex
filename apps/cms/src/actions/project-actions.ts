@@ -1,6 +1,6 @@
 "use server";
 
-import { db, experience, eq, and, isNull } from "@platform/db";
+import { db, experience, experienceToType, eq, and, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
@@ -11,7 +11,8 @@ const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export async function createProject(
   name: string,
   slug: string,
-  templateKey?: string | null
+  templateKey?: string | null,
+  typeIds: string[] = []
 ): Promise<{ success: boolean; error?: string }> {
   const currentUser = await requireAdmin();
 
@@ -48,12 +49,25 @@ export async function createProject(
     };
   }
 
-  await db.insert(experience).values({
-    name: trimmedName,
-    slug: trimmedSlug,
-    templateKey: templateKey ?? null,
-    createdByUserId: currentUser.id,
-    updatedByUserId: currentUser.id,
+  const uniqueTypeIds = Array.from(new Set(typeIds.filter(Boolean)));
+
+  await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(experience)
+      .values({
+        name: trimmedName,
+        slug: trimmedSlug,
+        templateKey: templateKey ?? null,
+        createdByUserId: currentUser.id,
+        updatedByUserId: currentUser.id,
+      })
+      .returning({ id: experience.id });
+
+    if (created && uniqueTypeIds.length > 0) {
+      await tx.insert(experienceToType).values(
+        uniqueTypeIds.map((typeId) => ({ experienceId: created.id, typeId }))
+      );
+    }
   });
 
   revalidatePath("/experiences");

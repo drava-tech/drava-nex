@@ -49,10 +49,19 @@ import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
 
+type ExperienceWithTypes = Experience & { typeIds: string[] };
+
 interface ProjectsListProps {
-  projects: Experience[];
+  // typeIds is optional so callers that don't track types (e.g. the dashboard
+  // container) can still pass plain experiences; it's normalized to [] below.
+  projects: (Experience & { typeIds?: string[] })[];
   isAdmin?: boolean;
+  experienceTypes?: { id: string; name: string }[];
 }
+
+const withTypeIds = (
+  list: (Experience & { typeIds?: string[] })[]
+): ExperienceWithTypes[] => list.map((p) => ({ ...p, typeIds: p.typeIds ?? [] }));
 
 interface TemplateMeta {
   icon: LucideIcon | null;
@@ -102,14 +111,15 @@ interface SortableCardProps {
   proj: Experience;
   index: number;
   isAdmin?: boolean;
+  dragEnabled?: boolean;
   onDelete: (id: string) => void;
 }
 
-function SortableCard({ proj, index, isAdmin, onDelete }: SortableCardProps) {
+function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: proj.id, disabled: !isAdmin });
+    useSortable({ id: proj.id, disabled: !dragEnabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -130,12 +140,12 @@ function SortableCard({ proj, index, isAdmin, onDelete }: SortableCardProps) {
     <Card
       ref={setNodeRef}
       style={style}
-      // The whole card is the drag handle (admins only); the kebab is the only control.
-      {...(isAdmin ? { ...attributes, ...listeners } : {})}
+      // The whole card is the drag handle (admins, when not filtering); the kebab is the only control.
+      {...(dragEnabled ? { ...attributes, ...listeners } : {})}
       className={cn(
         "group relative flex min-h-[168px] flex-col justify-between overflow-hidden p-5 transition-all duration-200 select-none",
         "hover:-translate-y-0.5 hover:shadow-md",
-        isAdmin && "cursor-grab active:cursor-grabbing"
+        dragEnabled && "cursor-grab active:cursor-grabbing"
       )}
     >
       {/* Signature watermark index number, tinted to the template color */}
@@ -239,11 +249,24 @@ function SortableCard({ proj, index, isAdmin, onDelete }: SortableCardProps) {
   );
 }
 
-export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
+export function ProjectsList({ projects, isAdmin = false, experienceTypes = [] }: ProjectsListProps) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
-  const [items, setItems] = useState<Experience[]>(projects);
+  const [items, setItems] = useState<ExperienceWithTypes[]>(() => withTypeIds(projects));
   const [saving, setSaving] = useState(false);
+  const [filterTypeIds, setFilterTypeIds] = useState<string[]>([]);
+
+  const isFiltering = filterTypeIds.length > 0;
+  const dragEnabled = isAdmin && !isFiltering;
+
+  const toggleFilter = (id: string) =>
+    setFilterTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+
+  const filteredItems = isFiltering
+    ? items.filter((p) => p.typeIds.some((t) => filterTypeIds.includes(t)))
+    : items;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -254,7 +277,7 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
   );
 
   useEffect(() => {
-    setItems(projects);
+    setItems(withTypeIds(projects));
   }, [projects]);
 
   const handleClose = () => {
@@ -263,6 +286,8 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    // Reordering a filtered subset would write wrong global positions — ignore.
+    if (isFiltering) return;
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = items.findIndex((i) => i.id === active.id);
@@ -277,7 +302,7 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
       } catch (error) {
         console.error("Failed to reorder experiences:", error);
         // Rollback on failure
-        setItems(projects);
+        setItems(withTypeIds(projects));
       } finally {
         setSaving(false);
       }
@@ -302,7 +327,9 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
 
   return (
     <>
-      {showModal && <CreateProjectModal onClose={handleClose} />}
+      {showModal && (
+        <CreateProjectModal onClose={handleClose} experienceTypes={experienceTypes} />
+      )}
 
       <div className="flex flex-col gap-4 w-full">
         {/* Header */}
@@ -332,6 +359,42 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
           )}
         </div>
 
+        {/* Type filter */}
+        {items.length > 0 && experienceTypes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Filter:</span>
+            {experienceTypes.map((t) => {
+              const active = filterTypeIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleFilter(t.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {active && <Check className="h-3 w-3" />}
+                  {t.name}
+                </button>
+              );
+            })}
+            {isFiltering && (
+              <button
+                type="button"
+                onClick={() => setFilterTypeIds([])}
+                className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Empty state */}
         {items.length === 0 ? (
           <Card
@@ -357,22 +420,36 @@ export function ProjectsList({ projects, isAdmin = false }: ProjectsListProps) {
               )}
             </div>
           </Card>
+        ) : isFiltering && filteredItems.length === 0 ? (
+          <Card className="flex flex-col items-center justify-center gap-2 border-dashed bg-muted/30 p-12 text-center shadow-none">
+            <p className="text-sm text-muted-foreground">
+              No experiences match the selected type{filterTypeIds.length > 1 ? "s" : ""}.
+            </p>
+            <button
+              type="button"
+              onClick={() => setFilterTypeIds([])}
+              className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Clear filter
+            </button>
+          </Card>
         ) : (
           /* Uniform sortable grid */
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((proj, index) => (
+                {filteredItems.map((proj, index) => (
                   <SortableCard
                     key={proj.id}
                     proj={proj}
                     index={index}
                     isAdmin={isAdmin}
+                    dragEnabled={dragEnabled}
                     onDelete={handleDelete}
                   />
                 ))}
 
-                {isAdmin && (
+                {isAdmin && !isFiltering && (
                   <button
                     type="button"
                     onClick={() => setShowModal(true)}

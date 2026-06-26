@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Thermometer, Wind, Flame, Droplets, Activity, Snowflake,
-  Lightbulb, Power, Sparkles, Monitor,
+  Lightbulb, Power, Sparkles,
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   Minimize2, Music, Speaker as SpeakerIcon
 } from "lucide-react";
@@ -13,7 +13,6 @@ import { Button, Badge, cn } from "@platform/ui";
 type PanelType = "climate" | "lighting" | "audio";
 type FocusedPanel = PanelType | null;
 
-const transitionSpec = { type: "spring", bounce: 0.05, duration: 0.5 };
 const noProp = (e: React.SyntheticEvent) => e.stopPropagation();
 
 // ─── SLIDER ──────────────────────────────────────────────────────────────────
@@ -299,9 +298,9 @@ export function EnvironmentView() {
 
   // Determine the mapping of content to the 3 static shell blocks.
   // Shell 1 (Left/Main), Shell 2 (Right Top), Shell 3 (Right Bottom)
-  const orderedContents = focused 
+  const orderedContents = (focused
     ? [focused, ...(["climate", "lighting", "audio"] as PanelType[]).filter(x => x !== focused)]
-    : ["climate", "lighting", "audio"] as PanelType[];
+    : ["climate", "lighting", "audio"]) as [PanelType, PanelType, PanelType];
 
   const renderContent = (type: PanelType, isExpanded: boolean, isCompact: boolean) => {
     if (type === "climate") return <ClimateContent key="climate" isExpanded={isExpanded} isCompact={isCompact} state={climate} actions={{
@@ -321,6 +320,7 @@ export function EnvironmentView() {
       setVolume: (volume: number) => setAudio(s => ({ ...s, volume })),
       setMuted: (muted: boolean) => setAudio(s => ({ ...s, muted })),
     }} />;
+    return null;
   };
 
   return (

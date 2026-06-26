@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { X, Loader2 } from "lucide-react";
-import { Button } from "@platform/ui";
+import Link from "next/link";
+import { X, Loader2, Check } from "lucide-react";
+import { Button, cn } from "@platform/ui";
 import { createProject } from "@/actions/project-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 
 interface CreateProjectModalProps {
   onClose: () => void;
+  experienceTypes?: { id: string; name: string }[];
 }
 
 function deriveSlug(name: string): string {
@@ -24,13 +26,19 @@ const inputClasses =
 
 const labelClasses = "text-xs font-medium text-muted-foreground";
 
-export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
+export function CreateProjectModal({ onClose, experienceTypes = [] }: CreateProjectModalProps) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [templateKey, setTemplateKey] = useState<string>("");
+  const [selectedTypeIds, setSelectedTypeIds] = useState<string[]>([]);
   const [slugEdited, setSlugEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const toggleType = (id: string) =>
+    setSelectedTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -48,7 +56,7 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createProject(name, slug, templateKey || null);
+      const result = await createProject(name, slug, templateKey || null, selectedTypeIds);
       if (result.success) {
         onClose();
       } else {
@@ -131,6 +139,43 @@ export function CreateProjectModal({ onClose }: CreateProjectModalProps) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClasses}>Experience Types</label>
+            {experienceTypes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No types yet. Create them in{" "}
+                <Link href="/settings" className="underline hover:text-foreground">
+                  Settings
+                </Link>
+                .
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {experienceTypes.map((t) => {
+                  const selected = selectedTypeIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleType(t.id)}
+                      disabled={isPending}
+                      aria-pressed={selected}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                      )}
+                    >
+                      {selected && <Check className="h-3 w-3" />}
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {error && (

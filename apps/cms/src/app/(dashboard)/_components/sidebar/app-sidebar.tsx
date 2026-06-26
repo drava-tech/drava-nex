@@ -12,7 +12,16 @@ import {
   Film,
   Cpu,
 } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarRail } from "@platform/ui";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarRail,
+  SidebarGroup,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+} from "@platform/ui";
 import { useSession } from "@/lib/auth-client";
 
 const ALL_NAV = [
@@ -79,10 +88,11 @@ const ALL_NAV = [
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { data: sessionData } = useSession();
+  const { data: sessionData, isPending } = useSession();
   const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
+  const effectiveRole = role === "SUPERADMIN" ? "ADMIN" : role;
 
-  const navItems = ALL_NAV.filter((item) => item.roles.includes(role));
+  const navItems = ALL_NAV.filter((item) => item.roles.includes(effectiveRole));
 
   const user = sessionData?.user
     ? {
@@ -95,7 +105,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>
-        <NavMain items={navItems} />
+        {isPending ? (
+          <SidebarGroup>
+            <SidebarMenu>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SidebarMenuItem key={i}>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ) : (
+          <NavMain items={navItems} />
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />
