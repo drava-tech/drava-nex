@@ -4,6 +4,12 @@ import { experience } from "./projects.js";
 import { experienceType, experienceToType } from "./experience-types.js";
 import { screen } from "./screens.js";
 import { mediaAsset } from "./media.js";
+import {
+  product,
+  productFeature,
+  productSpecification,
+  productMedia,
+} from "./products.js";
 
 // ─── Auth Relations ───────────────────────────────────────────────────────────
 
@@ -72,5 +78,60 @@ export const mediaAssetRelations = relations(mediaAsset, ({ one }) => ({
   uploadedBy: one(user, {
     fields: [mediaAsset.uploadedByUserId],
     references: [user.id],
+  }),
+}));
+
+// ─── Product Relations ────────────────────────────────────────────────────────
+
+export const productRelations = relations(product, ({ one, many }) => ({
+  createdBy: one(user, {
+    fields: [product.createdByUserId],
+    references: [user.id],
+  }),
+  thumbnail: one(mediaAsset, {
+    fields: [product.thumbnailMediaId],
+    references: [mediaAsset.id],
+    relationName: "productThumbnail",
+  }),
+  hero: one(mediaAsset, {
+    fields: [product.heroMediaId],
+    references: [mediaAsset.id],
+    relationName: "productHero",
+  }),
+  demoVideo: one(mediaAsset, {
+    fields: [product.demoVideoMediaId],
+    references: [mediaAsset.id],
+    relationName: "productDemoVideo",
+  }),
+  features: many(productFeature),
+  specifications: many(productSpecification),
+  media: many(productMedia),
+}));
+
+export const productFeatureRelations = relations(productFeature, ({ one }) => ({
+  product: one(product, {
+    fields: [productFeature.productId],
+    references: [product.id],
+  }),
+}));
+
+export const productSpecificationRelations = relations(
+  productSpecification,
+  ({ one }) => ({
+    product: one(product, {
+      fields: [productSpecification.productId],
+      references: [product.id],
+    }),
+  })
+);
+
+export const productMediaRelations = relations(productMedia, ({ one }) => ({
+  product: one(product, {
+    fields: [productMedia.productId],
+    references: [product.id],
+  }),
+  media: one(mediaAsset, {
+    fields: [productMedia.mediaId],
+    references: [mediaAsset.id],
   }),
 }));

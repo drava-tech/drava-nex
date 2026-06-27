@@ -5,8 +5,11 @@ import { PortfolioLayout } from "./portfolio/portfolio-layout";
 import { PortfolioEditorWorkspace } from "./portfolio/editor-workspace";
 import { LiveStreamLayout } from "./live-stream/live-stream-layout";
 import { LiveStreamEditorWorkspace } from "./live-stream/editor-workspace";
+import { ProductShowcaseLayout } from "./product-showcase/product-showcase-layout";
+import { ProductShowcaseEditorWorkspace } from "./product-showcase/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
+import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -40,6 +43,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: LiveStreamLayout,
     defaultContent: DEFAULT_LIVE_STREAM_CONTENT,
     Workspace: LiveStreamEditorWorkspace,
+  },
+  "product-showcase": {
+    key: "product-showcase",
+    label: TEMPLATE_LABELS["product-showcase"],
+    Layout: ProductShowcaseLayout,
+    defaultContent: DEFAULT_PRODUCT_SHOWCASE_CONTENT,
+    Workspace: ProductShowcaseEditorWorkspace,
   },
 };
 

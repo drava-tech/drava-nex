@@ -11,6 +11,7 @@ import {
   Users,
   Film,
   Cpu,
+  Package,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,6 +37,12 @@ const ALL_NAV = [
     url: "/experiences",
     icon: SquareTerminal,
     roles: ["ADMIN"] as string[]
+  },
+  {
+    title: "Products",
+    url: "/products",
+    icon: Package,
+    roles: ["ADMIN"] as string[],
   },
   {
     title: "Environment",

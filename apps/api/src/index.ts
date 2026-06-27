@@ -40,6 +40,7 @@ import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import { db, sql, experience, isNull, listScreens, getScreenContent, listExperiences } from '@platform/db';
 import { requireAuth } from './middleware/auth.js';
+import { productsRouter } from './routes/products.js';
 import { createGateway, broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds } from './ws/gateway.js';
 import type { BroadcastRequest } from '@platform/types';
 
@@ -98,6 +99,9 @@ app.get('/api/me', requireAuth, async (c) => {
   const user = c.get('user' as never) as SessionUser;
   return c.json({ user });
 });
+
+// ─── Products (admin CRUD + public display/detection-label lookup) ────────────
+app.route('/api/products', productsRouter);
 
 // ─── Experiences list ─────────────────────────────────────────────────────────
 app.get('/api/projects', async (c) => {

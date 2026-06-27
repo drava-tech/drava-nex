@@ -17,6 +17,10 @@
       "import": "./dist/templates/live-stream/index.js",
       "types": "./dist/templates/live-stream/index.d.ts"
     },
+    "./templates/product-showcase": {
+      "import": "./dist/templates/product-showcase/index.js",
+      "types": "./dist/templates/product-showcase/index.d.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

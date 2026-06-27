@@ -1,5 +1,8 @@
 // Shared Types for Event-driven Digital Signage, CMS & IoT Platform
 
+// --- Product domain (schemas + types) ---
+export * from "./products.js";
+
 // --- Signage & CMS Types ---
 export interface Screen {
   id: string;

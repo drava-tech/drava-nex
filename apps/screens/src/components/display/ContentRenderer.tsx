@@ -6,6 +6,7 @@ import { ImageRenderer } from "./ImageRenderer";
 import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
 import { LiveStreamRenderer } from "./LiveStreamRenderer";
+import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
 export function ContentRenderer({ content, screenId }: { content: Content; screenId?: string }) {
@@ -32,6 +33,9 @@ export function ContentRenderer({ content, screenId }: { content: Content; scree
           return <LiveStreamRenderer key={ls.streamId} streamId={ls.streamId} fit={ls.fit} label={ls.label} />;
         }
         return <ExperienceDisplay title={content.title} screenId={screenId} />;
+      }
+      if (content.templateKey === "product-showcase") {
+        return <ProductShowcaseRenderer content={content} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

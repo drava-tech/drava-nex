@@ -11,6 +11,7 @@ import {
   Check,
   Layers,
   Radio,
+  Package,
   Loader2,
   type LucideIcon,
 } from "lucide-react";
@@ -89,6 +90,12 @@ const TEMPLATE_META: Record<string, TemplateMeta> = {
     label: TEMPLATE_LABELS["live-stream"],
     badge: "border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400",
     number: "text-sky-500/15 dark:text-sky-400/30",
+  },
+  "product-showcase": {
+    icon: Package,
+    label: TEMPLATE_LABELS["product-showcase"],
+    badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    number: "text-emerald-500/15 dark:text-emerald-400/30",
   },
 };
 

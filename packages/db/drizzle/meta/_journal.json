@@ -50,6 +50,13 @@
       "when": 1781862073856,
       "tag": "0006_experience_types",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781862073857,
+      "tag": "0007_products",
+      "breakpoints": true
     }
   ]
 }
