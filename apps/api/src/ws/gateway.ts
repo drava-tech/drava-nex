@@ -2,6 +2,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import { getScreenContent, setScreenExperience } from '@platform/db';
 import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, BroadcastRequest, StreamFormat } from '@platform/types';
+import { getCameraScreen } from '../lib/camera-map.js';
+import { resolveDetectedProduct } from '../services/detection.js';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Per-screen WebSocket connections (one screen can have multiple tabs/devices)
@@ -14,6 +16,8 @@ const contentCache = new Map<string, WsContent>();
 // client that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
 // reconnecting TV) converges to the current view. Cleared when content changes.
 const viewStateCache = new Map<string, { command: string; value?: unknown }>();
+// Tracks active camera product takeovers (screenId -> detectionLabel)
+const screenTakeover = new Map<string, string>();
 
 // ─── Live-stream relay ──────────────────────────────────────────────────────────
 // One publisher EXE per streamId pushes binary media frames; the gateway fans them
@@ -320,6 +324,91 @@ export function createGateway(): WebSocketServer {
             if (subs.size === 0) streamSubscribers.delete(msg.streamId);
           }
           subscribedStreamIds.delete(msg.streamId);
+          break;
+        }
+
+        case 'PRODUCT_DETECTED': {
+          const screenId = getCameraScreen(msg.cameraId);
+          if (!screenId) break;
+
+          void resolveDetectedProduct({
+            cameraId: msg.cameraId,
+            detectionLabel: msg.label,
+            confidence: msg.confidence,
+            detectedAt: msg.detectedAt,
+          }).then((res) => {
+            if (res.matched && res.productId) {
+              const content: WsContent = {
+                id: `detection-${res.productId}`,
+                type: 'experience',
+                source: '',
+                title: res.name || msg.label,
+                templateKey: 'product-showcase',
+                templateContent: {
+                  'product-showcase': { productId: res.productId }
+                }
+              };
+              
+              screenTakeover.set(screenId, msg.label);
+              
+              contentCache.set(screenId, content);
+              viewStateCache.delete(screenId);
+
+              const update: WsServerMessage = {
+                type: 'CONTENT_UPDATE',
+                screenId,
+                content,
+                timestamp: Date.now(),
+              };
+              const frame = JSON.stringify(update);
+              
+              const sockets = screenRegistry.get(screenId);
+              if (sockets) {
+                for (const sock of sockets) {
+                  if (sock.readyState === WebSocket.OPEN) {
+                    sock.send(frame);
+                  }
+                }
+              }
+
+              broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+            }
+          });
+          break;
+        }
+
+        case 'PRODUCT_LOST': {
+          const screenId = getCameraScreen(msg.cameraId);
+          if (!screenId) break;
+
+          if (screenTakeover.get(screenId) === msg.label) {
+            screenTakeover.delete(screenId);
+            void getScreenContent(screenId).then((content) => {
+              if (content) {
+                contentCache.set(screenId, content);
+                viewStateCache.delete(screenId);
+
+                const update: WsServerMessage = {
+                  type: 'CONTENT_UPDATE',
+                  screenId,
+                  content,
+                  timestamp: Date.now(),
+                };
+                const frame = JSON.stringify(update);
+                
+                const sockets = screenRegistry.get(screenId);
+                if (sockets) {
+                  for (const sock of sockets) {
+                    if (sock.readyState === WebSocket.OPEN) {
+                      sock.send(frame);
+                    }
+                  }
+                }
+
+                broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+              }
+            });
+          }
           break;
         }
 

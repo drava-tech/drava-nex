@@ -134,6 +134,26 @@ export const productDetectedEventSchema = z.object({
 });
 export type ProductDetectedEvent = z.infer<typeof productDetectedEventSchema>;
 
+// Emitted when a product that was previously detected is no longer in frame.
+export const productLostEventSchema = z.object({
+  type: z.literal("PRODUCT_LOST"),
+  cameraId: z.string().min(1),
+  label: detectionLabelSchema,
+  lostAt: z.string().min(1),
+});
+export type ProductLostEvent = z.infer<typeof productLostEventSchema>;
+
+// Emitted by the gateway to screens instructing them to display a specific product.
+export const displayProductEventSchema = z.object({
+  type: z.literal("DISPLAY_PRODUCT"),
+  productId: z.string().min(1),
+  label: detectionLabelSchema,
+  confidence: z.number().min(0).max(1),
+  triggeredAt: z.string().min(1),
+});
+export type DisplayProductEvent = z.infer<typeof displayProductEventSchema>;
+
+
 // ─── Display/response types ───────────────────────────────────────────────────
 // The shape returned by GET /api/products/:id/display and consumed by the
 // Product Showcase template. No product content is ever hard-coded downstream.

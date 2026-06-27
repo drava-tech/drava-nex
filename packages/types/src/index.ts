@@ -139,7 +139,10 @@ export type WsClientMessage =
   | { type: 'STREAM_PUBLISH'; streamId: string; format: StreamFormat }
   | { type: 'STREAM_SUBSCRIBE'; streamId: string }
   | { type: 'STREAM_UNSUBSCRIBE'; streamId: string }
-  | { type: 'PONG' };
+  | { type: 'PONG' }
+  // Camera detection events
+  | import('./products.js').ProductDetectedEvent
+  | import('./products.js').ProductLostEvent;
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }

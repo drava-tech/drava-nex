@@ -64,6 +64,8 @@ services:
       - LOG_DIR=/data/logs
       - BROADCAST_SECRET=${BROADCAST_SECRET}
       - CONFIG_DIR=/app/apps/screens/public/config
+      - CAMERA_SCREEN_MAP=${CAMERA_SCREEN_MAP}
+      - DETECTION_MIN_CONFIDENCE=${DETECTION_MIN_CONFIDENCE}
     expose:
       - "4000"          # internal only
     volumes:
