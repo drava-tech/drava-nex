@@ -24,6 +24,7 @@ export function ProductShowcaseRenderer({ content }: { content: ExperienceConten
   const config =
     readProductShowcaseContent(content.templateContent) ?? DEFAULT_PRODUCT_SHOWCASE_CONTENT;
   const productId = config.productId;
+  const isDetectionTrigger = content.id.startsWith("detection-");
 
   const [state, setState] = useState<
     | { kind: "loading" }
@@ -94,13 +95,105 @@ export function ProductShowcaseRenderer({ content }: { content: ExperienceConten
       inner = <ProductShowcaseError message={state.message} />;
       break;
     case "empty":
-      inner = <ProductShowcaseError message="No product assigned to this experience." />;
+      inner = <WaitingForTrigger content={content} />;
       break;
   }
 
   return (
-    <ScreenStage variant="fit-screen">
-      <div style={{ width: 1920, height: 1080 }}>{inner}</div>
-    </ScreenStage>
+    <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+      <ScreenStage variant="fit-screen">
+        <div style={{ width: 1920, height: 1080 }}>{inner}</div>
+      </ScreenStage>
+      {state.kind === "view" && isDetectionTrigger ? (
+        <TriggeredProductBadge product={state.product} />
+      ) : null}
+    </div>
+  );
+}
+
+function WaitingForTrigger({ content }: { content: ExperienceContent }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        height: "100%",
+        width: "100%",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 24,
+        backgroundColor: "#09090b",
+        padding: 96,
+        textAlign: "center",
+        color: "#d4d4d8",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      <p style={{ margin: 0, fontSize: 46, fontWeight: 700, color: "#fff" }}>
+        Waiting for product trigger
+      </p>
+      <p style={{ margin: 0, maxWidth: 1100, fontSize: 26, lineHeight: 1.35, color: "#a1a1aa" }}>
+        This screen is running the {content.title ?? "product showcase"} layout, but no product is
+        saved on the experience. When the camera detects a known product, the detected product will
+        appear here automatically.
+      </p>
+      <dl
+        style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          gap: "12px 20px",
+          maxWidth: 920,
+          textAlign: "left",
+          fontSize: 20,
+        }}
+      >
+        <dt style={{ color: "#71717a", fontWeight: 700 }}>Experience</dt>
+        <dd style={{ margin: 0 }}>{content.title ?? content.id}</dd>
+        <dt style={{ color: "#71717a", fontWeight: 700 }}>Template</dt>
+        <dd style={{ margin: 0 }}>{content.templateKey ?? "unknown"}</dd>
+        <dt style={{ color: "#71717a", fontWeight: 700 }}>Product ID</dt>
+        <dd style={{ margin: 0 }}>none assigned</dd>
+      </dl>
+    </div>
+  );
+}
+
+function TriggeredProductBadge({ product }: { product: ProductDisplayData }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 24,
+        left: 24,
+        zIndex: 30,
+        display: "flex",
+        maxWidth: "min(760px, calc(100vw - 48px))",
+        flexDirection: "column",
+        gap: 8,
+        border: "1px solid rgba(74, 222, 128, 0.35)",
+        borderRadius: 12,
+        backgroundColor: "rgba(0, 0, 0, 0.72)",
+        padding: "14px 18px",
+        color: "#fff",
+        fontFamily: "system-ui, sans-serif",
+        pointerEvents: "none",
+      }}
+    >
+      <span
+        style={{
+          color: "#4ade80",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+        }}
+      >
+        Triggered product
+      </span>
+      <strong style={{ fontSize: 28, lineHeight: 1.1 }}>{product.name}</strong>
+      <span style={{ fontSize: 15, color: "#d4d4d8" }}>
+        label: {product.detectionLabel ?? "none"} | id: {product.id}
+      </span>
+    </div>
   );
 }

@@ -85,6 +85,11 @@ services:
     build:
       context: ../..
       dockerfile: apps/cms/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_WS_URL: /ws
+        NEXT_PUBLIC_WS_GATEWAY_URL: /ws
+        NEXT_PUBLIC_SCREENS_URL: /display
     container_name: cms-admin
     restart: unless-stopped
     env_file:
@@ -114,6 +119,11 @@ services:
     build:
       context: ../..
       dockerfile: apps/screens/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_WS_URL: /ws
+        NEXT_PUBLIC_WS_GATEWAY_URL: /ws
+        NEXT_PUBLIC_SCREENS_BASE_PATH: /display
     container_name: cms-screens
     restart: unless-stopped
     env_file:
@@ -122,6 +132,7 @@ services:
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_WS_URL=/ws
       - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
+      - NEXT_PUBLIC_SCREENS_BASE_PATH=/display
       - INTERNAL_API_URL=http://api:4000   # server-side: reach the Hono API by service name (not localhost)
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs

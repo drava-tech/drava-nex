@@ -5,14 +5,21 @@
 //   • behind nginx → same-origin "/display" (override via NEXT_PUBLIC_SCREENS_URL)
 function resolveScreensBase(): string {
   const configured = (process.env["NEXT_PUBLIC_SCREENS_URL"] ?? "").replace(/\/$/, "");
+  const basePath = (process.env["NEXT_PUBLIC_SCREENS_BASE_PATH"] ?? "").replace(/\/$/, "");
+
   if (typeof window !== "undefined") {
     const { hostname, port, protocol } = window.location;
     const isDirectDev =
       (hostname === "localhost" || hostname === "127.0.0.1") &&
       (port === "3000" || port === "3001");
-    if (isDirectDev) return `${protocol}//${hostname}:3001`;
+    if (isDirectDev) {
+      if (configured && !configured.startsWith("/")) return configured;
+      return `${protocol}//${hostname}:3001${basePath}`;
+    }
   }
-  return configured || "/display";
+
+  if (configured) return configured;
+  return basePath || "/display";
 }
 
 /**

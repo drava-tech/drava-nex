@@ -361,7 +361,7 @@ export function createGateway(): WebSocketServer {
                 timestamp: Date.now(),
               };
               const frame = JSON.stringify(update);
-              
+
               const sockets = screenRegistry.get(screenId);
               if (sockets) {
                 for (const sock of sockets) {

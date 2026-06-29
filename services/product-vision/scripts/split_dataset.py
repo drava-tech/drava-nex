@@ -97,7 +97,7 @@ def main() -> None:
 
         for img_path, label_path in items:
             shutil.copy2(img_path, img_out / img_path.name)
-            shutil.copy2(label_path, lbl_out / label_path.stem + ".txt")
+            shutil.copy2(label_path, lbl_out / (label_path.stem + ".txt"))
 
         log.info("  %s: %d images", split, len(items))
 

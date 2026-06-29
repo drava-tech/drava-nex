@@ -43,6 +43,15 @@ class Config:
     # How many consecutive empty frames before emitting PRODUCT_LOST
     lost_frames: int = 10
 
+    # When True, keep showing the last detected product after the object leaves
+    # (never emit PRODUCT_LOST). When False, emit PRODUCT_LOST so the screen
+    # reverts to its idle/assigned content.
+    hold_product: bool = True
+
+    # When True, on each detection the service queries the CMS API for the product
+    # that the label maps to and prints it to this console (local debugging).
+    debug_product_lookup: bool = True
+
 
 def load_config() -> Config:
     """Load and validate configuration from environment variables."""
@@ -78,4 +87,8 @@ def load_config() -> Config:
         realsense_fps=int(os.getenv("VISION_RS_FPS", "30")),
         stability_frames=int(os.getenv("VISION_STABILITY_FRAMES", "5")),
         lost_frames=int(os.getenv("VISION_LOST_FRAMES", "10")),
+        hold_product=os.getenv("VISION_HOLD_PRODUCT", "true").strip().lower()
+        not in ("false", "0", "no"),
+        debug_product_lookup=os.getenv("VISION_DEBUG_PRODUCT", "true").strip().lower()
+        not in ("false", "0", "no"),
     )

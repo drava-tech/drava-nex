@@ -68,6 +68,45 @@ function FeatureCards({ product }: { product: ProductDisplayData }) {
   );
 }
 
+function DescriptionBlock({ product }: { product: ProductDisplayData }) {
+  if (!product.fullDescription) return null;
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-[30px] font-semibold text-white">About</h2>
+      <p className="whitespace-pre-line text-[24px] leading-snug text-zinc-300">
+        {product.fullDescription}
+      </p>
+    </section>
+  );
+}
+
+function ProductDetails({ product }: { product: ProductDisplayData }) {
+  const details = [
+    ["SKU", product.sku],
+    ["Detection label", product.detectionLabel],
+    ["Status", product.status],
+    ["Slug", product.slug],
+  ].filter((item): item is [string, string] => Boolean(item[1]));
+
+  if (details.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-5">
+      <h2 className="text-[30px] font-semibold text-white">Product details</h2>
+      <dl className="grid grid-cols-2 gap-4">
+        {details.map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
+            <dt className="text-[18px] font-medium uppercase tracking-wide text-zinc-500">
+              {label}
+            </dt>
+            <dd className="mt-2 break-words text-[24px] font-semibold text-white">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 function SpecificationGroups({ product }: { product: ProductDisplayData }) {
   if (product.specificationGroups.length === 0) return null;
   return (
@@ -153,7 +192,9 @@ export function ProductShowcaseView({ product, config }: ProductShowcaseViewProp
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-10 overflow-y-auto pr-2">
+          <DescriptionBlock product={product} />
           {config.showFeatures ? <FeatureCards product={product} /> : null}
+          <ProductDetails product={product} />
           {config.showSpecifications ? <SpecificationGroups product={product} /> : null}
           {config.showGallery ? <Gallery product={product} /> : null}
         </div>

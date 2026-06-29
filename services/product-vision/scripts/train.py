@@ -55,6 +55,7 @@ def main() -> None:
 
     try:
         from ultralytics import YOLO  # type: ignore
+        import yaml
     except ImportError:
         log.error("ultralytics is not installed. Run: pip install ultralytics")
         sys.exit(1)
@@ -67,8 +68,62 @@ def main() -> None:
     # Project root is services/product-vision
     project_root = Path(__file__).parent.parent
 
-    log.info("Loading base model: %s", args.base)
-    model = YOLO(args.base)
+    # data.yaml's `path:` is relative to the monorepo root, but Ultralytics
+    # resolves it against its own configured `datasets_dir` (e.g. E:\EC\datasets),
+    # producing a wrong path. The dataset root is simply the folder data.yaml
+    # lives in, so write a resolved copy with an ABSOLUTE path and train on that.
+    # (The committed data.yaml stays portable/relative.)
+    data_cfg = yaml.safe_load(data_path.read_text())
+    data_cfg["path"] = str(data_path.parent)
+    resolved_path = data_path.parent / "data.resolved.yaml"
+    resolved_path.write_text(yaml.safe_dump(data_cfg, sort_keys=False))
+    log.info("Using resolved dataset config (absolute path): %s", resolved_path)
+    data_path = resolved_path
+
+    # Resolve the base weights. If --base is a bare filename that isn't in the
+    # current directory, prefer a local copy under models/ so training works
+    # OFFLINE (Ultralytics otherwise downloads it from github.com).
+    base = args.base
+    base_path = Path(base)
+    if not base_path.exists() and base_path.parent == Path("."):
+        local_base = project_root / "models" / base_path.name
+        if local_base.exists():
+            base = str(local_base)
+            log.info("Using local base weights: %s", base)
+
+    # If the base still doesn't exist on disk, Ultralytics will try to DOWNLOAD it
+    # from github.com — which hangs for minutes on a blocked/offline network.
+    # Warn up front with offline instructions instead of leaving the user staring
+    # at curl timeout spam.
+    if not Path(base).exists():
+        log.warning(
+            "Base weights '%s' not found locally — Ultralytics will try to download it.\n"
+            "  If your network blocks github.com you'll see 'curl (28) timeout' and training\n"
+            "  will NOT start. To train OFFLINE instead:\n"
+            "    1. On any device with internet, download (~6 MB):\n"
+            "       https://github.com/ultralytics/assets/releases/download/v8.4.0/%s\n"
+            "    2. Copy it to: %s\n"
+            "    3. Re-run this exact command (it auto-detects the local file).",
+            base, Path(base).name, project_root / "models" / Path(base).name,
+        )
+
+    log.info("Loading base model: %s", base)
+    try:
+        model = YOLO(base)
+    except Exception as e:
+        log.error("Could not load base weights '%s': %s", base, e)
+        log.error(
+            "If this is a connection/timeout error, your network is blocking the\n"
+            "  download of the pretrained base model from github.com. To train OFFLINE:\n"
+            "    1. On any device with internet, download (~6 MB):\n"
+            "       https://github.com/ultralytics/assets/releases/download/v8.4.0/%s\n"
+            "    2. Copy it to: %s\n"
+            "    3. Re-run this exact command (it will auto-detect the local file).\n"
+            "  Or, if your office has a proxy:\n"
+            "    set HTTPS_PROXY / HTTP_PROXY, then re-run.",
+            base_path.name, project_root / "models" / base_path.name,
+        )
+        sys.exit(1)
 
     log.info(
         "Starting training — data=%s  epochs=%d  imgsz=%d  batch=%d",

@@ -31,6 +31,41 @@ logging.basicConfig(
 log = logging.getLogger("main")
 
 
+def _api_base_from_ws(ws_url: str) -> str:
+    """Derive the HTTP API base (e.g. http://192.168.1.250) from the WS gateway URL."""
+    base = ws_url.replace("wss://", "https://").replace("ws://", "http://")
+    for suffix in ("/ws/", "/ws"):
+        if base.endswith(suffix):
+            return base[: -len(suffix)]
+    return base.rstrip("/")
+
+
+async def _log_product_for_label(api_base: str, label: str) -> None:
+    """Debug only: fetch the product this label maps to and print it locally.
+
+    Calls the CMS API's public detection-label lookup so you can see, right in
+    this console, exactly which DB product a detection resolves to.
+    """
+    import requests  # bundled in the venv
+
+    url = f"{api_base}/api/products/by-detection-label/{label}"
+    try:
+        resp = await asyncio.to_thread(requests.get, url, timeout=5)
+    except Exception as e:
+        log.warning("   product lookup failed (%s): %s", url, e)
+        return
+
+    if resp.status_code == 200:
+        d = resp.json().get("data", {})
+        log.info("   -> product: %r  id=%s  status=%s  [from DB]",
+                 d.get("name"), d.get("productId"), d.get("status"))
+    elif resp.status_code == 404:
+        log.warning("   -> NO active product with detection_label=%r "
+                    "(create it in the CMS and set status ACTIVE)", label)
+    else:
+        log.warning("   -> lookup HTTP %s for %s", resp.status_code, url)
+
+
 async def run() -> None:
     from config import load_config
     from camera import make_camera
@@ -49,6 +84,13 @@ async def run() -> None:
 
     stability = StabilityFilter(cfg)
 
+    api_base = _api_base_from_ws(cfg.ws_url)
+
+    # The label of the product currently shown on the screen. Tracked here so a
+    # PRODUCT_LOST carries the correct label (the lost frame itself has none),
+    # which is what the gateway matches against to revert the screen.
+    active_label: str | None = None
+
     with make_camera(cfg) as camera:
         log.info("Camera ready. Starting inference loop — press Ctrl+C to stop.")
         while True:
@@ -62,13 +104,21 @@ async def run() -> None:
 
             if event == StabilityEvent.PRODUCT_DETECTED and stability.current_detection:
                 d = stability.current_detection
+                active_label = d.label
                 log.info("DETECTED  label=%s  conf=%.2f", d.label, d.confidence)
                 await ws.send_detected(d.label, d.confidence)
+                if cfg.debug_product_lookup:
+                    await _log_product_for_label(api_base, d.label)
 
             elif event == StabilityEvent.PRODUCT_LOST:
-                label = detection.label if detection else "unknown"
-                log.info("LOST  label=%s", label)
-                await ws.send_lost(label)
+                label = active_label or (detection.label if detection else "unknown")
+                if cfg.hold_product:
+                    # Keep the product on screen; don't tell the gateway to revert.
+                    log.info("LOST  label=%s — holding (VISION_HOLD_PRODUCT=true)", label)
+                else:
+                    log.info("LOST  label=%s", label)
+                    await ws.send_lost(label)
+                active_label = None
 
             # Yield to the event loop so WS keepalive/reconnect tasks can run
             await asyncio.sleep(0)
