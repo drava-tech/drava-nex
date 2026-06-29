@@ -118,11 +118,27 @@ export interface WsContent {
   templateContent?: Record<string, unknown>;
 }
 
+export type CameraStatus =
+  | 'online'
+  | 'waiting'
+  | 'detecting'
+  | 'camera_unavailable'
+  | 'service_offline';
+
+export interface CameraStatusUpdate {
+  cameraId: string;
+  screenId: string;
+  status: CameraStatus;
+  timestamp: number;
+  message?: string;
+}
+
 export type WsServerMessage =
   | { type: 'WELCOME'; screenId: string; content: WsContent }
   | { type: 'CONTENT_UPDATE'; screenId: string; content: WsContent; timestamp: number }
   | { type: 'PING' }
   | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number }
+  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
   // Live-stream relay: tells a subscriber whether a publisher is currently
   // pushing this stream (drives the "stream is going on" vs "waiting" state).
   | { type: 'STREAM_STATUS'; streamId: string; active: boolean; format?: StreamFormat };
@@ -140,13 +156,17 @@ export type WsClientMessage =
   | { type: 'STREAM_SUBSCRIBE'; streamId: string }
   | { type: 'STREAM_UNSUBSCRIBE'; streamId: string }
   | { type: 'PONG' }
+  | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
+  | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
+  | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string }
   // Camera detection events
   | import('./products.js').ProductDetectedEvent
   | import('./products.js').ProductLostEvent;
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
-  | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] };
+  | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
+  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate);
 
 export interface BroadcastRequest {
   screenId: string;

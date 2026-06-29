@@ -66,6 +66,7 @@ class WsClient:
                     self._ws = ws
                     self._retry_delay = _INITIAL_RETRY_DELAY
                     log.info("[ws] Connected")
+                    await self.send_register()
                     # Keep connection alive until it closes
                     async for _ in ws:
                         pass  # We only send; ignore incoming messages
@@ -93,6 +94,34 @@ class WsClient:
             "label": label,
             "lostAt": _iso_now(),
         })
+
+    async def send_register(self) -> None:
+        """Register this process as the status publisher for a camera."""
+        await self._send({
+            "type": "CAMERA_REGISTER",
+            "cameraId": self._cfg.camera_id,
+            "registeredAt": _iso_now(),
+        })
+
+    async def send_heartbeat(self) -> None:
+        """Tell the gateway the camera service process is still alive."""
+        await self._send({
+            "type": "CAMERA_HEARTBEAT",
+            "cameraId": self._cfg.camera_id,
+            "sentAt": _iso_now(),
+        })
+
+    async def send_status(self, status: str, message: Optional[str] = None) -> None:
+        """Publish the current camera hardware/detection state."""
+        payload = {
+            "type": "CAMERA_STATUS",
+            "cameraId": self._cfg.camera_id,
+            "status": status,
+            "updatedAt": _iso_now(),
+        }
+        if message:
+            payload["message"] = message
+        await self._send(payload)
 
     async def _send(self, payload: dict) -> None:
         if self._ws is None:

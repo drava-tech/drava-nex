@@ -1,7 +1,16 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import { getScreenContent, setScreenExperience } from '@platform/db';
-import type { WsServerMessage, WsClientMessage, WsCmsMessage, WsContent, BroadcastRequest, StreamFormat } from '@platform/types';
+import type {
+  CameraStatus,
+  CameraStatusUpdate,
+  WsServerMessage,
+  WsClientMessage,
+  WsCmsMessage,
+  WsContent,
+  BroadcastRequest,
+  StreamFormat,
+} from '@platform/types';
 import { getCameraScreen } from '../lib/camera-map.js';
 import { resolveDetectedProduct } from '../services/detection.js';
 
@@ -18,6 +27,9 @@ const contentCache = new Map<string, WsContent>();
 const viewStateCache = new Map<string, { command: string; value?: unknown }>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
+const cameraStatusCache = new Map<string, CameraStatusUpdate>();
+const cameraHeartbeatTimers = new Map<string, NodeJS.Timeout>();
+const CAMERA_HEARTBEAT_TIMEOUT_MS = 15_000;
 
 // ─── Live-stream relay ──────────────────────────────────────────────────────────
 // One publisher EXE per streamId pushes binary media frames; the gateway fans them
@@ -112,6 +124,59 @@ export function broadcastToCms(msg: WsCmsMessage): void {
   }
 }
 
+function sendCameraStatusToScreen(screenId: string, status: CameraStatusUpdate): void {
+  const sockets = screenRegistry.get(screenId);
+  if (!sockets) return;
+  const msg: WsServerMessage = { type: 'CAMERA_STATUS_UPDATE', ...status };
+  const frame = JSON.stringify(msg);
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+  }
+}
+
+function broadcastCameraStatus(status: CameraStatusUpdate): void {
+  sendCameraStatusToScreen(status.screenId, status);
+  broadcastToCms({ type: 'CAMERA_STATUS_UPDATE', ...status });
+}
+
+function updateCameraStatus(
+  cameraId: string,
+  status: CameraStatus,
+  message?: string,
+): CameraStatusUpdate | null {
+  const screenId = getCameraScreen(cameraId);
+  if (!screenId) return null;
+
+  const next: CameraStatusUpdate = {
+    cameraId,
+    screenId,
+    status,
+    timestamp: Date.now(),
+    ...(message ? { message } : {}),
+  };
+  cameraStatusCache.set(cameraId, next);
+  broadcastCameraStatus(next);
+  return next;
+}
+
+function noteCameraHeartbeat(cameraId: string): void {
+  const current = cameraStatusCache.get(cameraId);
+  if (!current || current.status === 'service_offline') {
+    updateCameraStatus(cameraId, 'waiting');
+  } else {
+    cameraStatusCache.set(cameraId, { ...current, timestamp: Date.now() });
+  }
+
+  const existing = cameraHeartbeatTimers.get(cameraId);
+  if (existing) clearTimeout(existing);
+
+  const timeout = setTimeout(() => {
+    updateCameraStatus(cameraId, 'service_offline', 'Camera service heartbeat stopped.');
+    cameraHeartbeatTimers.delete(cameraId);
+  }, CAMERA_HEARTBEAT_TIMEOUT_MS);
+  cameraHeartbeatTimers.set(cameraId, timeout);
+}
+
 export function getContentCache(screenId: string): WsContent | undefined {
   return contentCache.get(screenId);
 }
@@ -189,6 +254,13 @@ export function createGateway(): WebSocketServer {
           screenRegistry.get(sid)!.add(ws);
           broadcastActiveScreensToCms();
 
+          for (const status of cameraStatusCache.values()) {
+            if (status.screenId === sid && ws.readyState === WebSocket.OPEN) {
+              const msg: WsServerMessage = { type: 'CAMERA_STATUS_UPDATE', ...status };
+              ws.send(JSON.stringify(msg));
+            }
+          }
+
           const sendWelcome = (content: WsContent) => {
             if (ws.readyState !== WebSocket.OPEN) return;
             const welcome: WsServerMessage = { type: 'WELCOME', screenId: sid, content };
@@ -236,6 +308,11 @@ export function createGateway(): WebSocketServer {
             activeScreenIds: getConnectedScreenIds(),
           };
           ws.send(JSON.stringify(welcomeMsg));
+          for (const status of cameraStatusCache.values()) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'CAMERA_STATUS_UPDATE', ...status } satisfies WsCmsMessage));
+            }
+          }
           break;
         }
 
@@ -327,9 +404,28 @@ export function createGateway(): WebSocketServer {
           break;
         }
 
+        case 'CAMERA_REGISTER': {
+          noteCameraHeartbeat(msg.cameraId);
+          updateCameraStatus(msg.cameraId, 'waiting');
+          break;
+        }
+
+        case 'CAMERA_HEARTBEAT': {
+          noteCameraHeartbeat(msg.cameraId);
+          break;
+        }
+
+        case 'CAMERA_STATUS': {
+          noteCameraHeartbeat(msg.cameraId);
+          updateCameraStatus(msg.cameraId, msg.status, msg.message);
+          break;
+        }
+
         case 'PRODUCT_DETECTED': {
           const screenId = getCameraScreen(msg.cameraId);
           if (!screenId) break;
+          noteCameraHeartbeat(msg.cameraId);
+          updateCameraStatus(msg.cameraId, 'detecting');
 
           void resolveDetectedProduct({
             cameraId: msg.cameraId,
@@ -380,6 +476,8 @@ export function createGateway(): WebSocketServer {
         case 'PRODUCT_LOST': {
           const screenId = getCameraScreen(msg.cameraId);
           if (!screenId) break;
+          noteCameraHeartbeat(msg.cameraId);
+          updateCameraStatus(msg.cameraId, 'waiting');
 
           if (screenTakeover.get(screenId) === msg.label) {
             screenTakeover.delete(screenId);

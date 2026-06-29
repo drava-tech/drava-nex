@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
-import type { WsContent } from "@platform/types";
+import { useCallback, useEffect, useState } from "react";
+import type { CameraStatusUpdate, WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
+import { CameraStatusOverlay } from "./CameraStatusOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
@@ -69,6 +70,7 @@ export function LiveScreenPlayer({
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, queueContent } = useContentPreloader(initial);
+  const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -104,6 +106,7 @@ export function LiveScreenPlayer({
   const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
+    onCameraStatusUpdate: setCameraStatus,
     onCommand: handleCommand,
     wsUrl,
     preview,
@@ -160,6 +163,7 @@ export function LiveScreenPlayer({
     <>
       <ContentRenderer content={displayContent} screenId={screenId} />
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
+      <CameraStatusOverlay status={cameraStatus} />
       {pickerEnabled && (
         <ContentPickerOverlay
           apiUrl={apiUrl}

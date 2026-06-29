@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import type { WsServerMessage, WsClientMessage, WsContent } from "@platform/types";
+import type { CameraStatusUpdate, WsServerMessage, WsClientMessage, WsContent } from "@platform/types";
 import { resolveBrowserWsUrl } from "@/lib/client-urls";
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
@@ -9,6 +9,7 @@ export type WsStatus = "connecting" | "connected" | "disconnected";
 interface UseScreenWebSocketOptions {
   screenId: string;
   onContentUpdate: (content: WsContent) => void;
+  onCameraStatusUpdate?: (status: CameraStatusUpdate) => void;
   onCommand?: (command: string, value?: any) => void;
   wsUrl: string;
   /** Registers as a preview mirror (e.g. CMS embed) — excluded from online count. */
@@ -25,6 +26,7 @@ interface UseScreenWebSocketReturn {
 export function useScreenWebSocket({
   screenId,
   onContentUpdate,
+  onCameraStatusUpdate,
   onCommand,
   wsUrl,
   preview = false,
@@ -34,6 +36,8 @@ export function useScreenWebSocket({
   const [status, setStatus] = useState<WsStatus>("connecting");
   const onContentUpdateRef = useRef(onContentUpdate);
   onContentUpdateRef.current = onContentUpdate;
+  const onCameraStatusUpdateRef = useRef(onCameraStatusUpdate);
+  onCameraStatusUpdateRef.current = onCameraStatusUpdate;
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
 
@@ -60,6 +64,8 @@ export function useScreenWebSocket({
 
       if (msg.type === "CONTENT_UPDATE" || msg.type === "WELCOME") {
         onContentUpdateRef.current(msg.content);
+      } else if (msg.type === "CAMERA_STATUS_UPDATE") {
+        onCameraStatusUpdateRef.current?.(msg);
       } else if (msg.type === "PING") {
         const pong: WsClientMessage = { type: "PONG" };
         ws.send(JSON.stringify(pong));

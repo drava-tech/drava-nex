@@ -9,6 +9,8 @@ export function middleware(request: NextRequest) {
   if (
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/api/auth") ||
+    pathname === "/display" ||
+    pathname.startsWith("/display/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {

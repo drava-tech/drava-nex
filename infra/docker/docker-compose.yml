@@ -147,12 +147,36 @@ services:
       - internal
 
   # ─── Nginx (only public entry point) ────────────────────────────────────────
+  # Product Vision (Python camera detector). Optional because Docker Desktop on
+  # Windows may not expose USB cameras to Linux containers.
+  # Start with: docker compose --profile vision up -d product-vision
+  product-vision:
+    profiles:
+      - vision
+    build:
+      context: ../../services/product-vision
+      dockerfile: Dockerfile
+    container_name: product-vision
+    restart: unless-stopped
+    env_file:
+      - ../../services/product-vision/.env
+    environment:
+      - CMS_WEBSOCKET_URL=ws://api:4000/ws/
+      - VISION_MODEL_PATH=models/production/coster-v1.pt
+    volumes:
+      - ../../services/product-vision/models:/app/models:ro
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+
   nginx:
     image: nginx:alpine
     container_name: cms-nginx
     restart: unless-stopped
     ports:
-      - "80:80"         # the ONLY port exposed to the host in this entire stack
+      - "80:80"         # the ONLY Docker entry point exposed to the host
     volumes:
       - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - E:/EC/cms-platform-data/logs/nginx:/var/log/nginx

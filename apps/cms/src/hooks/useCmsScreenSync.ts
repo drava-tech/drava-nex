@@ -1,14 +1,36 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import type { WsClientMessage, WsContent } from "@platform/types";
+import type { CameraStatusUpdate, WsClientMessage, WsContent } from "@platform/types";
 
 interface UseCmsScreenSyncOptions {
   onScreenUpdated: (screenId: string, content: WsContent) => void;
   onActiveScreensUpdated?: (activeScreenIds: string[]) => void;
+  onCameraStatusUpdated?: (status: CameraStatusUpdate) => void;
 }
 
-export function useCmsScreenSync({ onScreenUpdated, onActiveScreensUpdated }: UseCmsScreenSyncOptions): void {
+function resolveBrowserWsUrl(wsUrl: string): string {
+  if (/^wss?:\/\//i.test(wsUrl)) return wsUrl;
+
+  const path = wsUrl.startsWith("/") ? wsUrl : `/${wsUrl}`;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const { hostname, port } = window.location;
+  const isDirectDev =
+    (hostname === "localhost" || hostname === "127.0.0.1") &&
+    (port === "3000" || port === "3001");
+
+  if (isDirectDev && (path === "/ws" || path.startsWith("/ws/"))) {
+    return `${protocol}//${hostname}:4000${path}`;
+  }
+
+  return `${protocol}//${window.location.host}${path}`;
+}
+
+export function useCmsScreenSync({
+  onScreenUpdated,
+  onActiveScreensUpdated,
+  onCameraStatusUpdated,
+}: UseCmsScreenSyncOptions): void {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -17,12 +39,12 @@ export function useCmsScreenSync({ onScreenUpdated, onActiveScreensUpdated }: Us
   
   const onActiveScreensUpdatedRef = useRef(onActiveScreensUpdated);
   onActiveScreensUpdatedRef.current = onActiveScreensUpdated;
+  const onCameraStatusUpdatedRef = useRef(onCameraStatusUpdated);
+  onCameraStatusUpdatedRef.current = onCameraStatusUpdated;
 
   const connect = useCallback(() => {
     const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
-    const resolved = wsUrl.startsWith("/")
-      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${wsUrl}`
-      : wsUrl;
+    const resolved = resolveBrowserWsUrl(wsUrl);
 
     const ws = new WebSocket(resolved);
     wsRef.current = ws;
@@ -43,6 +65,8 @@ export function useCmsScreenSync({ onScreenUpdated, onActiveScreensUpdated }: Us
         onScreenUpdatedRef.current(msg.screenId, msg.content);
       } else if (msg.type === "ACTIVE_SCREENS_LIST") {
         onActiveScreensUpdatedRef.current?.(msg.activeScreenIds);
+      } else if (msg.type === "CAMERA_STATUS_UPDATE") {
+        onCameraStatusUpdatedRef.current?.(msg);
       }
     };
 

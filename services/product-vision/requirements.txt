@@ -16,6 +16,7 @@ pyrealsense2
 # ── Networking ────────────────────────────────────────────────────────────────
 # WebSocket client for sending events to the CMS API gateway
 websockets
+requests
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 # Load .env files
