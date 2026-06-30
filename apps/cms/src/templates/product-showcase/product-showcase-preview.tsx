@@ -27,10 +27,10 @@ const PLACEHOLDER_PRODUCT: ProductDisplayData = {
   hero: null,
   video: null,
   gallery: [
-    { id: "var1", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+1" },
-    { id: "var2", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+2" },
-    { id: "var3", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+3" },
-    { id: "var4", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+4" }
+    { id: "var1", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+1", altText: "Variant 1" },
+    { id: "var2", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+2", altText: "Variant 2" },
+    { id: "var3", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+3", altText: "Variant 3" },
+    { id: "var4", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+4", altText: "Variant 4" },
   ],
   features: [
     { id: "f1", title: "Noise Cancellation", description: "Active (ANC)", sortOrder: 0 },

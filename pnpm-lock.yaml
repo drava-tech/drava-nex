@@ -29,12 +29,18 @@ importers:
       '@platform/types':
         specifier: workspace:*
         version: link:../../packages/types
+      better-auth:
+        specifier: ^1.6.18
+        version: 1.6.18(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.21.0))(next@15.5.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(pg@8.21.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vitest@2.1.9(@types/node@20.19.41)(lightningcss@1.32.0))
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(gel@2.2.0)(kysely@0.29.2)(pg@8.21.0)
       hono:
         specifier: ^4.0.0
         version: 4.12.23
+      mqtt:
+        specifier: ^5.5.0
+        version: 5.15.1
       ws:
         specifier: ^8.21.0
         version: 8.21.0

@@ -133,7 +133,7 @@ export function LiveScreenPlayer({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/display-config/${screenId}`);
+        const res = await fetch(`/api/screens/${screenId}/config`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data.content) queueContent(data.content as WsContent);
@@ -142,12 +142,12 @@ export function LiveScreenPlayer({
     return () => { cancelled = true; };
   }, [status, screenId, queueContent]);
 
-  // HTTP fallback: poll local screens.json every 5s while WS is disconnected
+  // HTTP fallback: poll every 5s while WS is disconnected
   useEffect(() => {
     if (status !== "disconnected") return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/display-config/${screenId}`);
+        const res = await fetch(`/api/screens/${screenId}/config`);
         if (res.ok) {
           const data = await res.json();
           if (data.content) queueContent(data.content as WsContent);

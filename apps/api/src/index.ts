@@ -41,6 +41,9 @@ import { MQTTDeviceManager } from '@platform/iot';
 import { db, sql, experience, isNull, listScreens, getScreenContent, listExperiences } from '@platform/db';
 import { requireAuth } from './middleware/auth.js';
 import { productsRouter } from './routes/products.js';
+import { mediaRouter, uploadRouter, mediaStreamRouter } from './routes/media.js';
+import { setupRouter } from './routes/setup.js';
+import { auth } from './lib/auth.js';
 import { createGateway, broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds } from './ws/gateway.js';
 import type { BroadcastRequest } from '@platform/types';
 
@@ -100,8 +103,19 @@ app.get('/api/me', requireAuth, async (c) => {
   return c.json({ user });
 });
 
+// ─── Auth (Better Auth — handles /api/auth/*) ────────────────────────────────
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+app.route('/api/auth/setup', setupRouter);
+
 // ─── Products (admin CRUD + public display/detection-label lookup) ────────────
 app.route('/api/products', productsRouter);
+
+// ─── Media (list, delete) ─────────────────────────────────────────────────────
+app.route('/api/media', mediaRouter);
+app.route('/api/media/stream', mediaStreamRouter);
+
+// ─── Upload ──────────────────────────────────────────────────────────────────
+app.route('/api/upload', uploadRouter);
 
 // ─── Experiences list ─────────────────────────────────────────────────────────
 app.get('/api/projects', async (c) => {
