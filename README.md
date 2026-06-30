@@ -24,16 +24,12 @@ Welcome to the Experience Center Digital Signage and Content Management Platform
 The platform integrates three main applications:
 1. **CMS** (`@platform/cms`): Next.js admin console for experiences/templates, media, screen
    management, and live device status.
-2. **Screen Player** (`@platform/screens`): Next.js renderer per display; subscribes over
-   WebSocket and renders the assigned experience/template (incl. live streams) full-screen.
-3. **API + Gateway** (`@platform/api`): Hono REST API, the WebSocket hub (per-screen rooms,
-   content broadcast, live-stream relay), and the MQTT device gateway.
+2. **API + Gateway** (`@platform/api`): Hono REST API, the WebSocket hub, and the MQTT device gateway.
 
 ```mermaid
 graph TD
     subgraph Apps [Applications]
-        CMS["@platform/cms (Next.js Admin Console)"]
-        Screens["@platform/screens (Next.js Screen Player)"]
+        CMS["@platform/cms (Next.js Admin Console & Screen Player)"]
         API["@platform/api (Hono REST & WS Gateway)"]
     end
 
@@ -54,10 +50,6 @@ graph TD
     CMS --> Types
     CMS --> DB
     CMS --> UI
-    
-    Screens --> Types
-    Screens --> UI
-    Screens --> IoT
 
     API --> Types
     API --> DB
@@ -73,8 +65,7 @@ graph TD
 ```
 ├── apps/
 │   ├── api/             # Hono Backend, WebSocket & MQTT entry point
-│   ├── cms/             # Next.js Admin CMS Dashboard
-│   └── screens/         # Next.js Screen Player
+│   └── cms/             # Next.js Admin CMS Dashboard
 ├── packages/
 │   ├── config/          # Shared eslint and tsconfigs
 │   ├── db/              # Drizzle ORM setup location
@@ -106,8 +97,7 @@ graph TD
 4. Run all services in development mode: `pnpm dev`.
 5. Build all packages and applications: `pnpm build`.
 
-In dev the apps run directly: CMS `http://localhost:3000`, Screens `http://localhost:3001`
-(a screen is at `http://localhost:3001/<screenId>`), API `http://localhost:4000`.
+In dev the apps run directly: CMS `http://localhost:3000`, API `http://localhost:4000`.
 
 ## Production Deployment (office LAN)
 
@@ -115,8 +105,8 @@ The whole stack runs as Docker containers on one host (e.g. `192.168.1.250`); **
 published, on port 80**. Everyone on the LAN uses one shared instance — no per-device installs.
 
 ```powershell
-pnpm infra:build      # build the api/cms/screens images
-pnpm infra:up         # start the full stack (postgres, mosquitto, api, cms, screens, nginx)
+pnpm infra:build      # build the api and cms images
+pnpm infra:up         # start the full stack (postgres, mosquitto, api, cms, nginx)
 # after recreating app containers, refresh nginx so it re-resolves their IPs:
 docker restart cms-nginx
 pnpm healthcheck      # http://localhost/health → all "ok"
@@ -132,8 +122,7 @@ URLs (replace the IP with your host):
 | Live-stream publisher endpoint | `ws://192.168.1.250/ws/` |
 | Health | `http://192.168.1.250/health` |
 
-The frontends use **relative** `/api` and `/ws` paths resolved from `window.location`, and the
-screens app is served under `/display` (Next.js `basePath`), so one build serves every device.
+The frontends use **relative** `/api` and `/ws` paths resolved from `window.location`.
 See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
 [`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
 
@@ -154,7 +143,6 @@ cd cms-platform
 # 2. Create the three env files from the templates
 cp .env.team.example          .env
 cp apps/cms/.env.example       apps/cms/.env
-cp apps/screens/.env.example   apps/screens/.env.local
 
 # 3. Edit ONLY the root .env:
 #    - set <HOST_IP>      → e.g. 192.168.1.250
@@ -163,7 +151,7 @@ cp apps/screens/.env.example   apps/screens/.env.local
 
 # 4. Install and run
 pnpm install
-pnpm dev          # → http://localhost:3000  (CMS),  http://localhost:3001  (Screens)
+pnpm dev          # → http://localhost:3000  (CMS)
 ```
 
 Notes:

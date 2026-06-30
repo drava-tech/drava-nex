@@ -68,7 +68,7 @@ export default async function Page() {
           screens.map((screen) => (
             <Link
               key={screen.screenId}
-              href={`/${screen.screenId}`}
+              href={`/display/${screen.screenId}`}
               style={{
                 textDecoration: 'none',
                 display: 'flex',

@@ -133,7 +133,7 @@ export function LiveScreenPlayer({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/config/${screenId}`);
+        const res = await fetch(`/api/display-config/${screenId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data.content) queueContent(data.content as WsContent);
@@ -147,7 +147,7 @@ export function LiveScreenPlayer({
     if (status !== "disconnected") return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/config/${screenId}`);
+        const res = await fetch(`/api/display-config/${screenId}`);
         if (res.ok) {
           const data = await res.json();
           if (data.content) queueContent(data.content as WsContent);

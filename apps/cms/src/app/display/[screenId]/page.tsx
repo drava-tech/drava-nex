@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { resolveDisplayConfig, DisplayConfigError } from "@/lib/display-config";
-import { LiveScreenPlayer } from "@/components/display/LiveScreenPlayer";
+import { LiveScreenPlayer } from "@/app/display/_components/LiveScreenPlayer";
+import { DisplayConfigError, resolveDisplayConfig } from "@/lib/display/display-config";
 
 export const dynamic = "force-dynamic";
 

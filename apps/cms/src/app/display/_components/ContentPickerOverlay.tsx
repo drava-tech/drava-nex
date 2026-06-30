@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { WsContent } from "@platform/types";
-import { resolveBrowserApiEndpoint } from "@/lib/client-urls";
+import { resolveBrowserApiEndpoint } from "@/lib/display/client-urls";
 
 interface ContentPickerOverlayProps {
   apiUrl: string;

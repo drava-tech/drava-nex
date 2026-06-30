@@ -13,18 +13,6 @@ const nextConfig = {
   experimental: {
     middlewareClientMaxBodySize: '100mb',
   },
-  async rewrites() {
-    return [
-      {
-        source: '/display',
-        destination: 'http://localhost:3001/display',
-      },
-      {
-        source: '/display/:path*',
-        destination: 'http://localhost:3001/display/:path*',
-      },
-    ];
-  },
 };
 
 export default nextConfig;

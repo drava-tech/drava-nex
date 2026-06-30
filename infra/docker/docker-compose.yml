@@ -114,37 +114,7 @@ services:
     networks:
       - internal
 
-  # ─── Screens Player (Next.js) ───────────────────────────────────────────────
-  screens:
-    build:
-      context: ../..
-      dockerfile: apps/screens/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: /api
-        NEXT_PUBLIC_WS_URL: /ws
-        NEXT_PUBLIC_WS_GATEWAY_URL: /ws
-        NEXT_PUBLIC_SCREENS_BASE_PATH: /display
-    container_name: cms-screens
-    restart: unless-stopped
-    env_file:
-      - ../../.env
-    environment:
-      - NEXT_PUBLIC_API_URL=/api
-      - NEXT_PUBLIC_WS_URL=/ws
-      - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
-      - NEXT_PUBLIC_SCREENS_BASE_PATH=/display
-      - INTERNAL_API_URL=http://api:4000   # server-side: reach the Hono API by service name (not localhost)
-      - UPLOAD_DIR=/data/uploads
-      - LOG_DIR=/data/logs
-    expose:
-      - "3001"          # internal only
-    volumes:
-      - ../../apps/screens/public/config:/app/apps/screens/public/config
-    depends_on:
-      api:
-        condition: service_started
-    networks:
-      - internal
+
 
   # ─── Nginx (only public entry point) ────────────────────────────────────────
   # Product Vision (Python camera detector). Optional because Docker Desktop on
@@ -182,7 +152,6 @@ services:
       - E:/EC/cms-platform-data/logs/nginx:/var/log/nginx
     depends_on:
       - cms
-      - screens
       - api
     networks:
       - internal

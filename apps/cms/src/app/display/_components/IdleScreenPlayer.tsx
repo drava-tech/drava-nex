@@ -28,7 +28,7 @@ export function IdleScreenPlayer({ screenId, wsUrl }: IdleScreenPlayerProps) {
     if (status !== "disconnected") return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/config/${screenId}`);
+        const res = await fetch(`/api/display-config/${screenId}`);
         if (!res.ok) return;
         const data: { content: WsContent | null } = await res.json();
         if (data.content) router.refresh();

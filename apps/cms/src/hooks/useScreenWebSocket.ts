@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { CameraStatusUpdate, WsServerMessage, WsClientMessage, WsContent } from "@platform/types";
-import { resolveBrowserWsUrl } from "@/lib/client-urls";
+import { resolveBrowserWsUrl } from "@/lib/display/client-urls";
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
 

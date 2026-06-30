@@ -11,7 +11,7 @@ import {
   readProductShowcaseContent,
   DEFAULT_PRODUCT_SHOWCASE_CONTENT,
 } from "@platform/ui/templates/product-showcase";
-import { resolveBrowserApiEndpoint } from "@/lib/client-urls";
+import { resolveBrowserApiEndpoint } from "@/lib/display/client-urls";
 import type { ExperienceContent } from "@/types/display";
 
 /**
