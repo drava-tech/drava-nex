@@ -14,13 +14,36 @@ import {
 import { resolveBrowserApiEndpoint } from "@/lib/display/client-urls";
 import type { ExperienceContent } from "@/types/display";
 
+const PLACEHOLDER_PRODUCT: ProductDisplayData = {
+  id: "placeholder-1",
+  name: "AirMax Pro Headset",
+  slug: "airmax-pro",
+  sku: "AMX-PRO-01",
+  detectionLabel: "headset_black",
+  category: "Audio",
+  brand: "TechCorp",
+  shortDescription: "Experience immersive audio with active noise cancellation.",
+  fullDescription: "The AirMax Pro delivers unparalleled sound quality with 40mm drivers and up to 30 hours of battery life. Perfect for travel, work, and everything in between.",
+  status: "ACTIVE",
+  thumbnail: null,
+  hero: null,
+  video: null,
+  gallery: [],
+  features: [
+    { id: "f1", title: "Noise Cancellation", description: "Active (ANC)", sortOrder: 0 },
+    { id: "f2", title: "Battery Life", description: "30 Hours", sortOrder: 1 },
+    { id: "f3", title: "Bluetooth", description: "5.3", sortOrder: 2 }
+  ],
+  specificationGroups: []
+};
+
 /**
  * Renders a Product Showcase experience on a screen. Reads the productId from the
  * experience config and fetches the product's display payload from the API at
  * render time (never embedding product content). Caches the last successful
  * product by id so a re-pushed identical experience doesn't refetch.
  */
-export function ProductShowcaseRenderer({ content }: { content: ExperienceContent }) {
+export function ProductShowcaseRenderer({ content, preview }: { content: ExperienceContent; preview?: boolean }) {
   const config =
     readProductShowcaseContent(content.templateContent) ?? DEFAULT_PRODUCT_SHOWCASE_CONTENT;
   const productId = config.productId;
@@ -95,7 +118,11 @@ export function ProductShowcaseRenderer({ content }: { content: ExperienceConten
       inner = <ProductShowcaseError message={state.message} />;
       break;
     case "empty":
-      inner = <WaitingForTrigger content={content} />;
+      if (preview && !isDetectionTrigger) {
+        inner = <ProductShowcaseView product={PLACEHOLDER_PRODUCT} config={config} />;
+      } else {
+        inner = <WaitingForTrigger content={content} />;
+      }
       break;
   }
 

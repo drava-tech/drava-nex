@@ -12,6 +12,34 @@ import {
 } from "@platform/ui/templates/product-showcase";
 import { getProductDisplayAction } from "@/actions/product-actions";
 
+const PLACEHOLDER_PRODUCT: ProductDisplayData = {
+  id: "placeholder-1",
+  name: "AirMax Pro Headset",
+  slug: "airmax-pro",
+  sku: "AMX-PRO-01",
+  detectionLabel: "headset_black",
+  category: "Audio",
+  brand: "TechCorp",
+  shortDescription: "Experience immersive audio with active noise cancellation.",
+  fullDescription: "The AirMax Pro delivers unparalleled sound quality with 40mm drivers and up to 30 hours of battery life. Perfect for travel, work, and everything in between.",
+  status: "ACTIVE",
+  thumbnail: null,
+  hero: null,
+  video: null,
+  gallery: [
+    { id: "var1", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+1" },
+    { id: "var2", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+2" },
+    { id: "var3", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+3" },
+    { id: "var4", type: "image", url: "https://placehold.co/400x400/f4f2ea/a09d93?text=Variant+4" }
+  ],
+  features: [
+    { id: "f1", title: "Noise Cancellation", description: "Active (ANC)", sortOrder: 0 },
+    { id: "f2", title: "Battery Life", description: "30 Hours", sortOrder: 1 },
+    { id: "f3", title: "Bluetooth", description: "5.3", sortOrder: 2 }
+  ],
+  specificationGroups: []
+};
+
 /**
  * Live preview of the Product Showcase. Fetches the product's display payload via
  * the API (server action → Hono) and renders the exact same presentational view
@@ -74,11 +102,7 @@ export function ProductShowcasePreview({
       inner = <ProductShowcaseError message={state.message} />;
       break;
     case "empty":
-      inner = (
-        <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-[32px] text-zinc-500">
-          Select a product to preview
-        </div>
-      );
+      inner = <ProductShowcaseView product={PLACEHOLDER_PRODUCT} config={content} />;
       break;
   }
 

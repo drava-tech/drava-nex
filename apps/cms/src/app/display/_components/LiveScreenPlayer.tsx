@@ -161,7 +161,7 @@ export function LiveScreenPlayer({
 
   return (
     <>
-      <ContentRenderer content={displayContent} screenId={screenId} />
+      <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
       <CameraStatusOverlay status={cameraStatus} />
       {pickerEnabled && (

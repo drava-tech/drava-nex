@@ -9,7 +9,7 @@ import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
-export function ContentRenderer({ content, screenId }: { content: Content; screenId?: string }) {
+export function ContentRenderer({ content, screenId, preview }: { content: Content; screenId?: string; preview?: boolean }) {
   switch (content.type) {
     case "video":
       return <VideoRenderer content={content} />;
@@ -35,7 +35,7 @@ export function ContentRenderer({ content, screenId }: { content: Content; scree
         return <ExperienceDisplay title={content.title} screenId={screenId} />;
       }
       if (content.templateKey === "product-showcase") {
-        return <ProductShowcaseRenderer content={content} />;
+        return <ProductShowcaseRenderer content={content} preview={preview} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }
