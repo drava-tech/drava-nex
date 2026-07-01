@@ -1,8 +1,6 @@
 "use client";
 
 import React, { Suspense } from 'react';
-import { usePathname } from 'next/navigation';
-import { Menu, Plus } from 'lucide-react';
 import {
   SidebarProvider,
   SidebarInset,
@@ -12,19 +10,12 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
 import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
-import { useSession } from '@/lib/auth-client';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const { data: sessionData } = useSession();
-  const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
-
-  const isProjectsPage = pathname.startsWith("/experiences");
-
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -41,27 +32,6 @@ export default function DashboardLayout({
             </Suspense>
           </div>
           <div className="flex items-center gap-2">
-            {isProjectsPage && (
-              <div className="flex items-center gap-1">
-                {(role === "ADMIN" || role === "SUPERADMIN") && (
-                  <button
-                    onClick={() => {
-                      alert("Add project action coming soon!");
-                    }}
-                    className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-600 dark:text-zinc-400 flex items-center justify-center"
-                    title="Add new project"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-zinc-600 dark:text-zinc-400 flex items-center justify-center mr-1"
-                  title="Three Verticals"
-                >
-                  <Menu className="h-4 w-4" />
-                </button>
-              </div>
-            )}
             <ThemeToggle />
           </div>
         </header>

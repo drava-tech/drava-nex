@@ -103,7 +103,7 @@ export function ProductsList({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2">
         <form onSubmit={submitSearch} className="relative flex-1 min-w-[220px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
