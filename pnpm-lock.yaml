@@ -122,40 +122,6 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  apps/screens:
-    dependencies:
-      '@platform/iot':
-        specifier: workspace:*
-        version: link:../../packages/iot
-      '@platform/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@platform/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      next:
-        specifier: ^15.1.0
-        version: 15.5.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      react:
-        specifier: ^19.0.0
-        version: 19.2.6
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.6(react@19.2.6)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.41
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.15
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.15)
-      typescript:
-        specifier: ^5.4.5
-        version: 5.9.3
-
   packages/config: {}
 
   packages/db:

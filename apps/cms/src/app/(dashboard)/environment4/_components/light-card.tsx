@@ -49,36 +49,43 @@ export function LightCard({
 }) {
   return (
     <Card
-      className={cn("flex h-full flex-col gap-4 p-5 shadow-sm transition-opacity", !on && "opacity-70", className)}
+      className={cn("flex h-full flex-col gap-2.5 p-5 shadow-sm transition-opacity", !on && "opacity-70", className)}
     >
-      {/* top row: icon + toggle */}
-      <div className="flex items-start justify-between">
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
-          style={{ backgroundColor: on ? `${color}26` : "var(--muted)" }}
-        >
-          <Icon className="h-5 w-5" color={on ? color : "currentColor"} style={{ color: on ? color : undefined }} />
-        </span>
+      {/* top row: icon, name + toggle */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
+            style={{ backgroundColor: on ? `${color}26` : "var(--muted)" }}
+          >
+            <Icon className="h-5 w-5" color={on ? color : "currentColor"} style={{ color: on ? color : undefined }} />
+          </span>
+          <div className="min-w-0 space-y-0.5">
+            <p className="truncate text-base font-semibold tracking-tight">{name}</p>
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
         <Switch checked={on} onChange={onToggle} color={color} label={`${name} power`} />
       </div>
 
-      {/* name + subtitle */}
-      <div className="space-y-0.5">
-        <p className="text-base font-semibold tracking-tight">{name}</p>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      {/* brightness slider */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <Slider
+            value={brightness}
+            onChange={onBrightness}
+            color={color}
+            disabled={!on}
+            ariaLabel={`${name} brightness`}
+          />
+        </div>
+        <span className="w-10 shrink-0 text-right text-xs font-semibold tabular-nums text-foreground">
+          {on ? `${brightness}%` : "--"}
+        </span>
       </div>
 
-      {/* brightness slider */}
-      <Slider
-        value={brightness}
-        onChange={onBrightness}
-        color={color}
-        disabled={!on}
-        ariaLabel={`${name} brightness`}
-      />
-
       {/* bottom stat row */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="hidden">
         <span className="inline-flex items-center gap-1.5">
           <Sun className="h-3.5 w-3.5" />
           <span className="tabular-nums">{on ? `${brightness}%` : "—"}</span>

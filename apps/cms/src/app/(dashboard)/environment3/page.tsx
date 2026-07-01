@@ -5,8 +5,8 @@ import { EnvironmentView } from "./_components/environment-view";
 export default async function EnvironmentPage3() {
   await requireAdmin();
   return (
-    <div className="flex flex-1 flex-col p-6 md:p-8 bg-muted/30 dark:bg-black/20 h-full overflow-hidden">
-      <div className="w-full h-full flex flex-col">
+    <div className="flex flex-1 flex-col p-4 md:p-6 bg-muted/30 dark:bg-black/20 h-[calc(100dvh-40px)] overflow-hidden min-h-0">
+      <div className="w-full h-full flex flex-col min-h-0">
         <EnvironmentView />
       </div>
     </div>

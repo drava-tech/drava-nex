@@ -51,12 +51,6 @@ const ALL_NAV = [
     roles: ["ADMIN"] as string[],
   },
   {
-    title: "Environment 2",
-    url: "/environment2",
-    icon: Cpu,
-    roles: ["ADMIN"] as string[],
-  },
-  {
     title: "Environment 3",
     url: "/environment3",
     icon: Cpu,
@@ -65,6 +59,12 @@ const ALL_NAV = [
   {
     title: "Environment 4",
     url: "/environment4",
+    icon: Cpu,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Environment 6",
+    url: "/environment6",
     icon: Cpu,
     roles: ["ADMIN"] as string[],
   },

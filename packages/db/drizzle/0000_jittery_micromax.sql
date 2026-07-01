@@ -15,8 +15,6 @@ CREATE TABLE "session" (
 	"user_id" text NOT NULL,
 	"token" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	"ip_address" text,
-	"user_agent" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
