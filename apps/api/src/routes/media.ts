@@ -59,6 +59,8 @@ function getMimeType(filePath: string): string {
 
 export const mediaRouter = new Hono();
 
+// --- Reads ---
+
 // GET /api/media — list all media assets
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
@@ -68,6 +70,8 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
   }
 });
+
+// --- Delete ---
 
 // DELETE /api/media?id=<id>
 mediaRouter.delete("/", requireAdmin, async (c) => {

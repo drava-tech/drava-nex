@@ -16,6 +16,8 @@ const createSchema = z.object({
   role: z.enum(["ADMIN", "GUEST"]),
 });
 
+// --- Create ---
+
 // POST /api/users — create a user (optionally promote to ADMIN)
 usersRouter.post("/", async (c) => {
   let body;
@@ -35,6 +37,8 @@ usersRouter.post("/", async (c) => {
   }
   return ok(c, { id: result.user.id }, 201);
 });
+
+// --- Delete ---
 
 // DELETE /api/users/:id — delete a user (with self/superadmin guards)
 usersRouter.delete("/:id", async (c) => {

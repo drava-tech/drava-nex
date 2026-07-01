@@ -31,11 +31,15 @@ function maskKey(k: ApiKey) {
   };
 }
 
+// --- Reads ---
+
 // GET /api/api-keys — list (masked)
 apiKeysRouter.get("/", async (c) => {
   const keys = await listApiKeys();
   return ok(c, keys.map(maskKey));
 });
+
+// --- Create ---
 
 // POST /api/api-keys — create; plaintext returned ONCE
 apiKeysRouter.post("/", async (c) => {
@@ -62,6 +66,8 @@ apiKeysRouter.post("/", async (c) => {
   // `key` is the plaintext — shown exactly once, never recoverable later.
   return ok(c, { ...maskKey(record), key: plaintext }, 201);
 });
+
+// --- Delete ---
 
 // DELETE /api/api-keys/:id — revoke
 apiKeysRouter.delete("/:id", async (c) => {

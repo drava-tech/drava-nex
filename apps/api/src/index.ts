@@ -80,19 +80,20 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 app.route('/api/auth/setup', setupRouter);
 
 // Every domain lives in its own router. Public reads and per-route guards are
-// defined inside each router; this file only composes them.
+// defined inside each router; this file only composes them. Mounts are listed in
+// a stable order: identity first, then resource routers alphabetically.
 app.route('/api/me', meRouter);
 app.route('/api/api-keys', apiKeysRouter);
 app.route('/api/devices', devicesRouter);
-app.route('/api/screens', screensRouter);
 app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
-app.route('/api/users', usersRouter);
-app.route('/api/projects', projectsRouter);
-app.route('/api/products', productsRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
+app.route('/api/products', productsRouter);
+app.route('/api/projects', projectsRouter);
+app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
+app.route('/api/users', usersRouter);
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

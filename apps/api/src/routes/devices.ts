@@ -21,21 +21,11 @@ const upsertSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 });
 
+// --- Reads ---
+
 // GET /api/devices — list registered devices (read scope or admin session)
 devicesRouter.get("/", requireApiClient(["devices:read"]), async (c) => {
   return ok(c, await listDevices());
-});
-
-// POST /api/devices — register/upsert a device (write scope or admin)
-devicesRouter.post("/", requireApiClient(["devices:write"]), async (c) => {
-  let body;
-  try {
-    body = upsertSchema.parse(await c.req.json());
-  } catch (err) {
-    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
-  }
-  const device = await upsertDevice(body);
-  return ok(c, device, 201);
 });
 
 // GET /api/devices/:id/status
@@ -51,6 +41,22 @@ devicesRouter.get("/:id/status", requireApiClient(["devices:read"]), async (c) =
     lastSeenAt: device.lastSeenAt,
   });
 });
+
+// --- Create ---
+
+// POST /api/devices — register/upsert a device (write scope or admin)
+devicesRouter.post("/", requireApiClient(["devices:write"]), async (c) => {
+  let body;
+  try {
+    body = upsertSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  const device = await upsertDevice(body);
+  return ok(c, device, 201);
+});
+
+// --- Nested: actions ---
 
 // POST /api/devices/lights/:id/state — { on, brightness?, color? }
 devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), async (c) => {

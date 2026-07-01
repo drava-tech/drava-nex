@@ -21,7 +21,7 @@ function param(c: Parameters<typeof ok>[0], name: string): string {
   return (c.req.param() as Record<string, string | undefined>)[name] ?? "";
 }
 
-// ─── Public reads (shapes kept as-is; consumed by screens + launcher) ─────────
+// --- Reads (public; shapes kept as-is, consumed by screens + launcher) ---
 
 // GET /api/screens — list all screens
 screensRouter.get("/", async (c) => {
@@ -51,6 +51,8 @@ async function pushScreenContent(screenId: string) {
   return content ?? null;
 }
 
+// --- Create ---
+
 const createSchema = z.object({ screenId: z.string().min(1), screenName: z.string().min(1) });
 
 // POST /api/screens — create a screen
@@ -68,11 +70,15 @@ screensRouter.post("/", requireAdmin, async (c) => {
   return ok(c, { screenId: body.screenId }, 201);
 });
 
+// --- Delete ---
+
 // DELETE /api/screens/:id — soft-delete a screen
 screensRouter.delete("/:id", requireAdmin, async (c) => {
   await deleteScreen(param(c, "id"));
   return ok(c, { deleted: true });
 });
+
+// --- Nested: actions ---
 
 const assignExperienceSchema = z.object({ experienceId: z.string().min(1) });
 

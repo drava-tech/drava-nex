@@ -20,6 +20,8 @@ export const experiencesRouter = new Hono();
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// --- Reads ---
+
 // GET /api/experiences — public list (shape kept: { experiences: [{id,title}] })
 experiencesRouter.get("/", async (c) => {
   return c.json({ experiences: await listExperiences() });
@@ -32,6 +34,8 @@ function userId(c: Parameters<typeof ok>[0]): string {
 function param(c: Parameters<typeof ok>[0], name: string): string {
   return (c.req.param() as Record<string, string | undefined>)[name] ?? "";
 }
+
+// --- Create ---
 
 const createSchema = z.object({
   name: z.string(),
@@ -77,6 +81,8 @@ experiencesRouter.post("/", requireAdmin, async (c) => {
   return ok(c, created, 201);
 });
 
+// --- Collection action: reorder ---
+
 const reorderSchema = z.object({ orderedIds: z.array(z.string()) });
 
 // POST /api/experiences/reorder
@@ -91,11 +97,15 @@ experiencesRouter.post("/reorder", requireAdmin, async (c) => {
   return ok(c, { reordered: body.orderedIds.length });
 });
 
+// --- Delete ---
+
 // DELETE /api/experiences/:id — soft-delete
 experiencesRouter.delete("/:id", requireAdmin, async (c) => {
   await softDeleteExperience(param(c, "id"));
   return ok(c, { deleted: true });
 });
+
+// --- Nested: template + content ---
 
 const templateSchema = z.object({ templateKey: z.string().nullable() });
 

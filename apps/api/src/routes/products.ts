@@ -80,8 +80,44 @@ async function parseBody<T extends z.ZodTypeAny>(
 
 export const productsRouter = new Hono();
 
-// ─── Public: display payload (ACTIVE-only) ────────────────────────────────────
+// --- Reads ---
 
+// GET /api/products — list (admin)
+productsRouter.get("/", requireAdmin, async (c) => {
+  const parsed = listProductsQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return fail(c, "VALIDATION", "Invalid query.", 422, formatZodError(parsed.error));
+  }
+  try {
+    return ok(c, await listProducts(parsed.data));
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+// GET /api/products/by-detection-label/:detectionLabel — public (ACTIVE-only)
+productsRouter.get("/by-detection-label/:detectionLabel", async (c) => {
+  try {
+    const data = await getProductByDetectionLabel(getParam(c, "detectionLabel"));
+    if (!data) return fail(c, "PRODUCT_NOT_FOUND", "No active product for that label.", 404);
+    return ok(c, data);
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+// GET /api/products/:productId — detail (admin)
+productsRouter.get("/:productId", requireAdmin, async (c) => {
+  try {
+    const detail = await getProductDetail(getParam(c, "productId"));
+    if (!detail) return fail(c, "PRODUCT_NOT_FOUND", "Product not found.", 404);
+    return ok(c, detail);
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+// GET /api/products/:productId/display — public display payload (ACTIVE-only)
 productsRouter.get("/:productId/display", async (c) => {
   try {
     const data = await getProductDisplayData(getParam(c, "productId"));
@@ -97,34 +133,9 @@ productsRouter.get("/:productId/display", async (c) => {
   }
 });
 
-// ─── Public: detection-label lookup (ACTIVE-only) ─────────────────────────────
+// --- Create ---
 
-productsRouter.get("/by-detection-label/:detectionLabel", async (c) => {
-  try {
-    const data = await getProductByDetectionLabel(getParam(c, "detectionLabel"));
-    if (!data) return fail(c, "PRODUCT_NOT_FOUND", "No active product for that label.", 404);
-    return ok(c, data);
-  } catch (err) {
-    return handleError(c, err);
-  }
-});
-
-// ─── Admin: list ──────────────────────────────────────────────────────────────
-
-productsRouter.get("/", requireAdmin, async (c) => {
-  const parsed = listProductsQuerySchema.safeParse(c.req.query());
-  if (!parsed.success) {
-    return fail(c, "VALIDATION", "Invalid query.", 422, formatZodError(parsed.error));
-  }
-  try {
-    return ok(c, await listProducts(parsed.data));
-  } catch (err) {
-    return handleError(c, err);
-  }
-});
-
-// ─── Admin: create ────────────────────────────────────────────────────────────
-
+// POST /api/products — create (admin)
 productsRouter.post("/", requireAdmin, async (c) => {
   const body = await parseBody(c, createProductSchema);
   if (!body.ok) return body.res;
@@ -137,20 +148,9 @@ productsRouter.post("/", requireAdmin, async (c) => {
   }
 });
 
-// ─── Admin: detail ────────────────────────────────────────────────────────────
+// --- Update ---
 
-productsRouter.get("/:productId", requireAdmin, async (c) => {
-  try {
-    const detail = await getProductDetail(getParam(c, "productId"));
-    if (!detail) return fail(c, "PRODUCT_NOT_FOUND", "Product not found.", 404);
-    return ok(c, detail);
-  } catch (err) {
-    return handleError(c, err);
-  }
-});
-
-// ─── Admin: update ────────────────────────────────────────────────────────────
-
+// PATCH /api/products/:productId — update (admin)
 productsRouter.patch("/:productId", requireAdmin, async (c) => {
   const body = await parseBody(c, updateProductSchema);
   if (!body.ok) return body.res;
@@ -161,8 +161,9 @@ productsRouter.patch("/:productId", requireAdmin, async (c) => {
   }
 });
 
-// ─── Admin: delete (soft) ─────────────────────────────────────────────────────
+// --- Delete ---
 
+// DELETE /api/products/:productId — soft delete (admin)
 productsRouter.delete("/:productId", requireAdmin, async (c) => {
   try {
     await softDeleteProduct(getParam(c, "productId"));
@@ -172,7 +173,7 @@ productsRouter.delete("/:productId", requireAdmin, async (c) => {
   }
 });
 
-// ─── Admin: features ──────────────────────────────────────────────────────────
+// --- Nested: features ---
 
 productsRouter.post("/:productId/features", requireAdmin, async (c) => {
   const body = await parseBody(c, productFeatureInputSchema);
@@ -206,7 +207,7 @@ productsRouter.delete("/:productId/features/:featureId", requireAdmin, async (c)
   }
 });
 
-// ─── Admin: specifications ────────────────────────────────────────────────────
+// --- Nested: specifications ---
 
 productsRouter.post("/:productId/specifications", requireAdmin, async (c) => {
   const body = await parseBody(c, productSpecificationInputSchema);
@@ -247,7 +248,7 @@ productsRouter.delete("/:productId/specifications/:specificationId", requireAdmi
   }
 });
 
-// ─── Admin: media links ───────────────────────────────────────────────────────
+// --- Nested: media links ---
 
 productsRouter.post("/:productId/media", requireAdmin, async (c) => {
   const body = await parseBody(c, productMediaInputSchema);

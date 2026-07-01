@@ -11,10 +11,14 @@ import { ok, fail } from "../lib/response.js";
 
 export const experienceTypesRouter = new Hono();
 
+// --- Reads ---
+
 // GET /api/experience-types — list (guest or admin)
 experienceTypesRouter.get("/", requireGuestOrAdmin, async (c) => {
   return ok(c, await listExperienceTypes());
 });
+
+// --- Create ---
 
 const createSchema = z.object({ name: z.string() });
 
@@ -37,6 +41,8 @@ experienceTypesRouter.post("/", requireAdmin, async (c) => {
   });
   return ok(c, created, 201);
 });
+
+// --- Delete ---
 
 // DELETE /api/experience-types/:id
 experienceTypesRouter.delete("/:id", requireAdmin, async (c) => {
