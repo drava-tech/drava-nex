@@ -103,19 +103,29 @@ export function UsersClient({ users }: Props) {
                 <td className="px-4 py-3 font-medium">{u.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                 <td className="px-4 py-3">
-                  <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      u.role === "ADMIN" || u.role === "SUPERADMIN"
+                        ? "default"
+                        : "secondary"
+                    }
+                  >
                     {u.role}
                   </Badge>
                 </td>
                 <td className="px-4 py-3">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(u.id)}
-                    disabled={isPending}
-                  >
-                    Delete
-                  </Button>
+                  {u.role === "SUPERADMIN" ? (
+                    <span className="text-xs text-muted-foreground">Protected</span>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(u.id)}
+                      disabled={isPending}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

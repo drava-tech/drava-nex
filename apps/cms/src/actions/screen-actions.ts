@@ -1,17 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  listScreens,
-  createScreen,
-  deleteScreen,
-  setScreenExperience,
-  setScreenMedia,
-  getScreenContent,
-  screenExists,
-} from "@platform/db";
-import { broadcastWsContentDirect } from "../lib/broadcast";
+import { listScreens } from "@platform/db";
+import { apiFetch } from "@/lib/api-client";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
+
+// Reads stay direct (Server Components / DB). All mutations go through the Hono
+// API so the exact same endpoints serve the browser, Unreal Engine, and mobile.
 
 export async function getScreens() {
   await requireGuestOrAdmin();
@@ -19,51 +14,47 @@ export async function getScreens() {
 }
 
 /**
- * Assign an experience to a screen: write the DB (source of truth), then push
- * the derived content to the screen over the WebSocket (event-driven).
+ * Assign an experience to a screen. The API writes the DB (source of truth) and
+ * pushes the derived content over WebSocket to the screen + CMS + UE subscribers.
  */
 export async function assignExperience(screenId: string, experienceId: string) {
   await requireGuestOrAdmin();
-  await setScreenExperience(screenId, experienceId);
-  const content = await getScreenContent(screenId);
-  if (content) await broadcastWsContentDirect(screenId, content);
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/experience`, {
+    method: "POST",
+    body: JSON.stringify({ experienceId }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
 }
 
 export async function addScreen(screenId: string, screenName: string) {
   await requireAdmin();
-  if (await screenExists(screenId)) {
-    throw new Error(`Screen ID "${screenId}" already exists.`);
-  }
-  await createScreen(screenId, screenName);
+  const res = await apiFetch(`/api/screens`, {
+    method: "POST",
+    body: JSON.stringify({ screenId, screenName }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
 }
 
 export async function removeScreen(screenId: string) {
   await requireAdmin();
-  await deleteScreen(screenId);
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
 }
 
 export async function sendRemoteCommand(screenId: string, command: string, value?: any): Promise<void> {
   await requireGuestOrAdmin();
-  const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
-  const secret = process.env["BROADCAST_SECRET"] || "dev-secret";
-
-  try {
-    await fetch(`${apiUrl}/api/internal/command`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-broadcast-secret": secret,
-      },
-      body: JSON.stringify({ screenId, command, value }),
-    });
-  } catch (err) {
-    console.error("[remote] sendRemoteCommand failed for screen", screenId, command, err);
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/command`, {
+    method: "POST",
+    body: JSON.stringify({ command, value }),
+  });
+  if (!res.ok) {
+    console.error("[remote] sendRemoteCommand failed for screen", screenId, command, res.error);
   }
 }
 
@@ -83,15 +74,14 @@ export async function getActiveScreens(): Promise<string[]> {
   return [];
 }
 
-/**
- * Assign a media-library asset to a screen. Media is a first-class entity, so we
- * point the screen straight at the media asset (no placeholder experience).
- */
+/** Assign a media-library asset to a screen (points the screen straight at the asset). */
 export async function assignMedia(screenId: string, mediaAssetId: string) {
   await requireGuestOrAdmin();
-  await setScreenMedia(screenId, mediaAssetId);
-  const content = await getScreenContent(screenId);
-  if (content) await broadcastWsContentDirect(screenId, content);
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media`, {
+    method: "POST",
+    body: JSON.stringify({ mediaAssetId }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
 }

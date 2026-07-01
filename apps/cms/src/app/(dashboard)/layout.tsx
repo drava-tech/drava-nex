@@ -43,7 +43,7 @@ export default function DashboardLayout({
           <div className="flex items-center gap-2">
             {isProjectsPage && (
               <div className="flex items-center gap-1">
-                {role === "ADMIN" && (
+                {(role === "ADMIN" || role === "SUPERADMIN") && (
                   <button
                     onClick={() => {
                       alert("Add project action coming soon!");

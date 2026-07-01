@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
@@ -22,7 +23,8 @@
     "db:migrate-screen": "tsx src/migrate-screen.ts",
     "db:migrate-experience": "tsx src/migrate-experience-template.ts",
     "db:migrate-media": "tsx src/migrate-media.ts",
-    "db:seed-screens": "tsx src/seed-screens.ts"
+    "db:seed-screens": "tsx src/seed-screens.ts",
+    "db:seed-products": "tsx src/seed-products.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -34,6 +36,7 @@
     "tsx": "^4.7.1",
     "@types/pg": "^8.11.2",
     "@types/node": "^20.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.8"
   }
 }

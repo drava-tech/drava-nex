@@ -11,7 +11,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.js
 COPY packages/config/            ./packages/config/
 COPY apps/api/package.json       ./apps/api/
 COPY apps/cms/package.json       ./apps/cms/
-COPY apps/screens/package.json   ./apps/screens/
 COPY packages/db/package.json    ./packages/db/
 COPY packages/iot/package.json   ./packages/iot/
 COPY packages/types/package.json ./packages/types/
@@ -28,9 +27,11 @@ COPY packages  ./packages
 ARG NEXT_PUBLIC_API_URL=/api
 ARG NEXT_PUBLIC_WS_URL=/ws
 ARG NEXT_PUBLIC_WS_GATEWAY_URL=/ws
+ARG NEXT_PUBLIC_SCREENS_URL=/display
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_WS_GATEWAY_URL=${NEXT_PUBLIC_WS_GATEWAY_URL}
+ENV NEXT_PUBLIC_SCREENS_URL=${NEXT_PUBLIC_SCREENS_URL}
 
 # Build CMS and all workspace packages it depends on
 RUN pnpm exec turbo run build --filter="@platform/cms..."

@@ -21,10 +21,10 @@ async function seed() {
     });
 
     if (res && res.user) {
-      console.log("User created! Upgrading role to ADMIN...");
+      console.log("User created! Upgrading role to SUPERADMIN...");
 
-      // 2. Use Drizzle to update the role to ADMIN since input is disabled in auth config
-      await db.update(schema.user).set({ role: "ADMIN" }).where(eq(schema.user.email, email));
+      // 2. Use Drizzle to update the role to SUPERADMIN since input is disabled in auth config
+      await db.update(schema.user).set({ role: "SUPERADMIN" }).where(eq(schema.user.email, email));
 
       console.log("\n✅ Admin user created successfully!");
       console.log("-----------------------------------------");
@@ -35,8 +35,8 @@ async function seed() {
     } else {
       console.log("Failed to create user. It may already exist.");
       // Try to update it anyway just in case
-      await db.update(schema.user).set({ role: "ADMIN" }).where(eq(schema.user.email, email));
-      console.log("Updated existing user to ADMIN role.");
+      await db.update(schema.user).set({ role: "SUPERADMIN" }).where(eq(schema.user.email, email));
+      console.log("Updated existing user to SUPERADMIN role.");
     }
   } catch (error) {
     console.error("Error creating admin user:", error);

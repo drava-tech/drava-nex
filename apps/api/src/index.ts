@@ -1,59 +1,38 @@
-import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-
-// Load environment variables from root .env if running in local dev
-try {
-  let currentDir = process.cwd();
-  let foundEnvPath = '';
-  while (true) {
-    const checkPath = resolve(currentDir, '.env');
-    if (existsSync(checkPath)) {
-      foundEnvPath = checkPath;
-      break;
-    }
-    const parentDir = dirname(currentDir);
-    if (parentDir === currentDir) break;
-    currentDir = parentDir;
-  }
-  if (foundEnvPath) {
-    const envContent = readFileSync(foundEnvPath, 'utf-8');
-    for (const line of envContent.split(/\r?\n/)) {
-      if (line.trim().startsWith('#') || !line.includes('=')) continue;
-      const firstEq = line.indexOf('=');
-      const key = line.slice(0, firstEq).trim();
-      let val = line.slice(firstEq + 1).trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      if (key && !process.env[key]) {
-        process.env[key] = val;
-      }
-    }
-  }
-} catch (e) {
-  console.warn('[api] Failed to load .env file:', e);
-}
+// Load env FIRST — before any module that reads process.env at import time
+// (@platform/db, ./lib/auth). This import MUST stay at the very top.
+import './lib/load-env.js';
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
-import { db, sql, experience, isNull, listScreens, getScreenContent, listExperiences } from '@platform/db';
-import { requireAuth } from './middleware/auth.js';
-import { createGateway, broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds } from './ws/gateway.js';
-import type { BroadcastRequest } from '@platform/types';
+import { db, sql } from '@platform/db';
+import { productsRouter } from './routes/products.js';
+import { mediaRouter, uploadRouter, mediaStreamRouter } from './routes/media.js';
+import { setupRouter } from './routes/setup.js';
+import { apiKeysRouter } from './routes/api-keys.js';
+import { devicesRouter } from './routes/devices.js';
+import { setMqttPublisher } from './services/devices.js';
+import { screensRouter } from './routes/screens.js';
+import { experiencesRouter } from './routes/experiences.js';
+import { experienceTypesRouter } from './routes/experience-types.js';
+import { usersRouter } from './routes/users.js';
+import { projectsRouter } from './routes/projects.js';
+import { meRouter } from './routes/me.js';
+import { auth } from './lib/auth.js';
+import { createGateway } from './ws/gateway.js';
 
 const app = new Hono();
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const corsOrigins = process.env['CORS_ORIGIN']
   ? process.env['CORS_ORIGIN'].split(',').map(s => s.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost'];
+  : ['http://localhost:3000'];
 
 app.use('*', cors({
   origin: corsOrigins,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'x-broadcast-secret'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-broadcast-secret', 'x-api-key'],
   credentials: true,
 }));
 
@@ -68,6 +47,10 @@ const mqttManager = new MQTTDeviceManager(
   process.env['MQTT_BROKER_URL'] ?? 'mqtt://localhost:1883'
 );
 mqttManager.connect();
+
+// Let the device-driver layer publish MQTT commands without importing the
+// manager directly (avoids a circular import; see services/devices.ts).
+setMqttPublisher((deviceId, command) => mqttManager.publishCommand(deviceId, command));
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
@@ -91,74 +74,25 @@ async function buildHealthPayload() {
 app.get('/health', async (c) => c.json(await buildHealthPayload()));
 app.get('/api/health', async (c) => c.json(await buildHealthPayload()));
 
-// ─── Protected routes ─────────────────────────────────────────────────────────
-type SessionUser = { id: string; name: string; email: string; role: string };
+// ─── Routes ───────────────────────────────────────────────────────────────────
+// Better Auth handles /api/auth/* (sign-in/out, session, bearer, etc.).
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+app.route('/api/auth/setup', setupRouter);
 
-app.get('/api/me', requireAuth, async (c) => {
-  const user = c.get('user' as never) as SessionUser;
-  return c.json({ user });
-});
-
-// ─── Experiences list ─────────────────────────────────────────────────────────
-app.get('/api/projects', async (c) => {
-  const rows = await db
-    .select({ slug: experience.slug, name: experience.name, position: experience.position })
-    .from(experience)
-    .where(isNull(experience.deletedAt))
-  const verticals = rows.map((r) => ({ id: r.slug, title: r.name, position: r.position }));
-  return c.json({ verticals });
-});
-
-// ─── Experiences list (public — screens touch-picker reads this) ──────────────
-app.get('/api/experiences', async (c) => {
-  return c.json({ experiences: await listExperiences() });
-});
-
-// ─── Screen list (public — screens launcher reads this) ───────────────────────
-app.get('/api/screens', async (c) => {
-  return c.json({ screens: await listScreens() });
-});
-
-// ─── Active screens list (public) ─────────────────────────────────────────────
-app.get('/api/screens/active', (c) => {
-  return c.json({ activeScreenIds: getConnectedScreenIds() });
-});
-
-// ─── Screen config (DB-authoritative; used on connect/reload to sync) ─────────
-app.get('/api/screens/:screenId/config', async (c) => {
-  const screenId = c.req.param('screenId');
-  const content = await getScreenContent(screenId);
-  if (!content) return c.json({ content: null }, 404);
-  return c.json({ screenId, content });
-});
-
-// ─── Internal broadcast (called by CMS Server Actions) ────────────────────────
-const BROADCAST_SECRET = process.env['BROADCAST_SECRET'] || 'dev-secret';
-
-app.post('/api/internal/broadcast', async (c) => {
-  const secretHeader = c.req.header('x-broadcast-secret');
-  if (secretHeader !== BROADCAST_SECRET) {
-    console.warn(`[api] Broadcast rejected: secret mismatch (header: "${secretHeader ? '***' : ''}", expected: "${BROADCAST_SECRET ? '***' : ''}")`);
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  const body = await c.req.json<BroadcastRequest>();
-  const delivered = broadcast({ screenId: body.screenId, content: body.content, source: 'cms' });
-  console.info(`[api] Broadcast for screen "${body.screenId}" delivered to ${delivered} clients`);
-  // Also notify CMS clients so multiple admin tabs stay in sync
-  broadcastToCms({ type: 'SCREEN_UPDATED', screenId: body.screenId, content: body.content, source: 'cms' });
-  return c.json({ ok: true, delivered });
-});
-
-// ─── Internal screen command (called by CMS Server Actions) ───────────────────
-app.post('/api/internal/command', async (c) => {
-  if (c.req.header('x-broadcast-secret') !== BROADCAST_SECRET) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  const body = await c.req.json<{ screenId: string; command: string; value?: any }>();
-  const delivered = sendCommandToScreen(body.screenId, body.command, body.value);
-  console.info(`[api] Command "${body.command}" for screen "${body.screenId}" delivered to ${delivered} clients`);
-  return c.json({ ok: true, delivered });
-});
+// Every domain lives in its own router. Public reads and per-route guards are
+// defined inside each router; this file only composes them.
+app.route('/api/me', meRouter);
+app.route('/api/api-keys', apiKeysRouter);
+app.route('/api/devices', devicesRouter);
+app.route('/api/screens', screensRouter);
+app.route('/api/experiences', experiencesRouter);
+app.route('/api/experience-types', experienceTypesRouter);
+app.route('/api/users', usersRouter);
+app.route('/api/projects', projectsRouter);
+app.route('/api/products', productsRouter);
+app.route('/api/media', mediaRouter);
+app.route('/api/media/stream', mediaStreamRouter);
+app.route('/api/upload', uploadRouter);
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

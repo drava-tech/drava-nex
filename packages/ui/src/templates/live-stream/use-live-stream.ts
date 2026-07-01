@@ -8,23 +8,15 @@ const RECONNECT_MS = 3_000;
 const DEFAULT_CODEC = "avc1.42E01E";
 
 /**
- * Resolves an env-style WS url (e.g. "/ws/" or "ws://host/ws/") to an absolute one.
- * Mirrors the screens app's resolveBrowserWsUrl, including the dev shortcut that
- * points the Next dev hosts (:3000/:3001) at the API on :4000.
+ * Resolves an env-style WS url to an absolute one. Single-origin: an absolute URL
+ * is used as-is; otherwise the path is same-origin (nginx routes /ws to the API).
  */
 function resolveWsUrl(wsUrl: string): string {
   if (/^wss?:\/\//i.test(wsUrl)) return wsUrl;
   if (/^https?:\/\//i.test(wsUrl)) return wsUrl.replace(/^http/i, "ws");
   const path = wsUrl.startsWith("/") ? wsUrl : `/${wsUrl}`;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const { hostname, port, host } = window.location;
-  const directDev =
-    (hostname === "localhost" || hostname === "127.0.0.1") &&
-    (port === "3000" || port === "3001");
-  if (directDev && (path === "/ws" || path.startsWith("/ws/"))) {
-    return `${proto}//${hostname}:4000${path}`;
-  }
-  return `${proto}//${host}${path}`;
+  return `${proto}//${window.location.host}${path}`;
 }
 
 interface UseLiveStreamResult {

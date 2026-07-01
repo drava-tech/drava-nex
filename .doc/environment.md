@@ -34,7 +34,7 @@ This file is **gitignored** — it must never be committed. Copy `.env.example` 
 | `NEXT_PUBLIC_API_URL` | `/api` (relative) | `http://localhost:4000/api` |
 | `NEXT_PUBLIC_WS_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
 | `NEXT_PUBLIC_WS_GATEWAY_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
-| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/screens` (screens image only) | *(unset → app at root on :3001)* |
+| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/display` (screens image only) | *(unset → app at root on :3001)* |
 
 Docker bakes **relative** paths so one build works for any host/IP; clients resolve them against
 `window.location`. These are `NEXT_PUBLIC_*` — embedded into the JS bundle at `docker compose

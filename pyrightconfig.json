@@ -1,0 +1,22 @@
+{
+  "venvPath": "services/product-vision",
+  "venv": ".venv",
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Windows",
+  "extraPaths": [
+    "services/product-vision/src"
+  ],
+  "include": [
+    "services/product-vision/src",
+    "services/product-vision/scripts"
+  ],
+  "exclude": [
+    "services/product-vision/.venv",
+    "services/product-vision/runs",
+    "services/product-vision/predictions",
+    "services/product-vision/models",
+    "node_modules"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none"
+}

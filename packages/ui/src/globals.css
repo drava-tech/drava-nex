@@ -4,7 +4,6 @@
 
 /* Content sources so Tailwind scans these files for utility classes */
 @source "../../apps/cms/src/**/*.{ts,tsx}";
-@source "../../apps/screens/src/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
 :root {

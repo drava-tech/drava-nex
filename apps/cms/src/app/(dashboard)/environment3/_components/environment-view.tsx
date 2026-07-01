@@ -57,14 +57,14 @@ function rgbToHex(r: number, g: number, b: number) {
 }
 
 function hsvToRgb(h: number, s: number, v: number) {
-  let f= (n:number,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);
-  return { r: Math.round(f(5)*255), g: Math.round(f(3)*255), b: Math.round(f(1)*255) };
+  let f = (n: number, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+  return { r: Math.round(f(5) * 255), g: Math.round(f(3) * 255), b: Math.round(f(1) * 255) };
 }
 
 function rgbToHsv(r: number, g: number, b: number) {
-  let v=Math.max(r,g,b), c=v-Math.min(r,g,b);
-  let h= c && ((v==r) ? (g-b)/c : ((v==g) ? 2+(b-r)/c : 4+(r-g)/c)); 
-  return { h: 60*(h<0?h+6:h), s: v&&c/v, v: v/255 };
+  let v = Math.max(r, g, b), c = v - Math.min(r, g, b);
+  let h = c && ((v == r) ? (g - b) / c : ((v == g) ? 2 + (b - r) / c : 4 + (r - g) / c));
+  return { h: 60 * (h < 0 ? h + 6 : h), s: v && c / v, v: v / 255 };
 }
 
 // ─── SLIDER & TOGGLE ──────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", 
           <span className="text-[11px] font-black text-foreground">{value}{suffix}</span>
         </div>
       )}
-      <div 
+      <div
         className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full relative cursor-pointer touch-none flex items-center shadow-inner"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -114,8 +114,8 @@ function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", 
         onPointerCancel={onPointerUp}
       >
         <div className={`absolute left-0 h-full rounded-full ${color}`} style={{ width: `${pct}%`, transition: dragging ? 'none' : 'width 0.15s' }} />
-        <motion.div 
-          className="absolute h-5 w-5 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.15)] rounded-full border border-zinc-200" 
+        <motion.div
+          className="absolute h-5 w-5 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.15)] rounded-full border border-zinc-200"
           animate={{ left: `calc(${pct}% - 10px)` }}
           transition={{ type: "spring", bounce: 0, duration: dragging ? 0 : 0.2 }}
         />
@@ -126,11 +126,11 @@ function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", 
 
 function Switch({ checked, onChange }: { checked: boolean, onChange: (c: boolean) => void }) {
   return (
-    <div 
+    <div
       className={`w-11 h-6 rounded-full p-1 cursor-pointer transition-colors ${checked ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-200 dark:bg-zinc-700'}`}
       onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
     >
-      <motion.div 
+      <motion.div
         className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-900 shadow-sm`}
         animate={{ x: checked ? 20 : 0 }}
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
@@ -318,11 +318,11 @@ function LightColourContent({ state, actions }: any) {
   const [hexInput, setHexInput] = useState(state.color.hex);
   const [mode, setMode] = useState<"RGBW" | "RGB">("RGBW");
   const [isValidHex, setIsValidHex] = useState(true);
-  
+
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { 
-    setHexInput(state.color.hex); 
+  useEffect(() => {
+    setHexInput(state.color.hex);
     setIsValidHex(true);
   }, [state.color.hex]);
 
@@ -333,13 +333,13 @@ function LightColourContent({ state, actions }: any) {
 
   const handleHexApply = () => {
     if (isValidHex) {
-      const {r,g,b} = hexToRgb(hexInput);
+      const { r, g, b } = hexToRgb(hexInput);
       actions.setColor({ ...state.color, r, g, b, hex: hexInput.toUpperCase() });
       if (actions.closeColourPanel) actions.closeColourPanel();
     }
   };
 
-  const handleRgbChange = (channel: 'r'|'g'|'b'|'w', val: number) => {
+  const handleRgbChange = (channel: 'r' | 'g' | 'b' | 'w', val: number) => {
     const newColor = { ...state.color, [channel]: val };
     if (channel !== 'w') newColor.hex = rgbToHex(newColor.r, newColor.g, newColor.b);
     actions.setColor(newColor);
@@ -351,12 +351,12 @@ function LightColourContent({ state, actions }: any) {
     const rect = pickerRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-    
+
     const h = (x / rect.width) * 360;
     const s = 1; // Full saturation horizontally in this UI
     const v = 1 - (y / rect.height);
-    
-    const {r,g,b} = hsvToRgb(h, s, v);
+
+    const { r, g, b } = hsvToRgb(h, s, v);
     actions.setColor({ ...state.color, r, g, b, hex: rgbToHex(r, g, b) });
   };
 
@@ -364,9 +364,9 @@ function LightColourContent({ state, actions }: any) {
     const currentMax = Math.max(state.color.r, state.color.g, state.color.b, state.color.w);
     if (currentMax === 0) {
       if (mode === "RGBW") {
-        actions.setColor({ ...state.color, w: Math.round((pct/100)*255) });
+        actions.setColor({ ...state.color, w: Math.round((pct / 100) * 255) });
       } else {
-        const val = Math.round((pct/100)*255);
+        const val = Math.round((pct / 100) * 255);
         actions.setColor({ ...state.color, r: val, g: val, b: val, hex: rgbToHex(val, val, val) });
       }
       return;
@@ -387,115 +387,115 @@ function LightColourContent({ state, actions }: any) {
 
   return (
     <div className="flex flex-col z-10 relative text-card-foreground" onClick={noProp}>
-       <div className="flex items-center gap-2 mb-8">
-          <Settings2 className="w-5 h-5" />
-          <h3 className="font-semibold tracking-tight text-lg uppercase">Light Colour</h3>
-       </div>
+      <div className="flex items-center gap-2 mb-8">
+        <Settings2 className="w-5 h-5" />
+        <h3 className="font-semibold tracking-tight text-lg uppercase">Light Colour</h3>
+      </div>
 
-       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Column (~45%) */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
-             <div className="flex bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl w-fit relative">
-                <div 
-                  className="absolute top-1 bottom-1 w-20 rounded-lg bg-white dark:bg-zinc-800 shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                  style={{ transform: mode === "RGBW" ? 'translateX(0)' : 'translateX(5rem)' }}
-                />
-                <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGBW" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => setMode("RGBW")}>RGBW</button>
-                <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGB" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => {
-                  setMode("RGB");
-                  handleRgbChange('w', 0); // Clear white channel when switching to RGB
-                }}>RGB</button>
-             </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-             <div 
-               ref={pickerRef}
-               className="w-full h-48 lg:h-56 rounded-2xl relative cursor-crosshair touch-none shadow-inner overflow-hidden"
-               style={{ 
-                 background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)` 
-               }}
-               onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handlePickerDrag(e); }}
-               onPointerMove={(e) => { if (e.buttons > 0) handlePickerDrag(e); }}
-               onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
-             >
-                <motion.div 
-                  className="absolute w-5 h-5 rounded-full border-[2.5px] border-white shadow-[0_0_8px_rgba(0,0,0,0.6)] -ml-2.5 -mt-2.5 pointer-events-none"
-                  animate={{ left: `${handleX}%`, top: `${handleY}%` }}
-                  transition={{ type: "spring", bounce: 0, duration: 0.2 }}
-                />
-             </div>
-             
-             <div className="pt-2">
-               <MiniSlider label="Brightness" min={0} max={100} suffix="%" color="bg-zinc-900 dark:bg-white" value={currentBrightness} onChange={handleBrightnessChange} />
-             </div>
+        {/* Left Column (~45%) */}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          <div className="flex bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl w-fit relative">
+            <div
+              className="absolute top-1 bottom-1 w-20 rounded-lg bg-white dark:bg-zinc-800 shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{ transform: mode === "RGBW" ? 'translateX(0)' : 'translateX(5rem)' }}
+            />
+            <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGBW" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => setMode("RGBW")}>RGBW</button>
+            <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGB" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => {
+              setMode("RGB");
+              handleRgbChange('w', 0); // Clear white channel when switching to RGB
+            }}>RGB</button>
           </div>
 
-          {/* Center Column (~25%) */}
-          <div className="lg:col-span-3 flex flex-col gap-3">
-             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Preview</span>
-             <motion.div 
-               className="w-full aspect-square md:aspect-[4/3] lg:aspect-[4/5] rounded-[24px] shadow-inner"
-               animate={{ backgroundColor: state.color.hex, opacity: Math.max(0.2, currentBrightness / 100) }} 
-               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-             />
+          <div
+            ref={pickerRef}
+            className="w-full h-48 lg:h-56 rounded-2xl relative cursor-crosshair touch-none shadow-inner overflow-hidden"
+            style={{
+              background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)`
+            }}
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handlePickerDrag(e); }}
+            onPointerMove={(e) => { if (e.buttons > 0) handlePickerDrag(e); }}
+            onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+          >
+            <motion.div
+              className="absolute w-5 h-5 rounded-full border-[2.5px] border-white shadow-[0_0_8px_rgba(0,0,0,0.6)] -ml-2.5 -mt-2.5 pointer-events-none"
+              animate={{ left: `${handleX}%`, top: `${handleY}%` }}
+              transition={{ type: "spring", bounce: 0, duration: 0.2 }}
+            />
           </div>
 
-          {/* Right Column (~30%) */}
-          <div className="lg:col-span-4 flex flex-col gap-8">
-             
-             <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">Hex Code</span>
-                <div className="flex items-center justify-between border border-border rounded-2xl px-5 py-4 bg-muted/30">
-                   <span className="font-mono font-black">{state.color.hex}</span>
-                   <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg hover:bg-muted"><Copy className="w-4 h-4 text-muted-foreground" /></Button>
-                </div>
-             </div>
-             
-             <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">Edit Hex Code</span>
-                <div className="flex gap-3 items-start">
-                  <div className="flex-1 relative">
-                    <input 
-                      type="text" 
-                      value={hexInput}
-                      onChange={(e) => handleHexChange(e.target.value)}
-                      className={`w-full bg-transparent border ${isValidHex ? 'border-border focus:border-primary' : 'border-red-500 focus:border-red-500'} rounded-2xl px-5 text-sm font-mono focus:outline-none h-14 shadow-sm transition-colors`}
+          <div className="pt-2">
+            <MiniSlider label="Brightness" min={0} max={100} suffix="%" color="bg-zinc-900 dark:bg-white" value={currentBrightness} onChange={handleBrightnessChange} />
+          </div>
+        </div>
+
+        {/* Center Column (~25%) */}
+        <div className="lg:col-span-3 flex flex-col gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Preview</span>
+          <motion.div
+            className="w-full aspect-square md:aspect-[4/3] lg:aspect-[4/5] rounded-[24px] shadow-inner"
+            animate={{ backgroundColor: state.color.hex, opacity: Math.max(0.2, currentBrightness / 100) }}
+            transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+          />
+        </div>
+
+        {/* Right Column (~30%) */}
+        <div className="lg:col-span-4 flex flex-col gap-8">
+
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">Hex Code</span>
+            <div className="flex items-center justify-between border border-border rounded-2xl px-5 py-4 bg-muted/30">
+              <span className="font-mono font-black">{state.color.hex}</span>
+              <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg hover:bg-muted"><Copy className="w-4 h-4 text-muted-foreground" /></Button>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">Edit Hex Code</span>
+            <div className="flex gap-3 items-start">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={hexInput}
+                  onChange={(e) => handleHexChange(e.target.value)}
+                  className={`w-full bg-transparent border ${isValidHex ? 'border-border focus:border-primary' : 'border-red-500 focus:border-red-500'} rounded-2xl px-5 text-sm font-mono focus:outline-none h-14 shadow-sm transition-colors`}
+                />
+                {!isValidHex && <span className="absolute -bottom-5 left-2 text-[10px] text-red-500 font-medium">Invalid HEX format</span>}
+              </div>
+              <Button
+                size="sm"
+                className="h-14 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                onClick={handleHexApply}
+                disabled={!isValidHex}
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">RGBW Values</span>
+            <div className="flex items-center gap-1.5">
+              {['r', 'g', 'b', 'w'].map(c => {
+                if (mode === "RGB" && c === 'w') return null;
+                return (
+                  <div key={c} className="flex-1 flex flex-col items-center gap-1.5">
+                    <span className="text-[9px] font-bold uppercase text-muted-foreground">{c}</span>
+                    <input
+                      type="number" min="0" max="255" step="any"
+                      value={state.color[c as 'r' | 'g' | 'b' | 'w']}
+                      onChange={(e) => handleRgbChange(c as 'r' | 'g' | 'b' | 'w', parseFloat(e.target.value) || 0)}
+                      className="w-full px-0.5 bg-muted/50 border border-transparent focus:border-primary focus:bg-background rounded-xl h-12 text-center text-xs font-black focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
-                    {!isValidHex && <span className="absolute -bottom-5 left-2 text-[10px] text-red-500 font-medium">Invalid HEX format</span>}
                   </div>
-                  <Button 
-                    size="sm" 
-                    className="h-14 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 disabled:opacity-50 transition-opacity" 
-                    onClick={handleHexApply}
-                    disabled={!isValidHex}
-                  >
-                    Apply
-                  </Button>
-                </div>
-             </div>
-
-             <div className="pt-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">RGBW Values</span>
-                <div className="flex items-center gap-1.5">
-                   {['r','g','b','w'].map(c => {
-                     if (mode === "RGB" && c === 'w') return null;
-                     return (
-                       <div key={c} className="flex-1 flex flex-col items-center gap-1.5">
-                          <span className="text-[9px] font-bold uppercase text-muted-foreground">{c}</span>
-                          <input 
-                            type="number" min="0" max="255" step="any"
-                            value={state.color[c as 'r'|'g'|'b'|'w']}
-                            onChange={(e) => handleRgbChange(c as 'r'|'g'|'b'|'w', parseFloat(e.target.value)||0)}
-                            className="w-full px-0.5 bg-muted/50 border border-transparent focus:border-primary focus:bg-background rounded-xl h-12 text-center text-xs font-black focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                       </div>
-                     );
-                   })}
-                   <div className="flex items-end pb-2 pl-1 shrink-0"><span className="text-muted-foreground font-black text-xs">%</span></div>
-                </div>
-             </div>
+                );
+              })}
+              <div className="flex items-end pb-2 pl-1 shrink-0"><span className="text-muted-foreground font-black text-xs">%</span></div>
+            </div>
           </div>
-       </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -574,9 +574,9 @@ export function EnvironmentView() {
 
   // States
   const [climate, setClimate] = useState({ power: true, temp: 22, mode: "Dry", fan: 60 });
-  const [lighting, setLighting] = useState({ 
-    power: true, 
-    brightness: 49, 
+  const [lighting, setLighting] = useState({
+    power: true,
+    brightness: 49,
     activeScene: "Presentation",
     zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }

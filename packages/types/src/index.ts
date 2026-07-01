@@ -1,5 +1,15 @@
 // Shared Types for Event-driven Digital Signage, CMS & IoT Platform
 
+// --- Product domain (schemas + types) ---
+export * from "./products.js";
+
+// --- Experience templates (code-defined; shared by CMS UI + API validation) ---
+export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase"] as const;
+export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
+export function isTemplateKey(value: unknown): value is TemplateKey {
+  return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);
+}
+
 // --- Signage & CMS Types ---
 export interface Screen {
   id: string;
@@ -95,6 +105,16 @@ export interface DeviceCommand {
   sentAt: number;
 }
 
+/** Kinds of registered device the platform can address (REST: /api/devices). */
+export type DeviceKind = 'light' | 'scene' | 'camera' | 'speaker' | 'generic';
+
+/** Desired state for a controllable light. brightness is 0-100. */
+export interface LightState {
+  on: boolean;
+  brightness?: number;
+  color?: string;
+}
+
 // --- WebSocket Protocol Types ---
 
 export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
@@ -115,11 +135,27 @@ export interface WsContent {
   templateContent?: Record<string, unknown>;
 }
 
+export type CameraStatus =
+  | 'online'
+  | 'waiting'
+  | 'detecting'
+  | 'camera_unavailable'
+  | 'service_offline';
+
+export interface CameraStatusUpdate {
+  cameraId: string;
+  screenId: string;
+  status: CameraStatus;
+  timestamp: number;
+  message?: string;
+}
+
 export type WsServerMessage =
   | { type: 'WELCOME'; screenId: string; content: WsContent }
   | { type: 'CONTENT_UPDATE'; screenId: string; content: WsContent; timestamp: number }
   | { type: 'PING' }
   | { type: 'SCREEN_COMMAND'; command: string; value?: any; timestamp: number }
+  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
   // Live-stream relay: tells a subscriber whether a publisher is currently
   // pushing this stream (drives the "stream is going on" vs "waiting" state).
   | { type: 'STREAM_STATUS'; streamId: string; active: boolean; format?: StreamFormat };
@@ -136,11 +172,34 @@ export type WsClientMessage =
   | { type: 'STREAM_PUBLISH'; streamId: string; format: StreamFormat }
   | { type: 'STREAM_SUBSCRIBE'; streamId: string }
   | { type: 'STREAM_UNSUBSCRIBE'; streamId: string }
-  | { type: 'PONG' };
+  | { type: 'PONG' }
+  | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
+  | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
+  | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string }
+  // Unreal Engine / external automation subscribes to the event channel. Auth is
+  // an API key, sent here or as a `?apiKey=` query param on the WS URL.
+  | { type: 'UE_REGISTER'; apiKey?: string }
+  // Camera detection events
+  | import('./products.js').ProductDetectedEvent
+  | import('./products.js').ProductLostEvent;
+
+/**
+ * Events the gateway pushes to subscribed Unreal Engine / automation clients
+ * (see WsClientMessage 'UE_REGISTER'). A superset is intentional: UE can ignore
+ * event types it doesn't care about.
+ */
+export type WsUeEvent =
+  | { type: 'UE_REGISTER_ACK' }
+  | { type: 'UE_REGISTER_NACK'; reason: string }
+  | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
+  | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
+  | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
+  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number };
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
-  | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] };
+  | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
+  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate);
 
 export interface BroadcastRequest {
   screenId: string;

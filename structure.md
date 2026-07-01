@@ -59,8 +59,8 @@ cms-platform/                 ← YOU ARE HERE
 
 ## Core Concepts
 
-- **Screen** — a physical display. One DB row (`screen` table), one URL `…/screens/<screenId>`,
-  one assigned piece of content. Many screens run independently.
+- **Screen** — a physical display. One DB row (`screen` table), one display URL `…/display/<screenId>`
+  (controlled from the CMS at `…/screens/<screenId>`), one assigned piece of content. Many screens run independently.
 - **Experience** — a unit of content backed by a **code-defined template** (`portfolio`,
   `live-stream`). Per-experience content lives in `experience.templateContent` (JSONB).
 - **Live Stream** — a template whose picture is pushed live from an external publisher

@@ -1,0 +1,10 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.14",
+  "extraPaths": ["src"],
+  "include": ["src", "scripts"],
+  "exclude": [".venv", "runs", "predictions", "models"],
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none"
+}

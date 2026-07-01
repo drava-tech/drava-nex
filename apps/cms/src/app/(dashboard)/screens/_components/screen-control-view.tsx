@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers } from "lucide-react";
+import { Camera, Wifi, WifiOff, Layers } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { ScreenMirror } from "./screen-mirror";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
-import type { WsContent } from "@platform/types";
+import type { CameraStatusUpdate, WsContent } from "@platform/types";
 
 interface ScreenControlViewProps {
   screenId: string;
@@ -22,10 +22,14 @@ interface ScreenControlViewProps {
 export function ScreenControlView({ screenId, screenName, experiences }: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
 
   useCmsScreenSync({
     onScreenUpdated: () => {},
     onActiveScreensUpdated: (ids) => setOnline(ids.includes(screenId)),
+    onCameraStatusUpdated: (status) => {
+      if (status.screenId === screenId) setCameraStatus(status);
+    },
   });
 
   const handleAssign = async (content: WsContent) => {
@@ -55,6 +59,7 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
           <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">
             {screenName}
           </h1>
+          {cameraStatus && <CameraStatusBadge status={cameraStatus} />}
           <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
             · touch to explore — mirrored on the TV in realtime
           </span>
@@ -83,5 +88,34 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
         />
       )}
     </div>
+  );
+}
+
+const CAMERA_COPY: Record<CameraStatusUpdate["status"], string> = {
+  online: "Camera connected",
+  waiting: "Waiting for product",
+  detecting: "Product triggered",
+  camera_unavailable: "Camera not connected",
+  service_offline: "Camera service offline",
+};
+
+function CameraStatusBadge({ status }: { status: CameraStatusUpdate }) {
+  const bad = status.status === "camera_unavailable" || status.status === "service_offline";
+  const detecting = status.status === "detecting";
+
+  return (
+    <span
+      className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+        bad
+          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+          : detecting
+            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+            : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      }`}
+      title={status.message}
+    >
+      <Camera className="h-3 w-3" />
+      {CAMERA_COPY[status.status]}
+    </span>
   );
 }

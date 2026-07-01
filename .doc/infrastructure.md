@@ -60,7 +60,7 @@ All three app Dockerfiles share the same two-stage pattern:
 
 `NEXT_PUBLIC_*` environment variables are injected via `ARG → ENV` in the CMS/Screens builder
 stage — they are baked in at image build time. The **screens** image bakes
-`NEXT_PUBLIC_SCREENS_BASE_PATH=/screens` so the app serves under `/screens` (matching Nginx).
+`NEXT_PUBLIC_SCREENS_BASE_PATH=/display` so the app serves under `/display` (matching Nginx).
 At runtime, `docker-compose.yml` sets `INTERNAL_API_URL=http://api:4000` for **both** cms and
 screens (server-side calls reach the API by service name, never `localhost`).
 

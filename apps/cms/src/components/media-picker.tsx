@@ -10,19 +10,30 @@ interface MediaItem {
   url: string;
 }
 
+export interface MediaPickerItem {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+}
+
 /**
  * Shopify-style media picker modal: browse the media library (GET /api/media),
- * upload a new file (POST /api/upload), and pick one. Calls onSelect with the URL.
+ * upload a new file (POST /api/upload), and pick one. Calls onSelect with the URL
+ * (back-compat) and, when provided, onSelectItem with the full media row — needed
+ * when the caller must persist the media id (e.g. product media links).
  */
 export function MediaPicker({
   open,
   onClose,
   onSelect,
+  onSelectItem,
   accept = "image",
 }: {
   open: boolean;
   onClose: () => void;
-  onSelect: (url: string) => void;
+  onSelect?: (url: string) => void;
+  onSelectItem?: (item: MediaPickerItem) => void;
   accept?: "image" | "video" | "all";
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -107,7 +118,8 @@ export function MediaPicker({
                 <button
                   key={m.id}
                   onClick={() => {
-                    onSelect(m.url);
+                    onSelect?.(m.url);
+                    onSelectItem?.(m);
                     onClose();
                   }}
                   className="group relative aspect-video rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"

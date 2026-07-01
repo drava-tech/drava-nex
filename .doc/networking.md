@@ -10,7 +10,7 @@ This document maps the network ports, Docker network topology, and proxy configu
 |---|---|---|---|
 | **Nginx** | `80` | Yes — sole public **web** entry | All HTTP/WS traffic (CMS, screens, API, gateway) |
 | **CMS (Next.js)** | `3000` | No — internal only | Admin dashboard |
-| **Screens (Next.js)** | `3001` | No — internal only | Screen player app (served under `/screens`) |
+| **Screens (Next.js)** | `3001` | No — internal only | Screen player app (TV display, served under `/display`) |
 | **API (Hono)** | `4000` | No — internal only | REST + WebSocket gateway + MQTT |
 | **PostgreSQL** | `5432` | **Yes — `5432:5432`** | Published for drizzle-kit / seeds on the host (not the public web path) |
 | **Mosquitto MQTT** | `1883` | No — internal only | MQTT protocol |
@@ -57,11 +57,10 @@ Routes by **path**, not hostname. Order matters — more specific blocks come fi
 | `/api/` | `api:4000` | Hono REST API (everything else under `/api`) |
 | `/health` | `api:4000` | Health alias |
 | `= /ws`  and  `/ws/` | `api:4000` | WebSocket upgrade (headers + 3600s timeout). The **exact `= /ws`** block exists because app clients connect to `/ws` (no slash); without it Nginx 301-redirects and the WS handshake fails |
-| `~* ^/screens/_next/static/` | `screens:3001` | Screens hashed assets (cache-forever) |
+| `~* ^/display/_next/static/` | `screens:3001` | TV display hashed assets (cache-forever) |
 | `~* ^/_next/static/` | `cms:3000` | CMS hashed assets |
-| `= /screens` (exact) | `cms:3000` | Exact `/screens` → CMS (avoids a redirect loop) |
-| `/screens/` | `screens:3001` | Screen player. **Prefix is NOT stripped** — the screens app sets `basePath:/screens`, so it serves under `/screens` directly |
-| `/` | `cms:3000` | CMS catch-all (must be last) |
+| `/display` | `screens:3001` | Screen player (TV display). **Prefix is NOT stripped** — the screens app sets `basePath:/display`, so it serves under `/display` directly. Plain prefix so the `/display/_next/static/` regex still wins |
+| `/` | `cms:3000` | CMS catch-all (must be last). Serves `/screens` (list) + `/screens/<id>` (control) |
 
 Config: `client_max_body_size 500M`, full proxy headers on all locations. Nginx config is a
 read-only volume mount → apply changes with `docker exec cms-nginx nginx -s reload` (no rebuild).
@@ -118,5 +117,5 @@ handshake dies (this silently broke all real-time sync until the exact block was
 The stack runs on one host (e.g. `192.168.1.250`); only Nginx is published (`80:80`). All
 devices use one shared instance via relative `/api` and `/ws` URLs. Per-service server-side
 calls use `INTERNAL_API_URL=http://api:4000` (set for **both** cms and screens). The screens
-app is built with `NEXT_PUBLIC_SCREENS_BASE_PATH=/screens` so its routes/assets live under
-`/screens` and match the Nginx routing.
+app is built with `NEXT_PUBLIC_SCREENS_BASE_PATH=/display` so its routes/assets live under
+`/display` and match the Nginx routing.
