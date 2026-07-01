@@ -113,57 +113,59 @@ export function AcCard({
         <Switch checked={on} onChange={(v) => onChange({ on: v })} accent="sky" label="AC power" />
       </div>
 
-      {/* gauge */}
-      <div className="flex flex-1 items-center justify-center py-2">
-        <AcGauge on={on} temp={temp} />
-      </div>
+      <div className="grid flex-1 grid-cols-[96px_minmax(0,1fr)_64px] items-center gap-3 py-2">
+        {/* mode chips */}
+        <div className="flex flex-col gap-1.5">
+          {modes.map((m) => {
+            const Icon = MODE_ICON[m];
+            return (
+              <button
+                key={m}
+                type="button"
+                disabled={!on}
+                onClick={() => onChange({ mode: m })}
+                className={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                  mode === m
+                    ? "border-sky-200 bg-sky-500/10 text-sky-600 dark:border-sky-900/40 dark:text-sky-400"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                  !on && "cursor-not-allowed opacity-50"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {m}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* stepper */}
-      <div className="flex items-center justify-center gap-4">
-        <button
-          type="button"
-          disabled={!on || temp <= MIN_TEMP}
-          onClick={() => step(-1)}
-          aria-label="Decrease temperature"
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5"
-        >
-          <Minus className="h-5 w-5" />
-        </button>
-        <span className="w-14 text-center text-sm text-muted-foreground">Temp</span>
-        <button
-          type="button"
-          disabled={!on || temp >= MAX_TEMP}
-          onClick={() => step(1)}
-          aria-label="Increase temperature"
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
-      </div>
+        {/* gauge */}
+        <div className="flex min-w-0 items-center justify-center">
+          <AcGauge on={on} temp={temp} />
+        </div>
 
-      {/* mode chips */}
-      <div className="flex justify-center gap-1.5">
-        {modes.map((m) => {
-          const Icon = MODE_ICON[m];
-          return (
-            <button
-              key={m}
-              type="button"
-              disabled={!on}
-              onClick={() => onChange({ mode: m })}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                mode === m
-                  ? "border-sky-200 bg-sky-500/10 text-sky-600 dark:border-sky-900/40 dark:text-sky-400"
-                  : "border-border text-muted-foreground hover:bg-accent",
-                !on && "cursor-not-allowed opacity-50"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {m}
-            </button>
-          );
-        })}
+        {/* stepper */}
+        <div className="flex flex-col items-center justify-center gap-2">
+          <button
+            type="button"
+            disabled={!on || temp >= MAX_TEMP}
+            onClick={() => step(1)}
+            aria-label="Increase temperature"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Temp</span>
+          <button
+            type="button"
+            disabled={!on || temp <= MIN_TEMP}
+            onClick={() => step(-1)}
+            aria-label="Decrease temperature"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/5"
+          >
+            <Minus className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </Card>
   );

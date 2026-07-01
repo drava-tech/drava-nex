@@ -151,12 +151,6 @@ export function EnvironmentView() {
                   onToggle={(v) => updateLight(light.id, { on: v })}
                   onBrightness={(v) => updateLight(light.id, { brightness: v })}
                   onColor={(hex) => updateLight(light.id, { color: hex })}
-                  secondary={
-                    <span
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: light.on ? light.color : "var(--muted-foreground)" }}
-                    />
-                  }
                 />
               ))}
             </div>

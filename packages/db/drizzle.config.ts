@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { defineConfig } from "drizzle-kit";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -33,7 +33,7 @@ try {
  */
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./dist/schema/index.js",
+  schema: "./src/schema/index.ts",
   out: "./drizzle",
   dbCredentials: {
     // TODO: Set DATABASE_URL in your .env before running drizzle-kit commands
