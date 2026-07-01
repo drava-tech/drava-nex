@@ -1,48 +1,40 @@
 import type { Context, Next } from "hono";
+import { auth } from "../lib/auth.js";
+import { fail } from "../lib/response.js";
+import { verifyApiKey, scopeSatisfies, type VerifiedApiKey } from "@platform/db";
 
-type SessionUser = {
+export type SessionUser = {
   id: string;
   name: string;
   email: string;
   role: "ADMIN" | "GUEST" | "SUPERADMIN";
-  emailVerified: boolean;
-  image: string | null;
-  createdAt: Date;
-  updatedAt: Date;
 };
 
-async function verifySession(c: Context): Promise<SessionUser | null> {
-  const cookieHeader = c.req.header("cookie") ?? "";
-  if (!cookieHeader) return null;
-
+/**
+ * Resolve the current user from the request, in-process. Better Auth lives in
+ * this same app (and the bearer plugin lets `Authorization: Bearer <token>`
+ * resolve too), so there is no HTTP round-trip to the CMS.
+ */
+async function resolveUser(c: Context): Promise<SessionUser | null> {
   try {
-    // The CMS app (Next.js) exposes the better-auth endpoints.
-    // By querying it directly, we guarantee 100% compatibility with any token format/hashing.
-    const authUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-    const res = await fetch(`${authUrl}/api/auth/get-session`, {
-      headers: { cookie: cookieHeader },
-    });
-
-    if (!res.ok) return null;
-    const body = await res.json();
-    return (body?.user as SessionUser) ?? null;
+    const result = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!result?.user) return null;
+    return result.user as unknown as SessionUser;
   } catch (err) {
-    console.error("Failed to verify session via better-auth endpoint:", err);
+    console.error("Failed to resolve session:", err);
     return null;
   }
 }
 
-import { fail } from "../lib/response.js";
-
 export async function requireAuth(c: Context, next: Next): Promise<Response | void> {
-  const currentUser = await verifySession(c);
+  const currentUser = await resolveUser(c);
   if (!currentUser) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
   c.set("user", currentUser);
   return next();
 }
 
 export async function requireAdmin(c: Context, next: Next): Promise<Response | void> {
-  const currentUser = await verifySession(c);
+  const currentUser = await resolveUser(c);
   if (!currentUser) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
   if (currentUser.role !== "ADMIN" && currentUser.role !== "SUPERADMIN") {
     return fail(c, "FORBIDDEN", "Forbidden", 403);
@@ -52,7 +44,7 @@ export async function requireAdmin(c: Context, next: Next): Promise<Response | v
 }
 
 export async function requireGuestOrAdmin(c: Context, next: Next): Promise<Response | void> {
-  const currentUser = await verifySession(c);
+  const currentUser = await resolveUser(c);
   if (!currentUser) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
   if (
     currentUser.role !== "ADMIN" &&
@@ -63,4 +55,41 @@ export async function requireGuestOrAdmin(c: Context, next: Next): Promise<Respo
   }
   c.set("user", currentUser);
   return next();
+}
+
+/**
+ * Guard for machine clients (Unreal Engine, IoT, automation). Accepts EITHER:
+ *  - an admin/superadmin cookie/bearer session (CMS, humans), OR
+ *  - a valid `x-api-key` whose scopes satisfy every entry in `requiredScopes`.
+ *
+ * On success sets `apiClient` (for key callers) and/or `user` (for sessions).
+ */
+export function requireApiClient(
+  requiredScopes: string[] = [],
+  opts: { allowGuest?: boolean } = {}
+) {
+  return async (c: Context, next: Next): Promise<Response | void> => {
+    // 1) An admin/superadmin session may always pass (guests too if allowed).
+    const currentUser = await resolveUser(c);
+    if (currentUser) {
+      const role = currentUser.role;
+      if (role === "ADMIN" || role === "SUPERADMIN" || (opts.allowGuest && role === "GUEST")) {
+        c.set("user", currentUser);
+        return next();
+      }
+    }
+
+    // 2) Otherwise require an API key with the needed scopes.
+    const rawKey = c.req.header("x-api-key");
+    if (!rawKey) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
+
+    const key: VerifiedApiKey | null = await verifyApiKey(rawKey);
+    if (!key) return fail(c, "UNAUTHORIZED", "Invalid or expired API key", 401);
+
+    const ok = requiredScopes.every((s) => scopeSatisfies(key.scopes, s));
+    if (!ok) return fail(c, "FORBIDDEN", "Insufficient scope", 403);
+
+    c.set("apiClient", key);
+    return next();
+  };
 }

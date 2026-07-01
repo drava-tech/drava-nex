@@ -3,6 +3,13 @@
 // --- Product domain (schemas + types) ---
 export * from "./products.js";
 
+// --- Experience templates (code-defined; shared by CMS UI + API validation) ---
+export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase"] as const;
+export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
+export function isTemplateKey(value: unknown): value is TemplateKey {
+  return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);
+}
+
 // --- Signage & CMS Types ---
 export interface Screen {
   id: string;
@@ -98,6 +105,16 @@ export interface DeviceCommand {
   sentAt: number;
 }
 
+/** Kinds of registered device the platform can address (REST: /api/devices). */
+export type DeviceKind = 'light' | 'scene' | 'camera' | 'speaker' | 'generic';
+
+/** Desired state for a controllable light. brightness is 0-100. */
+export interface LightState {
+  on: boolean;
+  brightness?: number;
+  color?: string;
+}
+
 // --- WebSocket Protocol Types ---
 
 export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
@@ -159,9 +176,25 @@ export type WsClientMessage =
   | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
   | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
   | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string }
+  // Unreal Engine / external automation subscribes to the event channel. Auth is
+  // an API key, sent here or as a `?apiKey=` query param on the WS URL.
+  | { type: 'UE_REGISTER'; apiKey?: string }
   // Camera detection events
   | import('./products.js').ProductDetectedEvent
   | import('./products.js').ProductLostEvent;
+
+/**
+ * Events the gateway pushes to subscribed Unreal Engine / automation clients
+ * (see WsClientMessage 'UE_REGISTER'). A superset is intentional: UE can ignore
+ * event types it doesn't care about.
+ */
+export type WsUeEvent =
+  | { type: 'UE_REGISTER_ACK' }
+  | { type: 'UE_REGISTER_NACK'; reason: string }
+  | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
+  | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
+  | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
+  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number };
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }

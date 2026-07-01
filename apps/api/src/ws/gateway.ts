@@ -1,12 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
-import { getScreenContent, setScreenExperience } from '@platform/db';
+import { getScreenContent, setScreenExperience, verifyApiKey, scopeSatisfies } from '@platform/db';
 import type {
   CameraStatus,
   CameraStatusUpdate,
   WsServerMessage,
   WsClientMessage,
   WsCmsMessage,
+  WsUeEvent,
   WsContent,
   BroadcastRequest,
   StreamFormat,
@@ -19,6 +20,8 @@ import { resolveDetectedProduct } from '../services/detection.js';
 const screenRegistry = new Map<string, Set<WebSocket>>();
 // CMS browser clients (all admin tabs)
 const cmsRegistry = new Set<WebSocket>();
+// Unreal Engine / automation clients subscribed to the platform event channel.
+const ueRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
 // Last in-template view state per screen (absolute "SET_*" interaction), so a
@@ -103,6 +106,9 @@ export function broadcast(req: BroadcastRequest): number {
   };
   const frame = JSON.stringify(msg);
 
+  // Mirror to the UE/automation event channel (no-op if no subscribers).
+  emitScreenContentChanged(req.screenId, req.content);
+
   const sockets = screenRegistry.get(req.screenId);
   if (!sockets) return 0;
   let count = 0;
@@ -122,6 +128,20 @@ export function broadcastToCms(msg: WsCmsMessage): void {
       ws.send(frame);
     }
   }
+}
+
+/** Push a platform event to every subscribed Unreal Engine / automation client. */
+export function broadcastToUe(event: WsUeEvent): void {
+  if (ueRegistry.size === 0) return;
+  const frame = JSON.stringify(event);
+  for (const ws of ueRegistry) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+  }
+}
+
+/** Notify UE subscribers that a screen's content changed (mirrors CONTENT_UPDATE). */
+function emitScreenContentChanged(screenId: string, content: WsContent): void {
+  broadcastToUe({ type: 'SCREEN_CONTENT_CHANGED', screenId, content, timestamp: Date.now() });
 }
 
 function sendCameraStatusToScreen(screenId: string, status: CameraStatusUpdate): void {
@@ -209,6 +229,8 @@ export function createGateway(): WebSocketServer {
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     let registeredScreenId: string | null = null;
     let isCmsClient = false;
+    let isUeClient = false;
+    const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
     let publishingStreamId: string | null = null;
     const subscribedStreamIds = new Set<string>();
@@ -316,11 +338,42 @@ export function createGateway(): WebSocketServer {
           break;
         }
 
+        case 'UE_REGISTER': {
+          // Unreal Engine / automation subscribes to the event channel. Auth is an
+          // API key with the "events:subscribe" scope, sent in the message or as a
+          // `?apiKey=` query param on the WS URL.
+          const keyFromUrl = (() => {
+            try {
+              return new URL(reqUrl, 'http://localhost').searchParams.get('apiKey') ?? undefined;
+            } catch {
+              return undefined;
+            }
+          })();
+          const rawKey = msg.apiKey ?? keyFromUrl;
+          void (async () => {
+            const key = rawKey ? await verifyApiKey(rawKey) : null;
+            if (!key || !scopeSatisfies(key.scopes, 'events:subscribe')) {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'UE_REGISTER_NACK', reason: 'unauthorized' } satisfies WsUeEvent));
+              }
+              return;
+            }
+            isUeClient = true;
+            ueRegistry.add(ws);
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'UE_REGISTER_ACK' } satisfies WsUeEvent));
+            }
+          })();
+          break;
+        }
+
         case 'CONTENT_CHANGE_REQUEST': {
           const { screenId, content } = msg;
           contentCache.set(screenId, content);
           // New content resets the in-template view — drop any stale view state.
           viewStateCache.delete(screenId);
+          // Mirror to UE/automation subscribers.
+          emitScreenContentChanged(screenId, content);
 
           // Confirm to the requesting screen immediately
           const update: WsServerMessage = {
@@ -468,6 +521,15 @@ export function createGateway(): WebSocketServer {
               }
 
               broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+              emitScreenContentChanged(screenId, content);
+              broadcastToUe({
+                type: 'PRODUCT_DETECTED',
+                cameraId: msg.cameraId,
+                label: msg.label,
+                confidence: msg.confidence,
+                productId: res.productId,
+                timestamp: Date.now(),
+              });
             }
           });
           break;
@@ -504,6 +566,7 @@ export function createGateway(): WebSocketServer {
                 }
 
                 broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+                emitScreenContentChanged(screenId, content);
               }
             });
           }
@@ -531,6 +594,9 @@ export function createGateway(): WebSocketServer {
       }
       if (isCmsClient) {
         cmsRegistry.delete(ws);
+      }
+      if (isUeClient) {
+        ueRegistry.delete(ws);
       }
       // Publisher gone → drop its cache and tell subscribers the stream stopped.
       if (publishingStreamId && streamPublishers.get(publishingStreamId) === ws) {

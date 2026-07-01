@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { bearer } from "better-auth/plugins";
 import { db } from "@platform/db";
 import * as schema from "@platform/db";
 import os from "os";
@@ -66,6 +67,9 @@ export const auth = betterAuth({
       },
     },
   },
+  // Bearer plugin: lets mobile clients send `Authorization: Bearer <token>`
+  // and have getSession resolve it (cookie + bearer both work via one call).
+  plugins: [bearer()],
   secret: process.env["BETTER_AUTH_SECRET"]!,
   baseURL: CMS_URL,
   trustedOrigins: [

@@ -1,12 +1,11 @@
 "use server";
 
-import { db, experience, experienceToType, eq, and, isNull } from "@platform/db";
-import { asc, desc } from "drizzle-orm";
+import { listExperiences } from "@platform/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
-import { isTemplateKey } from "@/lib/templates";
+import { apiFetch } from "@/lib/api-client";
 
-const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Mutations delegate to the Hono API (the single source of truth); reads stay direct.
 
 export async function createProject(
   name: string,
@@ -14,62 +13,12 @@ export async function createProject(
   templateKey?: string | null,
   typeIds: string[] = []
 ): Promise<{ success: boolean; error?: string }> {
-  const currentUser = await requireAdmin();
-
-  const trimmedName = name.trim();
-  const trimmedSlug = slug.trim();
-
-  if (!trimmedName) {
-    return { success: false, error: "Project name is required." };
-  }
-  if (!trimmedSlug) {
-    return { success: false, error: "Slug is required." };
-  }
-  if (!SLUG_REGEX.test(trimmedSlug)) {
-    return {
-      success: false,
-      error:
-        "Slug must use only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen.",
-    };
-  }
-  if (templateKey != null && !isTemplateKey(templateKey)) {
-    return { success: false, error: `Unknown template: "${templateKey}".` };
-  }
-
-  const [existing] = await db
-    .select({ id: experience.id })
-    .from(experience)
-    .where(and(eq(experience.slug, trimmedSlug), isNull(experience.deletedAt)))
-    .limit(1);
-
-  if (existing) {
-    return {
-      success: false,
-      error: `A project with slug "${trimmedSlug}" already exists.`,
-    };
-  }
-
-  const uniqueTypeIds = Array.from(new Set(typeIds.filter(Boolean)));
-
-  await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(experience)
-      .values({
-        name: trimmedName,
-        slug: trimmedSlug,
-        templateKey: templateKey ?? null,
-        createdByUserId: currentUser.id,
-        updatedByUserId: currentUser.id,
-      })
-      .returning({ id: experience.id });
-
-    if (created && uniqueTypeIds.length > 0) {
-      await tx.insert(experienceToType).values(
-        uniqueTypeIds.map((typeId) => ({ experienceId: created.id, typeId }))
-      );
-    }
+  await requireAdmin();
+  const res = await apiFetch(`/api/experiences`, {
+    method: "POST",
+    body: JSON.stringify({ name, slug, templateKey: templateKey ?? null, typeIds }),
   });
-
+  if (!res.ok) return { success: false, error: res.error.message };
   revalidatePath("/experiences");
   return { success: true };
 }
@@ -78,43 +27,25 @@ export async function reorderExperiences(
   orderedIds: string[]
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
-
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await tx
-        .update(experience)
-        .set({ position: i })
-        .where(eq(experience.id, orderedIds[i]!));
-    }
+  const res = await apiFetch(`/api/experiences/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ orderedIds }),
   });
-
+  if (!res.ok) return { success: false, error: res.error.message };
   revalidatePath("/experiences");
   return { success: true };
 }
 
 export async function getExperiences(): Promise<{ id: string; title: string }[]> {
   await requireGuestOrAdmin();
-  const rows = await db
-    .select({ id: experience.id, name: experience.name })
-    .from(experience)
-    .where(isNull(experience.deletedAt))
-    .orderBy(asc(experience.position), desc(experience.createdAt));
-  return rows.map((r) => ({ id: r.id, title: r.name }));
+  return listExperiences();
 }
 
 export async function deleteProject(id: string): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
-
-  try {
-    await db
-      .update(experience)
-      .set({ deletedAt: new Date() })
-      .where(eq(experience.id, id));
-    
-    revalidatePath("/experiences");
-    revalidatePath("/projects");
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Failed to delete experience." };
-  }
+  const res = await apiFetch(`/api/experiences/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) return { success: false, error: res.error.message };
+  revalidatePath("/experiences");
+  revalidatePath("/projects");
+  return { success: true };
 }

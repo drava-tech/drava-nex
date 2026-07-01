@@ -57,6 +57,20 @@
       "when": 1781862073857,
       "tag": "0007_products",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781862073858,
+      "tag": "0008_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781862073859,
+      "tag": "0009_devices",
+      "breakpoints": true
     }
   ]
 }

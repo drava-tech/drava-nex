@@ -1,5 +1,4 @@
 import "server-only";
-import { headers } from "next/headers";
 import type {
   CreateProductInput,
   UpdateProductInput,
@@ -8,72 +7,21 @@ import type {
   ProductSpecificationInput,
   ProductMediaInput,
   ProductDisplayData,
-  FieldError,
 } from "@platform/types";
 import type {
   Product,
   ProductDetail,
   ProductListResult,
 } from "@platform/db";
+import { apiFetch } from "./api-client";
 
 /**
  * Server-side client for the Hono product API. The CMS never touches the product
  * tables directly — it forwards the caller's auth cookie to the API so the same
- * admin session is enforced there. Keeping all product logic behind the API is
- * what keeps the frontend and backend separated (no duplicated data access).
+ * admin session is enforced there (see api-client.ts).
  */
 
-const API_BASE = process.env["INTERNAL_API_URL"] ?? "http://localhost:4000";
-
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: FieldError[] | unknown;
-}
-
-export type ApiResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; status: number; error: ApiError };
-
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  const cookie = (await headers()).get("cookie") ?? "";
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        cookie,
-        ...(init?.headers ?? {}),
-      },
-      cache: "no-store",
-    });
-  } catch (cause) {
-    return {
-      ok: false,
-      status: 0,
-      error: { code: "NETWORK", message: "Could not reach the product service." },
-    };
-  }
-
-  let body: unknown = null;
-  try {
-    body = await res.json();
-  } catch {
-    /* empty / non-JSON body */
-  }
-
-  if (!res.ok) {
-    const err = (body as { error?: ApiError } | null)?.error;
-    return {
-      ok: false,
-      status: res.status,
-      error: err ?? { code: "HTTP_ERROR", message: `Request failed (${res.status}).` },
-    };
-  }
-
-  return { ok: true, data: (body as { data: T }).data };
-}
+export type { ApiResult, ApiError } from "./api-client";
 
 function toQueryString(query: Partial<ListProductsQuery>): string {
   const params = new URLSearchParams();

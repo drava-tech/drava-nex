@@ -1,11 +1,8 @@
 "use server";
 
-import { db } from "@platform/db";
-import { user } from "@platform/db";
-import { eq } from "@platform/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { auth } from "@/lib/auth";
+import { apiFetch } from "@/lib/api-client";
 
 export async function createUser(
   name: string,
@@ -14,41 +11,18 @@ export async function createUser(
   role: "ADMIN" | "GUEST"
 ) {
   await requireAdmin();
-
-  const result = await auth.api.signUpEmail({
-    body: { email, password, name },
+  const res = await apiFetch<{ id: string }>(`/api/users`, {
+    method: "POST",
+    body: JSON.stringify({ name, email, password, role }),
   });
-
-  if (!result?.user) {
-    throw new Error("Failed to create user.");
-  }
-
-  if (role === "ADMIN") {
-    await db
-      .update(user)
-      .set({ role: "ADMIN" })
-      .where(eq(user.id, result.user.id));
-  }
-
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/users");
-  return result.user.id;
+  return res.data.id;
 }
 
 export async function deleteUser(targetUserId: string) {
-  const currentUser = await requireAdmin();
-
-  if (currentUser.id === targetUserId) {
-    throw new Error("You cannot delete your own account.");
-  }
-
-  const target = await db.query.user.findFirst({
-    where: eq(user.id, targetUserId),
-  });
-
-  if (target?.role === "SUPERADMIN") {
-    throw new Error("The super admin account cannot be deleted.");
-  }
-
-  await db.delete(user).where(eq(user.id, targetUserId));
+  await requireAdmin();
+  const res = await apiFetch(`/api/users/${encodeURIComponent(targetUserId)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/users");
 }
