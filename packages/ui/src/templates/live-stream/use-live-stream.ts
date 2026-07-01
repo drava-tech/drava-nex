@@ -48,6 +48,18 @@ export function useLiveStream(streamId: string, wsUrl?: string): UseLiveStreamRe
     let format: StreamFormat | undefined;
     let gotFrame = false;
     let awaitingKey = true; // skip delta frames until the first keyframe arrives
+    let decoding = false; // ponytail: drop frames while previous MJPEG decode is in progress to prevent queue buildup
+
+    // ─── Diagnostics ── logs per-second stats to the console
+    let statRx = 0, statDecoded = 0, statDropped = 0;
+    let statH264Config = 0, statH264Key = 0, statH264Delta = 0;
+    const statTimer = setInterval(() => {
+      if (statRx > 0 || statDecoded > 0 || statDropped > 0 || statH264Config > 0 || statH264Key > 0 || statH264Delta > 0) {
+        console.log(`[stream:${streamId}][${format}] rx=${statRx}/s decoded=${statDecoded}/s dropped=${statDropped}/s | H264: cfg=${statH264Config} key=${statH264Key} delta=${statH264Delta} waitingKey=${awaitingKey}`);
+      }
+      statRx = 0; statDecoded = 0; statDropped = 0;
+      statH264Config = 0; statH264Key = 0; statH264Delta = 0;
+    }, 1000);
 
     const paint = (frame: CanvasImageSource, w: number, h: number) => {
       const canvas = canvasRef.current;
@@ -79,19 +91,30 @@ export function useLiveStream(streamId: string, wsUrl?: string): UseLiveStreamRe
 
     const ensureDecoder = (codec: string) => {
       closeDecoder();
-      if (typeof VideoDecoder === "undefined") return;
+      if (typeof VideoDecoder === "undefined") {
+        console.error("VideoDecoder API is not supported in this browser.");
+        return;
+      }
       const d = new VideoDecoder({
         output: (frame: VideoFrame) => {
+          statDecoded++;
           paint(frame, frame.displayWidth, frame.displayHeight);
           frame.close();
         },
-        error: () => closeDecoder(),
+        error: (e) => {
+          console.error("VideoDecoder error:", e);
+          closeDecoder();
+        },
       });
       const config: VideoDecoderConfig = { codec };
       (config as VideoDecoderConfig & { optimizeForLatency?: boolean }).optimizeForLatency = true;
-      d.configure(config);
-      decoder = d;
-      awaitingKey = true;
+      try {
+        d.configure(config);
+        decoder = d;
+        awaitingKey = true;
+      } catch (e) {
+        console.error("VideoDecoder configure failed:", e);
+      }
     };
 
     const handleBinary = (buf: ArrayBuffer) => {
@@ -102,27 +125,35 @@ export function useLiveStream(streamId: string, wsUrl?: string): UseLiveStreamRe
       const payload = buf.slice(9);
 
       if (format === "mjpeg") {
-        void createImageBitmap(new Blob([payload], { type: "image/jpeg" }))
-          .then((bmp) => {
-            paint(bmp, bmp.width, bmp.height);
-            bmp.close();
-          })
-          .catch(() => {
-            /* drop a corrupt frame */
-          });
+        statRx++;
+        if (!decoding) {
+          decoding = true;
+          void createImageBitmap(new Blob([payload], { type: "image/jpeg" }))
+            .then((bmp) => { paint(bmp, bmp.width, bmp.height); bmp.close(); statDecoded++; })
+            .catch(() => { /* drop a corrupt frame */ })
+            .finally(() => { decoding = false; });
+        } else {
+          statDropped++;
+        }
         return;
       }
 
       // H.264 via WebCodecs
+      statRx++;
       if (frameType === 0) {
+        statH264Config++;
         try {
           const cfg = JSON.parse(new TextDecoder().decode(payload)) as { codec?: string };
           ensureDecoder(cfg.codec ?? DEFAULT_CODEC);
-        } catch {
-          /* malformed config packet */
+        } catch (e) {
+          console.error("Failed to parse config packet:", e);
         }
         return;
       }
+      
+      if (frameType === 1) { statH264Key++; }
+      else if (frameType === 2) { statH264Delta++; }
+
       if (!decoder || decoder.state !== "configured") return;
       if (frameType === 1) awaitingKey = false;
       if (awaitingKey) return;
@@ -134,7 +165,8 @@ export function useLiveStream(streamId: string, wsUrl?: string): UseLiveStreamRe
             data: payload,
           })
         );
-      } catch {
+      } catch (e) {
+        console.error("Decode chunk error:", e);
         closeDecoder();
       }
     };
@@ -188,6 +220,7 @@ export function useLiveStream(streamId: string, wsUrl?: string): UseLiveStreamRe
 
     return () => {
       closed = true;
+      clearInterval(statTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       closeDecoder();
       if (ws) {

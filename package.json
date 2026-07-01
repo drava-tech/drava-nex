@@ -22,6 +22,9 @@
     "infra:down": "docker compose -f infra/docker/docker-compose.local.yml down",
     "infra:logs": "docker compose -f infra/docker/docker-compose.local.yml logs -f",
     "infra:restart": "docker compose --env-file .env -f infra/docker/docker-compose.local.yml restart",
+    "prod:build": "docker compose --env-file .env.production -f infra/docker/docker-compose.yml build",
+    "prod:up": "docker compose --env-file .env.production -f infra/docker/docker-compose.yml up -d",
+    "prod:down": "docker compose -f infra/docker/docker-compose.yml down",
     "healthcheck": "curl -sf http://localhost/health || echo UNHEALTHY"
   },
   "keywords": [],

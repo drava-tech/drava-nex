@@ -1,15 +1,13 @@
 version: '3.8'
 
 # MODE A — Local Windows Development (default)
-# PostgreSQL runs natively on Windows (not in Docker).
-# Only Mosquitto (MQTT) and Nginx run in Docker.
-# Node apps run via: pnpm dev  (API :4000, CMS :3000 — CMS also serves /display)
+# PostgreSQL and Mosquitto (MQTT) run in Docker.
+# Node apps run locally via: pnpm dev  (API :4000, CMS :3000)
 #
 # Run from repo root:
-#   docker compose --env-file .env -f infra/docker/docker-compose.local.yml up -d
-#
-# Or use the root script:
 #   pnpm infra:up
+# Or:
+#   docker compose --env-file .env -f infra/docker/docker-compose.local.yml up -d
 
 services:
   mosquitto:
@@ -40,15 +38,3 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  nginx:
-    image: nginx:alpine
-    container_name: platform-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - mosquitto
-      - postgres
-    restart: unless-stopped
