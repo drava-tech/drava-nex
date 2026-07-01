@@ -3,7 +3,7 @@ version: '3.8'
 # MODE A — Local Windows Development (default)
 # PostgreSQL runs natively on Windows (not in Docker).
 # Only Mosquitto (MQTT) and Nginx run in Docker.
-# Node apps run via: pnpm dev  (API :4000, CMS :3000, Screens :3001)
+# Node apps run via: pnpm dev  (API :4000, CMS :3000 — CMS also serves /display)
 #
 # Run from repo root:
 #   docker compose --env-file .env -f infra/docker/docker-compose.local.yml up -d

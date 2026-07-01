@@ -1,15 +1,9 @@
+// Single-origin model: the browser always talks to one host (nginx routes /api
+// and /ws to the API). URLs are same-origin relative unless an env var provides
+// an absolute override — no hostname/port sniffing.
+
 function isAbsoluteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value) || /^wss?:\/\//i.test(value);
-}
-
-function isDirectNextDevHost(): boolean {
-  if (typeof window === "undefined") return false;
-
-  const { hostname, port } = window.location;
-  return (
-    (hostname === "localhost" || hostname === "127.0.0.1") &&
-    (port === "3000" || port === "3001")
-  );
 }
 
 export function resolveBrowserWsUrl(wsUrl: string): string {
@@ -17,11 +11,6 @@ export function resolveBrowserWsUrl(wsUrl: string): string {
 
   const path = wsUrl.startsWith("/") ? wsUrl : `/${wsUrl}`;
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-
-  if (isDirectNextDevHost() && (path === "/ws" || path.startsWith("/ws/"))) {
-    return `${protocol}//${window.location.hostname}:4000${path}`;
-  }
-
   return `${protocol}//${window.location.host}${path}`;
 }
 
@@ -36,10 +25,7 @@ export function resolveBrowserApiEndpoint(apiBaseUrl: string, apiPath: string): 
     return `${base}${path}`;
   }
 
-  if (isDirectNextDevHost()) {
-    return `${window.location.protocol}//${window.location.hostname}:4000${path}`;
-  }
-
+  // Same-origin: use the relative path as-is (nginx routes /api to the API).
   if (!apiBaseUrl || apiBaseUrl === "/") return path;
 
   const base = apiBaseUrl.replace(/\/$/, "");

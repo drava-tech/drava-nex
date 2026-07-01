@@ -8,35 +8,9 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@platform/db";
 import * as schema from "@platform/db";
-import os from "os";
 
-function getLocalNetworkOrigins(port: string | number = 3000): string[] {
-  const origins: string[] = [];
-  try {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-      const iface = interfaces[name];
-      if (iface) {
-        for (const net of iface) {
-          if (net.family === "IPv4" && !net.internal) {
-            origins.push(`http://${net.address}:${port}`);
-          }
-        }
-      }
-    }
-  } catch { /* ignore */ }
-  return origins;
-}
-
+// Single-origin model: trust only the public origin (nginx) + explicit extras.
 const CMS_URL = process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000";
-
-const localOrigins =
-  process.env.NODE_ENV === "development"
-    ? [
-        ...getLocalNetworkOrigins(process.env["CMS_PORT"] ?? 3000),
-        ...getLocalNetworkOrigins(process.env["API_PORT"] ?? 4000),
-      ]
-    : [];
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -71,7 +45,6 @@ export const auth = betterAuth({
   baseURL: CMS_URL,
   trustedOrigins: [
     CMS_URL,
-    ...localOrigins,
     ...(process.env["BETTER_AUTH_TRUSTED_ORIGINS"]
       ?.split(",")
       .map((o) => o.trim())

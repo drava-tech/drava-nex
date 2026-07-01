@@ -1,20 +1,8 @@
-// Resolves the base path of the screens player app used by CMS mirrors and
-// control links. Local dev proxies /display through the CMS dev server on
-// localhost:3000; Docker/LAN routes /display through nginx.
+// The display player is served by the CMS itself at /display. Single-origin:
+// same-origin relative path, unless an absolute NEXT_PUBLIC_SCREENS_URL override
+// is provided. No hostname/port sniffing.
 function resolveScreensBase(): string {
-  const configured = (process.env["NEXT_PUBLIC_SCREENS_URL"] ?? "").replace(/\/$/, "");
-  const basePath = (process.env["NEXT_PUBLIC_SCREENS_BASE_PATH"] ?? "").replace(/\/$/, "");
-
-  if (typeof window !== "undefined") {
-    const { hostname, port } = window.location;
-    const isDirectDev =
-      (hostname === "localhost" || hostname === "127.0.0.1") &&
-      (port === "3000" || port === "3001");
-    if (isDirectDev) return configured || basePath || "/display";
-  }
-
-  if (configured) return configured;
-  return basePath || "/display";
+  return (process.env["NEXT_PUBLIC_SCREENS_URL"] || "/display").replace(/\/$/, "");
 }
 
 /**

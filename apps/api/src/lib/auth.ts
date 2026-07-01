@@ -3,37 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { db } from "@platform/db";
 import * as schema from "@platform/db";
-import os from "os";
 
-function getLocalNetworkOrigins(port: string | number = 3000): string[] {
-  const origins: string[] = [];
-  try {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-      const iface = interfaces[name];
-      if (iface) {
-        for (const net of iface) {
-          if (net.family === "IPv4" && !net.internal) {
-            origins.push(`http://${net.address}:${port}`);
-          }
-        }
-      }
-    }
-  } catch { /* ignore */ }
-  return origins;
-}
-
-// In local dev, auth lives on the same port as the CMS (3000 via proxy) so
-// the browser client sees consistent origins. The base URL must match.
+// Single-origin model: the browser reaches everything through one host (nginx).
+// baseURL and trusted origins are just that public origin, plus any explicit
+// extras in BETTER_AUTH_TRUSTED_ORIGINS. No dynamic per-port IP enumeration.
 const CMS_URL = process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000";
-
-const localOrigins =
-  process.env.NODE_ENV === "development"
-    ? [
-        ...getLocalNetworkOrigins(process.env["CMS_PORT"] ?? 3000),
-        ...getLocalNetworkOrigins(process.env["API_PORT"] ?? 4000),
-      ]
-    : [];
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -74,7 +48,6 @@ export const auth = betterAuth({
   baseURL: CMS_URL,
   trustedOrigins: [
     CMS_URL,
-    ...localOrigins,
     ...(process.env["BETTER_AUTH_TRUSTED_ORIGINS"]
       ?.split(",")
       .map((o) => o.trim())

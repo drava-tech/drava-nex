@@ -2,28 +2,12 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import type { CameraStatusUpdate, WsClientMessage, WsContent } from "@platform/types";
+import { resolveBrowserWsUrl } from "@/lib/display/client-urls";
 
 interface UseCmsScreenSyncOptions {
   onScreenUpdated: (screenId: string, content: WsContent) => void;
   onActiveScreensUpdated?: (activeScreenIds: string[]) => void;
   onCameraStatusUpdated?: (status: CameraStatusUpdate) => void;
-}
-
-function resolveBrowserWsUrl(wsUrl: string): string {
-  if (/^wss?:\/\//i.test(wsUrl)) return wsUrl;
-
-  const path = wsUrl.startsWith("/") ? wsUrl : `/${wsUrl}`;
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const { hostname, port } = window.location;
-  const isDirectDev =
-    (hostname === "localhost" || hostname === "127.0.0.1") &&
-    (port === "3000" || port === "3001");
-
-  if (isDirectDev && (path === "/ws" || path.startsWith("/ws/"))) {
-    return `${protocol}//${hostname}:4000${path}`;
-  }
-
-  return `${protocol}//${window.location.host}${path}`;
 }
 
 export function useCmsScreenSync({
