@@ -5,10 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Thermometer, Wind, Flame, Lightbulb, Sparkles, Copy, X,
   Speaker as SpeakerIcon, Settings2, Moon, Sun, Zap,
-  Fan, CloudSnow, Timer, Snowflake, Droplets,
-  ArrowLeft, ArrowRight, ArrowUp, ArrowDown,
-  Tv, Bluetooth, Usb, Disc, Play, Pause, SkipBack, SkipForward,
-  VolumeX, Mic, Radio, Clock, BluetoothSearching, Monitor,
+  Timer, Tv, Bluetooth, Usb, Disc,
+  VolumeX, Mic, Monitor,
 } from "lucide-react";
 import { Button, Badge } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
@@ -27,13 +25,6 @@ const compactTransitionProps = {
   animate: { opacity: 1, scale: 1, filter: "blur(0px)", zIndex: 10 },
   exit: { opacity: 0, scale: 0.95, filter: "blur(8px)", zIndex: 0 },
   transition: { type: "spring", bounce: 0, duration: 0.6, opacity: { duration: 0.4 } } as any,
-};
-
-const tabTransition = {
-  initial: { opacity: 0, y: 6 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -6 },
-  transition: { type: "spring", bounce: 0, duration: 0.18 } as any,
 };
 
 const noProp = (e: React.SyntheticEvent) => e.stopPropagation();
@@ -57,17 +48,6 @@ const getSceneGlow = (scene: string) => {
   }
 };
 
-const getPresetGlow = (name: string) => {
-  switch (name) {
-    case "Presentation": return "from-violet-500 to-fuchsia-500";
-    case "Meeting":      return "from-blue-400 to-indigo-500";
-    case "Demo":         return "from-orange-400 to-amber-500";
-    case "Relax":        return "from-emerald-400 to-teal-500";
-    case "Night":        return "from-slate-500 to-zinc-600";
-    default:             return "from-zinc-400 to-zinc-600";
-  }
-};
-
 // ─── Utils for colour picker ──────────────────────────────────────────────────
 
 function hexToRgb(hex: string) {
@@ -88,14 +68,6 @@ function rgbToHsv(r: number, g: number, b: number) {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const CLIMATE_PRESETS = [
-  { name: "Presentation", emoji: "✦", temp: 22, mode: "Cool", fan: "Auto", eco: false, quiet: false, turbo: false, description: "22° · Cool · Auto Fan" },
-  { name: "Meeting",      emoji: "👥", temp: 24, mode: "Cool", fan: "Low",  eco: true,  quiet: false, turbo: false, description: "24° · Cool · Low · Eco" },
-  { name: "Demo",         emoji: "🚀", temp: 20, mode: "Cool", fan: "High", eco: false, quiet: false, turbo: false, description: "20° · Cool · High Fan" },
-  { name: "Relax",        emoji: "😌", temp: 26, mode: "Auto", fan: "Low",  eco: true,  quiet: true,  turbo: false, description: "26° · Auto · Quiet" },
-  { name: "Night",        emoji: "🌙", temp: 28, mode: "Dry",  fan: "Auto", eco: true,  quiet: true,  turbo: false, description: "28° · Dry · Quiet · Eco" },
-];
 
 const TIMER_OPTIONS = [
   { id: "0", label: "Off" },
@@ -186,36 +158,6 @@ function MiniSlider({
           transition={{ type: "spring", bounce: 0, duration: dragging ? 0 : 0.2 }}
         />
       </div>
-    </div>
-  );
-}
-
-function TabBar({ tabs, active, onChange, tabId }: {
-  tabs: { id: string; label: string }[];
-  active: string;
-  onChange: (id: string) => void;
-  tabId: string;
-}) {
-  return (
-    <div className="flex gap-1 p-1 bg-muted/50 rounded-xl shrink-0">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          onClick={(e) => { e.stopPropagation(); onChange(t.id); }}
-          className={`relative flex-1 px-2 py-1.5 rounded-lg text-[11px] font-bold tracking-wide transition-colors ${
-            active === t.id ? "text-foreground" : "text-muted-foreground hover:text-foreground/70"
-          }`}
-        >
-          {active === t.id && (
-            <motion.div
-              layoutId={`${tabId}-tab-pill`}
-              className="absolute inset-0 bg-background shadow-sm rounded-lg"
-              transition={{ type: "spring", bounce: 0, duration: 0.28 }}
-            />
-          )}
-          <span className="relative z-10">{t.label}</span>
-        </button>
-      ))}
     </div>
   );
 }
@@ -388,27 +330,6 @@ function SoundProfileCards({ value, onChange }: { value: string; onChange: (v: s
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function ActiveFeatureStrip({ state }: { state: any }) {
-  const chips = [
-    { key: "eco",        label: "Eco",   active: state.eco,        color: "text-emerald-600 bg-emerald-500/10" },
-    { key: "turbo",      label: "Turbo", active: state.turbo,      color: "text-orange-500 bg-orange-500/10" },
-    { key: "quiet",      label: "Quiet", active: state.quiet,      color: "text-blue-500 bg-blue-500/10" },
-    { key: "sleep",      label: "Sleep", active: state.sleep,      color: "text-indigo-500 bg-indigo-500/10" },
-    { key: "aiMode",     label: "AI",    active: state.aiMode,     color: "text-violet-500 bg-violet-500/10" },
-    { key: "frostFresh", label: "Frost", active: state.frostFresh, color: "text-cyan-500 bg-cyan-500/10" },
-  ].filter((c) => c.active);
-
-  if (chips.length === 0) return null;
-
-  return (
-    <div className="flex gap-1.5 flex-wrap shrink-0">
-      {chips.map((c) => (
-        <span key={c.key} className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${c.color}`}>{c.label}</span>
-      ))}
     </div>
   );
 }
@@ -696,19 +617,9 @@ function LightColourContent({ state, actions }: any) {
 
 // ─── Audio Content ────────────────────────────────────────────────────────────
 
-const AUDIO_TABS = [
-  { id: "quick",    label: "Quick" },
-  { id: "sound",    label: "Sound" },
-  { id: "levels",   label: "Levels" },
-  { id: "settings", label: "Settings" },
-];
-
 function AudioContent({ isExpanded, state, actions }: any) {
-  const [tab, setTab] = useState<"quick" | "sound" | "levels" | "settings">("quick");
-
   return (
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
-      {/* Header */}
       <div className="flex justify-between items-start shrink-0 mb-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
@@ -724,10 +635,8 @@ function AudioContent({ isExpanded, state, actions }: any) {
         </div>
       </div>
 
-      {/* Body */}
       <div className={`flex-1 flex flex-col min-h-0 transition-all duration-150 ${!state.power ? "opacity-40 grayscale-[0.8] pointer-events-none" : ""}`}>
         {!isExpanded ? (
-          /* Compact view */
           <div className="flex flex-col gap-1.5 pb-2">
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-black">{state.muted ? "—" : state.volume}</span>
@@ -736,154 +645,70 @@ function AudioContent({ isExpanded, state, actions }: any) {
             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded-full w-fit">{state.source}</span>
           </div>
         ) : (
-          /* Expanded view with tabs */
-          <div className="flex flex-col h-full min-h-0 gap-3">
-            <TabBar tabId="audio" tabs={AUDIO_TABS} active={tab} onChange={(id) => setTab(id as any)} />
+          <div className="grid grid-cols-[auto_1fr] gap-6 items-start h-full" onClick={noProp}>
+            {/* Left: Volume Ring + Mute */}
+            <div className="flex flex-col items-center gap-3">
+              <VolumeRing
+                volume={state.volume}
+                muted={state.muted}
+                onVolumeChange={(v) => { actions.setVolume(v); actions.setMuted(false); }}
+              />
+              <button
+                onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                  state.muted
+                    ? "bg-red-500/10 text-red-500 ring-1 ring-red-500/20"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <VolumeX className="w-3.5 h-3.5" />
+                {state.muted ? "Muted" : "Mute"}
+              </button>
+            </div>
 
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <AnimatePresence mode="wait">
-                <motion.div key={tab} {...tabTransition} className="h-full">
+            {/* Right: Input + Sound Field + Bass + Voice */}
+            <div className="flex flex-col gap-5 pt-1">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Input Source</span>
+                <div className="flex gap-2 flex-wrap">
+                  {AUDIO_SOURCES.map((src) => (
+                    <button
+                      key={src.id}
+                      onClick={(e) => { noProp(e); actions.setSource(src.id); }}
+                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-150 ${
+                        state.source === src.id
+                          ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm"
+                          : "bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {src.icon}
+                      <span className="text-[9px] font-black uppercase tracking-widest">{src.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                  {/* Quick Tab */}
-                  {tab === "quick" && (
-                    <div className="flex flex-col gap-5" onClick={noProp}>
-                      {/* Volume Ring */}
-                      <div className="flex items-center gap-6">
-                        <VolumeRing
-                          volume={state.volume}
-                          muted={state.muted}
-                          onVolumeChange={(v) => { actions.setVolume(v); actions.setMuted(false); }}
-                        />
-                        <div className="flex flex-col gap-3 flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Master Volume</span>
-                            <button
-                              onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
-                              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${state.muted ? "bg-red-500/10 text-red-500 ring-1 ring-red-500/20" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-                            >
-                              <VolumeX className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-[9px] font-medium text-muted-foreground leading-relaxed">Drag the ring to adjust volume. Tap the mute button to silence output.</p>
-                        </div>
-                      </div>
+              <SoundProfileCards value={state.soundMode} onChange={actions.setSoundMode} />
 
-                      {/* Input Source */}
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Input Source</span>
-                        <div className="flex gap-2 flex-wrap">
-                          {AUDIO_SOURCES.map((src) => (
-                            <button
-                              key={src.id}
-                              onClick={(e) => { noProp(e); actions.setSource(src.id); }}
-                              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-150 ${
-                                state.source === src.id
-                                  ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-sm"
-                                  : "bg-muted text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              {src.icon}
-                              <span className="text-[9px] font-black uppercase tracking-widest">{src.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+              <MiniSlider
+                label="Bass"
+                value={state.bass}
+                onChange={actions.setBass}
+                min={-10}
+                max={10}
+                format={(v) => v > 0 ? `+${v}` : `${v}`}
+                color="bg-blue-600"
+              />
 
-                      {/* Playback controls */}
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Playback</span>
-                        <div className="flex items-center gap-3">
-                          <button onClick={(e) => { noProp(e); }} className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                            <SkipBack className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={(e) => { noProp(e); actions.setPlaying(!state.playing); }}
-                            className="w-16 h-16 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
-                          >
-                            {state.playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 translate-x-0.5" />}
-                          </button>
-                          <button onClick={(e) => { noProp(e); }} className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                            <SkipForward className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sound Tab */}
-                  {tab === "sound" && (
-                    <div className="flex flex-col gap-5">
-                      <SoundProfileCards value={state.soundMode} onChange={actions.setSoundMode} />
-
-                      <div className="flex flex-col gap-4 pt-1">
-                        <MiniSlider
-                          label="Bass"
-                          value={state.bass}
-                          onChange={actions.setBass}
-                          min={-10}
-                          max={10}
-                          format={(v) => v > 0 ? `+${v}` : `${v}`}
-                          color="bg-blue-600"
-                        />
-                        <MiniSlider
-                          label="Treble"
-                          value={state.treble}
-                          onChange={actions.setTreble}
-                          min={-10}
-                          max={10}
-                          format={(v) => v > 0 ? `+${v}` : `${v}`}
-                          color="bg-cyan-500"
-                        />
-                      </div>
-
-                      <div className="rounded-2xl border border-border overflow-hidden">
-                        <ToggleRow label="Virtual Surround" description="Simulates 7.1 surround sound" value={state.virtualSurround} onChange={actions.setVirtualSurround} icon={<Radio className="w-4 h-4" />} />
-                        <ToggleRow label="Voice Enhancement" description="Boosts dialogue clarity" value={state.voiceEnhance} onChange={actions.setVoiceEnhance} icon={<Mic className="w-4 h-4" />} />
-                        <ToggleRow label="Night Mode" description="Limits volume peaks for quiet listening" value={state.nightMode} onChange={actions.setNightMode} icon={<Moon className="w-4 h-4" />} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Levels Tab */}
-                  {tab === "levels" && (
-                    <div className="flex flex-col gap-5">
-                      <MiniSlider label="Subwoofer" value={state.subwoofer} onChange={actions.setSubwoofer} color="bg-zinc-900 dark:bg-white" />
-                      <MiniSlider label="Center Channel" value={state.centerLevel} onChange={actions.setCenterLevel} color="bg-zinc-900 dark:bg-white" />
-                      <MiniSlider label="Rear Speakers" value={state.rearLevel} onChange={actions.setRearLevel} color="bg-zinc-900 dark:bg-white" />
-                      <MiniSlider label="Surround" value={state.surroundLevel} onChange={actions.setSurroundLevel} color="bg-zinc-900 dark:bg-white" />
-                    </div>
-                  )}
-
-                  {/* Settings Tab */}
-                  {tab === "settings" && (
-                    <div className="flex flex-col gap-5">
-                      <MiniSlider
-                        label="Sync Delay"
-                        value={state.syncDelay}
-                        onChange={actions.setSyncDelay}
-                        min={0}
-                        max={300}
-                        suffix="ms"
-                        color="bg-zinc-900 dark:bg-white"
-                      />
-
-                      <div className="rounded-2xl border border-border overflow-hidden">
-                        <ToggleRow label="Auto Standby" description="Power off after 30 min idle" value={state.autoStandby} onChange={actions.setAutoStandby} icon={<Clock className="w-4 h-4" />} />
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-xl h-12 font-bold text-sm flex items-center gap-2"
-                        onClick={(e) => { noProp(e); }}
-                      >
-                        <BluetoothSearching className="w-4 h-4 text-blue-500" />
-                        Bluetooth Pairing
-                      </Button>
-                    </div>
-                  )}
-
-                </motion.div>
-              </AnimatePresence>
+              <div className="rounded-2xl border border-border overflow-hidden">
+                <ToggleRow
+                  label="Voice Enhancement"
+                  description="Boosts dialogue clarity"
+                  value={state.voiceEnhance}
+                  onChange={actions.setVoiceEnhance}
+                  icon={<Mic className="w-4 h-4" />}
+                />
+              </div>
             </div>
           </div>
         )}
