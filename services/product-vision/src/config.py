@@ -26,8 +26,13 @@ class Config:
     # WebSocket URL of the CMS API gateway (e.g. "ws://192.168.1.100/ws/")
     ws_url: str
 
-    # Camera backend: "realsense" (Intel RealSense, default) or "opencv" (USB webcam)
-    camera_backend: str = "realsense"
+    # CA certificate file to trust when ws_url is wss://. Only needed for a
+    # locally-issued dev certificate (e.g. mkcert) that isn't in Python's default
+    # trust store. Unused for ws:// or a publicly-trusted wss:// certificate.
+    ca_cert_path: str | None = None
+
+    # Camera backend: "opencv" (USB webcam, default) or "realsense" (Intel RealSense)
+    camera_backend: str = "opencv"
 
     # OpenCV device index — only used when camera_backend = "opencv"
     opencv_device_index: int = 0
@@ -51,6 +56,23 @@ class Config:
     # When True, on each detection the service queries the CMS API for the product
     # that the label maps to and prints it to this console (local debugging).
     debug_product_lookup: bool = True
+
+    # Screen this camera is mapped to. Only needed when gate_template_key is set —
+    # lets the service register for that screen's CONTENT_UPDATE broadcasts.
+    screen_id: str | None = None
+
+    # When set, detection only runs while the mapped screen's active experience
+    # has this templateKey. None = always-on (continuous / Model A behavior).
+    gate_template_key: str | None = None
+
+    # Publish a small MJPEG preview of the camera feed over the gateway's live-stream
+    # relay (streamId = camera_id), independent of the detection gate. Necessary
+    # because the camera is exclusively claimed by this Docker container (via usbipd
+    # passthrough) — the browser can't reach it directly via getUserMedia.
+    preview_enabled: bool = True
+    preview_fps: float = 8.0
+    preview_max_width: int = 480
+    preview_jpeg_quality: int = 70
 
 
 def load_config() -> Config:
@@ -80,7 +102,8 @@ def load_config() -> Config:
         confidence_threshold=confidence,
         camera_id=require("VISION_CAMERA_ID"),
         ws_url=require("CMS_WEBSOCKET_URL"),
-        camera_backend=os.getenv("VISION_CAMERA_BACKEND", "realsense").lower(),
+        ca_cert_path=os.getenv("VISION_CA_CERT_PATH") or None,
+        camera_backend=os.getenv("VISION_CAMERA_BACKEND", "opencv").lower(),
         opencv_device_index=int(os.getenv("VISION_OPENCV_DEVICE_INDEX", "0")),
         realsense_width=int(os.getenv("VISION_RS_WIDTH", "1280")),
         realsense_height=int(os.getenv("VISION_RS_HEIGHT", "720")),
@@ -91,4 +114,11 @@ def load_config() -> Config:
         not in ("false", "0", "no"),
         debug_product_lookup=os.getenv("VISION_DEBUG_PRODUCT", "true").strip().lower()
         not in ("false", "0", "no"),
+        screen_id=os.getenv("VISION_SCREEN_ID") or None,
+        gate_template_key=os.getenv("VISION_GATE_TEMPLATE_KEY") or None,
+        preview_enabled=os.getenv("VISION_PREVIEW_ENABLED", "true").strip().lower()
+        not in ("false", "0", "no"),
+        preview_fps=float(os.getenv("VISION_PREVIEW_FPS", "8.0")),
+        preview_max_width=int(os.getenv("VISION_PREVIEW_MAX_WIDTH", "480")),
+        preview_jpeg_quality=int(os.getenv("VISION_PREVIEW_JPEG_QUALITY", "70")),
     )

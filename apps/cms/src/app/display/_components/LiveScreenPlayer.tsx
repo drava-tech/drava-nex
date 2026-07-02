@@ -9,6 +9,7 @@ import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
 import { CameraStatusOverlay } from "./CameraStatusOverlay";
+import { CameraPreviewOverlay } from "./CameraPreviewOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
@@ -164,6 +165,7 @@ export function LiveScreenPlayer({
       <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
       <CameraStatusOverlay status={cameraStatus} />
+      <CameraPreviewOverlay cameraId={cameraStatus?.cameraId} wsUrl={wsUrl} />
       {pickerEnabled && (
         <ContentPickerOverlay
           apiUrl={apiUrl}

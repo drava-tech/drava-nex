@@ -45,6 +45,8 @@ backups/
 /backup_*.sql
 /*.dump.sql
 
+infra/nginx/certs/
+
 # ─── Product Vision Service (Python) ─────────────────────────────────────────
 # Virtual environment
 services/product-vision/.venv/

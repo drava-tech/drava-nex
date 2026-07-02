@@ -203,7 +203,7 @@ function ClimateContent({ isExpanded, state, actions }: any) {
   );
 }
 
-function LightingContent({ isExpanded, state, actions, globalPowerActions, globalPowerState }: any) {
+function LightingContent({ isExpanded, state, actions }: any) {
   return (
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
       <div className="flex justify-between items-start shrink-0 mb-4">
@@ -500,7 +500,7 @@ function LightColourContent({ state, actions }: any) {
   );
 }
 
-function AudioContent({ isExpanded, state, actions, globalPowerState }: any) {
+function AudioContent({ isExpanded, state, actions }: any) {
   const waveform = useMemo(() => Array.from({ length: 48 }, (_, i) =>
     Number(Math.max(10, Math.abs(Math.sin(i * 0.3) * 20 + Math.cos(i * 0.7) * 15 + 20)).toFixed(1))
   ), []);

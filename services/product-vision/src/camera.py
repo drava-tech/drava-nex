@@ -3,13 +3,13 @@ camera.py — Camera abstraction for the Product Vision service.
 
 Supports two backends selected by Config.camera_backend:
 
-  Option A — "realsense" (default, Intel RealSense D-series)
-      Uses pyrealsense2 to open an RGB stream. The RealSense SDK must be
-      installed on the host: https://github.com/IntelRealSense/librealsense/releases
-
-  Option B — "opencv" (fallback, any USB/IP webcam)
+  Option A — "opencv" (default, any USB/IP webcam)
       Uses OpenCV VideoCapture with the device index from Config.opencv_device_index.
       No extra SDK required.
+
+  Option B — "realsense" (fallback, Intel RealSense D-series)
+      Uses pyrealsense2 to open an RGB stream. The RealSense SDK must be
+      installed on the host: https://github.com/IntelRealSense/librealsense/releases
 
 Both backends expose the same interface:
     camera = make_camera(config)
@@ -17,7 +17,7 @@ Both backends expose the same interface:
     frame = camera.read_frame()   # returns a numpy BGR uint8 array or None
     camera.stop()
 
-Switch between backends by setting VISION_CAMERA_BACKEND=realsense|opencv in .env.
+Switch between backends by setting VISION_CAMERA_BACKEND=opencv|realsense in .env.
 """
 
 from __future__ import annotations

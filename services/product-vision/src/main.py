@@ -40,13 +40,16 @@ def _api_base_from_ws(ws_url: str) -> str:
     return base.rstrip("/")
 
 
-async def _log_product_for_label(api_base: str, label: str) -> None:
+async def _log_product_for_label(api_base: str, label: str, ca_cert_path: str | None) -> None:
     """Debug only: fetch and print which DB product a detection label maps to."""
     import requests  # bundled in the venv
 
     url = f"{api_base}/api/products/by-detection-label/{label}"
+    # requests has its own CA bundle (via certifi), separate from the websockets
+    # connection's ssl.SSLContext — needs the same mkcert CA to trust nginx's dev cert.
+    verify = ca_cert_path if (api_base.startswith("https://") and ca_cert_path) else True
     try:
-        resp = await asyncio.to_thread(requests.get, url, timeout=5)
+        resp = await asyncio.to_thread(requests.get, url, timeout=5, verify=verify)
     except Exception as e:
         log.warning("   product lookup failed (%s): %s", url, e)
         return
@@ -70,6 +73,10 @@ async def _log_product_for_label(api_base: str, label: str) -> None:
 
 
 async def run() -> None:
+    import time
+
+    import cv2
+
     from camera import make_camera
     from config import load_config
     from detector import Detector
@@ -114,6 +121,11 @@ async def run() -> None:
     camera = None
     stability = StabilityFilter(cfg)
     missed_frames = 0
+    # Ungated services (cfg.gate_template_key is None, Model A) are always active.
+    # Gated services (Model B) start inactive until the WELCOME/CONTENT_UPDATE
+    # confirms the mapped screen's templateKey matches (see websocket_client.py).
+    gate_active = cfg.gate_template_key is None
+    last_preview_ts = 0.0
 
     while True:
         if camera is None:
@@ -132,6 +144,19 @@ async def run() -> None:
                 await asyncio.sleep(5)
                 continue
 
+        if cfg.gate_template_key is not None:
+            now_active = ws.current_template_key == cfg.gate_template_key
+            if now_active and not gate_active:
+                log.info("Gate ON  (screen template -> %r) - resuming detection", cfg.gate_template_key)
+                stability = StabilityFilter(cfg)
+                active_label = None
+            elif not now_active and gate_active and active_label is not None:
+                log.info("Gate OFF (screen template -> %r) - stopping detection", ws.current_template_key)
+                await ws.send_lost(active_label)
+                active_label = None
+                await publish_status("waiting", force=True)
+            gate_active = now_active
+
         frame = camera.read_frame()
         if frame is None:
             missed_frames += 1
@@ -148,10 +173,30 @@ async def run() -> None:
                 await asyncio.sleep(5)
                 continue
             await asyncio.sleep(0.05)
+        elif not gate_active:
+            missed_frames = 0
+            detection = None
+            event = StabilityEvent.NONE
         else:
             missed_frames = 0
             detection = detector.detect(frame)
             event = stability.update(detection)
+
+        # Preview publish is independent of the detection gate — a corner overlay
+        # showing the camera is alive is useful even while gated off.
+        if frame is not None and cfg.preview_enabled:
+            now = time.monotonic()
+            if now - last_preview_ts >= 1.0 / cfg.preview_fps:
+                last_preview_ts = now
+                h, w = frame.shape[:2]
+                small = (
+                    cv2.resize(frame, (cfg.preview_max_width, int(h * cfg.preview_max_width / w)))
+                    if w > cfg.preview_max_width
+                    else frame
+                )
+                ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, cfg.preview_jpeg_quality])
+                if ok:
+                    await ws.send_frame(buf.tobytes())
 
         if event == StabilityEvent.PRODUCT_DETECTED and stability.current_detection:
             d = stability.current_detection
@@ -160,7 +205,7 @@ async def run() -> None:
             await publish_status("detecting")
             await ws.send_detected(d.label, d.confidence)
             if cfg.debug_product_lookup:
-                await _log_product_for_label(api_base, d.label)
+                await _log_product_for_label(api_base, d.label, cfg.ca_cert_path)
 
         elif event == StabilityEvent.PRODUCT_LOST:
             label = active_label or (detection.label if detection else "unknown")

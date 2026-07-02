@@ -1,40 +1,14 @@
 version: '3.8'
 
-# MODE A — Local Windows Development (default)
-# PostgreSQL and Mosquitto (MQTT) run in Docker.
-# Node apps run locally via: pnpm dev  (API :4000, CMS :3000)
+# MODE A — Local Windows Development (not in use yet)
 #
-# Run from repo root:
-#   pnpm infra:up
-# Or:
-#   docker compose --env-file .env -f infra/docker/docker-compose.local.yml up -d
+# Intentionally empty. The production stack (docker-compose.yml, `pnpm prod:up`)
+# — cms-postgres, cms-mosquitto, cms-api, cms-admin, cms-nginx — is the single
+# running entity for now. Services here previously collided with it on shared
+# host ports (5432 for Postgres, 1883/9001 for Mosquitto) using separate, empty
+# data volumes, which caused real data to get silently orphaned.
+#
+# When a real local-dev workflow is needed, add services back here bound to
+# DIFFERENT host ports than the production stack so the two can never collide.
 
-services:
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    container_name: platform-mosquitto
-    ports:
-      - "${MQTT_PORT:-1883}:1883"
-      - "${MQTT_WS_PORT:-9001}:9001"
-    volumes:
-      - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: platform-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - ../../postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+services: {}

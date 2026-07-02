@@ -25,6 +25,10 @@
     "prod:build": "docker compose --env-file .env.production -f infra/docker/docker-compose.yml build",
     "prod:up": "docker compose --env-file .env.production -f infra/docker/docker-compose.yml up -d",
     "prod:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "vision:up": "docker compose --env-file .env.production -f infra/docker/docker-compose.yml --profile vision up -d product-vision product-vision-gated",
+    "vision:down": "docker compose -f infra/docker/docker-compose.yml --profile vision stop product-vision product-vision-gated",
+    "vision:logs": "docker compose -f infra/docker/docker-compose.yml --profile vision logs -f product-vision product-vision-gated",
+    "vision:reset": "node infra/scripts/reset-detection.js",
     "healthcheck": "curl -sf http://localhost/health || echo UNHEALTHY"
   },
   "keywords": [],
