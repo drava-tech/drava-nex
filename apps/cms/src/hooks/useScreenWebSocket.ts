@@ -21,6 +21,8 @@ interface UseScreenWebSocketReturn {
   sendContentChangeRequest: (content: WsContent) => void;
   /** Relay a local interaction so every client of this screen applies it. */
   sendInteraction: (command: string, value?: unknown) => void;
+  /** Send a raw client message (used by browser-based camera detection). */
+  sendRaw: (msg: WsClientMessage) => void;
 }
 
 export function useScreenWebSocket({
@@ -110,5 +112,18 @@ export function useScreenWebSocket({
     }
   }, [screenId]);
 
-  return { status, sendContentChangeRequest, sendInteraction };
+  /**
+   * Send a raw client message over the same connection the screen already
+   * holds — used by browser-based camera detection (CAMERA_REGISTER,
+   * CAMERA_HEARTBEAT, PRODUCT_DETECTED, PRODUCT_LOST), which now owns the
+   * full camera-lifecycle responsibility the native Python service used to.
+   */
+  const sendRaw = useCallback((msg: WsClientMessage) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg));
+    }
+  }, []);
+
+  return { status, sendContentChangeRequest, sendInteraction, sendRaw };
 }

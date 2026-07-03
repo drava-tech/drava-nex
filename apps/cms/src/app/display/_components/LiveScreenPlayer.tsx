@@ -5,6 +5,7 @@ import type { CameraStatusUpdate, WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { useCameraDetection } from "@/hooks/useCameraDetection";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
@@ -104,7 +105,7 @@ export function LiveScreenPlayer({
     }
   }, []);
 
-  const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
+  const { status, sendContentChangeRequest, sendInteraction, sendRaw } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCameraStatusUpdate: setCameraStatus,
@@ -112,6 +113,10 @@ export function LiveScreenPlayer({
     wsUrl,
     preview,
   });
+
+  // Runs camera detection in-browser for whichever camera this screen is
+  // mapped to (SCREEN_TO_CAMERA in the hook) — no-op if none is mapped.
+  useCameraDetection({ screenId, sendRaw });
 
   // Content dispatches a `screen-control` event when the user interacts (touch/
   // click). Relay it over WS so every client of this screen (the TV and any CMS
