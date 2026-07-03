@@ -125,7 +125,14 @@ export function LiveScreenPlayer({
     }
   }, []);
 
-  const isShowcase = activeContent?.templateKey === "product-showcase";
+  // Pause detection only during an actual detection takeover (showcase with a
+  // resolved product). A showcase template with an empty productId is authored
+  // idle content — detection must keep running over it.
+  const showcaseContent = activeContent?.templateContent?.["product-showcase"] as
+    | { productId?: string }
+    | undefined;
+  const isShowcase =
+    activeContent?.templateKey === "product-showcase" && !!showcaseContent?.productId;
   // ponytail: only capture camera if the user explicitly starts it via the button
   const runServer = !isShowcase && cameraActive;
 
