@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Camera, Wifi, WifiOff, Layers } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { assignExperience, assignMedia } from "@/actions/screen-actions";
+import { assignExperience, assignMedia, resetDetection } from "@/actions/screen-actions";
+import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { ScreenMirror } from "./screen-mirror";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import type { CameraStatusUpdate, WsContent } from "@platform/types";
@@ -23,6 +24,18 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetDetection = async () => {
+    setResetting(true);
+    try {
+      await resetDetection(screenId);
+    } catch (err) {
+      console.error("Failed to reset detection:", err);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   useCmsScreenSync({
     onScreenUpdated: () => {},
@@ -64,12 +77,23 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
             · touch to explore — mirrored on the TV in realtime
           </span>
         </div>
-        <button
-          onClick={() => setShowPicker(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 text-[10px] font-bold uppercase tracking-wider transition-colors"
-        >
-          <Layers className="h-3.5 w-3.5" /> Change content
-        </button>
+        <div className="flex items-center gap-2">
+          {SCREEN_TO_CAMERA[screenId] && (
+            <button
+              onClick={handleResetDetection}
+              disabled={resetting}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            >
+              {resetting ? "Resetting..." : "Reset detection"}
+            </button>
+          )}
+          <button
+            onClick={() => setShowPicker(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 text-[10px] font-bold uppercase tracking-wider transition-colors"
+          >
+            <Layers className="h-3.5 w-3.5" /> Change content
+          </button>
+        </div>
       </div>
 
       {/* Big interactive screen */}

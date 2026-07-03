@@ -85,3 +85,13 @@ export async function assignMedia(screenId: string, mediaAssetId: string) {
   revalidatePath("/screens");
   revalidatePath("/");
 }
+
+export async function resetDetection(screenId: string) {
+  await requireAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/reset-detection`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}

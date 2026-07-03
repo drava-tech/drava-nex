@@ -1,43 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { StabilityFilter, StabilityEvent, type VisionConfig } from "@platform/vision-browser";
+import { StabilityFilter, StabilityEvent, VISION_CONFIG, VISION_DEFAULTS } from "@platform/vision-browser";
 import type { WsClientMessage } from "@platform/types";
 import type { DetectionWorkerRequest, DetectionWorkerResponse } from "@/workers/detection.worker";
+import { SCREEN_TO_CAMERA, CAMERA_LABEL_HINTS, DETECTION_LABEL } from "../lib/display/camera-config";
 
-// Mirrors CAMERA_SCREEN_MAP (server-side, .env.production) inverted for
-// client-side lookup — the browser now owns the full camera lifecycle that
-// the native product-vision service used to (CAMERA_REGISTER/HEARTBEAT
-// included), so it can't rely on a CAMERA_STATUS_UPDATE from that service to
-// learn its own cameraId anymore; it has to know it upfront.
-const SCREEN_TO_CAMERA: Record<string, string> = {
-  "main-screen": "camera-01",
-  "screen-2": "camera-02",
-};
-
-// Browsers only expose OS device labels, not our logical camera-01/camera-02
-// IDs — matches the label-hint pattern proven earlier for camera selection.
-const CAMERA_LABEL_HINTS: Record<string, string> = {
-  "camera-01": "Lenovo",
-  "camera-02": "RealSense",
-};
-
-const DETECTION_LABEL = "coster";
 const MODEL_URL = "/display/models/coster-v1.onnx";
-const CAPTURE_INTERVAL_MS = 200; // throttled sampling, matches the stability filter's tolerance
-const HEARTBEAT_INTERVAL_MS = 5_000; // matches the native service's cadence
-const VISION_CONFIG: VisionConfig = {
-  confidenceThreshold: 0.4, // aligned with DETECTION_MIN_CONFIDENCE (.env.production)
-  stabilityFrames: 5,
-  lostFrames: 10,
-};
-// Mirrors VISION_HOLD_PRODUCT=true (live today): suppress PRODUCT_LOST, keep
-// showing the last detected product rather than reverting automatically.
-const HOLD_PRODUCT = true;
+const CAPTURE_INTERVAL_MS = VISION_DEFAULTS.captureIntervalMs;
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const HOLD_PRODUCT = VISION_DEFAULTS.holdProduct;
 
 interface UseCameraDetectionOptions {
   screenId: string;
   sendRaw: (msg: WsClientMessage) => void;
+  enabled?: boolean;
 }
 
 /**
@@ -45,14 +22,14 @@ interface UseCameraDetectionOptions {
  * (ONNX inference, off the main thread) -> stability filter -> WS events.
  * Fully replaces the native product-vision service for whichever camera this
  * screen is mapped to — including CAMERA_REGISTER/HEARTBEAT, not just
- * detection events (see the plan's Rollout section for the native/browser
- * handoff). No-ops if this screen has no camera mapped (SCREEN_TO_CAMERA).
+ * detection events. No-ops if this screen has no camera mapped (SCREEN_TO_CAMERA).
  */
-export function useCameraDetection({ screenId, sendRaw }: UseCameraDetectionOptions): void {
+export function useCameraDetection({ screenId, sendRaw, enabled = true }: UseCameraDetectionOptions): void {
   const sendRawRef = useRef(sendRaw);
   sendRawRef.current = sendRaw;
 
   useEffect(() => {
+    if (!enabled) return;
     const resolvedCameraId = SCREEN_TO_CAMERA[screenId];
     if (!resolvedCameraId) return;
     // Rebind to a freshly-typed const — TS's narrowing above doesn't carry
@@ -85,12 +62,25 @@ export function useCameraDetection({ screenId, sendRaw }: UseCameraDetectionOpti
 
       try {
         const hint = CAMERA_LABEL_HINTS[cameraId];
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasPermission = devices.some((d) => d.label !== "");
+
         let deviceId: string | undefined;
-        if (hint) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
+        if (hint && hasPermission) {
           deviceId = devices.find(
             (d) => d.kind === "videoinput" && d.label.toLowerCase().includes(hint.toLowerCase())
           )?.deviceId;
+
+          if (!deviceId) {
+            console.log(`[useCameraDetection] Mapped camera device "${hint}" not found. Skipping.`);
+            sendRawRef.current({
+              type: "CAMERA_STATUS",
+              cameraId,
+              status: "camera_unavailable",
+              message: `Camera device "${hint}" not found.`,
+            });
+            return;
+          }
         }
         const media = await navigator.mediaDevices.getUserMedia({
           video: deviceId ? { deviceId: { exact: deviceId } } : true,

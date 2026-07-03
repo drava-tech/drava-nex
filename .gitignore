@@ -50,6 +50,9 @@ infra/nginx/certs/
 # ─── Product Vision Service (Python) ─────────────────────────────────────────
 # Virtual environment
 services/product-vision/.venv/
+services/product-vision/.venv.old/
+.venv/
+.venv.old/
 
 # Raw captured training images (can be hundreds of MB — store externally or in DVC)
 services/product-vision/datasets/*/raw/positive/

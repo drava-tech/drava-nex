@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+# Install system dependencies needed for OpenCV / YOLO
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Prevent runtime downloading of assets/configs
+ENV YOLO_AUTOINSTALL=false
+ENV YOLO_CONFIG_DIR=/tmp/ultralytics
+
+# Copy and install server dependencies
+COPY requirements-server.txt .
+RUN pip install --no-cache-dir -r requirements-server.txt
+
+# Copy only the server package code
+COPY src/server ./src/server
+
+# Add src to PYTHONPATH so python -m server works
+ENV PYTHONPATH=/app/src
+
+# Expose server port
+EXPOSE 8000
+
+# Run as non-root user
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
+
+CMD ["python", "-m", "server"]

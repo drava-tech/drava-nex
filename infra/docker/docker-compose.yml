@@ -87,6 +87,8 @@ services:
         NEXT_PUBLIC_API_URL: /api
         NEXT_PUBLIC_WS_URL: /ws
         NEXT_PUBLIC_WS_GATEWAY_URL: /ws
+        NEXT_PUBLIC_VISION_INFERENCE_MODE: ${NEXT_PUBLIC_VISION_INFERENCE_MODE:-browser}
+        NEXT_PUBLIC_VISION_WS_URL: ${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
     container_name: cms-admin
     restart: unless-stopped
     env_file:
@@ -100,6 +102,8 @@ services:
       - LOG_DIR=/data/logs
       - BROADCAST_SECRET=${BROADCAST_SECRET}
       - INTERNAL_API_URL=http://api:4000
+      - NEXT_PUBLIC_VISION_INFERENCE_MODE=${NEXT_PUBLIC_VISION_INFERENCE_MODE:-browser}
+      - NEXT_PUBLIC_VISION_WS_URL=${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
     expose:
       - "3000" # internal only
     depends_on:
@@ -164,6 +168,38 @@ services:
         condition: service_started
     networks:
       - internal
+
+  vision-inference:
+    profiles: [vision-server]
+    build:
+      context: ../../services/product-vision
+      dockerfile: Dockerfile.server
+    container_name: vision-inference
+    restart: unless-stopped
+    environment:
+      - VISION_SERVER_MODEL_PATH=/app/models/production/coster-v1.pt
+      - VISION_SERVER_DEVICE=cuda:0
+      - VISION_SERVER_CONF_THRESHOLD=${DETECTION_MIN_CONFIDENCE:-0.4}
+    expose: ["8000"]
+    volumes:
+      - ../../services/product-vision/models:/app/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/vision/readyz',timeout=3).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks:
+      - internal
+
+
 
   nginx:
     image: nginx:alpine

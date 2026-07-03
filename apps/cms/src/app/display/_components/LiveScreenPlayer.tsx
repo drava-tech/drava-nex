@@ -6,6 +6,8 @@ import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { useCameraDetection } from "@/hooks/useCameraDetection";
+import { useServerDetection } from "@/hooks/useServerDetection";
+import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
@@ -73,6 +75,8 @@ export function LiveScreenPlayer({
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, queueContent } = useContentPreloader(initial);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -114,9 +118,22 @@ export function LiveScreenPlayer({
     preview,
   });
 
-  // Runs camera detection in-browser for whichever camera this screen is
-  // mapped to (SCREEN_TO_CAMERA in the hook) — no-op if none is mapped.
-  useCameraDetection({ screenId, sendRaw });
+  const [debugMode, setDebugMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setDebugMode(params.get("visionDebug") === "1");
+    }
+  }, []);
+
+  const mode = process.env.NEXT_PUBLIC_VISION_INFERENCE_MODE || "browser";
+  const isShowcase = activeContent?.templateKey === "product-showcase";
+  // ponytail: only capture camera if the user explicitly starts it via the button
+  const runBrowser = mode === "browser" && !isShowcase && cameraActive;
+  const runServer = mode === "server" && !isShowcase && cameraActive;
+
+  useCameraDetection({ screenId, sendRaw, enabled: runBrowser });
+  const serverDetection = useServerDetection({ screenId, sendRaw, enabled: runServer });
 
   // Content dispatches a `screen-control` event when the user interacts (touch/
   // click). Relay it over WS so every client of this screen (the TV and any CMS
@@ -168,9 +185,43 @@ export function LiveScreenPlayer({
   return (
     <>
       <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+      {runServer && debugMode && (
+        <DetectionDebugOverlay
+          stream={serverDetection.stream}
+          lastResult={serverDetection.lastResult}
+          status={serverDetection.status}
+          cameraId={serverDetection.cameraId}
+          stats={serverDetection.stats}
+        />
+      )}
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
-      <CameraStatusOverlay status={cameraStatus} />
-      <CameraPreviewOverlay cameraId={cameraStatus?.cameraId} wsUrl={wsUrl} />
+      {preview && cameraActive && <CameraStatusOverlay status={cameraStatus} />}
+      {preview && cameraActive && <CameraPreviewOverlay cameraId={cameraStatus?.cameraId} wsUrl={wsUrl} />}
+      {preview && (
+        <button
+          onClick={() => setCameraActive(!cameraActive)}
+          style={{
+            position: "fixed",
+            left: 24,
+            bottom: 24,
+            zIndex: 35,
+            padding: "8px 16px",
+            borderRadius: "10px",
+            fontSize: "10px",
+            fontWeight: "bold",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            cursor: "pointer",
+            border: cameraActive ? "none" : "1px solid rgba(255,255,255,0.2)",
+            backgroundColor: cameraActive ? "#22c55e" : "#18181b",
+            color: cameraActive ? "#ffffff" : "#d4d4d8",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            transition: "background-color 0.2s, color 0.2s",
+          }}
+        >
+          {cameraActive ? "Stop Camera" : "Start Camera"}
+        </button>
+      )}
       {pickerEnabled && (
         <ContentPickerOverlay
           apiUrl={apiUrl}

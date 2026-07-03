@@ -11,7 +11,7 @@ import {
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds, resetScreenTakeover } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -131,3 +131,10 @@ screensRouter.post(
     return ok(c, { delivered });
   }
 );
+
+// POST /api/screens/:screenId/reset-detection — manually clear takeover content
+screensRouter.post("/:screenId/reset-detection", requireAdmin, async (c) => {
+  const screenId = param(c, "screenId");
+  const cleared = await resetScreenTakeover(screenId);
+  return ok(c, { cleared });
+});

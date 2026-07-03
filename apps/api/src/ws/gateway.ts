@@ -201,6 +201,39 @@ export function getContentCache(screenId: string): WsContent | undefined {
   return contentCache.get(screenId);
 }
 
+export async function resetScreenTakeover(screenId: string): Promise<boolean> {
+  if (screenTakeover.get(screenId)) {
+    screenTakeover.delete(screenId);
+    const content = await getScreenContent(screenId);
+    if (content) {
+      contentCache.set(screenId, content);
+      viewStateCache.delete(screenId);
+
+      const update: WsServerMessage = {
+        type: 'CONTENT_UPDATE',
+        screenId,
+        content,
+        timestamp: Date.now(),
+      };
+      const frame = JSON.stringify(update);
+      
+      const sockets = screenRegistry.get(screenId);
+      if (sockets) {
+        for (const sock of sockets) {
+          if (sock.readyState === WebSocket.OPEN) {
+            sock.send(frame);
+          }
+        }
+      }
+
+      broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+      emitScreenContentChanged(screenId, content);
+    }
+    return true;
+  }
+  return false;
+}
+
 export function getConnectedScreenIds(): string[] {
   return Array.from(screenRegistry.keys()).filter((id) => {
     const sockets = screenRegistry.get(id);
@@ -542,33 +575,7 @@ export function createGateway(): WebSocketServer {
           updateCameraStatus(msg.cameraId, 'waiting');
 
           if (screenTakeover.get(screenId) === msg.label) {
-            screenTakeover.delete(screenId);
-            void getScreenContent(screenId).then((content) => {
-              if (content) {
-                contentCache.set(screenId, content);
-                viewStateCache.delete(screenId);
-
-                const update: WsServerMessage = {
-                  type: 'CONTENT_UPDATE',
-                  screenId,
-                  content,
-                  timestamp: Date.now(),
-                };
-                const frame = JSON.stringify(update);
-                
-                const sockets = screenRegistry.get(screenId);
-                if (sockets) {
-                  for (const sock of sockets) {
-                    if (sock.readyState === WebSocket.OPEN) {
-                      sock.send(frame);
-                    }
-                  }
-                }
-
-                broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
-                emitScreenContentChanged(screenId, content);
-              }
-            });
+            void resetScreenTakeover(screenId);
           }
           break;
         }
