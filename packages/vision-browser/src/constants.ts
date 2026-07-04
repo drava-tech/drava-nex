@@ -2,10 +2,11 @@ import type { VisionConfig } from "./types.js";
 
 export const VISION_DEFAULTS = {
   confidenceThreshold: 0.4,
-  // Raised from 2: the model has no true negative training data (see
-  // services/product-vision/README.md), so more consecutive high-confidence
-  // hits are required to filter out stray false-positive frames.
-  stabilityFrames: 4,
+  // Balance point between false-positive suppression and real-detection
+  // recall — the model has no true negative training data (see
+  // services/product-vision/README.md), so its confidence signal is noisy
+  // in both directions. Retrain is the actual fix; this is a tuning dial.
+  stabilityFrames: 3,
   lostFrames: 10,
   // Closed-loop capture (see useServerDetection.ts) paces itself off the
   // round trip; this is only a floor between attempts, not a fixed cadence.
