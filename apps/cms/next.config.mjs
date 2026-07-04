@@ -22,21 +22,6 @@ const nextConfig = {
       { source: '/ws/:path*',  destination: `${API_INTERNAL}/ws/:path*` },
     ];
   },
-  async headers() {
-    return [
-      {
-        // Cross-origin isolation, scoped to just the screen player routes —
-        // required for onnxruntime-web's threaded WASM backend (browser
-        // camera detection). Not applied site-wide since it can break
-        // unrelated cross-origin resource loading elsewhere in the app.
-        source: '/display/:path*',
-        headers: [
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-        ],
-      },
-    ];
-  },
 };
 
 export default nextConfig;

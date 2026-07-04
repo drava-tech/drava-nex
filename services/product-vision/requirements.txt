@@ -1,4 +1,7 @@
-# Product Vision Service — Python dependencies
+# Product Vision — training tooling dependencies (scripts/, not the server).
+# The inference server uses the pinned requirements-server.txt instead.
+#
+# scripts/parity_test.py additionally needs: pip install onnxruntime
 
 # ── Computer Vision & ML ──────────────────────────────────────────────────────
 # YOLOv8 training + inference (includes torch, torchvision, numpy, cv2 extras)
@@ -12,11 +15,6 @@ opencv-python
 #   https://github.com/IntelRealSense/librealsense/releases/latest
 # Set VISION_CAMERA_BACKEND=opencv to skip this entirely.
 pyrealsense2
-
-# ── Networking ────────────────────────────────────────────────────────────────
-# WebSocket client for sending events to the CMS API gateway
-websockets
-requests
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 # Load .env files

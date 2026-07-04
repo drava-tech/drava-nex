@@ -5,7 +5,6 @@ import type { CameraStatusUpdate, WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
-import { useCameraDetection } from "@/hooks/useCameraDetection";
 import { useServerDetection } from "@/hooks/useServerDetection";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
@@ -126,13 +125,17 @@ export function LiveScreenPlayer({
     }
   }, []);
 
-  const mode = process.env.NEXT_PUBLIC_VISION_INFERENCE_MODE || "browser";
-  const isShowcase = activeContent?.templateKey === "product-showcase";
+  // Pause detection only during an actual detection takeover (showcase with a
+  // resolved product). A showcase template with an empty productId is authored
+  // idle content — detection must keep running over it.
+  const showcaseContent = activeContent?.templateContent?.["product-showcase"] as
+    | { productId?: string }
+    | undefined;
+  const isShowcase =
+    activeContent?.templateKey === "product-showcase" && !!showcaseContent?.productId;
   // ponytail: only capture camera if the user explicitly starts it via the button
-  const runBrowser = mode === "browser" && !isShowcase && cameraActive;
-  const runServer = mode === "server" && !isShowcase && cameraActive;
+  const runServer = !isShowcase && cameraActive;
 
-  useCameraDetection({ screenId, sendRaw, enabled: runBrowser });
   const serverDetection = useServerDetection({ screenId, sendRaw, enabled: runServer });
 
   // Content dispatches a `screen-control` event when the user interacts (touch/

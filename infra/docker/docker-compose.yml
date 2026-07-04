@@ -87,7 +87,6 @@ services:
         NEXT_PUBLIC_API_URL: /api
         NEXT_PUBLIC_WS_URL: /ws
         NEXT_PUBLIC_WS_GATEWAY_URL: /ws
-        NEXT_PUBLIC_VISION_INFERENCE_MODE: ${NEXT_PUBLIC_VISION_INFERENCE_MODE:-browser}
         NEXT_PUBLIC_VISION_WS_URL: ${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
     container_name: cms-admin
     restart: unless-stopped
@@ -102,7 +101,6 @@ services:
       - LOG_DIR=/data/logs
       - BROADCAST_SECRET=${BROADCAST_SECRET}
       - INTERNAL_API_URL=http://api:4000
-      - NEXT_PUBLIC_VISION_INFERENCE_MODE=${NEXT_PUBLIC_VISION_INFERENCE_MODE:-browser}
       - NEXT_PUBLIC_VISION_WS_URL=${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
     expose:
       - "3000" # internal only
@@ -112,63 +110,9 @@ services:
     networks:
       - internal
 
-  # ─── Nginx (only public entry point) ────────────────────────────────────────
-  # Product Vision (Python camera detector) — Model A, always-on. Needs the host
-  # camera exposed to Docker Desktop's WSL2 VM first (see usbipd-win setup notes
-  # in the plan); adjust the device path below to match `usbipd`/`ls /dev/video*`.
-  # Start with: pnpm vision:up  (or: docker compose --profile vision up -d product-vision)
-  product-vision:
-    profiles:
-      - vision
-    build:
-      context: ../../services/product-vision
-      dockerfile: Dockerfile
-    container_name: product-vision
-    restart: unless-stopped
-    env_file:
-      - ../../services/product-vision/.env
-    environment:
-      - CMS_WEBSOCKET_URL=ws://api:4000/ws/
-      - VISION_MODEL_PATH=models/production/coster-v1.pt
-    volumes:
-      - ../../services/product-vision/models:/app/models:ro
-    devices:
-      - "/dev/video0:/dev/video0"
-    group_add:
-      - "video"
-    depends_on:
-      api:
-        condition: service_started
-    networks:
-      - internal
-
-  # Product Vision — Model B, template-gated. Same image/codebase as above, run
-  # as a second instance against a second camera, only active while its mapped
-  # screen is showing VISION_GATE_TEMPLATE_KEY (see services/product-vision/.env.gated).
-  product-vision-gated:
-    profiles:
-      - vision
-    build:
-      context: ../../services/product-vision
-      dockerfile: Dockerfile
-    container_name: product-vision-gated
-    restart: unless-stopped
-    env_file:
-      - ../../services/product-vision/.env.gated
-    environment:
-      - CMS_WEBSOCKET_URL=ws://api:4000/ws/
-    volumes:
-      - ../../services/product-vision/models:/app/models:ro
-    devices:
-      - "/dev/video1:/dev/video0"
-    group_add:
-      - "video"
-    depends_on:
-      api:
-        condition: service_started
-    networks:
-      - internal
-
+  # ─── Vision Inference (GPU) ─────────────────────────────────────────────────
+  # FastAPI + YOLO on CUDA. Model weights are baked into the image at build time.
+  # Start with: pnpm vision-server:up
   vision-inference:
     profiles: [vision-server]
     build:
@@ -180,9 +124,9 @@ services:
       - VISION_SERVER_MODEL_PATH=/app/models/production/coster-v1.pt
       - VISION_SERVER_DEVICE=cuda:0
       - VISION_SERVER_CONF_THRESHOLD=${DETECTION_MIN_CONFIDENCE:-0.4}
+      # Verified against the baked-in weight at startup (see models/production/checksums.txt)
+      - VISION_SERVER_MODEL_SHA256=7d5d63e971db2fcf0d866758c6d6dc1090fdb53e2ae3e4115dc0a8fecc65f6ec
     expose: ["8000"]
-    volumes:
-      - ../../services/product-vision/models:/app/models:ro
     deploy:
       resources:
         reservations:
@@ -199,8 +143,7 @@ services:
     networks:
       - internal
 
-
-
+  # ─── Nginx (only public entry point) ────────────────────────────────────────
   nginx:
     image: nginx:alpine
     container_name: cms-nginx
