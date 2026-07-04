@@ -137,7 +137,9 @@ export function useServerDetection({
             confidence: d.confidence,
             detectedAt: new Date().toISOString(),
           });
-        } else if (event === StabilityEvent.PRODUCT_LOST && !VISION_DEFAULTS.holdProduct) {
+        } else if (event === StabilityEvent.PRODUCT_LOST) {
+          // Auto-revert after lostFrames consecutive misses. The manual
+          // "Reset detection" button still exists for an instant clear.
           sendRawRef.current({
             type: "PRODUCT_LOST",
             cameraId: cid,

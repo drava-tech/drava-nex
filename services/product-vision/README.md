@@ -81,6 +81,15 @@ set PYTHONPATH=src
 
 ## Training a new product
 
+> **Known issue (coster-v1):** `scripts/split_dataset.py` only reads `raw/positive/` —
+> it never wires `raw/background/` into the train/val/test split, so the deployed
+> model was trained with zero true-negative examples. Being single-class with no
+> concept of "not-coster," it is prone to false positives on backgrounds/other
+> objects. Fix `split_dataset.py` to include background images as empty-label
+> negatives, then retrain, before the false-positive rate matters for production.
+> Current mitigation (not a fix): confidence threshold raised to 0.85 and
+> `stabilityFrames` to 4 in `packages/vision-browser/src/constants.ts`.
+
 Uses `requirements.txt` (separate from the server deps) and a local camera.
 
 ```bash
