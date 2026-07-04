@@ -53,10 +53,21 @@ export function useServerDetection({
     let cancelled = false;
     let mediaStream: MediaStream | null = null;
     let video: HTMLVideoElement | null = null;
-    let captureTimer: ReturnType<typeof setInterval> | null = null;
+    let captureTimer: ReturnType<typeof setTimeout> | null = null;
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     let inflight = false;
     const stability = new StabilityFilter(VISION_CONFIG);
+
+    // Closed-loop capture: schedule the next capture only after the previous
+    // frame's response (or error) comes back, instead of a fixed-cadence
+    // timer. This paces the client to the true round-trip time (network +
+    // GPU inference) rather than an arbitrary interval, so it's never
+    // slower than necessary. A tiny floor avoids pegging a CPU core if the
+    // round trip is ever near-zero.
+    function scheduleNextCapture() {
+      if (cancelled) return;
+      captureTimer = setTimeout(captureAndDetect, VISION_DEFAULTS.captureIntervalMs);
+    }
 
     const rawWsUrl = process.env.NEXT_PUBLIC_VISION_WS_URL || "/vision/ws";
     const wsUrl = resolveBrowserWsUrl(rawWsUrl);
@@ -89,6 +100,7 @@ export function useServerDetection({
       if (msg.type === "error") {
         inflight = false;
         console.error("[useServerDetection] Server error:", msg.message);
+        scheduleNextCapture();
         return;
       }
 
@@ -133,6 +145,8 @@ export function useServerDetection({
             lostAt: new Date().toISOString(),
           });
         }
+
+        scheduleNextCapture();
       }
     };
 
@@ -186,7 +200,7 @@ export function useServerDetection({
         document.body.appendChild(video);
         await video.play();
 
-        captureTimer = setInterval(captureAndDetect, VISION_DEFAULTS.captureIntervalMs);
+        scheduleNextCapture();
       } catch (e) {
         console.warn("[useServerDetection] Failed to start:", e);
         sendRawRef.current({
@@ -199,8 +213,15 @@ export function useServerDetection({
     }
 
     async function captureAndDetect() {
-      if (cancelled || inflight || !video) return;
-      if (video.videoWidth === 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (cancelled) return;
+      if (inflight || !video) {
+        scheduleNextCapture();
+        return;
+      }
+      if (video.videoWidth === 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        scheduleNextCapture();
+        return;
+      }
 
       inflight = true;
       try {
@@ -211,12 +232,24 @@ export function useServerDetection({
 
         if (!frameData || cancelled) {
           inflight = false;
+          scheduleNextCapture();
           return;
         }
 
-        client.sendFrame(frameData.blob);
+        const sent = client.sendFrame(frameData.blob);
+        if (sent === -1) {
+          // Socket not open (reconnecting) — no response will arrive to
+          // reschedule us, so retry the loop ourselves.
+          inflight = false;
+          scheduleNextCapture();
+          return;
+        }
+        // Otherwise the response arrives via client.onMessage, which
+        // reschedules the next capture — don't schedule here too, or two
+        // loops would run in parallel.
       } catch (err) {
         inflight = false;
+        scheduleNextCapture();
       }
     }
 
@@ -224,7 +257,7 @@ export function useServerDetection({
 
     return () => {
       cancelled = true;
-      if (captureTimer) clearInterval(captureTimer);
+      if (captureTimer) clearTimeout(captureTimer);
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       client.disconnect();
       if (mediaStream) {
