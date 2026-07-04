@@ -19,6 +19,8 @@ const nextConfig = {
     return [
       // Next.js has no API routes — proxy everything to the single Hono backend.
       { source: '/api/:path*', destination: `${API_INTERNAL}/api/:path*` },
+      { source: '/health',     destination: `${API_INTERNAL}/health` },
+      { source: '/ws',         destination: `${API_INTERNAL}/ws` },
       { source: '/ws/:path*',  destination: `${API_INTERNAL}/ws/:path*` },
     ];
   },

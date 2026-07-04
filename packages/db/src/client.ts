@@ -64,38 +64,44 @@ let DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 
 if (!DATABASE_URL) {
   try {
-    let foundEnvPath = "";
     let currentDir = process.cwd();
-    // Traverse up from process.cwd() to find .env
+    // Traverse up from process.cwd() to find first .env containing DATABASE_URL
     while (true) {
       const checkPath = resolve(currentDir, ".env");
       if (existsSync(checkPath)) {
-        foundEnvPath = checkPath;
-        break;
+        const envContent = readFileSync(checkPath, "utf-8");
+        for (const line of envContent.split(/\r?\n/)) {
+          const match = line.match(/^\s*DATABASE_URL\s*=\s*["']?(.*?)["']?\s*$/);
+          if (match && match[1]) {
+            DATABASE_URL = match[1].trim();
+            process.env["DATABASE_URL"] = DATABASE_URL;
+            break;
+          }
+        }
+        if (DATABASE_URL) break;
       }
       const parentDir = dirname(currentDir);
       if (parentDir === currentDir) break;
       currentDir = parentDir;
     }
 
-    if (!foundEnvPath) {
+    if (!DATABASE_URL) {
       // Fallback to relative to __dirname
-      foundEnvPath = resolve(__dirname, "../../../.env");
-    }
-
-    if (existsSync(foundEnvPath)) {
-      const envContent = readFileSync(foundEnvPath, "utf-8");
-      for (const line of envContent.split(/\r?\n/)) {
-        const match = line.match(/^\s*DATABASE_URL\s*=\s*["']?(.*?)["']?\s*$/);
-        if (match && match[1]) {
-          DATABASE_URL = match[1].trim();
-          process.env["DATABASE_URL"] = DATABASE_URL;
-          break;
+      const fallbackPath = resolve(__dirname, "../../../.env");
+      if (existsSync(fallbackPath)) {
+        const envContent = readFileSync(fallbackPath, "utf-8");
+        for (const line of envContent.split(/\r?\n/)) {
+          const match = line.match(/^\s*DATABASE_URL\s*=\s*["']?(.*?)["']?\s*$/);
+          if (match && match[1]) {
+            DATABASE_URL = match[1].trim();
+            process.env["DATABASE_URL"] = DATABASE_URL;
+            break;
+          }
         }
       }
     }
   } catch (e) {
-    // Ignore if file doesn't exist
+    // Ignore if error
   }
 }
 

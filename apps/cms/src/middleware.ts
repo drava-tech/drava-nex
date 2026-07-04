@@ -5,10 +5,13 @@ const PUBLIC_PATHS = ["/login", "/403"];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Pass through public paths and Next.js internals
+  // Pass through public paths, APIs, WebSockets, health checks, and Next.js internals
+  // ponytail: bypassed /api/ and /ws/ so Next.js dev server proxy rewrites can reach the Hono backend without getting redirected to /login.
   if (
     PUBLIC_PATHS.includes(pathname) ||
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/ws") ||
+    pathname === "/health" ||
     pathname === "/display" ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/_next") ||
