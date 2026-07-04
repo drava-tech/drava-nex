@@ -126,6 +126,8 @@ services:
       - VISION_SERVER_CONF_THRESHOLD=${DETECTION_MIN_CONFIDENCE:-0.4}
       # Verified against the baked-in weight at startup (see models/production/checksums.txt)
       - VISION_SERVER_MODEL_SHA256=7d5d63e971db2fcf0d866758c6d6dc1090fdb53e2ae3e4115dc0a8fecc65f6ec
+      # Headroom above the client's 100ms capture cadence to absorb timer jitter
+      - VISION_SERVER_MIN_FRAME_INTERVAL_MS=50
     expose: ["8000"]
     deploy:
       resources:

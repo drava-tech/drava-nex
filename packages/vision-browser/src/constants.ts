@@ -2,9 +2,9 @@ import type { VisionConfig } from "./types.js";
 
 export const VISION_DEFAULTS = {
   confidenceThreshold: 0.4,
-  stabilityFrames: 5,
+  stabilityFrames: 3,
   lostFrames: 10,
-  captureIntervalMs: 200,
+  captureIntervalMs: 100,
   maxSide: 640,
   quality: 0.75,
   holdProduct: true,

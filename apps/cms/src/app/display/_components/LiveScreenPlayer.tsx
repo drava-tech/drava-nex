@@ -6,6 +6,7 @@ import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { useServerDetection } from "@/hooks/useServerDetection";
+import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
@@ -133,8 +134,11 @@ export function LiveScreenPlayer({
     | undefined;
   const isShowcase =
     activeContent?.templateKey === "product-showcase" && !!showcaseContent?.productId;
-  // ponytail: only capture camera if the user explicitly starts it via the button
-  const runServer = !isShowcase && cameraActive;
+  const hasMappedCamera = Boolean(SCREEN_TO_CAMERA[screenId]);
+  // On the real TV route, detection auto-starts for mapped screens. In preview
+  // (CMS embeds / test tabs) it stays button-controlled so dashboard pages
+  // never grab the operator's webcam uninvited.
+  const runServer = !isShowcase && (preview ? cameraActive : hasMappedCamera);
 
   const serverDetection = useServerDetection({ screenId, sendRaw, enabled: runServer });
 
