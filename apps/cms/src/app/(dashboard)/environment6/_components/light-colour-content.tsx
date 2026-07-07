@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Settings2, Copy } from "lucide-react";
 import { Button } from "@platform/ui";
-import { MiniSlider } from "./controls";
 import { hexToRgb, rgbToHex, hsvToRgb, rgbToHsv, noProp } from "./utils";
 
 export default function LightColourContent({ state, actions }: any) {
@@ -11,11 +10,24 @@ export default function LightColourContent({ state, actions }: any) {
   const [isValidHex, setIsValidHex] = useState(true);
 
   const pickerRef = useRef<HTMLDivElement>(null);
+  const baseColorRef = useRef({ r: 1, g: 1, b: 1, w: 0 });
 
   useEffect(() => {
     setHexInput(state.color.hex);
     setIsValidHex(true);
   }, [state.color.hex]);
+
+  useEffect(() => {
+    const max = Math.max(state.color.r, state.color.g, state.color.b, state.color.w);
+    if (max > 0) {
+      baseColorRef.current = {
+        r: state.color.r / max,
+        g: state.color.g / max,
+        b: state.color.b / max,
+        w: state.color.w / max,
+      };
+    }
+  }, [state.color.r, state.color.g, state.color.b, state.color.w]);
 
   const handleHexChange = (val: string) => {
     setHexInput(val);
@@ -36,8 +48,13 @@ export default function LightColourContent({ state, actions }: any) {
     actions.setColor(newColor);
   };
 
+  const [isDraggingPicker, setIsDraggingPicker] = useState(false);
+  const [internalHsv, setInternalHsv] = useState({ h: 0, v: 0 });
+  const lastPickerCallRef = useRef(0);
+  const [, startTransition] = React.useTransition();
+
   // Spectrum drag logic
-  const handlePickerDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePickerDrag = (e: React.PointerEvent<HTMLDivElement>, isFinal = false) => {
     if (!pickerRef.current) return;
     const rect = pickerRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
@@ -47,34 +64,33 @@ export default function LightColourContent({ state, actions }: any) {
     const s = 1; // Full saturation horizontally in this UI
     const v = 1 - (y / rect.height);
 
-    const { r, g, b } = hsvToRgb(h, s, v);
-    actions.setColor({ ...state.color, r, g, b, hex: rgbToHex(r, g, b) });
-  };
+    setInternalHsv({ h, v });
 
-  const handleBrightnessChange = (pct: number) => {
-    const currentMax = Math.max(state.color.r, state.color.g, state.color.b, state.color.w);
-    if (currentMax === 0) {
-      if (mode === "RGBW") {
-        actions.setColor({ ...state.color, w: Math.round((pct / 100) * 255) });
-      } else {
-        const val = Math.round((pct / 100) * 255);
-        actions.setColor({ ...state.color, r: val, g: val, b: val, hex: rgbToHex(val, val, val) });
-      }
-      return;
+    const now = Date.now();
+    if (isFinal || now - lastPickerCallRef.current > 32) {
+      lastPickerCallRef.current = now;
+      const { r, g, b } = hsvToRgb(h, s, v);
+      startTransition(() => actions.setColor({ ...state.color, r, g, b, hex: rgbToHex(r, g, b) }));
     }
-    const scale = ((pct / 100) * 255) / currentMax;
-    const r = Math.min(255, Math.round(state.color.r * scale));
-    const g = Math.min(255, Math.round(state.color.g * scale));
-    const b = Math.min(255, Math.round(state.color.b * scale));
-    const w = Math.min(255, Math.round(state.color.w * scale));
-    actions.setColor({ ...state.color, r, g, b, w, hex: rgbToHex(r, g, b) });
   };
 
   // Derive handle position and brightness
-  const hsv = rgbToHsv(state.color.r, state.color.g, state.color.b);
-  const handleX = (hsv.h / 360) * 100;
-  const handleY = (1 - hsv.v) * 100;
-  const currentBrightness = Math.round((Math.max(state.color.r, state.color.g, state.color.b, state.color.w) / 255) * 100);
+  const baseRgb = {
+    r: Math.round(baseColorRef.current.r * 255),
+    g: Math.round(baseColorRef.current.g * 255),
+    b: Math.round(baseColorRef.current.b * 255),
+  };
+  const hsv = rgbToHsv(baseRgb.r, baseRgb.g, baseRgb.b);
+  
+  // If the color is completely black, use the base hue so the handle doesn't snap to 0
+  const isBlack = state.color.r === 0 && state.color.g === 0 && state.color.b === 0;
+  const currentHsv = rgbToHsv(state.color.r, state.color.g, state.color.b);
+  const handleX = (isDraggingPicker ? internalHsv.h : (isBlack ? hsv.h : currentHsv.h)) / 360 * 100;
+  const handleY = (1 - (isDraggingPicker ? internalHsv.v : currentHsv.v)) * 100;
+  
+  const currentBrightness = isDraggingPicker
+    ? Math.round((Math.max(internalHsv.v * 255, state.color.w) / 255) * 100)
+    : Math.round((Math.max(state.color.r, state.color.g, state.color.b, state.color.w) / 255) * 100);
 
   return (
     <div className="flex flex-col z-10 relative text-card-foreground" onClick={noProp}>
@@ -105,20 +121,17 @@ export default function LightColourContent({ state, actions }: any) {
             style={{
               background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)`
             }}
-            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); handlePickerDrag(e); }}
-            onPointerMove={(e) => { if (e.buttons > 0) handlePickerDrag(e); }}
-            onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingPicker(true); handlePickerDrag(e); }}
+            onPointerMove={(e) => { if (e.buttons > 0 && isDraggingPicker) handlePickerDrag(e); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingPicker(false); handlePickerDrag(e, true); }}
           >
             <motion.div
               className="absolute w-5 h-5 rounded-full border-[2.5px] border-white shadow-[0_0_8px_rgba(0,0,0,0.6)] -ml-2.5 -mt-2.5 pointer-events-none"
               animate={{ left: `${handleX}%`, top: `${handleY}%` }}
-              transition={{ type: "spring", bounce: 0, duration: 0.2 }}
+              transition={{ type: "spring", bounce: 0, duration: isDraggingPicker ? 0 : 0.2 }}
             />
           </div>
 
-          <div className="pt-2">
-            <MiniSlider label="Brightness" min={0} max={100} suffix="%" color="bg-zinc-900 dark:bg-white" value={currentBrightness} onChange={handleBrightnessChange} />
-          </div>
         </div>
 
         {/* Center Column (~25%) */}

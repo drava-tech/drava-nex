@@ -1,9 +1,21 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
 
-export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-zinc-900 dark:bg-white" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
+export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-zinc-900 dark:bg-white", instant = false }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string, instant?: boolean }) {
   const [dragging, setDragging] = useState(false);
+  const mv = useMotionValue(value);
+  const [, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    if (!dragging) {
+      if (instant) {
+        mv.set(value);
+      } else {
+        animate(mv, value, { type: "spring", stiffness: 60, damping: 15 });
+      }
+    }
+  }, [value, dragging, mv, instant]);
 
   const pctFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -11,32 +23,49 @@ export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix 
     return Math.round(min + (x / rect.width) * (max - min));
   };
 
+  const lastCallRef = React.useRef(0);
+
+  const handleDrag = (e: React.PointerEvent<HTMLDivElement>, isFinal = false) => {
+    const val = pctFromEvent(e);
+    mv.set(val);
+    
+    const now = Date.now();
+    if (isFinal || now - lastCallRef.current > 32) {
+      lastCallRef.current = now;
+      startTransition(() => onChange(val));
+    }
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
-    onChange(pctFromEvent(e));
+    handleDrag(e);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    if (dragging) onChange(pctFromEvent(e));
+    if (dragging) handleDrag(e);
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     e.currentTarget.releasePointerCapture(e.pointerId);
     setDragging(false);
+    handleDrag(e, true);
   };
 
-  const pct = ((value - min) / (max - min)) * 100;
+  const pctMv = useTransform(mv, [min, max], [0, 100]);
+  const widthStr = useTransform(pctMv, p => `${p}%`);
+  const leftStr = useTransform(pctMv, p => `calc(${p}% - 10px)`);
+  const textStr = useTransform(mv, v => `${Math.round(v)}${suffix}`);
 
   return (
     <div className="w-full">
       {label && (
         <div className="flex justify-between items-center mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-          <span className="text-[11px] font-black text-foreground">{value}{suffix}</span>
+          <motion.span className="text-[11px] font-black text-foreground">{textStr}</motion.span>
         </div>
       )}
       <div
@@ -46,11 +75,10 @@ export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className={`absolute left-0 h-full rounded-full ${color}`} style={{ width: `${pct}%`, transition: dragging ? 'none' : 'width 0.15s' }} />
+        <motion.div className={`absolute left-0 h-full rounded-full ${color}`} style={{ width: widthStr }} />
         <motion.div
           className="absolute h-5 w-5 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.15)] rounded-full border border-zinc-200"
-          animate={{ left: `calc(${pct}% - 10px)` }}
-          transition={{ type: "spring", bounce: 0, duration: dragging ? 0 : 0.2 }}
+          style={{ left: leftStr }}
         />
       </div>
     </div>
@@ -66,7 +94,7 @@ export function Switch({ checked, onChange }: { checked: boolean, onChange: (c: 
       <motion.div
         className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-900 shadow-sm`}
         animate={{ x: checked ? 20 : 0 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        transition={{ type: "spring", stiffness: 500, damping: 30, duration: 0.65 }}
       />
     </div>
   );

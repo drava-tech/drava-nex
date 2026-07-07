@@ -14,18 +14,6 @@ const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr
 
 type PanelType = "climate" | "lighting" | "audio";
 
-const transitionProps = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, y: -16, transition: { duration: 0.28, ease: [0.4, 0, 1, 1] } },
-} as any;
-
-const compactTransitionProps = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, y: -12, transition: { duration: 0.25, ease: [0.4, 0, 1, 1] } },
-} as any;
-
 export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("climate");
   const [isClient, setIsClient] = useState(false);
@@ -121,73 +109,65 @@ export function EnvironmentView() {
           </Button>
        </div>
 
-       <div className="flex-1 w-full flex flex-col lg:flex-row gap-6 min-h-0">
-          
-          {/* Left Column (68%) */}
-          <div className="w-full lg:w-[68%] flex flex-col gap-6 min-h-0">
-             {/* Shell 1: Primary Expanded */}
-             <div className="w-full rounded-2xl border bg-card shadow-sm flex flex-col relative overflow-visible flex-1 min-h-0">
-                <AnimatePresence>
-                  <motion.div key={orderedContents[0]} {...transitionProps} className="absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible">
-                    {renderContent(orderedContents[0] as PanelType, true)}
-                  </motion.div>
-                </AnimatePresence>
-             </div>
-             
-             {/* Shell 4: Light Colour Dedicated Panel (Now an overlay modal) */}
-             <AnimatePresence>
-                {focused === "lighting" && showColourPanel && (
-                  <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
-                    onClick={() => setShowColourPanel(false)}
+       <div
+         className="flex-1 w-full grid gap-6 min-h-0"
+         style={{ gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }}
+       >
+          {(["climate", "lighting", "audio"] as PanelType[]).map((type) => {
+            const isPrimary = type === focused;
+            const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : "bottom");
+            return (
+              <motion.div
+                key={type}
+                layout
+                initial={false}
+                animate={{ zIndex: isPrimary ? 50 : 1 }}
+                transition={{ type: "spring", bounce: 0.14, duration: 0.9 }}
+                style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
+                className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
+                onClick={isPrimary ? undefined : () => setFocused(type)}
+              >
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div
+                    key={isPrimary ? "expanded" : "compact"}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.1 } }}
+                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                    className={isPrimary
+                      ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
+                      : "absolute inset-0 w-full h-full p-5 md:p-6 flex flex-col justify-center overflow-y-auto"}
                   >
-                    <motion.div
-                      initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-                      className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="absolute top-6 right-6 z-50">
-                        <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
-                          <X className="w-5 h-5" />
-                        </Button>
-                      </div>
-                      <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
-                    </motion.div>
-                  </motion.div>
-                )}
-             </AnimatePresence>
-          </div>
-
-          {/* Right Column (32%) */}
-          <div className="w-full lg:w-[32%] flex flex-col gap-6 min-h-0">
-             
-             {/* Shell 2: Compact Top */}
-             <div 
-               className="rounded-2xl border bg-card shadow-sm flex flex-col relative cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100 flex-1 min-h-0 overflow-hidden"
-               onClick={() => setFocused(orderedContents[1] as PanelType)}
-             >
-                <AnimatePresence>
-                  <motion.div key={orderedContents[1]} {...compactTransitionProps} className="absolute inset-0 w-full h-full p-5 md:p-6 flex flex-col justify-center overflow-y-auto">
-                    {renderContent(orderedContents[1] as PanelType, false)}
+                    {renderContent(type, isPrimary)}
                   </motion.div>
                 </AnimatePresence>
-             </div>
-
-             {/* Shell 3: Compact Bottom */}
-             <div 
-               className="rounded-2xl border bg-card shadow-sm flex flex-col relative cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100 flex-1 min-h-0 overflow-hidden"
-               onClick={() => setFocused(orderedContents[2] as PanelType)}
-             >
-                <AnimatePresence>
-                  <motion.div key={orderedContents[2]} {...compactTransitionProps} className="absolute inset-0 w-full h-full p-5 md:p-6 flex flex-col justify-center overflow-y-auto">
-                    {renderContent(orderedContents[2] as PanelType, false)}
-                  </motion.div>
-                </AnimatePresence>
-             </div>
-
-          </div>
+              </motion.div>
+            );
+          })}
        </div>
+
+       {/* Modal for Light Colour Dedicated Panel */}
+       <AnimatePresence>
+          {focused === "lighting" && showColourPanel && (
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
+              onClick={() => setShowColourPanel(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+                className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="absolute top-6 right-6 z-50">
+                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+                <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
+              </motion.div>
+            </motion.div>
+          )}
+       </AnimatePresence>
        <div className="h-6 shrink-0" />
 
        <AnimatePresence>
