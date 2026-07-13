@@ -8,6 +8,7 @@ import type { Experience } from "@platform/db";
 import type { ProductListItem } from "@platform/db";
 import { updateExperienceTemplateContent } from "@/actions/experience-actions";
 import { listProductsForPickerAction } from "@/actions/product-actions";
+import { CameraSelector } from "@/components/camera-selector";
 import {
   DEFAULT_PRODUCT_SHOWCASE_CONTENT,
   type ProductShowcaseContent,
@@ -205,6 +206,17 @@ export function ProductShowcaseEditorWorkspace({
                 This product is {selectedProduct.status}. The screen shows it only when ACTIVE.
               </p>
             )}
+          </div>
+
+          {/* Detection camera — only this template needs one */}
+          <div className="flex flex-col gap-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+              Detection Camera
+            </h2>
+            <CameraSelector
+              value={content.cameraId}
+              onChange={(cameraId) => update({ cameraId })}
+            />
           </div>
 
           {/* Section toggles */}

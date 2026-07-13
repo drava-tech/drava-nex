@@ -148,6 +148,10 @@ export interface CameraStatusUpdate {
   status: CameraStatus;
   timestamp: number;
   message?: string;
+  /** Confidence (0-1) of the current best detection guess, if any. */
+  confidence?: number;
+  /** Label of the current best detection guess, if any. */
+  label?: string;
 }
 
 export type WsServerMessage =
@@ -175,7 +179,7 @@ export type WsClientMessage =
   | { type: 'PONG' }
   | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
   | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
-  | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string }
+  | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string; confidence?: number; label?: string }
   // Unreal Engine / external automation subscribes to the event channel. Auth is
   // an API key, sent here or as a `?apiKey=` query param on the WS URL.
   | { type: 'UE_REGISTER'; apiKey?: string }

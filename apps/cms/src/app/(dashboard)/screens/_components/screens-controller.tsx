@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layers, Wifi, Plus, Trash2, SlidersHorizontal } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
@@ -79,6 +79,14 @@ export function ScreensController({
   );
   const [pickerTargetId, setPickerTargetId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyScreenUrl = async (screenId: string) => {
+    const url = `${window.location.origin}/display/${encodeURIComponent(screenId)}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedId(screenId);
+    setTimeout(() => setCopiedId((current) => (current === screenId ? null : current)), 2000);
+  };
 
   // Open the full-page control view for a screen (Dashboard / Screens / <id>).
   const openControl = (screenId: string) => router.push(`/screens/${encodeURIComponent(screenId)}`);
@@ -219,9 +227,23 @@ export function ScreensController({
                             </span>
                           )}
                         </div>
-                        <span className="text-[9px] text-zinc-400 dark:text-zinc-600 mt-0.5 font-mono">
-                          {screen.id}
-                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
+                            {screen.id}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyScreenUrl(screen.id)}
+                            title="Copy display URL"
+                            className="p-0.5 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                          >
+                            {copiedId === screen.id ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       {isAdmin && (
                         <button

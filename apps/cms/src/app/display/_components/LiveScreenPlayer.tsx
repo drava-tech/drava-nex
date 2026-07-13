@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CameraStatusUpdate, WsContent } from "@platform/types";
+import type { WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
@@ -11,8 +11,6 @@ import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
-import { CameraStatusOverlay } from "./CameraStatusOverlay";
-import { CameraPreviewOverlay } from "./CameraPreviewOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
@@ -74,8 +72,6 @@ export function LiveScreenPlayer({
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, queueContent } = useContentPreloader(initial);
-  const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
-  const [cameraActive, setCameraActive] = useState(false);
 
 
   const handleContentUpdate = useCallback(
@@ -112,7 +108,6 @@ export function LiveScreenPlayer({
   const { status, sendContentChangeRequest, sendInteraction, sendRaw } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
-    onCameraStatusUpdate: setCameraStatus,
     onCommand: handleCommand,
     wsUrl,
     preview,
@@ -130,17 +125,27 @@ export function LiveScreenPlayer({
   // resolved product). A showcase template with an empty productId is authored
   // idle content — detection must keep running over it.
   const showcaseContent = activeContent?.templateContent?.["product-showcase"] as
-    | { productId?: string }
+    | { productId?: string; cameraId?: string }
     | undefined;
   const isShowcase =
     activeContent?.templateKey === "product-showcase" && !!showcaseContent?.productId;
-  const hasMappedCamera = Boolean(SCREEN_TO_CAMERA[screenId]);
-  // On the real TV route, detection auto-starts for mapped screens. In preview
-  // (CMS embeds / test tabs) it stays button-controlled so dashboard pages
-  // never grab the operator's webcam uninvited.
-  const runServer = !isShowcase && (preview ? cameraActive : hasMappedCamera);
+  // A product-showcase experience can pin a specific physical camera; otherwise
+  // fall back to the screen's default camera mapping.
+  const effectiveCameraId =
+    (activeContent?.templateKey === "product-showcase" && showcaseContent?.cameraId) ||
+    SCREEN_TO_CAMERA[screenId];
+  const hasMappedCamera = Boolean(effectiveCameraId);
+  // Detection only ever auto-starts on the real TV route for mapped screens.
+  // CMS embeds/previews never touch the camera, so browsing the dashboard
+  // can't grab the operator's own webcam.
+  const runServer = !preview && !isShowcase && hasMappedCamera;
 
-  const serverDetection = useServerDetection({ screenId, sendRaw, enabled: runServer });
+  const serverDetection = useServerDetection({
+    screenId,
+    sendRaw,
+    enabled: runServer,
+    cameraId: effectiveCameraId,
+  });
 
   // Content dispatches a `screen-control` event when the user interacts (touch/
   // click). Relay it over WS so every client of this screen (the TV and any CMS
@@ -202,33 +207,6 @@ export function LiveScreenPlayer({
         />
       )}
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
-      {preview && cameraActive && <CameraStatusOverlay status={cameraStatus} />}
-      {preview && cameraActive && <CameraPreviewOverlay cameraId={cameraStatus?.cameraId} wsUrl={wsUrl} />}
-      {preview && (
-        <button
-          onClick={() => setCameraActive(!cameraActive)}
-          style={{
-            position: "fixed",
-            left: 24,
-            bottom: 24,
-            zIndex: 35,
-            padding: "8px 16px",
-            borderRadius: "10px",
-            fontSize: "10px",
-            fontWeight: "bold",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            cursor: "pointer",
-            border: cameraActive ? "none" : "1px solid rgba(255,255,255,0.2)",
-            backgroundColor: cameraActive ? "#22c55e" : "#18181b",
-            color: cameraActive ? "#ffffff" : "#d4d4d8",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            transition: "background-color 0.2s, color 0.2s",
-          }}
-        >
-          {cameraActive ? "Stop Camera" : "Start Camera"}
-        </button>
-      )}
       {pickerEnabled && (
         <ContentPickerOverlay
           apiUrl={apiUrl}

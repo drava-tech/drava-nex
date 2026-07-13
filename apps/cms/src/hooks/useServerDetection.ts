@@ -18,12 +18,15 @@ interface UseServerDetectionOptions {
   screenId: string;
   sendRaw: (msg: WsClientMessage) => void;
   enabled?: boolean;
+  /** Physical camera to read from. Falls back to the screen's default camera mapping when omitted. */
+  cameraId?: string;
 }
 
 export function useServerDetection({
   screenId,
   sendRaw,
   enabled = true,
+  cameraId,
 }: UseServerDetectionOptions) {
   const sendRawRef = useRef(sendRaw);
   sendRawRef.current = sendRaw;
@@ -31,17 +34,17 @@ export function useServerDetection({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [lastResult, setLastResult] = useState<ServerDetectionResponse | null>(null);
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected");
-  const [cameraId, setCameraId] = useState<string | null>(null);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
 
   const statsRef = useRef({ rttMs: 0, processingTimeMs: 0 });
 
   useEffect(() => {
     if (!enabled) return;
 
-    const resolvedCameraId = SCREEN_TO_CAMERA[screenId];
+    const resolvedCameraId = cameraId || SCREEN_TO_CAMERA[screenId];
     if (!resolvedCameraId) return;
     const cid = resolvedCameraId;
-    setCameraId(cid);
+    setActiveCameraId(cid);
 
     if (typeof window === "undefined" || !navigator.mediaDevices) {
       console.warn(
@@ -128,6 +131,19 @@ export function useServerDetection({
           : null;
 
         const event = stability.update(mappedDetection);
+
+        // Live probability feed: every processed frame reports the current
+        // best-guess confidence, independent of the stability-gated
+        // PRODUCT_DETECTED/LOST events below, so the CMS camera selector can
+        // show a real-time gauge rather than only flipping on a confirmed take.
+        sendRawRef.current({
+          type: "CAMERA_STATUS",
+          cameraId: cid,
+          status: stability.currentDetection ? "detecting" : "waiting",
+          confidence: mappedDetection?.confidence,
+          label: mappedDetection?.label,
+        });
+
         if (event === StabilityEvent.PRODUCT_DETECTED && stability.currentDetection) {
           const d = stability.currentDetection;
           sendRawRef.current({
@@ -271,13 +287,13 @@ export function useServerDetection({
       setStream(null);
       setLastResult(null);
     };
-  }, [screenId, enabled]);
+  }, [screenId, enabled, cameraId]);
 
   return {
     stream,
     lastResult,
     stats: statsRef.current,
     status,
-    cameraId,
+    cameraId: activeCameraId,
   };
 }

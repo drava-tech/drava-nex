@@ -163,6 +163,7 @@ function updateCameraStatus(
   cameraId: string,
   status: CameraStatus,
   message?: string,
+  detection?: { confidence?: number; label?: string },
 ): CameraStatusUpdate | null {
   const screenId = getCameraScreen(cameraId);
   if (!screenId) return null;
@@ -173,6 +174,8 @@ function updateCameraStatus(
     status,
     timestamp: Date.now(),
     ...(message ? { message } : {}),
+    ...(detection?.confidence !== undefined ? { confidence: detection.confidence } : {}),
+    ...(detection?.label !== undefined ? { label: detection.label } : {}),
   };
   cameraStatusCache.set(cameraId, next);
   broadcastCameraStatus(next);
@@ -503,7 +506,10 @@ export function createGateway(): WebSocketServer {
 
         case 'CAMERA_STATUS': {
           noteCameraHeartbeat(msg.cameraId);
-          updateCameraStatus(msg.cameraId, msg.status, msg.message);
+          updateCameraStatus(msg.cameraId, msg.status, msg.message, {
+            confidence: msg.confidence,
+            label: msg.label,
+          });
           break;
         }
 
@@ -511,7 +517,10 @@ export function createGateway(): WebSocketServer {
           const screenId = getCameraScreen(msg.cameraId);
           if (!screenId) break;
           noteCameraHeartbeat(msg.cameraId);
-          updateCameraStatus(msg.cameraId, 'detecting');
+          updateCameraStatus(msg.cameraId, 'detecting', undefined, {
+            confidence: msg.confidence,
+            label: msg.label,
+          });
 
           void resolveDetectedProduct({
             cameraId: msg.cameraId,

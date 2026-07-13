@@ -7,6 +7,8 @@
 export interface ProductShowcaseContent {
   /** The CMS product to display. The template fetches its data at render time. */
   productId: string;
+  /** Physical camera feeding detection for this experience. Empty = fall back to the screen's default camera. */
+  cameraId: string;
   showHero: boolean;
   showFeatures: boolean;
   showSpecifications: boolean;
@@ -19,6 +21,7 @@ export interface ProductShowcaseContent {
 
 export const DEFAULT_PRODUCT_SHOWCASE_CONTENT: ProductShowcaseContent = {
   productId: "",
+  cameraId: "",
   showHero: true,
   showFeatures: true,
   showSpecifications: true,
