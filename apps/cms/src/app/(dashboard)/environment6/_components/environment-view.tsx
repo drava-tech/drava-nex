@@ -14,12 +14,6 @@ const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr
 
 type PanelType = "climate" | "lighting" | "audio";
 
-const flowTransitionProps = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, y: -16, transition: { duration: 0.28, ease: [0.4, 0, 1, 1] } },
-} as any;
-
 const cardLayoutTransition = { type: "spring", bounce: 0.14, duration: 0.9 } as any;
 
 export function EnvironmentView() {
@@ -140,15 +134,19 @@ export function EnvironmentView() {
               <motion.div
                 key={type}
                 layout
+                initial={false}
+                animate={{ zIndex: isPrimary ? 50 : 1 }}
                 transition={cardLayoutTransition}
-                style={{ gridArea: role }}
+                style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
                 className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
                 onClick={isPrimary ? undefined : () => setFocused(type)}
               >
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
                     key={isPrimary ? "expanded" : "compact"}
-                    {...flowTransitionProps}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.1 } }}
+                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
                     className={isPrimary
                       ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
                       : "absolute inset-0 w-full h-full p-5 md:p-6 flex flex-col justify-center overflow-y-auto"}

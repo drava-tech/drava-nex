@@ -39,7 +39,7 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
             <div className="flex flex-col gap-4">
                <div className="space-y-3">
                  <span className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Brightness Control</span>
-                 <MiniSlider label="Master Brightness" value={state.brightness} onChange={actions.setBrightness} max={100} suffix="%" />
+                 <MiniSlider label="Master Brightness" value={state.power ? state.brightness : 0} onChange={actions.setBrightness} max={100} suffix="%" />
                  
                  <div className="space-y-2.5 pt-1">
                     {Object.entries(state.zones).map(([zone, val]) => {
@@ -57,7 +57,7 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
                                </div>
                                <span className="text-[10px] md:text-xs font-black text-foreground">{storedVal}%</span>
                             </div>
-                            <MiniSlider label="" value={storedVal} onChange={(v) => actions.setZoneBrightness(zone, v)} max={100} suffix="" />
+                            <MiniSlider label="" value={state.power ? storedVal : 0} onChange={(v) => actions.setZoneBrightness(zone, v)} max={100} suffix="" />
                          </div>
                        );
                     })}
