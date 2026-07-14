@@ -17,6 +17,7 @@ import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
 import { usersRouter } from './routes/users.js';
+import { visitorsRouter } from './routes/visitors.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
@@ -94,6 +95,7 @@ app.route('/api/projects', projectsRouter);
 app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
 app.route('/api/users', usersRouter);
+app.route('/api/visitors', visitorsRouter);
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

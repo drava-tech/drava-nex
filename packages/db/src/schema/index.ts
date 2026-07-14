@@ -21,6 +21,9 @@ export {
   productMediaPurposeEnum,
 } from "./products.js";
 
+// ─── Visitors (face-recognition entrance tracking) ────────────────────────────
+export { visitor } from "./visitors.js";
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 export {
   userRelations,
@@ -44,6 +47,7 @@ export type { Experience, NewExperience } from "./projects.js";
 export type { ExperienceType, NewExperienceType } from "./experience-types.js";
 export type { Screen, NewScreen } from "./screens.js";
 export type { MediaAsset, NewMediaAsset } from "./media.js";
+export type { Visitor, NewVisitor } from "./visitors.js";
 export type {
   Product,
   NewProduct,

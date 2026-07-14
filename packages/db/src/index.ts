@@ -18,6 +18,7 @@ export * from "./queries/products.js";
 export * from "./queries/api-keys.js";
 export * from "./queries/devices.js";
 export * from "./queries/users.js";
+export * from "./queries/visitors.js";
 
 // ─── Drizzle Utilities ────────────────────────────────────────────────────────
 export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count, isNull, isNotNull } from "drizzle-orm";

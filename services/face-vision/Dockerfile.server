@@ -1,0 +1,31 @@
+# OPTIONAL — Linux-host deployment only (compose profile: face-vision).
+# The primary deployment runs natively on the Windows host: Docker Desktop on
+# Windows cannot pass the RealSense USB device through to a container, and the
+# RTX 3090 is directly usable from Windows via onnxruntime-gpu. Build this only
+# when the stack moves to a Linux host with the RealSense SDK and nvidia
+# container toolkit available.
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-server.txt .
+RUN pip install --no-cache-dir -r requirements-server.txt
+
+COPY src ./src
+
+# Bake the insightface pack into the image so the container is self-contained.
+# The models dir is gitignored — pre-download it on the build machine first
+# (run the service once, or `python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l', root='./models')"`).
+COPY models ./models
+ENV FACE_MODEL_ROOT=/app/models
+ENV FACE_IMAGE_DIR=/data/faces
+
+RUN useradd -m appuser && mkdir -p /data/faces && chown -R appuser:appuser /app /data/faces
+USER appuser
+
+CMD ["python", "-m", "src"]

@@ -12,6 +12,7 @@ import {
   Film,
   Cpu,
   Package,
+  ScanFace,
 } from "lucide-react";
 import {
   Sidebar,
@@ -78,6 +79,12 @@ const ALL_NAV = [
     title: "Users",
     url: "/users",
     icon: Users,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Visitors",
+    url: "/visitors",
+    icon: ScanFace,
     roles: ["ADMIN"] as string[],
   },
   {

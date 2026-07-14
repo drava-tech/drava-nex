@@ -22,8 +22,11 @@ services:
 
   # ponytail: Commented out local postgres service because we want everything
   # to connect directly to the production Postgres database at 192.168.0.250.
+  # NOTE: that server must have the pgvector extension installed (image
+  # pgvector/pgvector:pg16 or postgresql-16-pgvector) before running
+  # `pnpm --filter @platform/db db:migrate` — the visitor table needs it.
   # postgres:
-  #   image: postgres:16-alpine
+  #   image: pgvector/pgvector:pg16
   #   container_name: platform-postgres
   #   restart: unless-stopped
   #   environment:
