@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
   # ponytail: Commented out local postgres service because we want everything
-  # to connect directly to the production Postgres database at 192.168.1.250.
+  # to connect directly to the production Postgres database at 192.168.0.250.
   # postgres:
   #   image: postgres:16-alpine
   #   container_name: platform-postgres
