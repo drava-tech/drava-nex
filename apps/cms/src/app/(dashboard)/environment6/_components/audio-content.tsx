@@ -105,37 +105,40 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
 
   return (
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
-      <div className="flex justify-between items-start shrink-0 mb-4">
+      <div className={`flex justify-between items-start shrink-0 ${isExpanded ? "mb-4" : "mb-2"}`}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
-            <SpeakerIcon className="w-4 h-4" />
+          <div className={`${isExpanded ? "w-8 h-8" : "w-7 h-7"} rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0`}>
+            <SpeakerIcon className={isExpanded ? "w-4 h-4" : "w-3.5 h-3.5"} />
           </div>
-          <h3 className="font-semibold tracking-tight text-lg">Audio</h3>
+          <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Audio</h3>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant={state.power ? "default" : "secondary"} className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest">{state.power ? "● Playing" : "Off"}</Badge>
+        <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
+          <Badge variant={state.power ? "default" : "secondary"} className={`${isExpanded ? "" : "hidden xl:inline-flex"} bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Playing" : "Off"}</Badge>
           <Switch checked={state.power} onChange={actions.setPower} />
         </div>
       </div>
 
       <div className={`flex-1 flex flex-col justify-center transition-all duration-150 ${!state.power ? 'opacity-40 grayscale-[0.8] pointer-events-none' : ''}`}>
         {!isExpanded ? (
-          <div className="flex flex-col pb-2">
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black">{state.muted ? "Mute" : `${state.volume}%`}</span>
-              <span className="text-muted-foreground text-sm font-bold uppercase tracking-wider">Volume</span>
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 leading-none">
+              <span className="text-3xl font-black md:text-[2rem]">{state.muted ? "Mute" : `${state.volume}%`}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Volume</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-blue-500" style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }} />
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex min-h-0 w-full flex-col justify-between gap-4 py-1" onClick={noProp}>
-            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px_112px_minmax(0,1fr)] gap-2 items-stretch">
+          <div className="flex-1 flex min-h-0 w-full flex-col gap-4 lg:gap-6 py-1" onClick={noProp}>
+            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px_112px_minmax(0,1fr)] gap-2 lg:gap-3 items-stretch shrink-0">
               <div className="relative z-30">
                 <button
                   onClick={(e) => { noProp(e); setShowInputOptions((open) => !open); }}
-                  className="h-12 w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-2 py-2 flex flex-col items-center justify-center gap-1 text-blue-500 font-bold transition-all hover:bg-blue-500/15 shadow-[0_0_14px_rgba(59,130,246,0.18)]"
+                  className="h-12 lg:h-16 w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-2 py-2 flex flex-col items-center justify-center gap-1 text-blue-500 font-bold transition-all hover:bg-blue-500/15 shadow-[0_0_14px_rgba(59,130,246,0.18)]"
                 >
-                  <Plug className="w-4 h-4" />
-                  <span className="text-[8px] uppercase tracking-widest">Input {currentInput}</span>
+                  <Plug className="w-4 h-4 lg:w-5 lg:h-5" />
+                  <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">Input {currentInput}</span>
                 </button>
                 <AnimatePresence>
                   {showInputOptions && (
@@ -167,25 +170,25 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
               </div>
               <button
                 onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
-                className={`h-12 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${
+                className={`h-12 lg:h-16 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${
                   state.muted
                     ? 'bg-red-500/10 text-red-500 border-red-500/40 shadow-[0_0_14px_rgba(239,68,68,0.25)]'
                     : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'
                 }`}
               >
-                <VolumeX className="w-4 h-4" />
-                <span className="text-[8px] uppercase tracking-widest">{state.muted ? "Muted" : "Mute"}</span>
+                <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" />
+                <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">{state.muted ? "Muted" : "Mute"}</span>
               </button>
 
               <button
                 onClick={(e) => { noProp(e); analyzerStatus === "listening" ? stopDeviceAnalyzer() : void startDeviceAnalyzer(); }}
-                className={`h-12 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${analyzerStatus === "listening" ? 'bg-blue-500/10 text-blue-500 border-blue-500/40 shadow-[0_0_14px_rgba(59,130,246,0.25)]' : analyzerStatus === "blocked" ? 'bg-red-500/10 text-red-500 border-red-500/40' : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'}`}
+                className={`h-12 lg:h-16 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${analyzerStatus === "listening" ? 'bg-blue-500/10 text-blue-500 border-blue-500/40 shadow-[0_0_14px_rgba(59,130,246,0.25)]' : analyzerStatus === "blocked" ? 'bg-red-500/10 text-red-500 border-red-500/40' : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'}`}
               >
-                <Mic className="w-4 h-4" />
-                <span className="text-[8px] uppercase tracking-widest">{analyzerStatus === "listening" ? "Live" : analyzerStatus === "blocked" ? "Blocked" : "Device"}</span>
+                <Mic className="w-4 h-4 lg:w-5 lg:h-5" />
+                <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">{analyzerStatus === "listening" ? "Live" : analyzerStatus === "blocked" ? "Blocked" : "Device"}</span>
               </button>
 
-              <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
+              <div className="rounded-xl border border-border bg-muted/20 px-3 py-2 lg:px-4 lg:py-3">
                 <MiniSlider
                   label="Bass Control"
                   value={state.bass}
@@ -198,13 +201,13 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
               </div>
             </div>
 
-            <div className="min-w-0">
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-3xl font-black">{state.muted ? 0 : state.volume}<span className="text-lg text-blue-500/50">%</span></span>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Master Volume</span>
+            <div className="min-w-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
+              <div className="flex items-start justify-between mb-2 lg:mb-4 shrink-0">
+                <span className="text-3xl lg:text-5xl font-black">{state.muted ? 0 : state.volume}<span className="text-lg lg:text-2xl text-blue-500/50">%</span></span>
+                <span className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest">Master Volume</span>
               </div>
               <div
-                className="w-full h-20 relative cursor-ew-resize touch-none flex items-end justify-between gap-[2px]"
+                className="w-full h-20 relative cursor-ew-resize touch-none flex items-end justify-between gap-[2px] lg:h-auto lg:flex-1 lg:min-h-0 lg:max-h-40"
                 onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDragging(true); updateVol(e); }}
                 onPointerMove={(e) => { if (isDragging) updateVol(e); }}
                 onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDragging(false); }}
@@ -219,7 +222,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                   );
                 })}
               </div>
-              <p className="text-center text-[9px] font-bold text-blue-500 tracking-widest uppercase opacity-60 mt-2">Slide to adjust</p>
+              <p className="text-center text-[9px] lg:text-[10px] font-bold text-blue-500 tracking-widest uppercase opacity-60 mt-2 lg:mt-3 shrink-0">Slide to adjust</p>
             </div>
           </div>
         )}

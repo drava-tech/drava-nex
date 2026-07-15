@@ -3,6 +3,9 @@
 // --- Product domain (schemas + types) ---
 export * from "./products.js";
 
+// --- Visitor domain (face-recognition entrance tracking) ---
+export * from "./visitors.js";
+
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
 export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase"] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];

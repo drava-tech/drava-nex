@@ -149,7 +149,7 @@ export function EnvironmentView() {
                     exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
                     className={isPrimary
                       ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
-                      : "absolute inset-0 w-full h-full p-5 md:p-6 flex flex-col justify-center overflow-y-auto"}
+                      : "absolute inset-0 w-full h-full p-3 md:p-4 flex flex-col justify-center overflow-hidden"}
                   >
                     {renderContent(type, isPrimary)}
                   </motion.div>

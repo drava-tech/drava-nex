@@ -1,0 +1,11 @@
+# Linux / Docker variant (optional future deployment — see Dockerfile.server).
+# No pyrealsense2: USB passthrough into Docker Desktop on Windows is not
+# supported; the containerised service would receive frames another way or run
+# on a Linux host with the RealSense SDK baked in.
+insightface==0.7.3
+onnxruntime-gpu>=1.18,<1.19
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+psycopg[binary]>=3.2
+pgvector>=0.3.6
+python-dotenv>=1.0
