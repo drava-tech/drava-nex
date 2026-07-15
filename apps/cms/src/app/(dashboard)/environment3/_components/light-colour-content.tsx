@@ -88,7 +88,9 @@ export default function LightColourContent({ state, actions }: any) {
   const handleX = (isDraggingPicker ? internalHsv.h : (isBlack ? hsv.h : currentHsv.h)) / 360 * 100;
   const handleY = (1 - (isDraggingPicker ? internalHsv.v : currentHsv.v)) * 100;
   
-  const currentBrightness = Math.round((Math.max(state.color.r, state.color.g, state.color.b, state.color.w) / 255) * 100);
+  const currentBrightness = isDraggingPicker
+    ? Math.round((Math.max(internalHsv.v * 255, state.color.w) / 255) * 100)
+    : Math.round((Math.max(state.color.r, state.color.g, state.color.b, state.color.w) / 255) * 100);
 
   return (
     <div className="flex flex-col z-10 relative text-card-foreground" onClick={noProp}>

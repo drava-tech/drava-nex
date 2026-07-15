@@ -14,11 +14,22 @@ const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr
 
 type PanelType = "climate" | "lighting" | "audio";
 
+const cardLayoutTransition = { type: "spring", bounce: 0.14, duration: 0.9 } as any;
+
 export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("climate");
   const [isClient, setIsClient] = useState(false);
   const [showColourPanel, setShowColourPanel] = useState(false);
   const [show3D, setShow3D] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(true);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // States
   const [climate, setClimate] = useState({
@@ -111,7 +122,10 @@ export function EnvironmentView() {
 
        <div
          className="flex-1 w-full grid gap-6 min-h-0"
-         style={{ gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }}
+         style={isDesktop
+           ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }
+           : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto", gridTemplateAreas: '"primary" "top" "bottom"' }
+         }
        >
           {(["climate", "lighting", "audio"] as PanelType[]).map((type) => {
             const isPrimary = type === focused;
@@ -122,7 +136,7 @@ export function EnvironmentView() {
                 layout
                 initial={false}
                 animate={{ zIndex: isPrimary ? 50 : 1 }}
-                transition={{ type: "spring", bounce: 0.14, duration: 0.9 }}
+                transition={cardLayoutTransition}
                 style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
                 className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
                 onClick={isPrimary ? undefined : () => setFocused(type)}
@@ -145,7 +159,6 @@ export function EnvironmentView() {
           })}
        </div>
 
-       {/* Modal for Light Colour Dedicated Panel */}
        <AnimatePresence>
           {focused === "lighting" && showColourPanel && (
             <motion.div 
@@ -168,7 +181,6 @@ export function EnvironmentView() {
             </motion.div>
           )}
        </AnimatePresence>
-       <div className="h-6 shrink-0" />
 
        <AnimatePresence>
          {show3D && (

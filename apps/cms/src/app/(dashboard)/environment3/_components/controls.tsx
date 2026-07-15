@@ -94,7 +94,7 @@ export function Switch({ checked, onChange }: { checked: boolean, onChange: (c: 
       <motion.div
         className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-900 shadow-sm`}
         animate={{ x: checked ? 20 : 0 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30, duration: 0.65 }}
+        transition={{ type: "spring", stiffness: 500, damping: 30 }}
       />
     </div>
   );
