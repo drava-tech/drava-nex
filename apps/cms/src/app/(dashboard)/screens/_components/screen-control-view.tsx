@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Camera, Wifi, WifiOff, Layers } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { assignExperience, assignMedia, resetDetection } from "@/actions/screen-actions";
+import { assignExperience, assignMedia, assignDefaultMedia, resetDetection } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { ScreenMirror } from "./screen-mirror";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
@@ -13,6 +13,8 @@ interface ScreenControlViewProps {
   screenId: string;
   screenName: string;
   experiences: { id: string; title: string }[];
+  defaultMediaAssetId?: string | null;
+  defaultMediaName?: string | null;
 }
 
 /**
@@ -20,11 +22,21 @@ interface ScreenControlViewProps {
  * screen player (touch to explore); interactions relay to every client of the
  * screen so the TV stays in sync. "Change content" reuses the assignment picker.
  */
-export function ScreenControlView({ screenId, screenName, experiences }: ScreenControlViewProps) {
+export function ScreenControlView({
+  screenId,
+  screenName,
+  experiences,
+  defaultMediaAssetId = null,
+  defaultMediaName = null,
+}: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
+    id: defaultMediaAssetId,
+    name: defaultMediaName,
+  });
 
   const handleResetDetection = async () => {
     setResetting(true);
@@ -54,6 +66,16 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
     }
   };
 
+  const handleSetDefault = async (item: { id: string; name: string }) => {
+    setCurrentDefault({ id: item.id, name: item.name });
+    try {
+      await assignDefaultMedia(screenId, item.id);
+    } catch (err) {
+      console.error("Failed to set default media:", err);
+      setCurrentDefault({ id: defaultMediaAssetId, name: defaultMediaName });
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Action bar */}
@@ -73,6 +95,14 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
             {screenName}
           </h1>
           {cameraStatus && <CameraStatusBadge status={cameraStatus} />}
+          {currentDefault.name && (
+            <span
+              className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
+              title="Shown when nothing else is assigned"
+            >
+              Default: {currentDefault.name}
+            </span>
+          )}
           <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
             · touch to explore — mirrored on the TV in realtime
           </span>
@@ -107,7 +137,9 @@ export function ScreenControlView({ screenId, screenName, experiences }: ScreenC
         <ScreenAssignmentPicker
           screenName={screenName}
           experiences={experiences}
+          currentDefaultMediaAssetId={currentDefault.id}
           onAssign={handleAssign}
+          onSetDefault={handleSetDefault}
           onClose={() => setShowPicker(false)}
         />
       )}

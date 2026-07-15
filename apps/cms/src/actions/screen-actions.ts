@@ -86,6 +86,18 @@ export async function assignMedia(screenId: string, mediaAssetId: string) {
   revalidatePath("/");
 }
 
+/** Set (or clear with null) a screen's default/fallback video, shown when nothing else is assigned. */
+export async function assignDefaultMedia(screenId: string, mediaAssetId: string | null) {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/default-media`, {
+    method: "POST",
+    body: JSON.stringify({ mediaAssetId }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}
+
 export async function resetDetection(screenId: string) {
   await requireAdmin();
   const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/reset-detection`, {

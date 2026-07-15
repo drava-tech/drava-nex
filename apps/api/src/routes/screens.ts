@@ -6,6 +6,7 @@ import {
   deleteScreen,
   setScreenExperience,
   setScreenMedia,
+  setScreenDefaultMedia,
   getScreenContent,
   screenExists,
 } from "@platform/db";
@@ -108,6 +109,24 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenMedia(screenId, body.mediaAssetId);
+  const content = await pushScreenContent(screenId);
+  return ok(c, { screenId, content });
+});
+
+const assignDefaultMediaSchema = z.object({ mediaAssetId: z.string().min(1).nullable() });
+
+// POST /api/screens/:id/default-media — set (or clear) the screen's fallback
+// video/image, shown when nothing is currently assigned. Re-pushes content in
+// case the screen is idle right now, so the new default takes effect live.
+screensRouter.post("/:id/default-media", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = assignDefaultMediaSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  await setScreenDefaultMedia(screenId, body.mediaAssetId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });

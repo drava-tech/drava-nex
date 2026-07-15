@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { db, screen, eq, and, isNull } from "@platform/db";
+import { db, screen, mediaAsset, eq, and, isNull } from "@platform/db";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getExperiences } from "@/actions/project-actions";
 import { ScreenControlView } from "@/app/(dashboard)/screens/_components/screen-control-view";
@@ -19,8 +19,16 @@ export default async function ScreenControlPage({ params }: PageProps) {
   const { screenId } = await params;
 
   const [row] = await db
-    .select({ screenName: screen.screenName })
+    .select({
+      screenName: screen.screenName,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      defaultMediaName: mediaAsset.name,
+    })
     .from(screen)
+    .leftJoin(
+      mediaAsset,
+      and(eq(screen.defaultMediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt))
+    )
     .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
     .limit(1);
 
@@ -33,6 +41,8 @@ export default async function ScreenControlPage({ params }: PageProps) {
       screenId={screenId}
       screenName={row.screenName}
       experiences={experiences}
+      defaultMediaAssetId={row.defaultMediaAssetId}
+      defaultMediaName={row.defaultMediaName}
     />
   );
 }

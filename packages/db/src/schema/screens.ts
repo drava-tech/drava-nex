@@ -28,6 +28,12 @@ export const screen = pgTable(
       () => mediaAsset.id,
       { onDelete: "set null" }
     ),
+    // Fallback video/image shown when nothing is currently assigned (and once a
+    // camera-detection takeover ends with no other assignment to fall back to).
+    defaultMediaAssetId: text("default_media_asset_id").references(
+      () => mediaAsset.id,
+      { onDelete: "set null" }
+    ),
     position: integer("position").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -40,6 +46,7 @@ export const screen = pgTable(
   (table) => [
     index("screen_current_experience_idx").on(table.currentExperienceId),
     index("screen_current_media_asset_idx").on(table.currentMediaAssetId),
+    index("screen_default_media_asset_idx").on(table.defaultMediaAssetId),
     index("screen_deleted_at_idx").on(table.deletedAt),
   ]
 );
