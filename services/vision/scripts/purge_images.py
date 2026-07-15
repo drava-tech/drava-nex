@@ -5,7 +5,7 @@ The visitor row (embedding, timestamps, name/email) is kept so recognition
 keeps working; only image_path is set to NULL. A second pass removes orphan
 JPEGs that have no matching row (leftovers from crashes mid-enroll).
 
-Usage (from services/face-vision/, venv active):
+Usage (from services/vision/, venv active):
     python scripts/purge_images.py [--dry-run]
 
 Schedule daily, e.g. Windows Task Scheduler:
@@ -23,8 +23,9 @@ import time
 
 import psycopg
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import load_config  # noqa: E402
+# Put services/ (the parent of the `vision` package) on the path.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from vision.config import load_config  # noqa: E402
 
 log = logging.getLogger("purge-images")
 

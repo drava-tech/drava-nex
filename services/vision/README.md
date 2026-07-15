@@ -1,71 +1,66 @@
-# Face Vision Service
+# Vision Service
 
-Entrance visitor recognition: reads the Intel RealSense colour stream, detects
-faces on the RTX 3090 (insightface `buffalo_l`: SCRFD detector + ArcFace 512-d
-embeddings), matches them against PostgreSQL + pgvector by cosine distance and
-either bumps an existing visitor's `last_seen` or enrolls a new anonymous
-visitor (blank name/email, role `guest`) with a cropped face JPEG. Staff assign
-names later in the CMS **Visitors** page.
+Headless GPU vision for the platform. **This iteration ships face detection
+only** (people at entrance cameras); object/product detection is stubbed and
+added later without restructuring (see `workers/object.py`, `engines/object.py`).
+
+A **supervisor** owns the camera fleet and runs **one worker subprocess per
+camera** (isolated so the face runtime and the future YOLO runtime never share a
+process). Each people-worker: reads its camera → detects faces on the RTX 3090
+(insightface `buffalo_l`: SCRFD + ArcFace 512-d) → matches against
+PostgreSQL + pgvector by cosine distance → bumps `last_seen` or enrolls a new
+anonymous visitor (blank name/email, role `guest`) with a cropped JPEG. Each
+detection also fires a fire-and-forget `VISITOR_DETECTED` event to the API so
+the CMS Visitors page updates live. Staff name visitors later in the CMS.
 
 ## Prerequisites
 
-- **Postgres with pgvector** — the `visitor` table and `vector` extension come
-  from the Drizzle migrations in `packages/db` (`pnpm --filter @platform/db db:migrate`).
-  The DB server must have pgvector installed first (image `pgvector/pgvector:pg16`,
-  or `apt install postgresql-16-pgvector`); `CREATE EXTENSION` needs superuser once.
-- **NVIDIA GPU + CUDA 12.x / cuDNN 8.9** on the host (matches `onnxruntime-gpu` 1.18.x
-  pinned in `requirements.txt`; with cuDNN 9 use onnxruntime-gpu ≥ 1.19).
-- **Intel RealSense SDK 2.0** for the `realsense` backend
-  (https://github.com/IntelRealSense/librealsense/releases). Any USB webcam
-  works for development via the `opencv` backend.
-- `insightface` compiles a Cython extension on install — have MSVC Build Tools
-  available, or install a prebuilt wheel.
+- **Postgres with pgvector** — the `visitor` table + `vector` extension come from
+  the Drizzle migrations in `packages/db` (`pnpm --filter @platform/db db:migrate`).
+- **NVIDIA GPU + CUDA 12.x / cuDNN 8.9** (matches `onnxruntime-gpu` 1.18.x; with
+  cuDNN 9 use onnxruntime-gpu ≥ 1.19).
+- **Intel RealSense SDK 2.0** for `realsense` cameras; any USB webcam works for
+  dev via the `opencv` backend.
+- `insightface` builds a Cython extension on install — MSVC Build Tools or a
+  prebuilt wheel.
 
-## Run (native Windows — the primary deployment)
+## Run (native Windows — primary deployment)
 
 ```powershell
-cd services\face-vision
+cd services\vision
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env      # set FACE_DATABASE_URL etc.
-python -m src
+copy .env.example .env      # set VISION_DATABASE_URL, VISION_API_URL, BROADCAST_SECRET, VISION_CAMERAS
+cd ..                       # run from services/ so the `vision` package resolves
+python -m vision
 ```
 
-The `buffalo_l` pack (~300 MB) auto-downloads into `./models` on first start.
+`VISION_CAMERAS` is a JSON array — one entry per camera. `buffalo_l` (~300 MB)
+auto-downloads into `./models` on first start. For unattended startup, register
+`python -m vision` (with the venv python, working dir `services/`) in Task
+Scheduler ("At startup") or as an NSSM service.
 
-This service is intentionally **not** part of the Docker compose stack on
-Windows: Docker Desktop cannot pass the RealSense USB device into a container.
-For a future Linux host, `Dockerfile.server` + the `face-vision` compose
-profile exist. For unattended startup on Windows, register `python -m src`
-(with the venv's python) in Task Scheduler ("At startup") or as an NSSM service.
+Not part of the Docker stack on Windows: Docker Desktop can't pass USB/RealSense
+cameras into a container. `Dockerfile.server` exists for a future Linux host.
 
 ## Camera placement
 
-Aim the camera outward across the room toward the entrance, not straight
-down — steep top-down angles distort facial proportions and shadow the eyes.
-Small background faces are ignored (`FACE_MIN_BBOX_PX`); a person only triggers
-identification once they are close enough to fill a meaningful part of the frame.
-The RealSense unit must be dedicated to this service (it cannot be shared with
-the product-vision capture client).
+Aim each camera outward across the room toward the entrance, not straight down.
+Small background faces are ignored (`VISION_MIN_BBOX_PX`); a person triggers
+identification only once close enough to fill a meaningful part of the frame.
 
 ## Scripts
 
 - `python scripts/test_camera.py` — grab a frame from the configured backend.
 - `python scripts/enroll_test.py a.jpg b.jpg …` — pairwise cosine distances to
-  tune `FACE_MATCH_MAX_DISTANCE` (no DB writes).
+  tune `VISION_MATCH_MAX_DISTANCE` (no DB writes).
 - `python scripts/purge_images.py [--dry-run]` — delete face JPEGs older than
-  `FACE_IMAGE_RETENTION_DAYS`, keeping the embedding rows (anonymization).
-  Schedule daily via Task Scheduler.
+  `VISION_IMAGE_RETENTION_DAYS`, keeping embeddings (anonymization). Schedule daily.
 
-## How matching works
+## Adding object detection later
 
-pgvector's `<=>` operator returns cosine distance (1 − cosine similarity) over
-the HNSW-indexed `visitor.embedding` column. A track is identified once from
-its best (sharpest/largest) face view; distance ≤ `FACE_MATCH_MAX_DISTANCE`
-(default 0.5) is a match, anything above enrolls a new visitor. The default is
-deliberately strict: a false merge pollutes an identity file, while a false
-new-enroll is just a duplicate row that staff can spot in the CMS. Per-visitor
-`last_seen` writes are debounced by `FACE_COOLDOWN_SECONDS`, and a simple IoU
-tracker keeps concurrent people in a group separated so each is matched or
-enrolled individually.
+Fill `workers/object.py` + `engines/object.py`; add `requirements-object.txt`
+(ultralytics/torch, cuDNN 9, separate venv/process); implement the
+`PRODUCT_DETECTED` case in `apps/api/src/routes/internal.ts`; add an `OBJECT`
+entry to `VISION_CAMERAS`. No directory moves, no API/type changes.

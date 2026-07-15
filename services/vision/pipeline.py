@@ -17,21 +17,27 @@ from __future__ import annotations
 import logging
 import signal
 import time
+from datetime import datetime, timezone
 
 from .camera import make_camera
 from .config import Config, load_config
 from .db import Db
-from .engine import FaceEngine
+from .engines.face import FaceEngine
+from .events import Events
 from .matcher import Matcher
 from .storage import ensure_image_dir, save_face_crop
 from .tracker import IouTracker, Track, TrackState
 
-log = logging.getLogger("face-vision")
+log = logging.getLogger("vision.people")
 
 
 def _min_side(bbox) -> float:
     x1, y1, x2, y2 = (float(v) for v in bbox[:4])
     return min(x2 - x1, y2 - y1)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class Pipeline:
@@ -41,6 +47,7 @@ class Pipeline:
         self._engine = FaceEngine(cfg)
         self._tracker = IouTracker(cfg)
         self._matcher = Matcher(cfg, self._db)
+        self._events = Events(cfg)
         self._running = False
         # per-second stats
         self._frames = 0
@@ -54,12 +61,16 @@ class Pipeline:
 
         if nearest is not None and nearest[1] <= self._cfg.match_max_distance:
             visitor_uuid, distance = nearest
-            self._matcher.touch(visitor_uuid)
+            wrote = self._matcher.touch(visitor_uuid)
             self._matches += 1
             log.info(
                 "[pipeline] Track %d matched visitor %s (distance %.3f)",
                 track.track_id, visitor_uuid, distance,
             )
+            if wrote:
+                # name="" — the CMS already has it from GET /api/visitors; this
+                # event only triggers a reorder/last-seen bump in the live list.
+                self._events.emit_visitor(visitor_uuid, "", False, _now_iso(), False)
         else:
             visitor_uuid = self._matcher.enroll(embedding)
             filename = save_face_crop(self._cfg, frame, track.best_face.bbox, visitor_uuid)
@@ -71,6 +82,7 @@ class Pipeline:
                 track.track_id, visitor_uuid,
                 f"{nearest[1]:.3f}" if nearest else "n/a — empty table",
             )
+            self._events.emit_visitor(visitor_uuid, "", True, _now_iso(), filename is not None)
 
         track.visitor_uuid = visitor_uuid
         track.state = TrackState.IDENTIFIED
@@ -102,7 +114,8 @@ class Pipeline:
                 if track.confirm_count >= self._cfg.track_confirm_frames:
                     self._identify(track, frame)
             elif track.visitor_uuid is not None:
-                self._matcher.touch(track.visitor_uuid)
+                if self._matcher.touch(track.visitor_uuid):
+                    self._events.emit_visitor(track.visitor_uuid, "", False, _now_iso(), False)
                 if now - track.last_verify_ts > self._cfg.reverify_seconds:
                     self._reverify(track)
 
@@ -135,13 +148,15 @@ class Pipeline:
                 now = time.monotonic()
                 if now - last_stats >= 10.0:
                     elapsed = now - last_stats
+                    fps = self._frames / elapsed
                     log.info(
                         "[pipeline] %.1f fps | %d active tracks | %d matches | %d enrolls",
-                        self._frames / elapsed,
+                        fps,
                         len(self._tracker.tracks),
                         self._matches,
                         self._enrolls,
                     )
+                    self._events.emit_status(self._cfg.camera_id, "detecting", fps)
                     self._frames = 0
                     self._matches = 0
                     self._enrolls = 0
@@ -150,6 +165,8 @@ class Pipeline:
         finally:
             camera.stop()
             self._db.close()
+            self._events.emit_status(self._cfg.camera_id, "offline")
+            self._events.close()
             log.info("[pipeline] Stopped.")
 
 

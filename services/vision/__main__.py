@@ -1,5 +1,12 @@
-"""Entry point: `python -m src` from services/face-vision/."""
+"""Entry point: `python -m vision` (run from services/) → supervisor."""
 
-from .pipeline import main
+import logging
 
-main()
+from .supervisor import run
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    run()

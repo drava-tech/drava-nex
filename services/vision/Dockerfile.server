@@ -1,9 +1,9 @@
-# OPTIONAL — Linux-host deployment only (compose profile: face-vision).
+# OPTIONAL — Linux-host deployment only.
 # The primary deployment runs natively on the Windows host: Docker Desktop on
-# Windows cannot pass the RealSense USB device through to a container, and the
+# Windows cannot pass USB / RealSense cameras through to a container, and the
 # RTX 3090 is directly usable from Windows via onnxruntime-gpu. Build this only
-# when the stack moves to a Linux host with the RealSense SDK and nvidia
-# container toolkit available.
+# when the stack moves to a Linux host with the camera SDKs and the nvidia
+# container toolkit available. Face-detection (PEOPLE) mode only.
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,16 +16,17 @@ WORKDIR /app
 COPY requirements-server.txt .
 RUN pip install --no-cache-dir -r requirements-server.txt
 
-COPY src ./src
+# The `vision` package sits at /app/vision so `python -m vision` resolves.
+COPY . /app/vision
 
 # Bake the insightface pack into the image so the container is self-contained.
 # The models dir is gitignored — pre-download it on the build machine first
 # (run the service once, or `python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l', root='./models')"`).
-COPY models ./models
-ENV FACE_MODEL_ROOT=/app/models
-ENV FACE_IMAGE_DIR=/data/faces
+ENV VISION_MODEL_ROOT=/app/vision/models
+ENV VISION_IMAGE_DIR=/data/faces
+ENV PYTHONPATH=/app
 
 RUN useradd -m appuser && mkdir -p /data/faces && chown -R appuser:appuser /app /data/faces
 USER appuser
 
-CMD ["python", "-m", "src"]
+CMD ["python", "-m", "vision"]

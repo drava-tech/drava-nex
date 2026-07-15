@@ -3,4 +3,6 @@
 __pycache__/
 *.pyc
 data/
-models/
+# Keep the models/ dir (placeholder) but ignore the downloaded packs inside it.
+models/*
+!models/.gitkeep
