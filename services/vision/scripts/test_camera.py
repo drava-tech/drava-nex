@@ -15,9 +15,9 @@ import sys
 
 import cv2
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.camera import make_camera  # noqa: E402
-from src.config import load_config  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from vision.camera import make_camera  # noqa: E402
+from vision.config import load_config  # noqa: E402
 
 
 def main() -> None:

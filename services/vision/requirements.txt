@@ -1,0 +1,15 @@
+# Native Windows host (RTX 3090) — primary deployment. Face detection only.
+# onnxruntime-gpu 1.18.x pairs with CUDA 12.x + cuDNN 8.9.x on the host.
+# If the host has cuDNN 9, move to onnxruntime-gpu>=1.19 instead.
+#
+# Object detection is NOT included here: ultralytics + torch bundle cuDNN 9 and
+# clash with onnxruntime-gpu 1.18 in one process. When built, it goes in a
+# separate requirements-object.txt and runs as its own subprocess.
+insightface==0.7.3
+onnxruntime-gpu>=1.18,<1.19
+opencv-python==4.10.0.84
+numpy==1.26.4
+psycopg[binary]>=3.2
+pgvector>=0.3.6
+python-dotenv>=1.0
+pyrealsense2>=2.55

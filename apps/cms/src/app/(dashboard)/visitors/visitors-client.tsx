@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Badge } from "@platform/ui";
 import { updateVisitor } from "@/actions/visitor-actions";
+import { useCmsScreenSync, type VisitorDetectedEvent } from "@/hooks/useCmsScreenSync";
 import type { VisitorListItem } from "@platform/types";
 
 interface Props {
@@ -33,6 +34,47 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
   const [form, setForm] = useState({ name: "", email: "" });
   const [error, setError] = useState<string | null>(null);
 
+  // Live list — seeded from the server render, then mutated by WS events.
+  const [items, setItems] = useState<VisitorListItem[]>(visitors);
+  const [live, setLive] = useState(false);
+  // Re-seed when the server re-renders (page / search navigation).
+  useEffect(() => setItems(visitors), [visitors]);
+
+  const onVisitorDetected = useCallback(
+    (v: VisitorDetectedEvent) => {
+      setItems((prev) => {
+        const idx = prev.findIndex((x) => x.uuid === v.uuid);
+        if (idx >= 0) {
+          // Known visitor — bump last_seen and float to the top.
+          const updated: VisitorListItem = {
+            ...prev[idx]!,
+            lastSeen: v.lastSeen,
+            hasImage: prev[idx]!.hasImage || v.hasImage,
+          };
+          const next = prev.slice();
+          next.splice(idx, 1);
+          return [updated, ...next];
+        }
+        // New visitor — only inject on the first, unfiltered page so we don't
+        // pollute a searched/paginated view.
+        if (page !== 1 || search) return prev;
+        const fresh: VisitorListItem = {
+          uuid: v.uuid,
+          name: v.name,
+          email: "",
+          role: "guest",
+          hasImage: v.hasImage,
+          firstSeen: v.lastSeen,
+          lastSeen: v.lastSeen,
+        };
+        return [fresh, ...prev];
+      });
+    },
+    [page, search]
+  );
+
+  useCmsScreenSync({ onVisitorDetected, onConnectionChange: setLive });
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   function navigate(nextPage: number, nextSearch: string) {
@@ -53,9 +95,16 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
 
   function handleSave(uuid: string) {
     setError(null);
+    const patch = { ...form };
     startTransition(async () => {
       try {
-        await updateVisitor(uuid, form);
+        await updateVisitor(uuid, patch);
+        // Reflect the edit in the live list without a full refetch.
+        setItems((prev) =>
+          prev.map((x) =>
+            x.uuid === uuid ? { ...x, name: patch.name, email: patch.email } : x
+          )
+        );
         setEditing(null);
       } catch (err) {
         setError((err as Error).message);
@@ -82,7 +131,18 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
         <Button type="submit" size="sm" variant="secondary">
           Search
         </Button>
-        <span className="ml-auto text-sm text-muted-foreground">
+        <span
+          className={`ml-auto inline-flex items-center gap-1.5 text-xs font-medium ${
+            live ? "text-green-600" : "text-muted-foreground"
+          }`}
+          title={live ? "Receiving live detections" : "Reconnecting…"}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-muted-foreground/50"}`}
+          />
+          {live ? "Live" : "Offline"}
+        </span>
+        <span className="text-sm text-muted-foreground">
           {total} visitor{total === 1 ? "" : "s"}
         </span>
       </form>
@@ -103,14 +163,14 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
             </tr>
           </thead>
           <tbody>
-            {visitors.length === 0 && (
+            {items.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   No visitors yet.
                 </td>
               </tr>
             )}
-            {visitors.map((v) => (
+            {items.map((v) => (
               <tr key={v.uuid} className="border-b last:border-0">
                 <td className="px-4 py-2">
                   {v.hasImage ? (

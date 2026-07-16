@@ -22,8 +22,9 @@ import { ok, fail } from "../lib/response.js";
 // in both processes). They are biometric PII, so they are streamed through
 // this admin-authenticated route — never exposed as static files.
 const FACE_IMAGE_DIR =
+  process.env["VISION_IMAGE_DIR"] ??
   process.env["FACE_IMAGE_DIR"] ??
-  path.join(process.cwd(), "../../services/face-vision/data/faces");
+  path.join(process.cwd(), "../../services/vision/data/faces");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

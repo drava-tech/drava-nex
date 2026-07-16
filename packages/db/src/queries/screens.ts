@@ -1,4 +1,5 @@
 import { eq, and, isNull, asc, desc } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { WsContent } from "@platform/types";
 import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
@@ -22,7 +23,10 @@ export async function listScreens(): Promise<{
   mediaType: string | null;
   mediaUrl: string | null;
   mediaName: string | null;
+  defaultMediaAssetId: string | null;
+  defaultMediaName: string | null;
 }[]> {
+  const defaultMedia = alias(mediaAsset, "default_media");
   return db
     .select({
       screenId: screen.screenId,
@@ -34,6 +38,8 @@ export async function listScreens(): Promise<{
       mediaType: mediaAsset.type,
       mediaUrl: mediaAsset.url,
       mediaName: mediaAsset.name,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      defaultMediaName: defaultMedia.name,
     })
     .from(screen)
     .leftJoin(
@@ -44,6 +50,10 @@ export async function listScreens(): Promise<{
       mediaAsset,
       and(eq(screen.currentMediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt))
     )
+    .leftJoin(
+      defaultMedia,
+      and(eq(screen.defaultMediaAssetId, defaultMedia.id), isNull(defaultMedia.deletedAt))
+    )
     .where(isNull(screen.deletedAt))
     .orderBy(asc(screen.position), desc(screen.createdAt));
 }
@@ -52,11 +62,15 @@ export async function listScreens(): Promise<{
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
  * assigned (or the referenced content was deleted). Resolves by the screen's
  * content kind: a media asset → a video/image, an experience → its template.
+ * Falls back to the screen's default media (if set) when there is no active
+ * assignment — this is also what a camera-detection takeover reverts to once
+ * it ends (see resetScreenTakeover in the API's WS gateway).
  */
 export async function getScreenContent(screenId: string): Promise<WsContent | null> {
   const [row] = await db
     .select({
       kind: screen.currentContentKind,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
       experienceId: experience.id,
       experienceName: experience.name,
       templateKey: experience.templateKey,
@@ -100,6 +114,32 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
       templateKey: row.templateKey ?? undefined,
       templateContent: row.templateContent ?? undefined,
     };
+  }
+
+  // Nothing active (or the active reference was deleted) — fall back to the
+  // screen's default video/image, if one is set.
+  if (row.defaultMediaAssetId) {
+    const [defaultMedia] = await db
+      .select({
+        id: mediaAsset.id,
+        type: mediaAsset.type,
+        url: mediaAsset.url,
+        name: mediaAsset.name,
+      })
+      .from(mediaAsset)
+      .where(and(eq(mediaAsset.id, row.defaultMediaAssetId), isNull(mediaAsset.deletedAt)))
+      .limit(1);
+
+    if (defaultMedia) {
+      return {
+        id: defaultMedia.id,
+        type: defaultMedia.type === "video" ? "video" : "image",
+        source: defaultMedia.url,
+        title: defaultMedia.name ?? undefined,
+        loop: true,
+        muted: true,
+      };
+    }
   }
 
   return null;
@@ -161,5 +201,20 @@ export async function setScreenMedia(
       currentExperienceId: null,
       updatedAt: new Date(),
     })
+    .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Set (or clear with null) a screen's default/fallback media asset. Does not
+ * touch the current assignment — this only affects what getScreenContent
+ * falls back to when nothing else is active.
+ */
+export async function setScreenDefaultMedia(
+  screenId: string,
+  mediaAssetId: string | null
+): Promise<void> {
+  await db
+    .update(screen)
+    .set({ defaultMediaAssetId: mediaAssetId, updatedAt: new Date() })
     .where(eq(screen.screenId, screenId));
 }

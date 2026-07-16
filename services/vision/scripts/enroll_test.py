@@ -17,9 +17,9 @@ import sys
 import cv2
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.config import load_config  # noqa: E402
-from src.engine import FaceEngine  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from vision.config import load_config  # noqa: E402
+from vision.engines.face import FaceEngine  # noqa: E402
 
 
 def main() -> None:

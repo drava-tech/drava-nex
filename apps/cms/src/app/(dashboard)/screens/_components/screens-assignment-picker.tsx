@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Check, Search, Image as ImageIcon, Video, Loader2 } from "lucide-react";
+import { X, Check, Search, Image as ImageIcon, Video, Loader2, Star } from "lucide-react";
 import type { WsContent } from "@platform/types";
 
 interface MediaItem {
@@ -16,16 +16,20 @@ interface MediaItem {
 interface ScreenAssignmentPickerProps {
   screenName: string;
   currentContentLabel?: string;
+  currentDefaultMediaAssetId?: string | null;
   experiences: { id: string; title: string }[];
   onAssign: (content: WsContent) => void;
+  onSetDefault?: (item: { id: string; name: string }) => void;
   onClose: () => void;
 }
 
 export function ScreenAssignmentPicker({
   screenName,
   currentContentLabel,
+  currentDefaultMediaAssetId,
   experiences,
   onAssign,
+  onSetDefault,
   onClose,
 }: ScreenAssignmentPickerProps) {
   const [activeTab, setActiveTab] = useState<"experiences" | "files">("experiences");
@@ -214,6 +218,7 @@ export function ScreenAssignmentPicker({
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {filteredMedia.map((media) => {
                     const isActive = currentContentLabel === media.name;
+                    const isDefault = currentDefaultMediaAssetId === media.id;
                     return (
                       <button
                         key={media.id}
@@ -251,6 +256,25 @@ export function ScreenAssignmentPicker({
                             )}
                             {media.type}
                           </div>
+                          {/* Set-as-default toggle */}
+                          {onSetDefault && (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSetDefault({ id: media.id, name: media.name });
+                              }}
+                              title={isDefault ? "Default for this screen" : "Set as default"}
+                              className={`absolute top-2 left-2 p-1 rounded-full backdrop-blur-sm transition-colors ${
+                                isDefault
+                                  ? "bg-amber-400 text-amber-950"
+                                  : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
+                              }`}
+                            >
+                              <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
+                            </div>
+                          )}
                         </div>
 
                         {/* Title and metadata */}

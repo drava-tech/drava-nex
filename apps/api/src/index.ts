@@ -16,8 +16,10 @@ import { setMqttPublisher } from './services/devices.js';
 import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
+import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
+import { createYaleRouter } from './routes/yale.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
@@ -55,6 +57,10 @@ mqttManager.connect();
 // manager directly (avoids a circular import; see services/devices.ts).
 setMqttPublisher((deviceId, command) => mqttManager.publishCommand(deviceId, command));
 
+if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
+  console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
+}
+
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
   let dbStatus = 'disconnected';
@@ -90,6 +96,7 @@ app.route('/api/api-keys', apiKeysRouter);
 app.route('/api/devices', devicesRouter);
 app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
+app.route('/api/internal', internalRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
 app.route('/api/products', productsRouter);
@@ -100,6 +107,7 @@ app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
+app.route('/api/yale-webhook', createYaleRouter(mqttManager));
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

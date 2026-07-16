@@ -206,7 +206,12 @@ export type WsUeEvent =
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
   | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
-  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate);
+  | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
+  // Face-vision: a visitor was recognized/enrolled at an entrance camera. Drives
+  // the live-updating CMS Visitors list. Emitted by services/vision via the
+  // internal event relay (POST /api/internal/vision-event). `name` may be ""
+  // (the CMS already has it from the initial GET /api/visitors load).
+  | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean };
 
 export interface BroadcastRequest {
   screenId: string;

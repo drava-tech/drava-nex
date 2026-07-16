@@ -69,6 +69,12 @@ export const screenRelations = relations(screen, ({ one }) => ({
   currentMedia: one(mediaAsset, {
     fields: [screen.currentMediaAssetId],
     references: [mediaAsset.id],
+    relationName: "screenCurrentMedia",
+  }),
+  defaultMedia: one(mediaAsset, {
+    fields: [screen.defaultMediaAssetId],
+    references: [mediaAsset.id],
+    relationName: "screenDefaultMedia",
   }),
 }));
 

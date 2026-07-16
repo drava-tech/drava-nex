@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+data/
+# Keep the models/ dir (placeholder) but ignore the downloaded packs inside it.
+models/*
+!models/.gitkeep

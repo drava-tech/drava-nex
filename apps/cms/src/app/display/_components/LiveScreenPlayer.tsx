@@ -5,7 +5,10 @@ import type { WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
-import { useServerDetection } from "@/hooks/useServerDetection";
+// ponytail: browser-based detection is disconnected — cameras are now
+// host-native on the GPU box (services/vision). The hook + @platform/vision-browser
+// are left in place; re-enable the call below to restore browser detection.
+// import { useServerDetection } from "@/hooks/useServerDetection";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
@@ -105,7 +108,9 @@ export function LiveScreenPlayer({
     }
   }, []);
 
-  const { status, sendContentChangeRequest, sendInteraction, sendRaw } = useScreenWebSocket({
+  // ponytail: sendRaw was only used by the (now-disconnected) browser detection
+  // hook to emit CAMERA_/PRODUCT_ events. Restore it here when re-enabling.
+  const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCommand: handleCommand,
@@ -138,14 +143,25 @@ export function LiveScreenPlayer({
   // Detection only ever auto-starts on the real TV route for mapped screens.
   // CMS embeds/previews never touch the camera, so browsing the dashboard
   // can't grab the operator's own webcam.
+  // ponytail: browser detection disconnected — the GPU-box vision service
+  // (services/vision) owns the cameras now, so the hook that grabbed the
+  // operator's webcam is commented out and replaced by a disabled stub. No
+  // camera is ever accessed. Restore by uncommenting the import + hook call.
   const runServer = !preview && !isShowcase && hasMappedCamera;
 
-  const serverDetection = useServerDetection({
-    screenId,
-    sendRaw,
-    enabled: runServer,
-    cameraId: effectiveCameraId,
-  });
+  // const serverDetection = useServerDetection({
+  //   screenId,
+  //   sendRaw,
+  //   enabled: runServer,
+  //   cameraId: effectiveCameraId,
+  // });
+  const serverDetection = {
+    stream: null as MediaStream | null,
+    lastResult: null,
+    status: "disconnected" as const,
+    cameraId: effectiveCameraId ?? null,
+    stats: { rttMs: 0, processingTimeMs: 0 },
+  };
 
   // Content dispatches a `screen-control` event when the user interacts (touch/
   // click). Relay it over WS so every client of this screen (the TV and any CMS
