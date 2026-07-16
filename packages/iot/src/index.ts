@@ -1,21 +1,50 @@
+import { connect, type MqttClient, type IClientPublishOptions } from 'mqtt';
 import { DeviceTelemetry, IoTEvent, DeviceCommand } from '@platform/types';
 
-// MQTT integration setup helpers (Placeholders)
 export class MQTTDeviceManager {
   private brokerUrl: string;
-  private connected: boolean = false;
+  private client: MqttClient | null = null;
 
   constructor(brokerUrl: string) {
     this.brokerUrl = brokerUrl;
   }
 
   public connect(): void {
-    console.info(`Connecting to MQTT Broker at ${this.brokerUrl}`);
-    this.connected = true;
+    if (this.client) return; // idempotent — one client per process lifetime
+
+    this.client = connect(this.brokerUrl, {
+      clientId: `cms-api-${Math.random().toString(16).slice(2, 10)}`,
+      reconnectPeriod: 5_000,
+      connectTimeout: 10_000,
+      keepalive: 60,
+      clean: true,
+    });
+
+    this.client.on('connect', () => console.info(`[mqtt] connected → ${this.brokerUrl}`));
+    this.client.on('reconnect', () => console.info('[mqtt] reconnecting…'));
+    this.client.on('offline', () => console.warn('[mqtt] offline'));
+    this.client.on('error', (err) => console.error('[mqtt] error:', err.message));
+    // No end() anywhere — the client must stay alive for the process lifetime.
   }
 
   public isConnected(): boolean {
-    return this.connected;
+    return this.client?.connected ?? false;
+  }
+
+  /**
+   * Generic publish. Resolves on broker ack (PUBACK for QoS 1). While offline,
+   * mqtt.js queues the packet client-side and the promise stays pending until
+   * reconnect — callers that need a bounded response must race a timeout.
+   */
+  public publishRaw(
+    topic: string,
+    payload: string,
+    opts: IClientPublishOptions = {}
+  ): Promise<void> {
+    if (!this.client) {
+      return Promise.reject(new Error('MQTT client not initialized — call connect() first'));
+    }
+    return this.client.publishAsync(topic, payload, opts).then(() => undefined);
   }
 
   public publishCommand(deviceId: string, command: DeviceCommand): void {

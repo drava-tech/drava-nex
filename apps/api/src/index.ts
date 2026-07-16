@@ -19,6 +19,7 @@ import { experienceTypesRouter } from './routes/experience-types.js';
 import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
+import { createYaleRouter } from './routes/yale.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
@@ -53,6 +54,10 @@ mqttManager.connect();
 // Let the device-driver layer publish MQTT commands without importing the
 // manager directly (avoids a circular import; see services/devices.ts).
 setMqttPublisher((deviceId, command) => mqttManager.publishCommand(deviceId, command));
+
+if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
+  console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
+}
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
@@ -98,6 +103,7 @@ app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
 app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
+app.route('/api/yale-webhook', createYaleRouter(mqttManager));
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

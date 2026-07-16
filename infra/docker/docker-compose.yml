@@ -1,6 +1,7 @@
 # CMS Platform — Full Docker Stack
-# All services run in containers. Only Nginx is exposed on port 80.
-# PostgreSQL and MQTT are on the internal network — never reachable from outside.
+# All services run in containers. Nginx is exposed on port 80; PostgreSQL (5432)
+# and MQTT (1883) are also published to the host so local dev tools and LAN
+# smart devices can reach them. Everything else stays on the internal network.
 #
 # Start:  docker compose --env-file ../../.env -f docker-compose.yml up -d
 # Stop:   docker compose -f docker-compose.yml down
@@ -40,8 +41,12 @@ services:
     image: eclipse-mosquitto:2
     container_name: cms-mosquitto
     restart: unless-stopped
+    ports:
+      # Published to the host so LAN smart devices can subscribe to retained
+      # door-state topics (cms/door/…). mosquitto.conf allows anonymous access,
+      # so this trusts the LAN — do not forward 1883 past the router.
+      - "1883:1883"
     expose:
-      - "1883" # MQTT — internal only
       - "9001" # MQTT over WebSocket — internal only
     volumes:
       - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
@@ -49,6 +54,7 @@ services:
       - E:/EC/cms-platform-data/logs/mosquitto:/mosquitto/log
     networks:
       - internal
+      - public # must be on public so the host port binding resolves (internal: true blocks it)
 
   # ─── API (Hono) ─────────────────────────────────────────────────────────────
   api:
@@ -66,6 +72,8 @@ services:
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
       - BROADCAST_SECRET=${BROADCAST_SECRET}
+      - YALE_LOCK_ID=${YALE_LOCK_ID}
+      - YALE_WEBHOOK_TOKEN=${YALE_WEBHOOK_TOKEN}
       - CAMERA_SCREEN_MAP=${CAMERA_SCREEN_MAP}
       - DETECTION_MIN_CONFIDENCE=${DETECTION_MIN_CONFIDENCE}
       # Face crops written by the (host-native) vision service; the API
