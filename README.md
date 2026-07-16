@@ -101,28 +101,22 @@ In dev the apps run directly: CMS `http://localhost:3000`, API `http://localhost
 
 ## Production Deployment (office LAN)
 
-The whole stack runs as Docker containers on one host (e.g. `192.168.1.250`); **only Nginx is
-published, on port 80**. Everyone on the LAN uses one shared instance — no per-device installs.
+The whole stack runs as Docker containers on one host (e.g. `192.168.0.250`); **only Nginx is exposed to the local network** mapping ports 80/443 directly. Everything inside (CMS app, Hono API, Postgres, Mosquitto, local-inference services) communicates inside the Docker network safely behind Nginx.
 
-```powershell
-pnpm infra:build      # build the api and cms images
-pnpm infra:up         # start the full stack (postgres, mosquitto, api, cms, nginx)
-# after recreating app containers, refresh nginx so it re-resolves their IPs:
-docker restart cms-nginx
-pnpm healthcheck      # http://localhost/health → all "ok"
-```
+## Default Ports & URLs
 
-URLs (replace the IP with your host):
+Once deployed to `192.168.0.250`, the following URLs are available locally:
 
-| Purpose | URL |
-|---|---|
-| CMS admin | `http://192.168.1.250/` |
-| Screen control (CMS) | `http://192.168.1.250/screens/<screenId>` |
-| A screen / TV (display) | `http://192.168.1.250/display/<screenId>` |
-| Live-stream publisher endpoint | `ws://192.168.1.250/ws/` |
-| Health | `http://192.168.1.250/health` |
+| Service | Address |
+| --- | --- |
+| CMS admin | `http://192.168.0.250/` |
+| Screen control (CMS) | `http://192.168.0.250/screens/<screenId>` |
+| A screen / TV (display) | `http://192.168.0.250/display/<screenId>` |
+| Live-stream publisher endpoint | `ws://192.168.0.250/ws/` |
+| Health | `http://192.168.0.250/health` |
 
-The frontends use **relative** `/api` and `/ws` paths resolved from `window.location`.
+You can safely visit `http://192.168.0.250/` from an iPad connected to the same WiFi and control the screens dynamically.
+
 See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
 [`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
 

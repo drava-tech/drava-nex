@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Speaker as SpeakerIcon, Plug, VolumeX, Mic } from "lucide-react";
+import { Speaker as SpeakerIcon, Plug, VolumeX } from "lucide-react";
 import { Badge } from "@platform/ui";
 import { MiniSlider, Switch } from "./controls";
 import { noProp } from "./utils";
@@ -9,93 +9,90 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
   const inputOptions = ["HDMI", "AUX", "Bluetooth"] as const;
   const currentInput = state.input ?? inputOptions[0];
   const [showInputOptions, setShowInputOptions] = useState(false);
-  const [analyzerStatus, setAnalyzerStatus] = useState<"idle" | "listening" | "blocked">("idle");
-  const [liveWaveform, setLiveWaveform] = useState(() => Array.from({ length: 48 }, () => 10));
+  const [liveWaveform, setLiveWaveform] = useState(() => Array.from({ length: 48 }, () => 0));
   const [isDragging, setIsDragging] = useState(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyzerRef = useRef<AnalyserNode | null>(null);
-  const audioStreamRef = useRef<MediaStream | null>(null);
-
-  const stopDeviceAnalyzer = () => {
-    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
-    audioStreamRef.current = null;
-    analyzerRef.current = null;
-    if (audioContextRef.current) void audioContextRef.current.close();
-    audioContextRef.current = null;
-    setAnalyzerStatus("idle");
-  };
-
-  const startDeviceAnalyzer = async () => {
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setAnalyzerStatus("blocked");
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-      });
-      const audioContext = new AudioContext();
-      const analyzer = audioContext.createAnalyser();
-      analyzer.fftSize = 128;
-      analyzer.smoothingTimeConstant = 0.72;
-      audioContext.createMediaStreamSource(stream).connect(analyzer);
-
-      audioStreamRef.current = stream;
-      audioContextRef.current = audioContext;
-      analyzerRef.current = analyzer;
-      setAnalyzerStatus("listening");
-    } catch {
-      setAnalyzerStatus("blocked");
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      audioStreamRef.current?.getTracks().forEach((track) => track.stop());
-      if (audioContextRef.current) void audioContextRef.current.close();
-    };
-  }, []);
+  const barsRef = useRef(new Float32Array(48));
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     let frameId = 0;
-    const start = performance.now();
-    const frequencyData = new Uint8Array(64);
+    let last = performance.now();
+    const start = last;
+
+    // Deterministic value noise: band-limited randomness, so bars move
+    // organically without the per-frame flicker Math.random() would cause.
+    const hash = (n: number) => {
+      const s = Math.sin(n) * 43758.5453123;
+      return s - Math.floor(s);
+    };
+    const noise = (x: number) => {
+      const ix = Math.floor(x);
+      const f = x - ix;
+      const u = f * f * (3 - 2 * f);
+      return hash(ix) * (1 - u) + hash(ix + 1) * u;
+    };
+
+    const BPM = 122;
 
     const tick = (now: number) => {
-      const analyzer = analyzerRef.current;
+      const { power, muted, volume, bass } = stateRef.current;
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const elapsed = (now - start) / 1000;
 
-      if (analyzer && analyzerStatus === "listening" && state.power && !state.muted) {
-        analyzer.getByteFrequencyData(frequencyData);
-        const volumeScale = Math.max(0.15, state.volume / 100);
-        setLiveWaveform(Array.from({ length: 48 }, (_, i) => {
-          const bin = Math.min(frequencyData.length - 1, Math.floor((i / 48) * frequencyData.length));
-          const nextBin = Math.min(frequencyData.length - 1, bin + 1);
-          const raw = ((frequencyData[bin] ?? 0) * 0.72 + (frequencyData[nextBin] ?? 0) * 0.28) / 255;
-          const bassBoost = i < 12 ? 1 + state.bass / 20 : 1;
-          return Math.max(8, Math.min(100, raw * 120 * volumeScale * bassBoost));
-        }));
-      } else {
-        const elapsed = (now - start) / 1000;
-        const level = state.power && state.playing && !state.muted ? Math.max(0.12, state.volume / 100) : 0;
+      const level = power && !muted ? Math.pow(Math.max(0.08, volume / 100), 0.75) : 0;
+      const bassAmt = 1 + (bass / 10) * 0.7;
 
-        setLiveWaveform(Array.from({ length: 48 }, (_, i) => {
-          if (!level) return 8;
-          const bassBoost = 1 + state.bass / 24;
-          const low = Math.sin(elapsed * 4.8 + i * 0.34) * 18 * bassBoost;
-          const mid = Math.sin(elapsed * 8.5 + i * 0.72) * 10;
-          const high = Math.sin(elapsed * 14 + i * 1.1) * 5;
-          const envelope = Math.sin(i / 47 * Math.PI) * 18;
-          return Math.max(8, Math.min(100, (28 + envelope + low + mid + high) * level));
-        }));
+      // Beat clock: kick on the beat (varying strength), snare/hats on the off-beat.
+      const beats = (elapsed * BPM) / 60;
+      const beatIdx = Math.floor(beats);
+      const kick = Math.exp(-(beats - beatIdx) * 6) * (0.65 + 0.35 * hash(beatIdx * 7.13));
+      const off = beats + 0.5;
+      const snare = Math.exp(-(off - Math.floor(off)) * 9) * (0.4 + 0.3 * hash(Math.floor(off) * 3.7));
+
+      // Slow drift so the whole track "breathes" (builds and drops) over ~5-10s.
+      const energy = 0.6 + 0.4 * noise(elapsed * 0.22);
+
+      const bars = barsRef.current;
+      const next = new Array<number>(48);
+
+      for (let i = 0; i < 48; i++) {
+        let target = 0;
+        if (level) {
+          const pos = i / 47;
+          const edge = Math.abs(pos - 0.5) * 2; // 0 at centre, 1 at edges
+          const dome = 0.65 + Math.sin(pos * Math.PI) * 0.35;
+
+          // Three noise octaves: slow body, musical mids, hf shimmer toward the edges.
+          const body = noise(elapsed * 1.4 + i * 0.13) * 0.55;
+          const mids = noise(elapsed * 5.5 + i * 0.41 + 50) * 0.3;
+          const hf = noise(elapsed * 12 + i * 1.3 + 200) * 0.25 * (0.4 + edge * 0.6);
+
+          // Kick pumps the low bands in the centre; snare energy excites the edges.
+          const kickHit = kick * (1 - edge * 0.75) * 0.5 * bassAmt;
+          const snareHit = snare * (0.25 + edge * 0.4) * 0.35;
+
+          target = (body + mids + hf + kickHit + snareHit) * energy * dome * level * 100;
+          target = Math.max(2, Math.min(100, target));
+        }
+
+        // Meter ballistics: fast attack, slow release — the asymmetry is what
+        // makes the bars read as reacting to real audio.
+        const prev = bars[i] ?? 0;
+        const rate = target > prev ? 30 : 8;
+        const value = prev + (target - prev) * (1 - Math.exp(-rate * dt));
+        bars[i] = value;
+        next[i] = value;
       }
 
+      setLiveWaveform(next);
       frameId = requestAnimationFrame(tick);
     };
 
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, [analyzerStatus, state.bass, state.muted, state.playing, state.power, state.volume]);
+  }, []);
 
   const updateVol = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -110,7 +107,10 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
           <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
             <SpeakerIcon className="w-4 h-4" />
           </div>
-          <h3 className="font-semibold tracking-tight text-lg">Audio</h3>
+          <div className="flex flex-col">
+            <h3 className="font-semibold tracking-tight text-base leading-tight">Audio</h3>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none mt-0.5">{state.device ?? "Detecting..."}</span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={state.power ? "default" : "secondary"} className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest">{state.power ? "● Playing" : "Off"}</Badge>
@@ -122,13 +122,14 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
         {!isExpanded ? (
           <div className="flex flex-col pb-2">
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black">{state.muted ? "Mute" : `${state.volume}%`}</span>
+              <span className="text-4xl font-black">{state.muted ? "Muted" : `${state.volume}%`}</span>
               <span className="text-muted-foreground text-sm font-bold uppercase tracking-wider">Volume</span>
             </div>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1.5 truncate max-w-full">{state.device ?? "Detecting..."}</span>
           </div>
         ) : (
           <div className="flex-1 flex min-h-0 w-full flex-col justify-between gap-4 py-1" onClick={noProp}>
-            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px_112px_minmax(0,1fr)] gap-2 items-stretch">
+            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px_minmax(0,1fr)] gap-2 items-stretch">
               <div className="relative z-30">
                 <button
                   onClick={(e) => { noProp(e); setShowInputOptions((open) => !open); }}
@@ -177,14 +178,6 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                 <span className="text-[8px] uppercase tracking-widest">{state.muted ? "Muted" : "Mute"}</span>
               </button>
 
-              <button
-                onClick={(e) => { noProp(e); analyzerStatus === "listening" ? stopDeviceAnalyzer() : void startDeviceAnalyzer(); }}
-                className={`h-12 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${analyzerStatus === "listening" ? 'bg-blue-500/10 text-blue-500 border-blue-500/40 shadow-[0_0_14px_rgba(59,130,246,0.25)]' : analyzerStatus === "blocked" ? 'bg-red-500/10 text-red-500 border-red-500/40' : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'}`}
-              >
-                <Mic className="w-4 h-4" />
-                <span className="text-[8px] uppercase tracking-widest">{analyzerStatus === "listening" ? "Live" : analyzerStatus === "blocked" ? "Blocked" : "Device"}</span>
-              </button>
-
               <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
                 <MiniSlider
                   label="Bass Control"
@@ -199,8 +192,26 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
             </div>
 
             <div className="min-w-0">
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-3xl font-black">{state.muted ? 0 : state.volume}<span className="text-lg text-blue-500/50">%</span></span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-black">{state.muted ? 0 : state.volume}<span className="text-lg text-blue-500/50">%</span></span>
+                  <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-0.5 border border-border/40 shrink-0">
+                    <button
+                      onClick={(e) => { noProp(e); actions.setVolume(Math.max(0, state.volume - 5)); }}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground font-black text-sm transition-all"
+                      title="Decrease Volume (-5%)"
+                    >
+                      -
+                    </button>
+                    <button
+                      onClick={(e) => { noProp(e); actions.setVolume(Math.min(100, state.volume + 5)); }}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground font-black text-sm transition-all"
+                      title="Increase Volume (+5%)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Master Volume</span>
               </div>
               <div
@@ -214,7 +225,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                   const vol = state.muted ? 0 : state.volume;
                   const isActive = state.power && !state.muted && (i / liveWaveform.length) * 100 <= vol;
                   return (
-                    <div key={i} className={`flex-1 rounded-full transition-all duration-150 ${isActive ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'bg-muted'}`}
+                    <div key={i} className={`flex-1 rounded-full transition duration-150 ${isActive ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_8px_rgba(56,189,248,0.4)]' : 'bg-muted'}`}
                       style={{ height: `${h}%`, opacity: isActive ? 1 : 0.5 }} />
                   );
                 })}

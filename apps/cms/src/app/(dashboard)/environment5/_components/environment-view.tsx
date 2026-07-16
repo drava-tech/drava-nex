@@ -321,7 +321,7 @@ export function EnvironmentView() {
                   const vol = audio.muted ? 0 : audio.volume;
                   const isActive = (i / waveform.length) * 100 <= vol;
                   return (
-                    <div key={i} className={`flex-1 rounded-full transition-all duration-150 ${isActive ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_6px_rgba(56,189,248,0.4)]' : 'bg-muted'}`}
+                    <div key={i} className={`flex-1 rounded-full transition duration-150 ${isActive ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_6px_rgba(56,189,248,0.4)]' : 'bg-muted'}`}
                       style={{ height: `${h}%`, opacity: isActive ? 1 : 0.5 }} />
                   );
                 })}

@@ -371,6 +371,19 @@ export function createGateway(): WebSocketServer {
               ws.send(JSON.stringify({ type: 'CAMERA_STATUS_UPDATE', ...status } satisfies WsCmsMessage));
             }
           }
+          // Send initial audio status
+          import('../services/audio.js')
+            .then(({ audioService }) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'AUDIO_STATUS_UPDATE',
+                  ...audioService.getStatus()
+                }));
+              }
+            })
+            .catch((err) => {
+              console.error('[gateway] Failed to send initial audio status on register:', err);
+            });
           break;
         }
 

@@ -49,7 +49,121 @@ export function EnvironmentView() {
     zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0 });
+  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0, device: "Detecting..." });
+
+  const pendingVolumeRef = React.useRef<number | null>(null);
+  const isSendingVolumeRef = React.useRef<boolean>(false);
+
+  // WebSocket sync for audio volume/mute/device
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isDisposed = false;
+
+    const connect = () => {
+      if (isDisposed) return;
+      const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
+      let resolved = wsUrl;
+      if (typeof window !== "undefined") {
+        if (wsUrl.startsWith("/")) {
+          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          resolved = `${protocol}//${window.location.host}${wsUrl}`;
+        }
+      }
+
+      ws = new WebSocket(resolved);
+
+      ws.onopen = () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "CMS_REGISTER" }));
+        }
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "AUDIO_STATUS_UPDATE") {
+            setAudio(s => ({
+              ...s,
+              volume: msg.volume,
+              muted: msg.muted,
+              device: msg.device
+            }));
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        if (!isDisposed) {
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    // Fetch initial status
+    fetch("/api/audio/status")
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.volume === "number") {
+          setAudio(s => ({
+            ...s,
+            volume: data.volume,
+            muted: data.muted,
+            device: data.device
+          }));
+        }
+      })
+      .catch(err => console.error("Failed to fetch audio status:", err));
+
+    return () => {
+      isDisposed = true;
+      if (ws) ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, []);
+
+  const apiSetVolume = (volume: number) => {
+    setAudio(s => ({ ...s, volume, muted: false }));
+    pendingVolumeRef.current = volume;
+
+    if (isSendingVolumeRef.current) return;
+
+    const sendNext = () => {
+      if (pendingVolumeRef.current === null) {
+        isSendingVolumeRef.current = false;
+        return;
+      }
+
+      const volToSend = pendingVolumeRef.current;
+      pendingVolumeRef.current = null;
+      isSendingVolumeRef.current = true;
+
+      fetch("/api/audio/volume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ volume: volToSend }),
+      })
+      .catch(err => console.error("Error setting volume:", err))
+      .finally(() => {
+        setTimeout(sendNext, 50);
+      });
+    };
+
+    sendNext();
+  };
+
+  const apiSetMuted = (muted: boolean) => {
+    setAudio(s => ({ ...s, muted }));
+    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", {
+      method: "POST",
+    }).catch(err => console.error("Error setting mute:", err));
+  };
 
   // Global Quick Devices State
   const [globalPower, setGlobalPower] = useState({ ac: true, lights: true, audio: true });
@@ -95,8 +209,8 @@ export function EnvironmentView() {
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
-      setVolume: (volume: number) => setAudio(s => ({ ...s, volume })),
-      setMuted: (muted: boolean) => setAudio(s => ({ ...s, muted })),
+      setVolume: apiSetVolume,
+      setMuted: apiSetMuted,
       setInput: (input: string) => setAudio(s => ({ ...s, input })),
       setPower: (power: boolean) => setAudio(s => ({ ...s, power })),
       setBass: (bass: number) => setAudio(s => ({ ...s, bass })),

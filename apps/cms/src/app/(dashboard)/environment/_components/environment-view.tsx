@@ -229,7 +229,7 @@ export function EnvironmentView() {
                   return (
                     <div
                       key={i}
-                      className={`flex-1 rounded-full transition-all duration-150 ease-out ${isActive
+                      className={`flex-1 rounded-full transition duration-150 ease-out ${isActive
                         ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(56,189,248,0.5)]'
                         : 'bg-zinc-200 dark:bg-zinc-800/50'
                         }`}

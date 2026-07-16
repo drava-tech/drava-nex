@@ -23,7 +23,7 @@ class Config:
     # Logical camera identifier sent in every detection event (e.g. "camera-01")
     camera_id: str
 
-    # WebSocket URL of the CMS API gateway (e.g. "ws://192.168.1.100/ws/")
+    # WebSocket URL of the CMS API gateway (e.g. "ws://192.168.0.250/ws/")
     ws_url: str
 
     # CA certificate file to trust when ws_url is wss://. Only needed for a

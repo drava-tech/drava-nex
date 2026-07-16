@@ -22,6 +22,8 @@ import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
 import { createGateway } from './ws/gateway.js';
+import { audioRouter } from './routes/audio.js';
+import { audioService } from './services/audio.js';
 
 const app = new Hono();
 
@@ -96,6 +98,8 @@ app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
 app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
+app.route('/api/audio', audioRouter);
+app.route('/audio', audioRouter);
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));
@@ -129,6 +133,7 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
 });
 
 httpServer.listen(PORT, () => {
+  audioService.start();
   console.info('');
   console.info('┌─────────────────────────────────────────────────────────┐');
   console.info('│          @platform/api  —  CMS Platform Gateway         │');
