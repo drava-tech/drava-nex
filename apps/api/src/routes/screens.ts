@@ -43,7 +43,7 @@ screensRouter.get("/:screenId/config", async (c) => {
 });
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
-async function pushScreenContent(screenId: string) {
+export async function pushScreenContent(screenId: string) {
   const content = await getScreenContent(screenId);
   if (content) {
     broadcast({ screenId, content, source: "cms" });
@@ -97,9 +97,10 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   return ok(c, { screenId, content });
 });
 
-const assignMediaSchema = z.object({ mediaAssetId: z.string().min(1) });
+const assignMediaSchema = z.object({ mediaAssetId: z.string().min(1).nullable() });
 
-// POST /api/screens/:id/media — assign a media asset, then broadcast
+// POST /api/screens/:id/media — assign a media asset, or clear with null to fall
+// back to the screen's default/idle media, then broadcast
 screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   const screenId = param(c, "id");
   let body;

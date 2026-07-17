@@ -7,9 +7,12 @@ import { LiveStreamLayout } from "./live-stream/live-stream-layout";
 import { LiveStreamEditorWorkspace } from "./live-stream/editor-workspace";
 import { ProductShowcaseLayout } from "./product-showcase/product-showcase-layout";
 import { ProductShowcaseEditorWorkspace } from "./product-showcase/editor-workspace";
+import { WelcomeLayout } from "./welcome/welcome-layout";
+import { WelcomeEditorWorkspace } from "./welcome/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
+import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -50,6 +53,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: ProductShowcaseLayout,
     defaultContent: DEFAULT_PRODUCT_SHOWCASE_CONTENT,
     Workspace: ProductShowcaseEditorWorkspace,
+  },
+  welcome: {
+    key: "welcome",
+    label: TEMPLATE_LABELS.welcome,
+    Layout: WelcomeLayout,
+    defaultContent: DEFAULT_WELCOME_CONTENT,
+    Workspace: WelcomeEditorWorkspace,
   },
 };
 

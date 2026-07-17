@@ -34,6 +34,16 @@ export async function experienceSlugExists(slug: string): Promise<boolean> {
   return !!row;
 }
 
+/** Look up a non-deleted experience's id by its slug, or null if none exists. */
+export async function getExperienceIdBySlug(slug: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: experience.id })
+    .from(experience)
+    .where(and(eq(experience.slug, slug), isNull(experience.deletedAt)))
+    .limit(1);
+  return row?.id ?? null;
+}
+
 /** Create an experience and its type associations in one transaction. */
 export async function createExperience(input: {
   name: string;

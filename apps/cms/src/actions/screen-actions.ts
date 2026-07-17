@@ -74,8 +74,12 @@ export async function getActiveScreens(): Promise<string[]> {
   return [];
 }
 
-/** Assign a media-library asset to a screen (points the screen straight at the asset). */
-export async function assignMedia(screenId: string, mediaAssetId: string) {
+/**
+ * Assign a media-library asset to a screen (points the screen straight at the
+ * asset), or clear the current assignment with null so it falls back to the
+ * screen's default/idle media.
+ */
+export async function assignMedia(screenId: string, mediaAssetId: string | null) {
   await requireGuestOrAdmin();
   const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media`, {
     method: "POST",

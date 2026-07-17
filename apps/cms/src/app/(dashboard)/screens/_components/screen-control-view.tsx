@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Wifi, WifiOff, Layers } from "lucide-react";
+import { Camera, Wifi, WifiOff, Layers, RotateCcw } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { assignExperience, assignMedia, assignDefaultMedia, resetDetection } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
@@ -33,6 +33,7 @@ export function ScreenControlView({
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [resettingToIdle, setResettingToIdle] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: defaultMediaAssetId,
     name: defaultMediaName,
@@ -46,6 +47,19 @@ export function ScreenControlView({
       console.error("Failed to reset detection:", err);
     } finally {
       setResetting(false);
+    }
+  };
+
+  // Clears the current assignment so the screen falls back to its default/idle
+  // media — same effect as "nothing assigned yet".
+  const handleResetToIdle = async () => {
+    setResettingToIdle(true);
+    try {
+      await assignMedia(screenId, null);
+    } catch (err) {
+      console.error("Failed to reset to idle:", err);
+    } finally {
+      setResettingToIdle(false);
     }
   };
 
@@ -117,6 +131,14 @@ export function ScreenControlView({
               {resetting ? "Resetting..." : "Reset detection"}
             </button>
           )}
+          <button
+            onClick={handleResetToIdle}
+            disabled={resettingToIdle}
+            title="Clear the current assignment and fall back to the default/idle media"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> {resettingToIdle ? "Resetting..." : "Reset to idle"}
+          </button>
           <button
             onClick={() => setShowPicker(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 text-[10px] font-bold uppercase tracking-wider transition-colors"

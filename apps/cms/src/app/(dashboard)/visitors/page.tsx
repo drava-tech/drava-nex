@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { listVisitors } from "@platform/db";
+import { getVisionTriggerArmed } from "@/actions/vision-actions";
 import { VisitorsClient } from "./visitors-client";
 
 const PAGE_SIZE = 20;
@@ -15,7 +16,10 @@ export default async function VisitorsPage({
   const page = Math.max(1, Number(pageParam) || 1);
   const search = (searchParam ?? "").trim() || undefined;
 
-  const result = await listVisitors({ page, pageSize: PAGE_SIZE, search });
+  const [result, triggerArmed] = await Promise.all([
+    listVisitors({ page, pageSize: PAGE_SIZE, search }),
+    getVisionTriggerArmed(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -40,6 +44,7 @@ export default async function VisitorsPage({
         page={page}
         pageSize={PAGE_SIZE}
         search={search ?? ""}
+        initialTriggerArmed={triggerArmed}
       />
     </div>
   );

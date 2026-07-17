@@ -104,6 +104,13 @@ class AudioService {
       console.error(`[AudioService Helper Error]: ${data.toString().trim()}`);
     });
 
+    // spawn() failures (e.g. missing binary) surface asynchronously as an
+    // 'error' event, not a thrown exception — without this handler, Node's
+    // default behavior is to crash the whole process.
+    this.child.on('error', (err) => {
+      console.error('[AudioService] Audio helper process error:', err);
+    });
+
     this.child.on('close', (code) => {
       console.warn(`[AudioService] Audio helper exited with code ${code}. Restarting in 3 seconds...`);
       this.child = null;

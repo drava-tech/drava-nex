@@ -218,3 +218,29 @@ export async function setScreenDefaultMedia(
     .set({ defaultMediaAssetId: mediaAssetId, updatedAt: new Date() })
     .where(eq(screen.screenId, screenId));
 }
+
+/**
+ * True if the screen is currently showing its default/idle video — either no
+ * active assignment at all (kind is null, falls back to defaultMediaAssetId),
+ * or the current assignment happens to already be that same default media.
+ * Used to decide whether an unlock event should take over the screen (only
+ * when idle) without interrupting real assigned content.
+ */
+export async function isScreenIdle(screenId: string): Promise<boolean> {
+  const [row] = await db
+    .select({
+      kind: screen.currentContentKind,
+      currentMediaAssetId: screen.currentMediaAssetId,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+    })
+    .from(screen)
+    .where(eq(screen.screenId, screenId))
+    .limit(1);
+  if (!row) return false;
+  if (row.kind === null) return true;
+  return (
+    row.kind === "media" &&
+    row.defaultMediaAssetId !== null &&
+    row.currentMediaAssetId === row.defaultMediaAssetId
+  );
+}

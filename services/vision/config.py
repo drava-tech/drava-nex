@@ -38,6 +38,12 @@ class Config:
     realsense_height: int = 720
     realsense_fps: int = 30
 
+    # Master switch for the identity path (DB connection, face matching/
+    # enrollment, visitor table writes, face-crop images). When false, the
+    # pipeline never connects to Postgres at all — only the identity-agnostic
+    # PERSON_PRESENT/welcome-screen trigger and the CMS camera preview run.
+    db_enabled: bool = True
+
     # insightface model pack (SCRFD detector + ArcFace recognizer, 512-d)
     model_pack: str = "buffalo_l"
     model_root: str = "./models"
@@ -46,14 +52,28 @@ class Config:
     det_size: int = 640
     det_score_threshold: float = 0.5
 
-    # Minimum face bbox shorter side, in source-frame pixels.
+    # Minimum face bbox shorter side, in source-frame pixels. Gates identity
+    # matching/enrollment (visitor table) — kept strict for data quality.
     min_bbox_px: int = 80
+
+    # Separate, looser floor for the identity-agnostic PERSON_PRESENT signal
+    # (welcome-screen trigger) — lets "someone is there" fire at a distance
+    # too far for reliable face identification. Defaults to min_bbox_px.
+    presence_min_bbox_px: int = 80
 
     # Cosine-distance ceiling for a DB match (pgvector <=> = 1 - cosine sim).
     match_max_distance: float = 0.5
 
     # Per-visitor debounce for last_seen writes / live events.
     cooldown_seconds: float = 30.0
+
+    # Debounce for the identity-agnostic PERSON_PRESENT event (drives the
+    # welcome-screen trigger) — independent of the visitor match/enroll cooldown.
+    presence_cooldown_seconds: float = 5.0
+
+    # How often a debug snapshot (JPEG, boxes drawn) is sent for the CMS camera
+    # preview. Purely a visual aid — unrelated to detection/trigger logic.
+    snapshot_interval_seconds: float = 1.5
 
     # Where cropped face JPEGs are written (API serves them from the same dir).
     image_dir: str = "./data/faces"
@@ -93,6 +113,7 @@ def load_config() -> Config:
 
     return Config(
         database_url=require("VISION_DATABASE_URL"),
+        db_enabled=os.getenv("VISION_DB_ENABLED", "true").strip().lower() not in ("false", "0", "no"),
         api_url=os.getenv("VISION_API_URL", "http://localhost:4000").rstrip("/"),
         broadcast_secret=os.getenv("BROADCAST_SECRET", ""),
         # The supervisor sets these per subprocess; sensible fallbacks let a
@@ -110,8 +131,13 @@ def load_config() -> Config:
         det_size=int(os.getenv("VISION_DET_SIZE", "640")),
         det_score_threshold=env_float("VISION_DET_SCORE_THRESHOLD", "0.5", 0.0, 1.0),
         min_bbox_px=int(os.getenv("VISION_MIN_BBOX_PX", "80")),
+        presence_min_bbox_px=int(
+            os.getenv("VISION_PRESENCE_MIN_BBOX_PX", os.getenv("VISION_MIN_BBOX_PX", "80"))
+        ),
         match_max_distance=env_float("VISION_MATCH_MAX_DISTANCE", "0.5", 0.0, 2.0),
         cooldown_seconds=env_float("VISION_COOLDOWN_SECONDS", "30", 0.0, 86400.0),
+        presence_cooldown_seconds=env_float("VISION_PRESENCE_COOLDOWN_SECONDS", "5", 0.0, 300.0),
+        snapshot_interval_seconds=env_float("VISION_SNAPSHOT_INTERVAL_SECONDS", "1.5", 0.0, 60.0),
         image_dir=os.getenv("VISION_IMAGE_DIR", "./data/faces"),
         image_retention_days=int(os.getenv("VISION_IMAGE_RETENTION_DAYS", "30")),
         track_iou_threshold=env_float("VISION_TRACK_IOU_THRESHOLD", "0.3", 0.0, 1.0),

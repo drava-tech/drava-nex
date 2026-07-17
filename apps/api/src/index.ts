@@ -19,7 +19,10 @@ import { experienceTypesRouter } from './routes/experience-types.js';
 import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
+import { createDoorEventsRouter } from './routes/door-events.js';
 import { createYaleRouter } from './routes/yale.js';
+import { visionTriggerRouter } from './routes/vision-trigger.js';
+import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
@@ -107,7 +110,10 @@ app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
+app.route('/api/door-events', createDoorEventsRouter(mqttManager));
 app.route('/api/yale-webhook', createYaleRouter(mqttManager));
+app.route('/api/vision-trigger', visionTriggerRouter);
+app.route('/api/vision-snapshot', visionSnapshotRouter);
 
 // ─── WS info ─────────────────────────────────────────────────────────────────
 app.get('/ws/', (c) => c.text('WebSocket upgrade required', 426));

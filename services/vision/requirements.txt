@@ -1,12 +1,21 @@
 # Native Windows host (RTX 3090) — primary deployment. Face detection only.
-# onnxruntime-gpu 1.18.x pairs with CUDA 12.x + cuDNN 8.9.x on the host.
-# If the host has cuDNN 9, move to onnxruntime-gpu>=1.19 instead.
+# onnxruntime-gpu 1.22.x pairs with CUDA 12.x + cuDNN 9.x. No system-wide CUDA
+# Toolkit/cuDNN install needed — the nvidia-*-cu12 wheels below ship the
+# required DLLs straight into the venv; engines/face.py adds their bin/ dirs
+# to the DLL search path on Windows before onnxruntime is imported.
 #
-# Object detection is NOT included here: ultralytics + torch bundle cuDNN 9 and
-# clash with onnxruntime-gpu 1.18 in one process. When built, it goes in a
-# separate requirements-object.txt and runs as its own subprocess.
+# Object detection is NOT included here: ultralytics + torch bundle their own
+# CUDA/cuDNN and would clash with onnxruntime-gpu in one process. When built,
+# it goes in a separate requirements-object.txt and runs as its own subprocess.
 insightface==0.7.3
-onnxruntime-gpu>=1.18,<1.19
+onnxruntime-gpu>=1.22,<1.23
+nvidia-cuda-runtime-cu12
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+nvidia-cufft-cu12
+nvidia-curand-cu12
+nvidia-cusolver-cu12
+nvidia-cusparse-cu12
 opencv-python==4.10.0.84
 numpy==1.26.4
 psycopg[binary]>=3.2

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
@@ -80,6 +80,20 @@ export function ScreensController({
   const [pickerTargetId, setPickerTargetId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [idlingId, setIdlingId] = useState<string | null>(null);
+
+  // Clears the current assignment so the screen falls back to its default/idle
+  // media — same effect as "nothing assigned yet".
+  const handleResetToIdle = async (screenId: string) => {
+    setIdlingId(screenId);
+    try {
+      await assignMedia(screenId, null);
+    } catch (err) {
+      console.error("Failed to reset to idle:", err);
+    } finally {
+      setIdlingId(null);
+    }
+  };
 
   const copyScreenUrl = async (screenId: string) => {
     const url = `${window.location.origin}/display/${encodeURIComponent(screenId)}`;
@@ -279,14 +293,23 @@ export function ScreensController({
                       )}
                     </button>
 
-                    {/* Actions: open the full control view, or change what's playing */}
-                    <div className="w-full grid grid-cols-2 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
+                    {/* Actions: open the full control view, reset to idle, or change what's playing */}
+                    <div className="w-full grid grid-cols-3 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
                       <button
                         onClick={() => openControl(screen.id)}
                         className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
                       >
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         <span>Control</span>
+                      </button>
+                      <button
+                        onClick={() => handleResetToIdle(screen.id)}
+                        disabled={idlingId === screen.id}
+                        title="Clear the current assignment and fall back to the default/idle media"
+                        className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>{idlingId === screen.id ? "..." : "Idle"}</span>
                       </button>
                       <button
                         onClick={() => setPickerTargetId(screen.id)}

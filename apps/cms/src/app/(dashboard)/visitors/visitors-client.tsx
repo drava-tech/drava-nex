@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Badge } from "@platform/ui";
 import { updateVisitor } from "@/actions/visitor-actions";
+import { setVisionTriggerArmed } from "@/actions/vision-actions";
 import { useCmsScreenSync, type VisitorDetectedEvent } from "@/hooks/useCmsScreenSync";
 import type { VisitorListItem } from "@platform/types";
 
@@ -13,6 +14,7 @@ interface Props {
   page: number;
   pageSize: number;
   search: string;
+  initialTriggerArmed: boolean;
 }
 
 function formatSeen(iso: string) {
@@ -25,7 +27,14 @@ function formatSeen(iso: string) {
   });
 }
 
-export function VisitorsClient({ visitors, total, page, pageSize, search }: Props) {
+export function VisitorsClient({
+  visitors,
+  total,
+  page,
+  pageSize,
+  search,
+  initialTriggerArmed,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -33,6 +42,32 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "" });
   const [error, setError] = useState<string | null>(null);
+  const [triggerArmed, setTriggerArmed] = useState(initialTriggerArmed);
+  const [isToggling, startToggleTransition] = useTransition();
+
+  // Debug camera preview — polls the latest JPEG (boxes drawn server-side by
+  // services/vision) so you can visually confirm detection without needing a
+  // separate local script. cam-entrance must match VISION_CAMERAS in the
+  // vision service's .env.
+  const [snapshotTick, setSnapshotTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setSnapshotTick((t) => t + 1), 1500);
+    return () => clearInterval(id);
+  }, []);
+  const [snapshotAvailable, setSnapshotAvailable] = useState(true);
+
+  function toggleTrigger() {
+    const next = !triggerArmed;
+    setError(null);
+    startToggleTransition(async () => {
+      try {
+        const armed = await setVisionTriggerArmed(next);
+        setTriggerArmed(armed);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    });
+  }
 
   // Live list — seeded from the server render, then mutated by WS events.
   const [items, setItems] = useState<VisitorListItem[]>(visitors);
@@ -131,8 +166,23 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
         <Button type="submit" size="sm" variant="secondary">
           Search
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={triggerArmed ? "default" : "secondary"}
+          onClick={toggleTrigger}
+          disabled={isToggling}
+          className="ml-auto"
+          title="While armed, a detected face switches the idle main screen to the Welcome experience"
+        >
+          {isToggling
+            ? "Updating…"
+            : triggerArmed
+              ? "Welcome-screen trigger: ON"
+              : "Welcome-screen trigger: OFF"}
+        </Button>
         <span
-          className={`ml-auto inline-flex items-center gap-1.5 text-xs font-medium ${
+          className={`inline-flex items-center gap-1.5 text-xs font-medium ${
             live ? "text-green-600" : "text-muted-foreground"
           }`}
           title={live ? "Receiving live detections" : "Reconnecting…"}
@@ -146,6 +196,25 @@ export function VisitorsClient({ visitors, total, page, pageSize, search }: Prop
           {total} visitor{total === 1 ? "" : "s"}
         </span>
       </form>
+
+      <div className="rounded-lg border p-3">
+        <p className="mb-2 text-xs font-medium text-muted-foreground">
+          Camera preview (cam-entrance) — green box = counts as present, red = too small/far
+        </p>
+        {!snapshotAvailable && (
+          <p className="mb-2 text-sm text-muted-foreground">
+            No recent snapshot — is the vision pipeline running?
+          </p>
+        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/api/vision-snapshot/cam-entrance?t=${snapshotTick}`}
+          alt="Live camera detection preview"
+          className={`max-h-80 rounded-md border bg-black ${snapshotAvailable ? "" : "hidden"}`}
+          onError={() => setSnapshotAvailable(false)}
+          onLoad={() => setSnapshotAvailable(true)}
+        />
+      </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

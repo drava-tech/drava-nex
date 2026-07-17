@@ -11,4 +11,5 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   portfolio: "Portfolio",
   "live-stream": "Live Stream",
   "product-showcase": "Product Showcase",
+  welcome: "Welcome",
 };

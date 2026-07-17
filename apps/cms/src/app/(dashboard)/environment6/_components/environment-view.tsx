@@ -109,102 +109,102 @@ export function EnvironmentView() {
 
   return (
     <div className="w-full h-full flex flex-col gap-6 overflow-hidden font-sans text-foreground pb-2">
-       
-       <div className="flex justify-between items-center shrink-0 pt-2 pb-0">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
-            <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
-          </div>
-          <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
-            3D
-          </Button>
-       </div>
 
-       <div
-         className="flex-1 w-full grid gap-6 min-h-0"
-         style={isDesktop
-           ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }
-           : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto", gridTemplateAreas: '"primary" "top" "bottom"' }
-         }
-       >
-          {(["climate", "lighting", "audio"] as PanelType[]).map((type) => {
-            const isPrimary = type === focused;
-            const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : "bottom");
-            return (
-              <motion.div
-                key={type}
-                layout
-                initial={false}
-                animate={{ zIndex: isPrimary ? 50 : 1 }}
-                transition={cardLayoutTransition}
-                style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
-                className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
-                onClick={isPrimary ? undefined : () => setFocused(type)}
-              >
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div
-                    key={isPrimary ? "expanded" : "compact"}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.1 } }}
-                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                    className={isPrimary
-                      ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
-                      : "absolute inset-0 w-full h-full p-3 md:p-4 flex flex-col justify-center overflow-hidden"}
-                  >
-                    {renderContent(type, isPrimary)}
-                  </motion.div>
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-       </div>
+      <div className="flex justify-between items-center shrink-0 pt-2 pb-0">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
+          <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
+        </div>
+        <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
+          3D
+        </Button>
+      </div>
 
-       <AnimatePresence>
-          {focused === "lighting" && showColourPanel && (
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
-              onClick={() => setShowColourPanel(false)}
+      <div
+        className="flex-1 w-full grid gap-6 min-h-0"
+        style={isDesktop
+          ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }
+          : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto", gridTemplateAreas: '"primary" "top" "bottom"' }
+        }
+      >
+        {(["climate", "lighting", "audio"] as PanelType[]).map((type) => {
+          const isPrimary = type === focused;
+          const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : "bottom");
+          return (
+            <motion.div
+              key={type}
+              layout
+              initial={false}
+              animate={{ zIndex: isPrimary ? 50 : 1 }}
+              transition={cardLayoutTransition}
+              style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
+              className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
+              onClick={isPrimary ? undefined : () => setFocused(type)}
             >
-              <motion.div
-                initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-                className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="absolute top-6 right-6 z-50">
-                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
-                    <X className="w-5 h-5" />
-                  </Button>
-                </div>
-                <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
-              </motion.div>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={isPrimary ? "expanded" : "compact"}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.1 } }}
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                  className={isPrimary
+                    ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
+                    : "absolute inset-0 w-full h-full p-3 md:p-4 flex flex-col justify-center overflow-hidden"}
+                >
+                  {renderContent(type, isPrimary)}
+                </motion.div>
+              </AnimatePresence>
             </motion.div>
-          )}
-       </AnimatePresence>
+          );
+        })}
+      </div>
 
-       <AnimatePresence>
-         {show3D && (
-           <motion.div
-             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 md:p-6"
-             onClick={() => setShow3D(false)}
-           >
-             <motion.div
-               initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-               className="w-full max-w-5xl h-[85vh] rounded-3xl border border-border/50 overflow-hidden shadow-2xl relative"
-               onClick={(e) => e.stopPropagation()}
-             >
-               <button
-                 className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                 onClick={() => setShow3D(false)}
-               >
-                 <X className="w-4 h-4" />
-               </button>
-               <ThreeDView />
-             </motion.div>
-           </motion.div>
-         )}
-       </AnimatePresence>
+      <AnimatePresence>
+        {focused === "lighting" && showColourPanel && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
+            onClick={() => setShowColourPanel(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+              className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-6 right-6 z-50">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {show3D && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 md:p-6"
+            onClick={() => setShow3D(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+              className="w-full max-w-5xl h-[85vh] rounded-3xl border border-border/50 overflow-hidden shadow-2xl relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                onClick={() => setShow3D(false)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <ThreeDView />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -12,11 +12,20 @@ export interface VisitorDetectedEvent {
   hasImage: boolean;
 }
 
+export interface DoorEventMessage {
+  id: string;
+  lockId: string;
+  action: "locked" | "unlocked";
+  createdAt: string;
+  total: number;
+}
+
 interface UseCmsScreenSyncOptions {
   onScreenUpdated?: (screenId: string, content: WsContent) => void;
   onActiveScreensUpdated?: (activeScreenIds: string[]) => void;
   onCameraStatusUpdated?: (status: CameraStatusUpdate) => void;
   onVisitorDetected?: (visitor: VisitorDetectedEvent) => void;
+  onDoorEvent?: (event: DoorEventMessage) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -25,6 +34,7 @@ export function useCmsScreenSync({
   onActiveScreensUpdated,
   onCameraStatusUpdated,
   onVisitorDetected,
+  onDoorEvent,
   onConnectionChange,
 }: UseCmsScreenSyncOptions): void {
   const wsRef = useRef<WebSocket | null>(null);
@@ -39,6 +49,8 @@ export function useCmsScreenSync({
   onCameraStatusUpdatedRef.current = onCameraStatusUpdated;
   const onVisitorDetectedRef = useRef(onVisitorDetected);
   onVisitorDetectedRef.current = onVisitorDetected;
+  const onDoorEventRef = useRef(onDoorEvent);
+  onDoorEventRef.current = onDoorEvent;
   const onConnectionChangeRef = useRef(onConnectionChange);
   onConnectionChangeRef.current = onConnectionChange;
 
@@ -75,6 +87,14 @@ export function useCmsScreenSync({
           isNew: msg.isNew,
           lastSeen: msg.lastSeen,
           hasImage: msg.hasImage,
+        });
+      } else if (msg.type === "DOOR_EVENT") {
+        onDoorEventRef.current?.({
+          id: msg.id,
+          lockId: msg.lockId,
+          action: msg.action,
+          createdAt: msg.createdAt,
+          total: msg.total,
         });
       }
     };
