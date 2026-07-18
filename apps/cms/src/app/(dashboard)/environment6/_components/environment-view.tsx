@@ -11,8 +11,9 @@ const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false }
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
 const AudioContent = dynamic(() => import("./audio-content"), { ssr: false });
 const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr: false });
+const SecurityContent = dynamic(() => import("./security-content"), { ssr: false });
 
-type PanelType = "climate" | "lighting" | "audio";
+type PanelType = "climate" | "lighting" | "audio" | "security";
 
 const cardLayoutTransition = { type: "spring", bounce: 0.14, duration: 0.9 } as any;
 
@@ -50,6 +51,7 @@ export function EnvironmentView() {
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0 });
+  const [security, setSecurity] = useState({ locked: true });
 
   // Global Quick Devices State
   const [globalPower, setGlobalPower] = useState({ ac: true, lights: true, audio: true });
@@ -58,7 +60,7 @@ export function EnvironmentView() {
   useEffect(() => {
     setIsClient(true);
     const saved = localStorage.getItem("cms_environment6_panel") as PanelType;
-    if (saved && ["climate", "lighting", "audio"].includes(saved)) {
+    if (saved && ["climate", "lighting", "audio", "security"].includes(saved)) {
       setFocused(saved);
     }
   }, []);
@@ -68,7 +70,7 @@ export function EnvironmentView() {
   }, [focused, isClient]);
 
   // Order
-  const orderedContents = [focused, ...(["climate", "lighting", "audio"] as PanelType[]).filter(x => x !== focused)];
+  const orderedContents = [focused, ...(["climate", "lighting", "audio", "security"] as PanelType[]).filter(x => x !== focused)];
 
   const renderContent = (type: PanelType, isExpanded: boolean) => {
     if (type === "climate") return <ClimateContent key="climate" isExpanded={isExpanded} state={climate} actions={{
@@ -102,6 +104,9 @@ export function EnvironmentView() {
       setBass: (bass: number) => setAudio(s => ({ ...s, bass })),
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
+    if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
+      setLocked: (locked: boolean) => setSecurity(s => ({ ...s, locked }))
+    }} />;
     return null;
   };
 
@@ -123,13 +128,13 @@ export function EnvironmentView() {
       <div
         className="flex-1 w-full grid gap-6 min-h-0"
         style={isDesktop
-          ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr", gridTemplateAreas: '"primary top" "primary bottom"' }
-          : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto", gridTemplateAreas: '"primary" "top" "bottom"' }
+          ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr 1fr", gridTemplateAreas: '"primary top" "primary middle" "primary bottom"' }
+          : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto auto", gridTemplateAreas: '"primary" "top" "middle" "bottom"' }
         }
       >
-        {(["climate", "lighting", "audio"] as PanelType[]).map((type) => {
+        {(["climate", "lighting", "audio", "security"] as PanelType[]).map((type) => {
           const isPrimary = type === focused;
-          const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : "bottom");
+          const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : orderedContents[2] === type ? "middle" : "bottom");
           return (
             <motion.div
               key={type}
