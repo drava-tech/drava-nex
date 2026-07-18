@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
+import { toggleDoorLock } from "@/actions/door-lock-actions";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -105,7 +106,16 @@ export function EnvironmentView() {
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
     if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
-      setLocked: (locked: boolean) => setSecurity(s => ({ ...s, locked }))
+      setLocked: async (locked: boolean) => {
+        setSecurity(s => ({ ...s, locked }));
+        try {
+          await toggleDoorLock(locked ? "locked" : "unlocked");
+        } catch (err) {
+          console.error("Failed to toggle physical door lock:", err);
+          // Revert optimistic update on failure
+          setSecurity(s => ({ ...s, locked: !locked }));
+        }
+      }
     }} />;
     return null;
   };
