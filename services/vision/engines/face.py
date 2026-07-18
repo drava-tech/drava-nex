@@ -9,6 +9,8 @@ model wrapper.
 
 from __future__ import annotations
 import logging
+import os
+import sys
 from typing import Any
 
 import numpy as np
@@ -18,12 +20,49 @@ from ..config import Config
 log = logging.getLogger(__name__)
 
 
+_CUDA_WHEEL_PACKAGES = (
+    "nvidia.cuda_runtime",
+    "nvidia.cublas",
+    "nvidia.cudnn",
+    "nvidia.cufft",
+    "nvidia.curand",
+    "nvidia.cusolver",
+    "nvidia.cusparse",
+    "nvidia.nvjitlink",
+)
+
+
+def _register_cuda_dll_dirs() -> None:
+    """
+    Make the pip-installed CUDA/cuDNN wheels discoverable by onnxruntime-gpu on
+    Windows. These wheels drop their DLLs under site-packages/nvidia/<pkg>/bin,
+    which is not on the default DLL search path, so without this the CUDA
+    execution provider silently fails to load (LoadLibrary error 126) and
+    onnxruntime falls back to CPU. onnxruntime's own provider loader doesn't
+    honor os.add_dll_directory() for this, so these dirs are prepended to PATH
+    instead (the mechanism ONNX Runtime's docs actually recommend). No-op if
+    the packages aren't installed (e.g. a Linux host using system CUDA).
+    """
+    if sys.platform != "win32":
+        return
+    bin_dirs = []
+    for pkg in _CUDA_WHEEL_PACKAGES:
+        try:
+            mod = __import__(pkg, fromlist=["_"])
+            bin_dirs.append(f"{next(iter(mod.__path__))}\\bin")
+        except (ImportError, StopIteration, FileNotFoundError):
+            pass
+    if bin_dirs:
+        os.environ["PATH"] = os.pathsep.join(bin_dirs) + os.pathsep + os.environ["PATH"]
+
+
 class FaceEngine:
     def __init__(self, cfg: Config) -> None:
         self._cfg = cfg
         self._app = None
 
     def load(self) -> None:
+        _register_cuda_dll_dirs()
         import onnxruntime as ort
         from insightface.app import FaceAnalysis
 

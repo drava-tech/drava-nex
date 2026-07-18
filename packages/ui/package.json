@@ -21,6 +21,10 @@
       "import": "./dist/templates/product-showcase/index.js",
       "types": "./dist/templates/product-showcase/index.d.ts"
     },
+    "./templates/welcome": {
+      "import": "./dist/templates/welcome/index.js",
+      "types": "./dist/templates/welcome/index.d.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

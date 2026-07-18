@@ -57,6 +57,20 @@ class Events:
             "type": "CAMERA_STATUS", "cameraId": camera_id, "status": status, "fps": fps,
         })
 
+    def emit_person_present(self, camera_id: str, count: int) -> None:
+        # Identity-agnostic — fired straight off raw detection, no match/enroll
+        # required. Drives the welcome-screen trigger; see door-screen-trigger.ts.
+        self._enqueue({
+            "type": "PERSON_PRESENT", "cameraId": camera_id, "count": count,
+        })
+
+    def emit_snapshot(self, camera_id: str, jpeg_b64: str) -> None:
+        # Debug-only visual aid for the CMS camera preview — not part of the
+        # detection/trigger path.
+        self._enqueue({
+            "type": "CAMERA_SNAPSHOT", "cameraId": camera_id, "jpegBase64": jpeg_b64,
+        })
+
     def emit_product(self, camera_id: str, label: str, confidence: float) -> None:
         # Defined for the future object worker; unused today.
         self._enqueue({

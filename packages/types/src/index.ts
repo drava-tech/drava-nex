@@ -7,7 +7,7 @@ export * from "./products.js";
 export * from "./visitors.js";
 
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
-export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase"] as const;
+export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase", "welcome"] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);
@@ -211,7 +211,10 @@ export type WsCmsMessage =
   // the live-updating CMS Visitors list. Emitted by services/vision via the
   // internal event relay (POST /api/internal/vision-event). `name` may be ""
   // (the CMS already has it from the initial GET /api/visitors load).
-  | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean };
+  | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
+  // Yale lock webhook fired — drives the live Door Lock panel. Emitted directly
+  // from apps/api/src/routes/yale.ts (already an in-process Hono route, no relay).
+  | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number };
 
 export interface BroadcastRequest {
   screenId: string;

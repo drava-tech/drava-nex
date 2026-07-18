@@ -194,6 +194,25 @@ services:
     networks:
       - internal
 
+  # ─── Home Assistant (Yale lock event source) ───────────────────────────────
+  # Container install (core + integrations only, no Supervisor/add-ons — that's
+  # the right choice alongside an existing compose stack). Bridge network, not
+  # host: the August/Yale integration is cloud-based, not local discovery, and
+  # Docker Desktop's host mode here would only share the WSL2 VM's network
+  # namespace anyway, not the real Windows LAN adapter.
+  homeassistant:
+    profiles: [home-assistant]
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: cms-homeassistant
+    restart: unless-stopped
+    ports:
+      - "8123:8123" # HA web UI — onboarding, adding the Yale lock, automations
+    volumes:
+      - E:/EC/cms-platform-data/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - public
+
   # ─── Nginx (only public entry point) ────────────────────────────────────────
   nginx:
     image: nginx:alpine

@@ -1,5 +1,6 @@
 import { PortfolioRenderer, type PortfolioContent } from "@platform/ui/templates/portfolio";
 import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
+import { WelcomeRenderer, readWelcomeContent } from "@platform/ui/templates/welcome";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -36,6 +37,10 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       }
       if (content.templateKey === "product-showcase") {
         return <ProductShowcaseRenderer content={content} preview={preview} />;
+      }
+      if (content.templateKey === "welcome") {
+        const welcome = readWelcomeContent(content.templateContent);
+        return <WelcomeRenderer content={welcome ?? undefined} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

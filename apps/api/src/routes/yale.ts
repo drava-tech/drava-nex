@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { timingSafeEqual } from "node:crypto";
 import type { MQTTDeviceManager } from "@platform/iot";
+import { recordDoorEvent, listDoorEvents } from "@platform/db";
 import { ok, fail } from "../lib/response.js";
+import { broadcastToCms } from "../ws/gateway.js";
 
 /**
  * Yale Zuri S → MQTT bridge. IFTTT ("Make a web request") POSTs lock events
@@ -60,10 +62,29 @@ export function createYaleRouter(mqtt: MQTTDeviceManager): Hono {
 
     // Topic is derived from the trusted env value, never from the payload.
     const topic = `cms/door/${expectedLockId}/unlocked`;
-    const value = body.action === "unlocked" ? "true" : "false";
+    const action: "locked" | "unlocked" = body.action === "unlocked" ? "unlocked" : "locked";
+    const value = action === "unlocked" ? "true" : "false";
 
     const publish = mqtt.publishRaw(topic, value, { qos: 1, retain: true });
     publish.catch((err) => console.error("[yale] publish failed:", err));
+
+    // Persist + notify the CMS regardless of MQTT delivery — the webhook call
+    // itself is the event of record for the live Door Lock panel's history.
+    try {
+      const event = await recordDoorEvent(expectedLockId, action);
+      console.info(`[yale] door event recorded: ${action} at ${event.createdAt.toISOString()}`);
+      const { total } = await listDoorEvents(1);
+      broadcastToCms({
+        type: "DOOR_EVENT",
+        id: event.id,
+        lockId: event.lockId,
+        action: event.action as "locked" | "unlocked",
+        createdAt: event.createdAt.toISOString(),
+        total,
+      });
+    } catch (err) {
+      console.error("[yale] failed to record/broadcast door event:", err);
+    }
 
     // Broker down: the packet is queued client-side and flushed on reconnect;
     // retain:true is last-write-wins, so accept and tell IFTTT 202.
