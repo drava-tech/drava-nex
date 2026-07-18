@@ -41,7 +41,9 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
         ) : (
           <div className="flex-1 min-h-0 w-full overflow-visible grid grid-cols-1 lg:grid-cols-[minmax(210px,0.82fr)_minmax(0,1.18fr)] gap-4 lg:gap-8 py-1">
             <div className="flex min-h-0 items-center justify-center lg:justify-start lg:pl-4">
-              <div className="relative w-40 h-40 md:w-52 md:h-52 lg:aspect-square lg:h-full lg:w-auto lg:min-h-52 lg:max-h-72 flex items-center justify-center shrink-0">
+              {/* Width-driven sizing: the dial fills its grid column (capped at 288px) and
+                  height follows via aspect-square, so it can never spill into the buttons column. */}
+              <div className="relative w-40 h-40 md:w-52 md:h-52 lg:w-full lg:max-w-72 lg:h-auto lg:aspect-square lg:max-h-full flex items-center justify-center shrink-0">
               {Array.from({ length: 48 }).map((_, i) => {
                 const tickTemp = 15 + (i / 3);
                 const isActive = tickTemp <= state.temp;
