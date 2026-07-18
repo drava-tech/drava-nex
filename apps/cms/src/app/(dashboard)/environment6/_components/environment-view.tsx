@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
+import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -51,6 +52,11 @@ export function EnvironmentView() {
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0 });
+
+  // Real lock state — read live from Home Assistant (unlike the other mock
+  // panels above), polled so it stays correct even when the lock changes
+  // some other way (e.g. auto-lock). Toggling updates optimistically and
+  // reverts on failure.
   const [security, setSecurity] = useState({ locked: true });
   const lockPendingRef = useRef(false);
   const autoLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -212,7 +218,7 @@ export function EnvironmentView() {
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
     if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
-      setLocked: (locked: boolean) => setSecurity(s => ({ ...s, locked }))
+      setLocked
     }} />;
     return null;
   };
