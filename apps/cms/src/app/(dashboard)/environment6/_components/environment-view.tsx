@@ -227,6 +227,63 @@ export function EnvironmentView() {
     if (isClient && focused) localStorage.setItem("cms_environment6_panel", focused);
   }, [focused, isClient]);
 
+  // Sync audio state from backend via WebSocket
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isDisposed = false;
+
+    const connect = () => {
+      ws = new WebSocket("/ws/");
+      ws.onopen = () => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "CMS_REGISTER" }));
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "AUDIO_STATUS_UPDATE") {
+            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted }));
+          }
+        } catch {}
+      };
+      ws.onclose = () => { if (!isDisposed) reconnectTimeout = setTimeout(connect, 3000); };
+      ws.onerror = () => ws?.close();
+    };
+
+    connect();
+    // Fetch real audio status on mount
+    fetch("/api/audio/status").then(r => r.json()).then(d => {
+      if (d && typeof d.volume === "number") setAudio(s => ({ ...s, volume: d.volume, muted: d.muted }));
+    }).catch(() => {});
+
+    return () => {
+      isDisposed = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      ws?.close();
+    };
+  }, []);
+
+  // Throttled volume sender: queues the latest value and drains one-at-a-time
+  const apiSetVolume = (volume: number) => {
+    setAudio(s => ({ ...s, volume, muted: false }));
+    pendingVolumeRef.current = volume;
+    if (isSendingVolumeRef.current) return;
+    const sendNext = () => {
+      if (pendingVolumeRef.current === null) { isSendingVolumeRef.current = false; return; }
+      const v = pendingVolumeRef.current;
+      pendingVolumeRef.current = null;
+      isSendingVolumeRef.current = true;
+      fetch("/api/audio/volume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ volume: v }) })
+        .catch(e => console.error("Error setting volume:", e))
+        .finally(() => setTimeout(sendNext, 50));
+    };
+    sendNext();
+  };
+
+  const apiSetMuted = (muted: boolean) => {
+    setAudio(s => ({ ...s, muted }));
+    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
+      .catch(e => console.error("Error setting mute:", e));
+  };
+
   // Order
   const orderedContents = [focused, ...(["climate", "lighting", "audio", "security"] as PanelType[]).filter(x => x !== focused)];
 
