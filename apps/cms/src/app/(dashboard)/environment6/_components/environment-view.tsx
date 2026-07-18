@@ -117,7 +117,6 @@ export function EnvironmentView() {
   }, []);
 
   const apiSetVolume = useCallback((volume: number) => {
-    console.log("[audio-debug] apiSetVolume called with:", volume);
     setAudio(s => ({ ...s, volume, muted: false }));
     pendingVolumeRef.current = volume;
     if (isSendingVolumeRef.current) return;
@@ -131,15 +130,12 @@ export function EnvironmentView() {
       pendingVolumeRef.current = null;
       isSendingVolumeRef.current = true;
 
-      console.log("[audio-debug] POSTing /api/audio/volume with:", volToSend);
       fetch("/api/audio/volume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ volume: volToSend }),
       })
-        .then(res => res.json())
-        .then(data => console.log("[audio-debug] /api/audio/volume response:", data))
-        .catch(err => console.error("[audio-debug] Error setting volume:", err))
+        .catch(err => console.error("Error setting volume:", err))
         .finally(() => { setTimeout(sendNext, 50); });
     };
 
@@ -147,12 +143,9 @@ export function EnvironmentView() {
   }, []);
 
   const apiSetMuted = useCallback((muted: boolean) => {
-    console.log("[audio-debug] apiSetMuted called with:", muted);
     setAudio(s => ({ ...s, muted }));
     fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
-      .then(res => res.json())
-      .then(data => console.log("[audio-debug] mute response:", data))
-      .catch(err => console.error("[audio-debug] Error setting mute:", err));
+      .catch(err => console.error("Error setting mute:", err));
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock
@@ -226,63 +219,6 @@ export function EnvironmentView() {
   useEffect(() => {
     if (isClient && focused) localStorage.setItem("cms_environment6_panel", focused);
   }, [focused, isClient]);
-
-  // Sync audio state from backend via WebSocket
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isDisposed = false;
-
-    const connect = () => {
-      ws = new WebSocket("/ws/");
-      ws.onopen = () => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "CMS_REGISTER" }));
-      ws.onmessage = (evt) => {
-        try {
-          const msg = JSON.parse(evt.data);
-          if (msg.type === "AUDIO_STATUS_UPDATE") {
-            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted }));
-          }
-        } catch {}
-      };
-      ws.onclose = () => { if (!isDisposed) reconnectTimeout = setTimeout(connect, 3000); };
-      ws.onerror = () => ws?.close();
-    };
-
-    connect();
-    // Fetch real audio status on mount
-    fetch("/api/audio/status").then(r => r.json()).then(d => {
-      if (d && typeof d.volume === "number") setAudio(s => ({ ...s, volume: d.volume, muted: d.muted }));
-    }).catch(() => {});
-
-    return () => {
-      isDisposed = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      ws?.close();
-    };
-  }, []);
-
-  // Throttled volume sender: queues the latest value and drains one-at-a-time
-  const apiSetVolume = (volume: number) => {
-    setAudio(s => ({ ...s, volume, muted: false }));
-    pendingVolumeRef.current = volume;
-    if (isSendingVolumeRef.current) return;
-    const sendNext = () => {
-      if (pendingVolumeRef.current === null) { isSendingVolumeRef.current = false; return; }
-      const v = pendingVolumeRef.current;
-      pendingVolumeRef.current = null;
-      isSendingVolumeRef.current = true;
-      fetch("/api/audio/volume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ volume: v }) })
-        .catch(e => console.error("Error setting volume:", e))
-        .finally(() => setTimeout(sendNext, 50));
-    };
-    sendNext();
-  };
-
-  const apiSetMuted = (muted: boolean) => {
-    setAudio(s => ({ ...s, muted }));
-    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
-      .catch(e => console.error("Error setting mute:", e));
-  };
 
   // Order
   const orderedContents = [focused, ...(["climate", "lighting", "audio", "security"] as PanelType[]).filter(x => x !== focused)];

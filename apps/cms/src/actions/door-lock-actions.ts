@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-helpers";
+import { apiFetch } from "@/lib/api-client";
 
 export async function toggleDoorLock(action: "locked" | "unlocked") {
   await requireAdmin();
