@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
-import { toggleDoorLock } from "@/actions/door-lock-actions";
+import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -55,6 +55,56 @@ export function EnvironmentView() {
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef(false);
   const [security, setSecurity] = useState({ locked: true });
+  const lockPendingRef = useRef(false);
+  const autoLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refreshLockState = useCallback(async () => {
+    try {
+      const live = await getLiveLockState();
+      setSecurity({ locked: live.state === "locked" });
+    } catch {
+      // Leave the last-known state on screen for this compact tile rather
+      // than flashing an error — a failed toggle still reverts below.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshLockState();
+    const interval = setInterval(refreshLockState, 5_000);
+    return () => clearInterval(interval);
+  }, [refreshLockState]);
+
+  const setLocked = useCallback((locked: boolean) => {
+    if (lockPendingRef.current) return;
+
+    // Cancel any pending auto-relock — this new action supersedes it.
+    if (autoLockTimerRef.current) {
+      clearTimeout(autoLockTimerRef.current);
+      autoLockTimerRef.current = null;
+    }
+
+    lockPendingRef.current = true;
+    setSecurity({ locked });
+    toggleDoorLock(locked ? "locked" : "unlocked")
+      .then(() => {
+        if (!locked) {
+          // Auto re-lock 2s after an unlock.
+          autoLockTimerRef.current = setTimeout(() => {
+            autoLockTimerRef.current = null;
+            setSecurity({ locked: true });
+            toggleDoorLock("locked").catch(() => refreshLockState());
+          }, 2_000);
+        }
+      })
+      .catch(() => refreshLockState())
+      .finally(() => { lockPendingRef.current = false; });
+  }, [refreshLockState]);
+
+  useEffect(() => {
+    return () => {
+      if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
+    };
+  }, []);
 
   // Global Quick Devices State
   const [globalPower, setGlobalPower] = useState({ ac: true, lights: true, audio: true });
@@ -164,16 +214,7 @@ export function EnvironmentView() {
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
     if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
-      setLocked: async (locked: boolean) => {
-        setSecurity(s => ({ ...s, locked }));
-        try {
-          await toggleDoorLock(locked ? "locked" : "unlocked");
-        } catch (err) {
-          console.error("Failed to toggle physical door lock:", err);
-          // Revert optimistic update on failure
-          setSecurity(s => ({ ...s, locked: !locked }));
-        }
-      }
+      setLocked
     }} />;
     return null;
   };

@@ -5,6 +5,11 @@ import { recordDoorEvent, listDoorEvents } from "@platform/db";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { broadcastToCms } from "../ws/gateway.js";
+import {
+  setHomeAssistantLockState,
+  getHomeAssistantLockState,
+  HomeAssistantError,
+} from "../services/home-assistant.js";
 
 const toggleSchema = z.object({
   action: z.enum(["locked", "unlocked"]),
@@ -34,12 +39,27 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
     }
   });
 
+  // GET /api/door-events/state — live lock state, read straight from Home
+  // Assistant (never from our own recorded history, which can go stale the
+  // moment the lock changes state some other way, e.g. auto-lock).
+  router.get("/state", async (c) => {
+    try {
+      const state = await getHomeAssistantLockState();
+      return ok(c, state);
+    } catch (err) {
+      console.error("[door-events] failed to fetch live Home Assistant state:", err);
+      const message =
+        err instanceof HomeAssistantError ? err.message : "Failed to reach Home Assistant.";
+      return fail(c, "HOME_ASSISTANT_ERROR", message, 502);
+    }
+  });
+
   // POST /api/door-events/toggle — manually toggle the lock state
   router.post("/toggle", async (c) => {
-    const expectedLockId = process.env["YALE_LOCK_ID"];
-    if (!expectedLockId) {
-      return fail(c, "MISCONFIGURED", "Yale webhook is not configured", 503);
-    }
+    // Home Assistant is the sole source of truth now — HA_ENTITY_ID (checked
+    // inside setHomeAssistantLockState) is what's actually required; this is
+    // only a human-readable label for the recorded event/MQTT topic.
+    const lockId = process.env["HA_ENTITY_ID"] ?? "home-assistant-lock";
 
     let body: z.infer<typeof toggleSchema>;
     try {
@@ -52,7 +72,19 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
     }
 
     const { action } = body;
-    const topic = `cms/door/${expectedLockId}/unlocked`;
+
+    // Actual actuation of the physical lock — the Yale IFTTT webhook only
+    // records history for locks toggled elsewhere, it never drives this lock.
+    try {
+      await setHomeAssistantLockState(action);
+    } catch (err) {
+      console.error("[door-events-manual] Home Assistant call failed:", err);
+      const message =
+        err instanceof HomeAssistantError ? err.message : "Failed to reach Home Assistant.";
+      return fail(c, "HOME_ASSISTANT_ERROR", message, 502);
+    }
+
+    const topic = `cms/door/${lockId}/unlocked`;
     const value = action === "unlocked" ? "true" : "false";
 
     // Publish state to the broker so physical/logical local IoT devices sync
@@ -60,7 +92,7 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
     publish.catch((err) => console.error("[door-events-manual] publish failed:", err));
 
     try {
-      const event = await recordDoorEvent(expectedLockId, action);
+      const event = await recordDoorEvent(lockId, action);
       console.info(`[door-events-manual] door event recorded: ${action} at ${event.createdAt.toISOString()}`);
       const { total } = await listDoorEvents(1);
       broadcastToCms({

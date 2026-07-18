@@ -13,7 +13,6 @@ import {
   Cpu,
   Package,
   ScanFace,
-  Lock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,12 +73,6 @@ const ALL_NAV = [
     title: "Visitors",
     url: "/visitors",
     icon: ScanFace,
-    roles: ["ADMIN"] as string[],
-  },
-  {
-    title: "Door Lock",
-    url: "/door-lock",
-    icon: Lock,
     roles: ["ADMIN"] as string[],
   },
   {

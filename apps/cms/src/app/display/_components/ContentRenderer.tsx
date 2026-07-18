@@ -40,7 +40,7 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       }
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);
-        return <WelcomeRenderer content={welcome ?? undefined} />;
+        return <WelcomeRenderer content={welcome ?? undefined} speak={!preview} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }
