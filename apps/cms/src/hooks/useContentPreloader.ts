@@ -12,6 +12,7 @@ interface PreloadState {
 
 interface UseContentPreloaderReturn {
   activeContent: WsContent;
+  activeKey: string;
   queueContent: (incoming: WsContent) => void;
 }
 
@@ -71,7 +72,7 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.stagedKey]);
 
-  return { activeContent: state.active, queueContent };
+  return { activeContent: state.active, activeKey: state.activeKey, queueContent };
 }
 
 function getContentKey(content: WsContent): string {
