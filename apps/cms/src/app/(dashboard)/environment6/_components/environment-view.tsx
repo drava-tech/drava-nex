@@ -51,7 +51,7 @@ export function EnvironmentView() {
     zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0 });
+  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0 });
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef(false);
   const [security, setSecurity] = useState({ locked: true });
@@ -161,7 +161,6 @@ export function EnvironmentView() {
       setMuted: apiSetMuted,
       setInput: (input: string) => setAudio(s => ({ ...s, input })),
       setPower: (power: boolean) => setAudio(s => ({ ...s, power })),
-      setBass: (bass: number) => setAudio(s => ({ ...s, bass })),
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
     if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
