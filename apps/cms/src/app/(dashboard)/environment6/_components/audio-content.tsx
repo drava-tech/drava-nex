@@ -96,7 +96,9 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
 
   const updateVol = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    actions.setVolume(Math.round((Math.max(0, Math.min(e.clientX - rect.left, rect.width)) / rect.width) * 100));
+    const pct = Math.round((Math.max(0, Math.min(e.clientX - rect.left, rect.width)) / rect.width) * 100);
+    console.log("[audio-debug] updateVol pointer event, computed %:", pct);
+    actions.setVolume(pct);
     actions.setMuted(false);
   };
 
