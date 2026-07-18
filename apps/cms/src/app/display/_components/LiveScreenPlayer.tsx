@@ -74,7 +74,7 @@ export function LiveScreenPlayer({
   preview = false,
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
-  const { activeContent, queueContent } = useContentPreloader(initial);
+  const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
 
 
   const handleContentUpdate = useCallback(
@@ -212,7 +212,9 @@ export function LiveScreenPlayer({
 
   return (
     <>
-      <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+      <div key={activeKey} className="screen-content-fade">
+        <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+      </div>
       {runServer && debugMode && (
         <DetectionDebugOverlay
           stream={serverDetection.stream}

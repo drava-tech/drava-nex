@@ -183,3 +183,22 @@
     display: none;
   }
 }
+
+/* Fade-in for the TV display when its content changes (idle video, Welcome,
+   any experience). Fixed + inset-0 so it still fills the viewport even though
+   a non-1 opacity briefly makes it a containing block for fixed-position
+   children (VideoRenderer/ImageRenderer render position: fixed internally). */
+@keyframes screen-content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.screen-content-fade {
+  position: fixed;
+  inset: 0;
+  animation: screen-content-fade-in 600ms ease-out;
+}
