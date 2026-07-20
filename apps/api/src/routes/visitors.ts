@@ -5,12 +5,14 @@ import path from "path";
 import {
   listVisitors,
   getVisitorByUuid,
+  createManualVisitor,
   updateVisitorContact,
   VisitorNotFoundError,
   type VisitorRow,
 } from "@platform/db";
 import {
   listVisitorsQuerySchema,
+  createVisitorSchema,
   updateVisitorSchema,
   formatZodError,
   type VisitorListItem,
@@ -40,6 +42,7 @@ function toItem(row: VisitorRow): VisitorListItem {
     email: row.email,
     role: row.role,
     hasImage: row.imagePath !== null,
+    photoUrl: row.photoUrl,
     firstSeen: row.firstSeen.toISOString(),
     lastSeen: row.lastSeen.toISOString(),
   };
@@ -58,6 +61,29 @@ visitorsRouter.get("/", async (c) => {
   try {
     const result = await listVisitors(parsed.data);
     return ok(c, { ...result, items: result.items.map(toItem) });
+  } catch (err) {
+    console.error("[visitors] unhandled error:", err);
+    return fail(c, "INTERNAL", "Something went wrong.", 500);
+  }
+});
+
+// POST /api/visitors — staff adds a guest manually (no camera enrollment,
+// embedding stays NULL; see schema comment on visitor.embedding)
+visitorsRouter.post("/", async (c) => {
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return fail(c, "INVALID_BODY", "Request body must be valid JSON.", 422);
+  }
+  const parsed = createVisitorSchema.safeParse(raw);
+  if (!parsed.success) {
+    return fail(c, "VALIDATION", "Validation failed.", 422, formatZodError(parsed.error));
+  }
+
+  try {
+    const row = await createManualVisitor(parsed.data);
+    return ok(c, toItem(row), 201);
   } catch (err) {
     console.error("[visitors] unhandled error:", err);
     return fail(c, "INTERNAL", "Something went wrong.", 500);

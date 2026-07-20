@@ -28,13 +28,21 @@ class Matcher:
         self._last_write: dict[str, float] = {}
 
     def find_nearest(self, embedding: np.ndarray) -> Optional[tuple[str, float]]:
-        """Return (uuid, cosine_distance) of the closest visitor, or None if empty."""
+        """Return (uuid, cosine_distance) of the closest visitor, or None if empty.
+
+        Manually-added guests (CMS "Add guest") have no face scan and store
+        embedding = NULL; `embedding <=> %s` on those rows is NULL, which sorts
+        last in ascending ORDER BY, so they lose to any real match. The only
+        edge case is a table with no enrolled (non-NULL) rows at all, where the
+        nearest row returned has distance NULL — guard that here rather than
+        letting float(None) raise.
+        """
         row = self._db.query_one(
             "SELECT uuid::text, embedding <=> %s AS distance "
             "FROM visitor ORDER BY embedding <=> %s LIMIT 1",
             (embedding, embedding),
         )
-        if row is None:
+        if row is None or row[1] is None:
             return None
         return str(row[0]), float(row[1])
 
