@@ -93,9 +93,14 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
     return () => cancelAnimationFrame(frameId);
   }, []);
 
+  const lastPctRef = useRef<number | null>(null);
+
   const updateVol = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    actions.setVolume(Math.round((Math.max(0, Math.min(e.clientX - rect.left, rect.width)) / rect.width) * 100));
+    const pct = Math.round((Math.max(0, Math.min(e.clientX - rect.left, rect.width)) / rect.width) * 100);
+    if (pct === lastPctRef.current) return; // skip redundant updates on sub-pixel jitter
+    lastPctRef.current = pct;
+    actions.setVolume(pct);
     actions.setMuted(false);
   };
 

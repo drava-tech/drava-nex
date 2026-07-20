@@ -11,6 +11,7 @@ import type {
   WsContent,
   BroadcastRequest,
   StreamFormat,
+  AudioStatus,
 } from '@platform/types';
 import { getCameraScreen } from '../lib/camera-map.js';
 import { resolveDetectedProduct } from '../services/detection.js';
@@ -47,6 +48,30 @@ interface StreamCacheEntry {
   lastKeyframe?: Buffer;
 }
 const streamCache = new Map<string, StreamCacheEntry>();
+
+// ─── Native audio bridge ────────────────────────────────────────────────────────
+// apps/api/audio-helper/bridge.mjs runs on the Windows host (the API container
+// is Linux and can't execute the NAudio-based audio-helper.exe itself) and
+// connects out to this gateway to relay volume/mute commands + status. A
+// single expected connection; a fresh registration supersedes any stale one.
+let audioBridge: WebSocket | null = null;
+let audioStatusCache: AudioStatus = { volume: 50, muted: false, device: 'Unknown Device' };
+
+export function sendAudioCommand(
+  action: 'set-volume' | 'set-mute' | 'toggle-mute',
+  value?: number | boolean
+): boolean {
+  if (!audioBridge || audioBridge.readyState !== WebSocket.OPEN) {
+    console.warn('[gateway] Audio bridge not connected — dropping command:', action);
+    return false;
+  }
+  audioBridge.send(JSON.stringify({ type: 'AUDIO_COMMAND', action, value } satisfies WsServerMessage));
+  return true;
+}
+
+export function getAudioStatus(): AudioStatus {
+  return audioStatusCache;
+}
 
 function broadcastStreamStatus(streamId: string, active: boolean): void {
   const subs = streamSubscribers.get(streamId);
@@ -266,6 +291,7 @@ export function createGateway(): WebSocketServer {
     let registeredScreenId: string | null = null;
     let isCmsClient = false;
     let isUeClient = false;
+    let isAudioBridge = false;
     const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
     let publishingStreamId: string | null = null;
@@ -371,19 +397,40 @@ export function createGateway(): WebSocketServer {
               ws.send(JSON.stringify({ type: 'CAMERA_STATUS_UPDATE', ...status } satisfies WsCmsMessage));
             }
           }
-          // Send initial audio status
-          import('../services/audio.js')
-            .then(({ audioService }) => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                  type: 'AUDIO_STATUS_UPDATE',
-                  ...audioService.getStatus()
-                }));
-              }
-            })
-            .catch((err) => {
-              console.error('[gateway] Failed to send initial audio status on register:', err);
-            });
+          // Send initial audio status (gateway owns this cache directly —
+          // no import of services/audio.ts, which now depends on gateway.ts
+          // for command/status relay, not the other way around).
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'AUDIO_STATUS_UPDATE', ...audioStatusCache } satisfies WsCmsMessage));
+          }
+          break;
+        }
+
+        case 'AUDIO_BRIDGE_REGISTER': {
+          const expected = process.env['BROADCAST_SECRET'];
+          if (!expected || msg.secret !== expected) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'AUDIO_BRIDGE_REGISTER_NACK', reason: 'unauthorized' } satisfies WsServerMessage));
+            }
+            ws.close();
+            break;
+          }
+          // A fresh registration supersedes any stale one (e.g. bridge restart).
+          if (audioBridge && audioBridge !== ws && audioBridge.readyState === WebSocket.OPEN) {
+            audioBridge.close();
+          }
+          isAudioBridge = true;
+          audioBridge = ws;
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'AUDIO_BRIDGE_REGISTER_ACK' } satisfies WsServerMessage));
+          }
+          break;
+        }
+
+        case 'AUDIO_BRIDGE_STATUS': {
+          if (!isAudioBridge) break; // ignore from any unauthenticated socket
+          audioStatusCache = { volume: msg.volume, muted: msg.muted, device: msg.device };
+          broadcastToCms({ type: 'AUDIO_STATUS_UPDATE', ...audioStatusCache });
           break;
         }
 
@@ -626,6 +673,11 @@ export function createGateway(): WebSocketServer {
       }
       if (isUeClient) {
         ueRegistry.delete(ws);
+      }
+      if (isAudioBridge && audioBridge === ws) {
+        audioBridge = null;
+        // Leave audioStatusCache as last-known-good rather than resetting to
+        // the generic fallback — the CMS shows stale-but-plausible numbers.
       }
       // Publisher gone → drop its cache and tell subscribers the stream stopped.
       if (publishingStreamId && streamPublishers.get(publishingStreamId) === ws) {

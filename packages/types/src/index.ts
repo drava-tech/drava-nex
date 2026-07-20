@@ -138,6 +138,12 @@ export interface WsContent {
   templateContent?: Record<string, unknown>;
 }
 
+export interface AudioStatus {
+  volume: number;
+  muted: boolean;
+  device: string;
+}
+
 export type CameraStatus =
   | 'online'
   | 'waiting'
@@ -165,7 +171,11 @@ export type WsServerMessage =
   | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
   // Live-stream relay: tells a subscriber whether a publisher is currently
   // pushing this stream (drives the "stream is going on" vs "waiting" state).
-  | { type: 'STREAM_STATUS'; streamId: string; active: boolean; format?: StreamFormat };
+  | { type: 'STREAM_STATUS'; streamId: string; active: boolean; format?: StreamFormat }
+  | { type: 'AUDIO_BRIDGE_REGISTER_ACK' }
+  | { type: 'AUDIO_BRIDGE_REGISTER_NACK'; reason: string }
+  // Sent only to the registered native audio-bridge socket (apps/api/audio-helper/bridge.mjs).
+  | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -188,7 +198,15 @@ export type WsClientMessage =
   | { type: 'UE_REGISTER'; apiKey?: string }
   // Camera detection events
   | import('./products.js').ProductDetectedEvent
-  | import('./products.js').ProductLostEvent;
+  | import('./products.js').ProductLostEvent
+  // Native audio bridge (apps/api/audio-helper/bridge.mjs) registers itself.
+  // Auth is a shared secret (BROADCAST_SECRET), matching the internal.ts
+  // machine-to-machine trust pattern — not the API-key/scope system (that's
+  // for third-party UE automation; this is a single first-party helper).
+  | { type: 'AUDIO_BRIDGE_REGISTER'; secret: string }
+  // Bridge reports current OS volume/mute/device after every change (both
+  // CMS-initiated and externally-initiated, e.g. the Windows tray).
+  | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus);
 
 /**
  * Events the gateway pushes to subscribed Unreal Engine / automation clients
@@ -214,7 +232,10 @@ export type WsCmsMessage =
   | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
   // Yale lock webhook fired — drives the live Door Lock panel. Emitted directly
   // from apps/api/src/routes/yale.ts (already an in-process Hono route, no relay).
-  | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number };
+  | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }
+  // System volume/mute, relayed from the native audio bridge (see WsClientMessage
+  // AUDIO_BRIDGE_STATUS) — drives the live Audio tile in Environment Control.
+  | ({ type: 'AUDIO_STATUS_UPDATE' } & AudioStatus);
 
 export interface BroadcastRequest {
   screenId: string;

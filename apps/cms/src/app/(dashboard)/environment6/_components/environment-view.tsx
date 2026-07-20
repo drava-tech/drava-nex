@@ -51,9 +51,107 @@ export function EnvironmentView() {
     zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0 });
+  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
+
   const pendingVolumeRef = useRef<number | null>(null);
-  const isSendingVolumeRef = useRef(false);
+  const isSendingVolumeRef = useRef<boolean>(false);
+
+  // Real volume/mute/device — read live over WS from the native audio bridge
+  // (apps/api/audio-helper/bridge.mjs), not local mock state like the other
+  // panels above. power/playing/input/treble stay local-only: no
+  // backend equivalent exists for those (NAudio only exposes volume/mute).
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isDisposed = false;
+
+    const connect = () => {
+      if (isDisposed) return;
+      const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
+      let resolved = wsUrl;
+      if (typeof window !== "undefined" && wsUrl.startsWith("/")) {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        resolved = `${protocol}//${window.location.host}${wsUrl}`;
+      }
+
+      ws = new WebSocket(resolved);
+
+      ws.onopen = () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "CMS_REGISTER" }));
+        }
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "AUDIO_STATUS_UPDATE") {
+            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted, device: msg.device }));
+          }
+        } catch { /* ignore */ }
+      };
+
+      ws.onclose = () => {
+        if (!isDisposed) reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => { ws?.close(); };
+    };
+
+    connect();
+
+    fetch("/api/audio/status")
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.volume === "number") {
+          setAudio(s => ({ ...s, volume: data.volume, muted: data.muted, device: data.device }));
+        }
+      })
+      .catch(err => console.error("Failed to fetch audio status:", err));
+
+    return () => {
+      isDisposed = true;
+      if (ws) ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, []);
+
+  const apiSetVolume = useCallback((volume: number) => {
+    setAudio(s => ({ ...s, volume, muted: false }));
+    pendingVolumeRef.current = volume;
+    if (isSendingVolumeRef.current) return;
+
+    const sendNext = () => {
+      if (pendingVolumeRef.current === null) {
+        isSendingVolumeRef.current = false;
+        return;
+      }
+      const volToSend = pendingVolumeRef.current;
+      pendingVolumeRef.current = null;
+      isSendingVolumeRef.current = true;
+
+      fetch("/api/audio/volume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ volume: volToSend }),
+      })
+        .catch(err => console.error("Error setting volume:", err))
+        .finally(() => { setTimeout(sendNext, 50); });
+    };
+
+    sendNext();
+  }, []);
+
+  const apiSetMuted = useCallback((muted: boolean) => {
+    setAudio(s => ({ ...s, muted }));
+    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
+      .catch(err => console.error("Error setting mute:", err));
+  }, []);
+
+  // Real lock state — read live from Home Assistant (unlike the other mock
+  // panels above), polled so it stays correct even when the lock changes
+  // some other way (e.g. auto-lock). Toggling updates optimistically and
+  // reverts on failure.
   const [security, setSecurity] = useState({ locked: true });
   const lockPendingRef = useRef(false);
   const autoLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,63 +219,6 @@ export function EnvironmentView() {
   useEffect(() => {
     if (isClient && focused) localStorage.setItem("cms_environment6_panel", focused);
   }, [focused, isClient]);
-
-  // Sync audio state from backend via WebSocket
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isDisposed = false;
-
-    const connect = () => {
-      ws = new WebSocket("/ws/");
-      ws.onopen = () => ws?.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "CMS_REGISTER" }));
-      ws.onmessage = (evt) => {
-        try {
-          const msg = JSON.parse(evt.data);
-          if (msg.type === "AUDIO_STATUS_UPDATE") {
-            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted }));
-          }
-        } catch {}
-      };
-      ws.onclose = () => { if (!isDisposed) reconnectTimeout = setTimeout(connect, 3000); };
-      ws.onerror = () => ws?.close();
-    };
-
-    connect();
-    // Fetch real audio status on mount
-    fetch("/api/audio/status").then(r => r.json()).then(d => {
-      if (d && typeof d.volume === "number") setAudio(s => ({ ...s, volume: d.volume, muted: d.muted }));
-    }).catch(() => {});
-
-    return () => {
-      isDisposed = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      ws?.close();
-    };
-  }, []);
-
-  // Throttled volume sender: queues the latest value and drains one-at-a-time
-  const apiSetVolume = (volume: number) => {
-    setAudio(s => ({ ...s, volume, muted: false }));
-    pendingVolumeRef.current = volume;
-    if (isSendingVolumeRef.current) return;
-    const sendNext = () => {
-      if (pendingVolumeRef.current === null) { isSendingVolumeRef.current = false; return; }
-      const v = pendingVolumeRef.current;
-      pendingVolumeRef.current = null;
-      isSendingVolumeRef.current = true;
-      fetch("/api/audio/volume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ volume: v }) })
-        .catch(e => console.error("Error setting volume:", e))
-        .finally(() => setTimeout(sendNext, 50));
-    };
-    sendNext();
-  };
-
-  const apiSetMuted = (muted: boolean) => {
-    setAudio(s => ({ ...s, muted }));
-    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
-      .catch(e => console.error("Error setting mute:", e));
-  };
 
   // Order
   const orderedContents = [focused, ...(["climate", "lighting", "audio", "security"] as PanelType[]).filter(x => x !== focused)];
