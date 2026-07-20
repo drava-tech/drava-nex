@@ -95,15 +95,21 @@ export function OverviewView({
               ) : null}
             </div>
 
-            {/* Label buttons — button 1 = Watch Video (only when a video exists),
-                button 2 = open the vertical's page (always available) */}
-            <div className="flex flex-col" style={{ gap: 12, width: "58%" }}>
+            {/* Label buttons in a horizontal row — button 1 = Watch Video (only when
+                a video exists), button 2 = open the vertical's page (always available) */}
+            <div
+              className="flex"
+              style={{
+                gap: 12,
+                width: card.videoUrl && card.button1 && card.button1.trim() ? "100%" : "58%",
+              }}
+            >
               {card.videoUrl && card.button1 && card.button1.trim() ? (
                 <div
                   role="button"
                   tabIndex={0}
                   onClick={() => card.videoUrl && applyVideo(card.videoUrl, { emit: true })}
-                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity flex-1"
                   style={buttonStyle}
                 >
                   {card.button1}
@@ -114,7 +120,7 @@ export function OverviewView({
                   role="button"
                   tabIndex={0}
                   onClick={() => onOpenVertical?.(i)}
-                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity flex-1"
                   style={buttonStyle}
                 >
                   {card.button2}
