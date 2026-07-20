@@ -8,22 +8,21 @@ import {
   DEFAULT_CARD_PADDING,
   type PortfolioContent,
 } from "../content";
-import { ProjectShowcaseView } from "./project-showcase";
 import { VideoPopup } from "../components/video-popup";
 
 /**
  * Overview view — 3 columns, each: Title · 4:3 Image · two label buttons.
  * Authored in real 1920×1080 px (inside ScreenStage), fixed light palette.
- * Tapping the first ("Watch Video") button opens the card's video in a popup.
+ * Tapping the first ("Watch Video") button opens the card's video in a popup;
+ * tapping the second navigates to the vertical's page (the parent app decides
+ * the transport — URL push in the CMS, WS-synced state on live screens).
  */
-export function OverviewView({ 
+export function OverviewView({
   content,
-  activeCardIndex: externalActiveCardIndex,
-  onActiveCardChange,
-}: { 
+  onOpenVertical,
+}: {
   content?: PortfolioContent;
-  activeCardIndex?: number | null;
-  onActiveCardChange?: (index: number | null) => void;
+  onOpenVertical?: (index: number) => void;
 }) {
   const cards =
     content?.overview?.cards?.length
@@ -35,12 +34,9 @@ export function OverviewView({
   const cardPadding = ov?.cardPadding ?? DEFAULT_CARD_PADDING;
 
   const [openVideo, setOpenVideo] = useState<string | null>(null);
-  const [localActiveCardIndex, setLocalActiveCardIndex] = useState<number | null>(null);
 
-  const activeCardIndex = externalActiveCardIndex !== undefined ? externalActiveCardIndex : localActiveCardIndex;
-
-  // Emit a `screen-control` window event so the player shell relays this view/
-  // video change over WebSocket to every client of this screen (the physical TV
+  // Emit a `screen-control` window event so the player shell relays this video
+  // change over WebSocket to every client of this screen (the physical TV
   // and any CMS mirror), keeping them in lockstep. Transport-agnostic: the UI
   // package never imports WS — the shell owns the relay.
   const emitScreenControl = (command: string, value: unknown) => {
@@ -51,34 +47,20 @@ export function OverviewView({
   // `emit: false` is used when APPLYING a remote command (the shell dispatched
   // it from an inbound SCREEN_COMMAND) — applying must not re-broadcast, or the
   // gateway's echo-to-sender would loop. Absolute values make any echo a no-op.
-  const applyCardIndex = (i: number | null, opts?: { emit?: boolean }) => {
-    setLocalActiveCardIndex(i);
-    onActiveCardChange?.(i);
-    if (opts?.emit) emitScreenControl("SET_PORTFOLIO_VIEW", { cardIndex: i });
-  };
-
   const applyVideo = (url: string | null, opts?: { emit?: boolean }) => {
     setOpenVideo(url);
     if (opts?.emit) emitScreenControl("SET_PORTFOLIO_VIDEO", { videoUrl: url });
   };
 
-  // Apply view/video changes pushed from other clients of this screen (relayed
-  // by the shell as `portfolio-set-*` window events). Apply without re-emitting.
+  // Apply video changes pushed from other clients of this screen (relayed by
+  // the shell as a `portfolio-set-video` window event). Apply without re-emitting.
   useEffect(() => {
-    const onSetView = (e: Event) => {
-      const detail = (e as CustomEvent<{ cardIndex?: number | null }>).detail;
-      applyCardIndex(detail?.cardIndex ?? null, { emit: false });
-    };
     const onSetVideo = (e: Event) => {
       const detail = (e as CustomEvent<{ videoUrl?: string | null }>).detail;
       applyVideo(detail?.videoUrl ?? null, { emit: false });
     };
-    window.addEventListener("portfolio-set-view", onSetView);
     window.addEventListener("portfolio-set-video", onSetVideo);
-    return () => {
-      window.removeEventListener("portfolio-set-view", onSetView);
-      window.removeEventListener("portfolio-set-video", onSetVideo);
-    };
+    return () => window.removeEventListener("portfolio-set-video", onSetVideo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -91,15 +73,6 @@ export function OverviewView({
     fontSize: buttonFontSize,
     fontWeight: 400,
   } as const;
-
-  if (activeCardIndex !== null) {
-    return (
-      <ProjectShowcaseView
-        card={cards[activeCardIndex]!}
-        onBack={() => applyCardIndex(null, { emit: true })}
-      />
-    );
-  }
 
   return (
     <div className="w-full h-full" style={{ background: "#d4d4d4", padding: 48 }}>
@@ -122,25 +95,26 @@ export function OverviewView({
               ) : null}
             </div>
 
-            {/* Label buttons — button 1 = Watch Video (opens popup), button 2 = label only */}
+            {/* Label buttons — button 1 = Watch Video (only when a video exists),
+                button 2 = open the vertical's page (always available) */}
             <div className="flex flex-col" style={{ gap: 12, width: "58%" }}>
               {card.videoUrl && card.button1 && card.button1.trim() ? (
                 <div
                   role="button"
                   tabIndex={0}
                   onClick={() => card.videoUrl && applyVideo(card.videoUrl, { emit: true })}
-                  className="flex items-center justify-center"
-                  style={{ ...buttonStyle, cursor: card.videoUrl ? "pointer" : "default" }}
+                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                  style={buttonStyle}
                 >
                   {card.button1}
                 </div>
               ) : null}
-              {!card.videoUrl && card.button2 && card.button2.trim() ? (
-                <div 
+              {card.button2 && card.button2.trim() ? (
+                <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => applyCardIndex(i, { emit: true })}
-                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity" 
+                  onClick={() => onOpenVertical?.(i)}
+                  className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
                   style={buttonStyle}
                 >
                   {card.button2}

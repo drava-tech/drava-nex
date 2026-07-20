@@ -6,16 +6,19 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, Loader2, Check } from "lucide-react";
 import type { Experience } from "@platform/db";
 import { updateExperienceTemplateContent } from "@/actions/experience-actions";
-import { PortfolioFields } from "./editor-fields";
+import { PortfolioFields, SectionFields } from "./editor-fields";
 import {
   ScreenStage,
-  OverviewView,
+  PortfolioApp,
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
+  normalizeSections,
   type OverviewCard,
   type PortfolioContent,
+  type PortfolioSection,
+  type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
 
 function clampNum(v: number, min: number, max: number) {
@@ -91,7 +94,9 @@ export function PortfolioEditorWorkspace({
     ? initialContent.overview.cards
     : DEFAULT_PORTFOLIO_CONTENT.overview.cards;
 
-  const [cards, setCards] = useState<OverviewCard[]>(seed.map((c) => ({ ...c })));
+  const [cards, setCards] = useState<OverviewCard[]>(
+    seed.map((c) => ({ ...c, sections: normalizeSections(c.sections) }))
+  );
   const [titleFontSize, setTitleFontSize] = useState<number>(
     initialContent?.overview?.titleFontSize ?? DEFAULT_TITLE_FONT_SIZE
   );
@@ -101,7 +106,10 @@ export function PortfolioEditorWorkspace({
   const [cardPadding, setCardPadding] = useState<number>(
     initialContent?.overview?.cardPadding ?? DEFAULT_CARD_PADDING
   );
-  const [activeCardIndex, setActiveCardIndex] = useState<number | null>(null);
+  const [editorView, setEditorView] = useState<PortfolioViewState>({
+    cardIndex: null,
+    sectionIndex: null,
+  });
 
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -114,6 +122,26 @@ export function PortfolioEditorWorkspace({
   const onChange = (index: number, key: keyof OverviewCard, value: string) => {
     setSaved(false);
     setCards((prev) => prev.map((c, idx) => (idx === index ? { ...c, [key]: value } : c)));
+  };
+
+  const onSectionChange = (
+    cardIndex: number,
+    sectionIndex: number,
+    patch: Partial<PortfolioSection>
+  ) => {
+    setSaved(false);
+    setCards((prev) =>
+      prev.map((c, i) =>
+        i !== cardIndex
+          ? c
+          : {
+              ...c,
+              sections: normalizeSections(c.sections).map((s, si) =>
+                si === sectionIndex ? { ...s, ...patch } : s
+              ),
+            }
+      )
+    );
   };
 
   const save = () => {
@@ -179,23 +207,25 @@ export function PortfolioEditorWorkspace({
             Content
           </h2>
 
-          {activeCardIndex !== null ? (
+          {editorView.cardIndex !== null && cards[editorView.cardIndex] ? (
             <div className="flex flex-col gap-4">
               <button
-                onClick={() => setActiveCardIndex(null)}
+                onClick={() => setEditorView({ cardIndex: null, sectionIndex: null })}
                 className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors w-fit"
               >
                 <ArrowLeft className="w-4 h-4" /> Back to Overview
               </button>
-              
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col items-center text-center gap-3 bg-zinc-50 dark:bg-zinc-900/50 mt-4">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Editing: {cards[activeCardIndex]?.title}
-                </p>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  Build & Technology content editing fields are currently using placeholders and will be editable here soon.
-                </p>
-              </div>
+
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Editing: {cards[editorView.cardIndex]?.title}
+              </p>
+
+              <SectionFields
+                card={cards[editorView.cardIndex]!}
+                cardIndex={editorView.cardIndex}
+                disabled={isPending}
+                onSectionChange={onSectionChange}
+              />
             </div>
           ) : (
             <>
@@ -239,11 +269,7 @@ export function PortfolioEditorWorkspace({
 
         <main className="flex-1 min-w-0 p-6 bg-zinc-200 dark:bg-zinc-900/40">
           <ScreenStage variant="fit-screen">
-            <OverviewView 
-              content={content} 
-              activeCardIndex={activeCardIndex}
-              onActiveCardChange={setActiveCardIndex}
-            />
+            <PortfolioApp content={content} view={editorView} onNavigate={setEditorView} />
           </ScreenStage>
         </main>
       </div>
