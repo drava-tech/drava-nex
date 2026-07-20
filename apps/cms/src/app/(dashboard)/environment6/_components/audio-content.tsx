@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Speaker as SpeakerIcon, Plug, VolumeX } from "lucide-react";
 import { Badge } from "@platform/ui";
-import { MiniSlider, Switch } from "./controls";
+import { Switch } from "./controls";
 import { noProp } from "./utils";
 
 export default function AudioContent({ isExpanded, state, actions }: any) {
