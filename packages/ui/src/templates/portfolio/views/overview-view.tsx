@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CirclePlay } from "lucide-react";
 import {
   DEFAULT_PORTFOLIO_CONTENT,
   DEFAULT_TITLE_FONT_SIZE,
@@ -15,21 +16,21 @@ import { VideoPopup } from "../components/video-popup";
 const ACCENTS = ["#e040fb", "#ec407a", "#26c6da"];
 
 /**
- * Overview view — 3 columns, each: Title · 4:3 Image · two label buttons.
- * Authored in real 1920×1080 px (inside ScreenStage), dark neon-glow palette
- * (one accent color per card, cycling purple/pink/cyan).
- * Tapping the first ("Watch") button opens the card's video in a popup;
- * tapping the second ("Explore") navigates to the vertical's page (the parent
- * app decides the transport — URL push in the CMS, WS-synced state on live screens).
+ * Overview view — 3 columns, each: Title · 4:3 Image · a play icon + a Projects
+ * pill. Authored in real 1920×1080 px (inside ScreenStage), dark neon-glow
+ * palette (one accent color per card, cycling purple/pink/cyan).
+ * Tapping the play icon opens the card's video in a popup (shown unconditionally
+ * for now — a "only if a video is set" guard can be reintroduced once content
+ * authoring catches up); tapping "Projects" opens the split-panel comparison
+ * view (the parent app decides the transport — URL push in the CMS, WS-synced
+ * state on live screens).
  */
 export function OverviewView({
   content,
-  onOpenVertical,
   onOpenSplit,
 }: {
   content?: PortfolioContent;
-  onOpenVertical?: (index: number) => void;
-  /** Called when the first button is tapped — opens the split-panel view for that card. */
+  /** Called when the second button ("Projects") is tapped — opens the split-panel view for that card. */
   onOpenSplit?: (index: number) => void;
 }) {
   // Fall back per-field to the matching default card, not just when the whole
@@ -102,6 +103,21 @@ export function OverviewView({
     fontSize: buttonFontSize,
     fontWeight: 300,
     letterSpacing: "0.02em",
+  } as const;
+
+  // Matches the Projects pill's height (paddingTop + paddingBottom + one text
+  // line) so the two sit flush in the row regardless of buttonFontSize.
+  const iconButtonSize = Math.round(buttonFontSize * 1.2) + 24;
+  const glassIconButtonStyle = {
+    background: glassRestBackground,
+    border: "1px solid rgba(255,255,255,0.14)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    color: "#ffffff",
+    borderRadius: "50%",
+    width: iconButtonSize,
+    height: iconButtonSize,
+    flexShrink: 0,
   } as const;
 
   return (
@@ -225,33 +241,29 @@ export function OverviewView({
                 </p>
               </div>
 
-              {/* Label buttons in a horizontal row — button 1 = Watch (only when
-                  a video exists), button 2 = Explore, opens the vertical's page (always available) */}
+              {/* Row: play-icon button (opens the video popup — shown
+                  unconditionally for now; re-gate on card.videoUrl once content
+                  authoring catches up) beside the Projects pill (opens the
+                  split-panel comparison view, always available) */}
               <div
-                className="flex"
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  gap: 12,
-                  width: card.button1 && card.button1.trim() ? "100%" : "58%",
-                }}
+                className="flex items-center"
+                style={{ position: "relative", zIndex: 1, gap: 12, width: "100%" }}
               >
-                {card.button1 && card.button1.trim() ? (
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onOpenSplit?.(i)}
-                    className="flex items-center justify-center cursor-pointer flex-1"
-                    style={glassButtonStyle}
-                  >
-                    {card.button1}
-                  </div>
-                ) : null}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={card.button1 || "Watch video"}
+                  onClick={() => applyVideo(card.videoUrl ?? null, { emit: true })}
+                  className="flex items-center justify-center cursor-pointer"
+                  style={glassIconButtonStyle}
+                >
+                  <CirclePlay size={Math.round(iconButtonSize * 0.55)} strokeWidth={1.5} />
+                </div>
                 {card.button2 && card.button2.trim() ? (
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => onOpenVertical?.(i)}
+                    onClick={() => onOpenSplit?.(i)}
                     className="flex items-center justify-center cursor-pointer flex-1"
                     style={glassButtonStyle}
                   >

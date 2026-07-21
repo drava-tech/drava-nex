@@ -11,7 +11,8 @@ import { VerticalView } from "./views/vertical-view";
 
 /**
  * Pure view switch for the portfolio pages:
- *   overview → split-panel (button1) or vertical (button2).
+ *   overview → split-panel (button2, "Projects"); "Watch Video" (button1)
+ *   opens a video popup locally without changing the view.
  * Transport-agnostic — the parent owns navigation (URL push in the CMS,
  * WS-synced state on live screens) and passes the current `view` back in.
  */
@@ -37,7 +38,6 @@ export function PortfolioApp({
       <OverviewView
         content={content}
         onOpenSplit={(i) => onNavigate({ cardIndex: i, sectionIndex: null, splitView: true })}
-        onOpenVertical={(i) => onNavigate({ cardIndex: i, sectionIndex: null })}
       />
     );
   }

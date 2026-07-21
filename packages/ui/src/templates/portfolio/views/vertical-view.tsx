@@ -62,17 +62,23 @@ export function VerticalView({
           >
             <ChevronLeft size={36} />
           </button>
-          <h1
-            style={{
-              color: "#ffffff",
-              fontSize: 46,
-              fontWeight: 400,
-              lineHeight: 1.1,
-              textShadow: "0 2px 12px rgba(0,0,0,0.5)",
-            }}
-          >
-            {card.title}
-          </h1>
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* Which split-view category (e.g. "Build"/"Technology") this
+                slideshow is showing — stays pinned in the header regardless
+                of which slide is active. */}
+            <span
+              style={{
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 30,
+                fontWeight: 100,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                textShadow: "0 2px 12px rgba(0,0,0,0.5)",
+              }}
+            >
+              {section.name}
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -5,16 +5,18 @@ import { ChevronLeft } from "lucide-react";
 import { normalizeSections, type OverviewCard } from "../content";
 
 /** Once the dragged divider pushes a panel past this share of the width, that
- * panel's "open slideshow" gesture commits — see `onMouseMove`. */
-const ADVANCE_THRESHOLD_PCT = 80;
+ * panel's "open slideshow" gesture commits — see `onMouseMove`. Also defines
+ * how far the divider can be dragged (see the `clamped` calc below). */
+const ADVANCE_THRESHOLD_PCT = 90;
 
 /**
  * Split-panel view — full-screen left/right comparison layout.
- * A draggable vertical divider lets the user resize both panels. Dragging a
- * panel past 80% of the width commits — it opens that panel's section as a
- * full slideshow page (`onOpenSection`) instead of the side-by-side compare.
- * Each panel shows one of the card's two sections: its name as an overlay
- * label and its cover image (first image, or a dark placeholder) as the background.
+ * A draggable vertical divider reveals/hides each side via `clip-path` — the
+ * panels themselves stay full-stage size, so neither the cover image nor the
+ * section-name label ever resizes, crops, or repositions while dragging; only
+ * how much of each fixed panel is visible changes. Dragging a panel past 90%
+ * of the width commits — it opens that panel's section as a full slideshow
+ * page (`onOpenSection`) instead of the side-by-side compare.
  * Authored in real 1920×1080 px (inside ScreenStage).
  */
 export function SplitView({
@@ -51,21 +53,20 @@ export function SplitView({
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((e.clientX - rect.left) / rect.width) * 100;
-      // Clamp so each panel is always at least 15% wide.
-      const clamped = Math.min(Math.max(pct, 15), 85);
+      // Clamp to the same bounds the commit thresholds use, so the divider
+      // can be dragged all the way out to the threshold before it commits.
+      const clamped = Math.min(Math.max(pct, 100 - ADVANCE_THRESHOLD_PCT), ADVANCE_THRESHOLD_PCT);
 
       // Dragging the divider left past the threshold means the right panel
-      // now covers 80%+ of the width — open its section's slideshow.
+      // now covers 90%+ of the width — open its section's slideshow.
       if (clamped <= 100 - ADVANCE_THRESHOLD_PCT) {
         dragging.current = false;
-        setSplitPct(50);
         onOpenSection?.(1);
         return;
       }
       // Symmetric case: dragging right past the threshold opens the left section's slideshow.
       if (clamped >= ADVANCE_THRESHOLD_PCT) {
         dragging.current = false;
-        setSplitPct(50);
         onOpenSection?.(0);
         return;
       }
@@ -78,10 +79,12 @@ export function SplitView({
     dragging.current = false;
   }, []);
 
+  // Anchored per-side (not centered within the panel) so the label never
+  // slides while dragging — it's fixed at its home quarter-position and is
+  // simply covered/revealed as the divider crosses it, same as the image.
   const panelLabel: React.CSSProperties = {
     position: "absolute",
     bottom: 64,
-    left: "50%",
     transform: "translateX(-50%)",
     color: "#ffffff",
     fontSize: 52,
@@ -102,14 +105,14 @@ export function SplitView({
       onMouseUp={stopDrag}
       onMouseLeave={stopDrag}
     >
-      {/* ── Left panel ── */}
+      {/* ── Left panel — full-stage size always; clip-path reveals/hides it
+          instead of resizing it, so the image and label inside never move ── */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          width: `${splitPct}%`,
-          overflow: "hidden",
-          transition: dragging.current ? "none" : "width 0.35s ease",
+          clipPath: `inset(0 ${100 - splitPct}% 0 0)`,
+          transition: dragging.current ? "none" : "clip-path 0.35s ease",
         }}
       >
         <Panel imageUrl={left.images[0]} />
@@ -122,17 +125,16 @@ export function SplitView({
             zIndex: 1,
           }}
         />
-        <span style={panelLabel}>{left.name}</span>
+        <span style={{ ...panelLabel, left: "25%" }}>{left.name}</span>
       </div>
 
-      {/* ── Right panel ── */}
+      {/* ── Right panel — same fixed/clipped approach, mirrored ── */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          left: `${splitPct}%`,
-          overflow: "hidden",
-          transition: dragging.current ? "none" : "left 0.35s ease",
+          clipPath: `inset(0 0 0 ${splitPct}%)`,
+          transition: dragging.current ? "none" : "clip-path 0.35s ease",
         }}
       >
         <Panel imageUrl={right.images[0]} />
@@ -144,7 +146,7 @@ export function SplitView({
             zIndex: 1,
           }}
         />
-        <span style={panelLabel}>{right.name}</span>
+        <span style={{ ...panelLabel, left: "75%" }}>{right.name}</span>
       </div>
 
       {/* ── Draggable divider ── */}

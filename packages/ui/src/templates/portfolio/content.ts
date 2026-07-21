@@ -18,7 +18,7 @@ export interface PortfolioSection {
 export interface OverviewCard {
   title: string;
   imageUrl: string;
-  /** Video played in a popup when the first ("Watch") button is tapped. */
+  /** Video played in a popup when the first ("Watch Video") button is tapped. */
   videoUrl?: string;
   /** Shown below the image, above the buttons. Optional — older rows lack it. */
   description?: string;
@@ -78,8 +78,8 @@ export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContent = {
         imageUrl: "/media/experience-center.png",
         videoUrl: "",
         description: "A hands-on showcase of our flagship spaces, walking through the ideas and craft behind every build.",
-        button1: "Watch",
-        button2: "Explore",
+        button1: "Watch Video",
+        button2: "Projects",
         sections: defaultSections(),
       },
       {
@@ -87,8 +87,8 @@ export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContent = {
         imageUrl: "/media/interior-space.png",
         videoUrl: "",
         description: "Selected projects spanning residential, commercial, and hospitality interiors, from concept to completion.",
-        button1: "Watch",
-        button2: "Explore",
+        button1: "Watch Video",
+        button2: "Projects",
         sections: defaultSections(),
       },
       {
@@ -96,8 +96,8 @@ export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContent = {
         imageUrl: "/media/brand-experiences.png",
         videoUrl: "",
         description: "Brand identities and campaigns crafted to help our clients stand out across every touchpoint.",
-        button1: "Watch",
-        button2: "Explore",
+        button1: "Watch Video",
+        button2: "Projects",
         sections: defaultSections(),
       },
     ],
