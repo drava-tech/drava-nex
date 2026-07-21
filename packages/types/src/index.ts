@@ -235,7 +235,12 @@ export type WsCmsMessage =
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }
   // System volume/mute, relayed from the native audio bridge (see WsClientMessage
   // AUDIO_BRIDGE_STATUS) — drives the live Audio tile in Environment Control.
-  | ({ type: 'AUDIO_STATUS_UPDATE' } & AudioStatus);
+  | ({ type: 'AUDIO_STATUS_UPDATE' } & AudioStatus)
+  // A light's real-world state changed — either a CMS-initiated command was
+  // applied, or the Casambi ingest service observed a change from another
+  // source (wall switch, Casambi app, another user). Drives the live
+  // Lighting panel in Environment Control.
+  | { type: 'LIGHT_STATE_UPDATE'; deviceId: string; state: Record<string, unknown> };
 
 export interface BroadcastRequest {
   screenId: string;

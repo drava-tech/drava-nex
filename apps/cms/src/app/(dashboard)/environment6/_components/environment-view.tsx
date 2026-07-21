@@ -7,6 +7,9 @@ import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
+import { setLightState, identifyLight, type LightStateInput } from "@/actions/light-actions";
+import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
+import { hexToRgb } from "./utils";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -53,6 +56,13 @@ export function EnvironmentView() {
   });
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
 
+  // Mirrors `lighting` for reads inside callbacks that must stay pure setState
+  // updaters (queueLightState fires a server action — a side effect — so it
+  // can never run inside a setLighting(s => ...) updater; React may invoke
+  // updaters outside the normal commit flow, which is what was breaking this).
+  const lightingRef = useRef(lighting);
+  useEffect(() => { lightingRef.current = lighting; }, [lighting]);
+
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef<boolean>(false);
 
@@ -87,6 +97,18 @@ export function EnvironmentView() {
           const msg = JSON.parse(evt.data);
           if (msg.type === "AUDIO_STATUS_UPDATE") {
             setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted, device: msg.device }));
+          }
+          if (msg.type === "LIGHT_STATE_UPDATE") {
+            const zone = zoneForDeviceId(msg.deviceId);
+            if (zone) {
+              const nextBrightness = typeof msg.state?.brightness === "number" ? msg.state.brightness : undefined;
+              const nextHex = typeof msg.state?.color === "string" ? msg.state.color : undefined;
+              setLighting(s => ({
+                ...s,
+                zones: nextBrightness === undefined ? s.zones : { ...s.zones, [zone]: nextBrightness },
+                color: nextHex === undefined ? s.color : { ...s.color, ...hexToRgb(nextHex), hex: nextHex },
+              }));
+            }
           }
         } catch { /* ignore */ }
       };
@@ -146,6 +168,72 @@ export function EnvironmentView() {
     setAudio(s => ({ ...s, muted }));
     fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
       .catch(err => console.error("Error setting mute:", err));
+  }, []);
+
+  // Per-device command queue → real Casambi lights (apps/api/src/services/casambi-driver.ts).
+  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the 3
+  // zones (+ color, which fans out to all 3) don't block each other during drags.
+  const pendingLightStateRef = useRef<Map<string, LightStateInput>>(new Map());
+  const sendingLightRef = useRef<Set<string>>(new Set());
+
+  const queueLightState = useCallback((deviceUuid: string, state: LightStateInput) => {
+    pendingLightStateRef.current.set(deviceUuid, state);
+    if (sendingLightRef.current.has(deviceUuid)) return;
+
+    const sendNext = () => {
+      const next = pendingLightStateRef.current.get(deviceUuid);
+      if (!next) {
+        sendingLightRef.current.delete(deviceUuid);
+        return;
+      }
+      pendingLightStateRef.current.delete(deviceUuid);
+      sendingLightRef.current.add(deviceUuid);
+
+      setLightState(deviceUuid, next)
+        .catch(err => console.error(`Error setting light ${deviceUuid}:`, err))
+        .finally(() => { setTimeout(sendNext, 50); });
+    };
+
+    sendNext();
+  }, []);
+
+  // Master Brightness = "set every zone to this level" (there's no single
+  // physical device behind Master — it's a convenience action over all 3).
+  const apiSetMasterBrightness = useCallback((brightness: number) => {
+    setLighting(s => ({
+      ...s,
+      brightness,
+      zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, brightness])) as typeof s.zones,
+    }));
+    for (const zone of ZONE_NAMES) {
+      const dev = ZONE_DEVICES[zone];
+      if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
+    }
+  }, [queueLightState]);
+
+  const apiSetZoneBrightness = useCallback((zone: string, brightness: number) => {
+    setLighting(s => ({ ...s, zones: { ...s.zones, [zone]: brightness } }));
+    const dev = ZONE_DEVICES[zone];
+    if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
+  }, [queueLightState]);
+
+  // Shared color across the whole room (the UI has one color picker, not
+  // per-zone) — fans out to all 3 zone devices, carrying each zone's current
+  // brightness so a color change doesn't blast every light to full.
+  const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }) => {
+    setLighting(s => ({ ...s, color }));
+    const current = lightingRef.current;
+    for (const zone of ZONE_NAMES) {
+      const dev = ZONE_DEVICES[zone];
+      const brightness = (current.zones as Record<string, number>)[zone] ?? current.brightness;
+      if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
+    }
+  }, [queueLightState]);
+
+  const identifyZone = useCallback((zone: string) => {
+    const dev = ZONE_DEVICES[zone];
+    if (!dev) return;
+    identifyLight(dev.uuid).catch(err => console.error(`Error identifying ${zone}:`, err));
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock
@@ -239,12 +327,13 @@ export function EnvironmentView() {
       setLights: (lights: boolean) => setGlobalPower(s => ({ ...s, lights })),
       setAudio: (audio: boolean) => setGlobalPower(s => ({ ...s, audio })),
     }} actions={{
-      setBrightness: (brightness: number) => setLighting(s => ({ ...s, brightness })),
-      setZoneBrightness: (zone: string, brightness: number) => setLighting(s => ({ ...s, zones: { ...s.zones, [zone]: brightness } })),
+      setBrightness: apiSetMasterBrightness,
+      setZoneBrightness: apiSetZoneBrightness,
       setActiveScene: (activeScene: string) => setLighting(s => ({ ...s, activeScene })),
-      setColor: (color: any) => setLighting(s => ({ ...s, color })),
+      setColor: apiSetColor,
       setPower: (power: boolean) => setLighting(s => ({ ...s, power })),
       toggleColourPanel: () => { setFocused("lighting"); setShowColourPanel(s => !s); },
+      identifyZone,
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
@@ -331,7 +420,7 @@ export function EnvironmentView() {
                   <X className="w-5 h-5" />
                 </Button>
               </div>
-              <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
+              <LightColourContent state={lighting} actions={{ setColor: apiSetColor, closeColourPanel: () => setShowColourPanel(false) }} />
             </motion.div>
           </motion.div>
         )}

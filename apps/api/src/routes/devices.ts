@@ -4,7 +4,7 @@ import { listDevices, getDevice, upsertDevice, setDeviceState } from "@platform/
 import { requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { getDeviceDriver } from "../services/devices.js";
-import { broadcastToUe } from "../ws/gateway.js";
+import { broadcastToCms, broadcastToUe } from "../ws/gateway.js";
 
 export const devicesRouter = new Hono();
 
@@ -73,6 +73,7 @@ devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), asy
   await getDeviceDriver(device).setLightState(device, body);
   const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...body });
 
+  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
   broadcastToUe({
     type: "LIGHT_STATE_CHANGED",
     deviceId: device.deviceId,
@@ -80,6 +81,19 @@ devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), asy
     timestamp: Date.now(),
   });
   return ok(c, updated);
+});
+
+// POST /api/devices/lights/:id/identify — briefly flash the light so it can be
+// visually identified (see DeviceDriver.identify, e.g. CasambiDeviceDriver).
+devicesRouter.post("/lights/:id/identify", requireApiClient(["devices:write"]), async (c) => {
+  const device = await getDevice(c.req.param("id") ?? "");
+  if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
+
+  const driver = getDeviceDriver(device);
+  if (!driver.identify) return fail(c, "UNSUPPORTED", "This device's driver does not support identify", 400);
+
+  await driver.identify(device);
+  return ok(c, { identified: true });
 });
 
 // POST /api/devices/scenes/:id/trigger
