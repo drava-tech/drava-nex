@@ -3,7 +3,7 @@
 import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Monitor, MapPin, Tag } from "lucide-react";
-import { Screen } from "@platform/types";
+import type { Screen } from "@platform/types";
 import { cn } from "./lib/utils";
 
 export { cn };

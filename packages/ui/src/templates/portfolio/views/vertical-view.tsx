@@ -8,20 +8,18 @@ import { FilmsPanel } from "../components/films-panel";
 /**
  * Vertical page — shown at `/<vertical-slug>[/<section-slug>]`: the active
  * section's content (image slideshow or videos grid) fills the whole screen;
- * the back button, title, and section filter pills float on top under a
- * gradient scrim. First section is active by default.
+ * the back button and title float on top under a gradient scrim. First
+ * section is active by default.
  * Authored in real 1920×1080 px (inside ScreenStage).
  */
 export function VerticalView({
   card,
   activeSectionIndex,
   onBack,
-  onSelectSection,
 }: {
   card: OverviewCard;
   activeSectionIndex: number;
   onBack: () => void;
-  onSelectSection: (sectionIndex: number) => void;
 }) {
   const sections = normalizeSections(card.sections);
   const active = Math.min(Math.max(activeSectionIndex, 0), sections.length - 1);
@@ -38,9 +36,9 @@ export function VerticalView({
         )}
       </div>
 
-      {/* Header overlay: back + title left, section filter pills right */}
+      {/* Header overlay: back + title */}
       <div
-        className="absolute top-0 left-0 right-0 flex items-center justify-between gap-6"
+        className="absolute top-0 left-0 right-0 flex items-center gap-6"
         style={{
           padding: "36px 48px 72px",
           background: "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0))",
@@ -75,27 +73,6 @@ export function VerticalView({
           >
             {card.title}
           </h1>
-        </div>
-
-        <div className="flex items-center shrink-0" style={{ gap: 14, pointerEvents: "auto" }}>
-          {sections.map((s, si) => (
-            <button
-              key={si}
-              onClick={() => onSelectSection(si)}
-              className="cursor-pointer transition-colors"
-              style={{
-                background: si === active ? "#ffffff" : "rgba(0, 0, 0, 0.35)",
-                color: si === active ? "#1f1f1f" : "#ffffff",
-                border: "2px solid rgba(255, 255, 255, 0.8)",
-                borderRadius: 999,
-                padding: "12px 36px",
-                fontSize: 26,
-                fontWeight: 400,
-              }}
-            >
-              {s.name}
-            </button>
-          ))}
         </div>
       </div>
     </div>

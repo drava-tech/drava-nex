@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   PortfolioApp,
   cardSlugs,
   sectionSlugs,
   normalizeSections,
   DEFAULT_PORTFOLIO_CONTENT,
+  SPLIT_VIEW_SEGMENT,
   type PortfolioContent,
   type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
@@ -28,12 +29,20 @@ export function PortfolioRoutedApp({
   baseHref: string | null;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [localView, setLocalView] = useState<PortfolioViewState>(view);
 
   const cards =
     content?.overview?.cards?.length
       ? content.overview.cards
       : DEFAULT_PORTFOLIO_CONTENT.overview.cards;
+
+  // `cameFromSplit` has no home in the URL path — the vertical/section URL is
+  // identical whether reached from the split view or the overview's "Explore"
+  // button — so it's carried as a query param instead, read back here.
+  const effectiveView: PortfolioViewState = baseHref
+    ? { ...view, cameFromSplit: searchParams.get("from") === "split" }
+    : localView;
 
   const navigate = (v: PortfolioViewState) => {
     if (!baseHref) {
@@ -45,13 +54,16 @@ export function PortfolioRoutedApp({
       const card = cards[v.cardIndex];
       if (card) {
         href += `/${cardSlugs(cards)[v.cardIndex]}`;
-        if (v.sectionIndex !== null) {
+        if (v.splitView) {
+          href += `/${SPLIT_VIEW_SEGMENT}`;
+        } else if (v.sectionIndex !== null) {
           href += `/${sectionSlugs(normalizeSections(card.sections))[v.sectionIndex]}`;
+          if (v.cameFromSplit) href += "?from=split";
         }
       }
     }
     router.push(href);
   };
 
-  return <PortfolioApp content={content} view={baseHref ? view : localView} onNavigate={navigate} />;
+  return <PortfolioApp content={content} view={effectiveView} onNavigate={navigate} />;
 }

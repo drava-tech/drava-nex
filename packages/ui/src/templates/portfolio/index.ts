@@ -1,6 +1,7 @@
 export * from "./content";
 export { ScreenStage } from "./components/screen-stage";
 export { OverviewView } from "./views/overview-view";
+export { SplitView } from "./views/split-view";
 export { VerticalView } from "./views/vertical-view";
 export { SlideshowPanel } from "./components/slideshow-panel";
 export { FilmsPanel } from "./components/films-panel";

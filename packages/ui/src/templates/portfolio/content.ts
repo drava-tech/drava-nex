@@ -18,8 +18,10 @@ export interface PortfolioSection {
 export interface OverviewCard {
   title: string;
   imageUrl: string;
-  /** Video played in a popup when the first ("Watch Video") button is tapped. */
+  /** Video played in a popup when the first ("Watch") button is tapped. */
   videoUrl?: string;
+  /** Shown below the image, above the buttons. Optional — older rows lack it. */
+  description?: string;
   button1: string;
   button2: string;
   /** Exactly 2 after normalizeSections(); optional in storage (older rows lack it). */
@@ -30,6 +32,12 @@ export interface OverviewCard {
 export interface PortfolioViewState {
   cardIndex: number | null;
   sectionIndex: number | null;
+  /** When true, renders the split-panel comparison view instead of the vertical page. */
+  splitView?: boolean;
+  /** Set when the vertical page was reached by dragging past the threshold in
+   * the split view — its back button returns to the split view instead of
+   * the overview. */
+  cameFromSplit?: boolean;
 }
 
 export interface PortfolioContent {
@@ -37,14 +45,16 @@ export interface PortfolioContent {
     cards: OverviewCard[];
     /** Style values (px) — one set shared by all 3 cards. */
     titleFontSize?: number;
+    descriptionFontSize?: number;
     buttonFontSize?: number;
     // Card padding drives spacing throughout — outer padding AND the space
-    // between title / image / buttons.
+    // between title / image / description / buttons.
     cardPadding?: number;
   };
 }
 
 export const DEFAULT_TITLE_FONT_SIZE = 50;
+export const DEFAULT_DESCRIPTION_FONT_SIZE = 22;
 export const DEFAULT_BUTTON_FONT_SIZE = 20;
 export const DEFAULT_CARD_PADDING = 44;
 
@@ -59,12 +69,37 @@ const defaultSections = (): PortfolioSection[] =>
 export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContent = {
   overview: {
     titleFontSize: DEFAULT_TITLE_FONT_SIZE,
+    descriptionFontSize: DEFAULT_DESCRIPTION_FONT_SIZE,
     buttonFontSize: DEFAULT_BUTTON_FONT_SIZE,
     cardPadding: DEFAULT_CARD_PADDING,
     cards: [
-      { title: "Experience Center", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects", sections: defaultSections() },
-      { title: "Architecture & Interiors", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects", sections: defaultSections() },
-      { title: "Brand Solutions", imageUrl: "", videoUrl: "", button1: "Watch Video", button2: "Projects", sections: defaultSections() },
+      {
+        title: "Experience Center",
+        imageUrl: "/media/experience-center.png",
+        videoUrl: "",
+        description: "A hands-on showcase of our flagship spaces, walking through the ideas and craft behind every build.",
+        button1: "Watch",
+        button2: "Explore",
+        sections: defaultSections(),
+      },
+      {
+        title: "Architecture & Interiors",
+        imageUrl: "/media/interior-space.png",
+        videoUrl: "",
+        description: "Selected projects spanning residential, commercial, and hospitality interiors, from concept to completion.",
+        button1: "Watch",
+        button2: "Explore",
+        sections: defaultSections(),
+      },
+      {
+        title: "Brand Solutions",
+        imageUrl: "/media/brand-experiences.png",
+        videoUrl: "",
+        description: "Brand identities and campaigns crafted to help our clients stand out across every touchpoint.",
+        button1: "Watch",
+        button2: "Explore",
+        sections: defaultSections(),
+      },
     ],
   },
 };
@@ -132,6 +167,15 @@ function uniqueSlugs(names: string[], fallbackPrefix: string): string[] {
 export function cardSlugs(cards: OverviewCard[]): string[] {
   return uniqueSlugs(cards.map((c) => c.title), "vertical");
 }
+
+/**
+ * Reserved second URL segment (`/<vertical-slug>/split-view`) that marks the
+ * split-panel view instead of a section slideshow — shared by the routed nav
+ * (which writes it) and the URL→view resolver (which reads it), so the
+ * standalone preview tab's real URL navigation can represent `splitView`,
+ * which a plain section-slug lookup has no way to encode.
+ */
+export const SPLIT_VIEW_SEGMENT = "split-view";
 
 /** Route segments for a card's sections. */
 export function sectionSlugs(sections: PortfolioSection[]): string[] {

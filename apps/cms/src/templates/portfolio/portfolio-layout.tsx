@@ -8,6 +8,7 @@ import {
   sectionSlugs,
   normalizeSections,
   DEFAULT_PORTFOLIO_CONTENT,
+  SPLIT_VIEW_SEGMENT,
   type PortfolioContent,
   type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
@@ -15,9 +16,10 @@ import { PortfolioRoutedApp } from "./portfolio-routed-app";
 
 /**
  * Resolves the URL sub-path to a portfolio view:
- *   []                                → overview
- *   [<vertical-slug>]                 → that vertical's page (2 section buttons)
- *   [<vertical-slug>, <section-slug>] → that section's slideshow
+ *   []                                    → overview
+ *   [<vertical-slug>]                     → that vertical's page (2 section buttons)
+ *   [<vertical-slug>, <section-slug>]     → that section's slideshow
+ *   [<vertical-slug>, SPLIT_VIEW_SEGMENT] → that vertical's split-panel view
  * Unknown slugs degrade gracefully (bad vertical → overview, bad section →
  * vertical page) so stale links after a title rename don't 404.
  */
@@ -28,6 +30,9 @@ function resolveView(content: PortfolioContent, subpath: string[]): PortfolioVie
   if (cardIndex < 0) return { cardIndex: null, sectionIndex: null };
 
   const seg1 = subpath[1] ?? "";
+  if (seg1 === SPLIT_VIEW_SEGMENT) {
+    return { cardIndex, sectionIndex: null, splitView: true };
+  }
   const sections = normalizeSections(cards[cardIndex]?.sections);
   const sectionIndex = seg1 ? sectionSlugs(sections).indexOf(seg1) : -1;
   return { cardIndex, sectionIndex: sectionIndex >= 0 ? sectionIndex : null };

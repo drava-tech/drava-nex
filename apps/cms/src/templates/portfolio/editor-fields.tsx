@@ -47,6 +47,17 @@ export function PortfolioFields({
             />
           </div>
 
+          <div className="flex flex-col gap-1">
+            <label className={LABEL}>Description</label>
+            <textarea
+              className={FIELD}
+              rows={3}
+              value={card.description ?? ""}
+              disabled={disabled}
+              onChange={(e) => onChange(i, "description", e.target.value)}
+            />
+          </div>
+
           {/* Image — select from media library */}
           <div className="flex flex-col gap-1.5">
             <label className={LABEL}>Image</label>
@@ -86,9 +97,9 @@ export function PortfolioFields({
             )}
           </div>
 
-          {/* Video — optional; played in a popup when "Watch Video" (button 1) is tapped */}
+          {/* Video — optional; played in a popup when "Watch" (button 1) is tapped */}
           <div className="flex flex-col gap-1.5">
-            <label className={LABEL}>Video (Watch Video popup)</label>
+            <label className={LABEL}>Video (Watch popup)</label>
             {card.videoUrl ? (
               <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-black group">
                 <video src={card.videoUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -126,7 +137,7 @@ export function PortfolioFields({
           <div className="grid grid-cols-1 gap-2">
             {card.videoUrl ? (
               <div className="flex flex-col gap-1">
-                <label className={LABEL}>Button 1 (Watch Video)</label>
+                <label className={LABEL}>Button 1 (Watch)</label>
                 <input
                   className={FIELD}
                   value={card.button1}
@@ -137,7 +148,7 @@ export function PortfolioFields({
               </div>
             ) : null}
             <div className="flex flex-col gap-1">
-              <label className={LABEL}>Button 2 (Projects)</label>
+              <label className={LABEL}>Button 2 (Explore)</label>
               <input
                 className={FIELD}
                 value={card.button2}
