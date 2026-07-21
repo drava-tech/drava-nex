@@ -6,9 +6,9 @@ import { randomUUID } from "crypto";
 import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, type MediaAsset } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 
-// ponytail: files stay in the CMS public/media dir so Next.js serves them as
-// static assets at /media/*. This avoids needing a separate Hono static-file
-// route and keeps URLs unchanged.
+// Uploaded files live on a Docker volume mounted only into this (api) container
+// (see infra/docker/docker-compose.yml) and are served at /media/* by
+// mediaFilesRouter below — nginx proxies /media/ here, not to the CMS.
 const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
 
 // Max upload size (bytes). Generous default for signage video; tune via env.
@@ -17,7 +17,7 @@ const MAX_UPLOAD_BYTES = Number(process.env["MAX_UPLOAD_BYTES"] ?? 1024 * 1024 *
 // Allowlist of accepted upload kinds. SVG is intentionally excluded (stored-XSS
 // risk when served same-origin). Anything not matched here is rejected.
 const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
-  image: { mimes: ["image/png", "image/jpeg", "image/gif", "image/webp"], exts: [".png", ".jpg", ".jpeg", ".gif", ".webp"] },
+  image: { mimes: ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"], exts: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"] },
   video: { mimes: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"], exts: [".mp4", ".webm", ".ogg", ".mov", ".m4v"] },
   document: { mimes: ["application/pdf"], exts: [".pdf"] },
 };
@@ -52,7 +52,7 @@ function getMimeType(filePath: string): string {
     ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
     ".ogg": "video/ogg", ".png": "image/png", ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
-    ".webp": "image/webp",
+    ".webp": "image/webp", ".avif": "image/avif",
   };
   return map[ext] ?? "application/octet-stream";
 }
@@ -149,26 +149,10 @@ uploadRouter.post("/", requireAdmin, async (c) => {
   }
 });
 
-// GET /api/media/stream?id=<mediaId> | ?file=<filename> — range-aware streaming.
-// Files are ALWAYS resolved within UPLOAD_DIR; arbitrary absolute paths are
-// rejected (prevents path-traversal / local-file disclosure).
-export const mediaStreamRouter = new Hono();
-
-mediaStreamRouter.get("/", async (c) => {
-  const id = c.req.query("id");
-  // Accept legacy `path`/`file` params but only ever honor the basename.
-  const fileParam = c.req.query("file") ?? c.req.query("path");
-
-  let fileName: string | null = null;
-  if (id) {
-    const asset = await getMediaAsset(id);
-    if (!asset) return new Response("File not found", { status: 404 });
-    fileName = path.basename(asset.url);
-  } else if (fileParam) {
-    fileName = path.basename(fileParam);
-  }
-  if (!fileName) return new Response("Missing id or file parameter", { status: 400 });
-
+// Shared range-aware file responder. Files are ALWAYS resolved within
+// UPLOAD_DIR; arbitrary absolute/traversal paths are rejected (prevents
+// path-traversal / local-file disclosure).
+function serveMediaFile(c: import("hono").Context, fileName: string): Response {
   const baseDir = path.resolve(UPLOAD_DIR);
   const resolved = path.resolve(baseDir, fileName);
   // Containment guard — resolved must stay inside UPLOAD_DIR.
@@ -213,4 +197,35 @@ mediaStreamRouter.get("/", async (c) => {
       "Accept-Ranges": "bytes",
     },
   });
+}
+
+// GET /api/media/stream?id=<mediaId> | ?file=<filename> — range-aware streaming.
+export const mediaStreamRouter = new Hono();
+
+mediaStreamRouter.get("/", async (c) => {
+  const id = c.req.query("id");
+  // Accept legacy `path`/`file` params but only ever honor the basename.
+  const fileParam = c.req.query("file") ?? c.req.query("path");
+
+  let fileName: string | null = null;
+  if (id) {
+    const asset = await getMediaAsset(id);
+    if (!asset) return new Response("File not found", { status: 404 });
+    fileName = path.basename(asset.url);
+  } else if (fileParam) {
+    fileName = path.basename(fileParam);
+  }
+  if (!fileName) return new Response("Missing id or file parameter", { status: 400 });
+
+  return serveMediaFile(c, fileName);
+});
+
+// GET /media/:filename — the canonical public URL every MediaAsset.url points
+// at (e.g. "/media/<uuid>.jpg"). Public/unauthenticated: TV displays load
+// images/video with no session, same as /display.
+export const mediaFilesRouter = new Hono();
+
+mediaFilesRouter.get("/:filename", async (c) => {
+  const fileName = path.basename(c.req.param("filename"));
+  return serveMediaFile(c, fileName);
 });
