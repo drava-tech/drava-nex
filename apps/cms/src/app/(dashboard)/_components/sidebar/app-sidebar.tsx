@@ -8,6 +8,7 @@ import {
   Monitor,
   Settings2,
   SquareTerminal,
+  Sparkles,
   Users,
   Film,
   Cpu,
@@ -37,6 +38,12 @@ const ALL_NAV = [
     title: "Experiences",
     url: "/experiences",
     icon: SquareTerminal,
+    roles: ["ADMIN"] as string[]
+  },
+  {
+    title: "Experience 2",
+    url: "/experiences2",
+    icon: Sparkles,
     roles: ["ADMIN"] as string[]
   },
   {
