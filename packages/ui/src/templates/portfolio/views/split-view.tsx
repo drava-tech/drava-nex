@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeSections, type OverviewCard } from "../content";
 
 /** Once the dragged divider pushes a panel past this share of the width, that
@@ -240,7 +240,7 @@ export function SplitView({
           style={{
             margin: 0,
             color: "#ffffff",
-            fontSize: 46,
+            fontSize: 36,
             fontWeight: 400,
             lineHeight: 1.1,
             textShadow: "0 2px 12px rgba(0,0,0,0.5)",
