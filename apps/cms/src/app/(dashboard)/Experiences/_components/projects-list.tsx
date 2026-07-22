@@ -4,16 +4,12 @@ import React, { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
-  Trash2,
+  Check,
+  Loader2,
+  MoreVertical,
   Pencil,
   Eye,
-  MoreVertical,
-  Check,
-  Layers,
-  Radio,
-  Package,
-  Loader2,
-  type LucideIcon,
+  Trash2,
 } from "lucide-react";
 import {
   DndContext,
@@ -50,72 +46,40 @@ import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
 
-type ExperienceWithTypes = Experience & { typeIds: string[] };
+type ExperienceWithTypes = Experience & { typeIds: string[]; coverImage?: string | null };
 
 interface ProjectsListProps {
   // typeIds is optional so callers that don't track types (e.g. the dashboard
   // container) can still pass plain experiences; it's normalized to [] below.
-  projects: (Experience & { typeIds?: string[] })[];
+  // coverImage is resolved server-side from templateContent (see page.tsx).
+  projects: (Experience & { typeIds?: string[]; coverImage?: string | null })[];
   isAdmin?: boolean;
   experienceTypes?: { id: string; name: string }[];
 }
 
 const withTypeIds = (
-  list: (Experience & { typeIds?: string[] })[]
+  list: (Experience & { typeIds?: string[]; coverImage?: string | null })[]
 ): ExperienceWithTypes[] => list.map((p) => ({ ...p, typeIds: p.typeIds ?? [] }));
 
-interface TemplateMeta {
-  icon: LucideIcon | null;
-  label: string;
-  badge: string;
-  number: string;
-}
-
-const NO_TEMPLATE_META: TemplateMeta = {
-  icon: null,
-  label: "No template",
-  badge: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
-  number: "text-red-500/15 dark:text-red-400/30",
-};
-
-const TEMPLATE_META: Record<string, TemplateMeta> = {
-  portfolio: {
-    icon: Layers,
-    label: TEMPLATE_LABELS.portfolio,
-    badge: "border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    number: "text-violet-500/15 dark:text-violet-400/30",
-  },
-  "live-stream": {
-    icon: Radio,
-    label: TEMPLATE_LABELS["live-stream"],
-    badge: "border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    number: "text-sky-500/15 dark:text-sky-400/30",
-  },
-  "product-showcase": {
-    icon: Package,
-    label: TEMPLATE_LABELS["product-showcase"],
-    badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    number: "text-emerald-500/15 dark:text-emerald-400/30",
-  },
-};
-
-function getTemplateMeta(templateKey: string | null): TemplateMeta {
-  if (!templateKey) return NO_TEMPLATE_META;
-  return TEMPLATE_META[templateKey] ?? NO_TEMPLATE_META;
-}
-
-function TemplateBadge({ meta }: { meta: TemplateMeta }) {
-  const Icon = meta.icon;
-  return (
-    <Badge variant="outline" className={cn("gap-1.5", meta.badge)}>
-      {Icon && <Icon className="h-3 w-3" />}
-      {meta.label}
-    </Badge>
-  );
-}
+/**
+ * One distinct hue per pill position (cycles beyond 9).
+ * `base` fills imageless pills, `tint` washes over cover images so every
+ * pill still reads its color, `hex` drives the glass rim + colored bloom.
+ */
+const PILL_STYLES = [
+  { hex: "#8b5cf6", base: "from-zinc-950 via-violet-950/70 to-violet-500", tint: "from-black/45 via-violet-900/20 to-violet-500/75" },
+  { hex: "#0ea5e9", base: "from-zinc-950 via-sky-950/70 to-sky-500", tint: "from-black/45 via-sky-900/20 to-sky-500/75" },
+  { hex: "#10b981", base: "from-zinc-950 via-emerald-950/70 to-emerald-500", tint: "from-black/45 via-emerald-900/20 to-emerald-500/75" },
+  { hex: "#f59e0b", base: "from-zinc-950 via-amber-950/70 to-amber-500", tint: "from-black/45 via-amber-900/20 to-amber-500/75" },
+  { hex: "#f43f5e", base: "from-zinc-950 via-rose-950/70 to-rose-500", tint: "from-black/45 via-rose-900/20 to-rose-500/75" },
+  { hex: "#06b6d4", base: "from-zinc-950 via-cyan-950/70 to-cyan-500", tint: "from-black/45 via-cyan-900/20 to-cyan-500/75" },
+  { hex: "#d946ef", base: "from-zinc-950 via-fuchsia-950/70 to-fuchsia-500", tint: "from-black/45 via-fuchsia-900/20 to-fuchsia-500/75" },
+  { hex: "#84cc16", base: "from-zinc-950 via-lime-950/70 to-lime-500", tint: "from-black/45 via-lime-900/20 to-lime-500/75" },
+  { hex: "#f97316", base: "from-zinc-950 via-orange-950/70 to-orange-500", tint: "from-black/45 via-orange-900/20 to-orange-500/75" },
+];
 
 interface SortableCardProps {
-  proj: Experience;
+  proj: ExperienceWithTypes;
   index: number;
   isAdmin?: boolean;
   dragEnabled?: boolean;
@@ -128,7 +92,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: S
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
@@ -141,118 +105,146 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: S
       router.refresh();
     });
 
-  const meta = getTemplateMeta(proj.templateKey);
+  const num = String(index + 1).padStart(2, "0");
+  const pal = PILL_STYLES[index % PILL_STYLES.length]!;
+  // Alternate which end the number/name (and glow) sit on: odd pills up, even down.
+  const dropped = index % 2 === 1;
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       style={style}
       // The whole card is the drag handle (admins, when not filtering); the kebab is the only control.
       {...(dragEnabled ? { ...attributes, ...listeners } : {})}
       className={cn(
-        "group relative flex min-h-[168px] flex-col justify-between overflow-hidden p-5 transition-all duration-200 select-none",
-        "hover:-translate-y-0.5 hover:shadow-md",
+        "group relative select-none",
         dragEnabled && "cursor-grab active:cursor-grabbing"
       )}
     >
-      {/* Signature watermark index number, tinted to the template color */}
-      <span
+      {/* Arch / pill frame — flat hue capsule; bright end follows the number. */}
+      <div className="relative aspect-[10/19] w-full overflow-hidden rounded-full bg-zinc-900">
+        {/* Pure hue gradient — dark end → bright end (bright by the number) */}
+        <div className={cn("absolute inset-0", dropped ? "bg-gradient-to-t" : "bg-gradient-to-b", pal.base)} />
+
+        {/* Smoky glass body — darker center */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_55%,rgba(0,0,0,0.22),transparent_72%)]" />
+
+        {/* Deepen the dark end (opposite the number) */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 from-transparent via-transparent to-black/30",
+            dropped ? "bg-gradient-to-b" : "bg-gradient-to-t"
+          )}
+        />
+
+        {/* Actions menu — the 3 dots at the end opposite the number.
+            Edit / Preview / Assign template / Delete. Admins only. */}
+        {isAdmin && (
+          <div
+            className={cn(
+              "absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100",
+              dropped ? "bottom-6" : "top-6"
+            )}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Experience actions"
+                  // Don't let a click on the menu start a card drag.
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/25"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
+                {/* Edit / Preview need a template assigned */}
+                {proj.templateKey ? (
+                  <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                    <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
+                      <Pencil className="h-4 w-4" /> Edit content
+                    </a>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled className="gap-2">
+                    <Pencil className="h-4 w-4" /> Edit content
+                  </DropdownMenuItem>
+                )}
+                {proj.templateKey ? (
+                  <DropdownMenuItem asChild className="cursor-pointer gap-2">
+                    <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
+                      <Eye className="h-4 w-4" /> Preview
+                    </a>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled className="gap-2">
+                    <Eye className="h-4 w-4" /> Preview
+                  </DropdownMenuItem>
+                )}
+
+                {/* Assign / change template */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">Assign template</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {TEMPLATE_KEYS.map((key) => (
+                      <DropdownMenuItem
+                        key={key}
+                        className="cursor-pointer gap-2"
+                        onSelect={() => assign(key)}
+                      >
+                        {proj.templateKey === key ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <span className="w-4" />
+                        )}
+                        {TEMPLATE_LABELS[key]}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer gap-2" onSelect={() => assign(null)}>
+                      {!proj.templateKey ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                      None
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                  onSelect={() => onDelete(proj.id)}
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+      </div>
+
+      {/* Oversized index number + name — alternates top / bottom per pill.
+          The digits are clipped to 60% height, emerging from the pill edge. */}
+      <div
         className={cn(
-          "pointer-events-none absolute -bottom-6 -right-2 select-none text-[110px] font-semibold leading-none tabular-nums",
-          meta.number
+          "pointer-events-none absolute -right-1 z-10 flex flex-col items-end text-right",
+          dropped ? "top-4" : "bottom-4"
         )}
       >
-        {index + 1}
-      </span>
-
-      {/* Top row: template badge + actions */}
-      <div className="relative flex items-start justify-between gap-2">
-        <TemplateBadge meta={meta} />
-
-        {isAdmin && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="Experience actions"
-                // Don't let a click on the menu start a card drag.
-                onPointerDown={(e) => e.stopPropagation()}
-                className="-mr-1 -mt-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
-              {/* Edit / Preview need a template assigned */}
-              {proj.templateKey ? (
-                <DropdownMenuItem asChild className="cursor-pointer gap-2">
-                  <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
-                    <Pencil className="h-4 w-4" /> Edit content
-                  </a>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem disabled className="gap-2">
-                  <Pencil className="h-4 w-4" /> Edit content
-                </DropdownMenuItem>
-              )}
-              {proj.templateKey ? (
-                <DropdownMenuItem asChild className="cursor-pointer gap-2">
-                  <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
-                    <Eye className="h-4 w-4" /> Preview
-                  </a>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem disabled className="gap-2">
-                  <Eye className="h-4 w-4" /> Preview
-                </DropdownMenuItem>
-              )}
-
-              {/* Assign / change template */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2">Assign template</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {TEMPLATE_KEYS.map((key) => (
-                    <DropdownMenuItem
-                      key={key}
-                      className="cursor-pointer gap-2"
-                      onSelect={() => assign(key)}
-                    >
-                      {proj.templateKey === key ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <span className="w-4" />
-                      )}
-                      {TEMPLATE_LABELS[key]}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer gap-2" onSelect={() => assign(null)}>
-                    {!proj.templateKey ? <Check className="h-4 w-4" /> : <span className="w-4" />}
-                    None
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                onSelect={() => onDelete(proj.id)}
-              >
-                <Trash2 className="h-4 w-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-
-      {/* Bottom: name + slug */}
-      <div className="relative flex flex-col gap-1">
-        <span className="text-sm font-medium uppercase tracking-wide text-foreground">
+        <span
+          className="block h-[0.5em] overflow-hidden text-6xl font-black leading-none tracking-tighter text-white tabular-nums md:text-7xl"
+          aria-hidden
+        >
+          {/* Top-aligned so only the lower half of each digit is clipped away */}
+          <span className="block">{num}</span>
+        </span>
+        <span
+          className="-mt-1 max-w-full break-words text-base font-black uppercase leading-[1.05] tracking-tight text-white md:text-xl"
+          style={{ fontFamily: "'Satoshi', ui-sans-serif, system-ui, sans-serif" }}
+        >
           {proj.name}
         </span>
-        <span className="font-mono text-xs text-muted-foreground">/{proj.slug}</span>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -441,36 +433,42 @@ export function ProjectsList({ projects, isAdmin = false, experienceTypes = [] }
             </button>
           </Card>
         ) : (
-          /* Uniform sortable grid */
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {filteredItems.map((proj, index) => (
-                  <SortableCard
-                    key={proj.id}
-                    proj={proj}
-                    index={index}
-                    isAdmin={isAdmin}
-                    dragEnabled={dragEnabled}
-                    onDelete={handleDelete}
-                  />
-                ))}
+          /* Dark showcase stage — staggered arch-pill cards with oversized indices */
+          <div className="dark relative overflow-hidden rounded-[2rem] bg-zinc-950 px-6 py-10 md:px-10 md:py-14">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-2 items-start gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-8">
+                  {filteredItems.map((proj, index) => (
+                    <SortableCard
+                      key={proj.id}
+                      proj={proj}
+                      index={index}
+                      isAdmin={isAdmin}
+                      dragEnabled={dragEnabled}
+                      onDelete={handleDelete}
+                    />
+                  ))}
 
-                {isAdmin && !isFiltering && (
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(true)}
-                    className="group flex min-h-[168px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/30 p-6 text-muted-foreground transition-colors hover:border-border hover:bg-muted/50 hover:text-foreground"
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground">
-                      <Plus className="h-4 w-4" />
-                    </div>
-                    <span className="text-xs font-medium">New Experience</span>
-                  </button>
-                )}
-              </div>
-            </SortableContext>
-          </DndContext>
+                  {isAdmin && !isFiltering && (
+                    <button
+                      type="button"
+                      onClick={() => setShowModal(true)}
+                      className="group/new relative"
+                    >
+                      <div className="flex aspect-[10/19] w-full flex-col items-center justify-center gap-3 rounded-full border border-dashed border-white/15 bg-white/5 text-zinc-500 backdrop-blur-sm transition-colors group-hover/new:border-white/35 group-hover/new:text-zinc-200">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md transition-colors group-hover/new:bg-white/20">
+                          <Plus className="h-4 w-4" />
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
+                          New
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
         )}
       </div>
     </>

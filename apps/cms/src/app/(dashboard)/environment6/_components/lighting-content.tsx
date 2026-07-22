@@ -1,5 +1,5 @@
 import React from "react";
-import { Lightbulb, Sparkles, Moon, Sun, Zap } from "lucide-react";
+import { Lightbulb, Sparkles, Moon, Sun, Zap, Radar } from "lucide-react";
 import { Badge } from "@platform/ui";
 import { MiniSlider, Switch } from "./controls";
 import { getSceneGlow } from "./utils";
@@ -48,7 +48,6 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
                <div className="space-y-2.5 pt-1 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:justify-around lg:space-y-0 lg:pt-0">
                     {Object.entries(state.zones).map(([zone, val]) => {
                        const storedVal = val as number;
-                       const outputVal = state.power ? Math.round((storedVal * state.brightness) / 100) : 0;
                        return (
                          <div key={zone}>
                             <div className="flex justify-between items-center mb-1.5">
@@ -57,7 +56,14 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
                                    {zone}
                                    <button className="w-[8px] h-[8px] md:w-[10px] md:h-[10px] rounded-full hover:scale-125 transition-transform cursor-pointer shadow-[0_0_8px_rgba(0,0,0,0.5)] border border-black/10 dark:border-white/20" style={{ backgroundColor: state.color.hex }} onClick={(e) => { e.stopPropagation(); actions.toggleColourPanel?.(); }} />
                                  </span>
-                                 <span className="text-[8px] md:text-[9px] uppercase font-bold text-muted-foreground bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded">{outputVal}% Out</span>
+                                 <button
+                                   title={`Flash ${zone} to identify the physical fixture`}
+                                   className="flex items-center gap-1 text-[8px] md:text-[9px] uppercase font-bold text-muted-foreground bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 px-1 py-0.5 rounded transition-colors"
+                                   onClick={(e) => { e.stopPropagation(); actions.identifyZone?.(zone); }}
+                                 >
+                                   <Radar className="w-2.5 h-2.5" />
+                                   Identify
+                                 </button>
                                </div>
                                <span className="text-[10px] md:text-xs font-black text-foreground">{storedVal}%</span>
                             </div>

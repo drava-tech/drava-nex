@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Speaker as SpeakerIcon, Plug, VolumeX } from "lucide-react";
 import { Badge } from "@platform/ui";
-import { MiniSlider, Switch } from "./controls";
+import { Switch } from "./controls";
 import { noProp } from "./utils";
 
 export default function AudioContent({ isExpanded, state, actions }: any) {
@@ -36,13 +36,12 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
     const BPM = 122;
 
     const tick = (now: number) => {
-      const { power, muted, volume, bass } = stateRef.current;
+      const { power, muted, volume } = stateRef.current;
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       const elapsed = (now - start) / 1000;
 
       const level = power && !muted ? Math.pow(Math.max(0.08, volume / 100), 0.75) : 0;
-      const bassAmt = 1 + (bass / 10) * 0.7;
 
       // Beat clock: kick on the beat (varying strength), snare/hats on the off-beat.
       const beats = (elapsed * BPM) / 60;
@@ -70,7 +69,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
           const hf = noise(elapsed * 12 + i * 1.3 + 200) * 0.25 * (0.4 + edge * 0.6);
 
           // Kick pumps the low bands in the centre; snare energy excites the edges.
-          const kickHit = kick * (1 - edge * 0.75) * 0.5 * bassAmt;
+          const kickHit = kick * (1 - edge * 0.75) * 0.5;
           const snareHit = snare * (0.25 + edge * 0.4) * 0.35;
 
           target = (body + mids + hf + kickHit + snareHit) * energy * dome * level * 100;
@@ -133,7 +132,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
           </div>
         ) : (
           <div className="flex-1 flex min-h-0 w-full flex-col gap-4 lg:gap-6 py-1" onClick={noProp}>
-            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px_minmax(0,1fr)] gap-2 lg:gap-3 items-stretch shrink-0">
+            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px] gap-2 lg:gap-3 items-stretch shrink-0">
               <div className="relative z-30">
                 <button
                   onClick={(e) => { noProp(e); setShowInputOptions((open) => !open); }}
@@ -181,18 +180,6 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                 <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" />
                 <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">{state.muted ? "Muted" : "Mute"}</span>
               </button>
-
-              <div className="rounded-xl border border-border bg-muted/20 px-3 py-2 lg:px-4 lg:py-3">
-                <MiniSlider
-                  label="Bass Control"
-                  value={state.bass}
-                  onChange={actions.setBass}
-                  min={-10}
-                  max={10}
-                  suffix=""
-                  color="bg-blue-500"
-                />
-              </div>
             </div>
 
             <div className="min-w-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
