@@ -3,6 +3,7 @@ import type { Device } from "@platform/db";
 import type { DeviceCommand, LightState } from "@platform/types";
 import type { MQTTDeviceManager } from "@platform/iot";
 import { CasambiDeviceDriver } from "./casambi-driver.js";
+import { IrDeviceDriver } from "./ir-driver.js";
 
 /**
  * Device control is abstracted behind a driver so the REST contract
@@ -33,6 +34,20 @@ let casambiDriver: CasambiDeviceDriver | null = null;
 
 export function setMqttManager(mgr: MQTTDeviceManager): void {
   casambiDriver = new CasambiDeviceDriver(mgr);
+}
+
+// IR verbs (power_on/set_temp/codebook keys) don't fit the light-centric
+// DeviceDriver interface, so the IR driver lives in its own registry with a
+// parallel getter used by the /api/devices/ir route. Same startup injection.
+let irDriver: IrDeviceDriver | null = null;
+
+export function setIrManager(mgr: MQTTDeviceManager): void {
+  irDriver = new IrDeviceDriver(mgr);
+}
+
+/** The IR driver, once wired at startup (see apps/api/src/index.ts). */
+export function getIrDriver(): IrDeviceDriver | null {
+  return irDriver;
 }
 
 function command(deviceId: string, action: string, payload?: Record<string, unknown>): DeviceCommand {

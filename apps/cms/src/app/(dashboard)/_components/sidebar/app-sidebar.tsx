@@ -65,6 +65,12 @@ const ALL_NAV = [
     roles: ["ADMIN"] as string[],
   },
   {
+    title: "Environment",
+    url: "/environment",
+    icon: Cpu,
+    roles: ["ADMIN"] as string[],
+  },
+  {
     title: "Screens",
     url: "/screens",
     icon: Monitor,

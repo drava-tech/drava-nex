@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Power } from "lucide-react";
 import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, type LightStateInput } from "@/actions/light-actions";
+import { pressTvPower } from "@/actions/crabtree-actions";
 import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
 import { hexToRgb } from "./utils";
 
@@ -27,6 +28,24 @@ export function EnvironmentView() {
   const [showColourPanel, setShowColourPanel] = useState(false);
   const [show3D, setShow3D] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
+
+  // Header TV on/off → live CrabController IR bridge (POST :8000/command).
+  // The TV codebook has a single Power toggle, so each press flips it; tvOn is a
+  // best-guess label that flips with each successful press.
+  const [tvOn, setTvOn] = useState(false);
+  const [tvBusy, setTvBusy] = useState(false);
+  const toggleTv = useCallback(async () => {
+    if (tvBusy) return;
+    setTvBusy(true);
+    try {
+      await pressTvPower();
+      setTvOn((v) => !v);
+    } catch (err) {
+      console.error("TV toggle failed:", err);
+    } finally {
+      setTvBusy(false);
+    }
+  }, [tvBusy]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -359,9 +378,20 @@ export function EnvironmentView() {
           <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
           <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
         </div>
-        <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
-          3D
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className={`rounded-xl font-bold tracking-widest text-xs uppercase ${tvOn ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" : ""}`}
+            onClick={toggleTv}
+            disabled={tvBusy}
+          >
+            <Power className="w-3.5 h-3.5 mr-1.5" />
+            TV {tvOn ? "On" : "Off"}
+          </Button>
+          <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
+            3D
+          </Button>
+        </div>
       </div>
 
       <div
