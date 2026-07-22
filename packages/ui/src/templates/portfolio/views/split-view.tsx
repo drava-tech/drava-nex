@@ -7,7 +7,7 @@ import { normalizeSections, type OverviewCard } from "../content";
 /** Once the dragged divider pushes a panel past this share of the width, that
  * panel's "open slideshow" gesture commits — see `onMouseMove`. Also defines
  * how far the divider can be dragged (see the `clamped` calc below). */
-const ADVANCE_THRESHOLD_PCT = 90;
+const ADVANCE_THRESHOLD_PCT = 95;
 
 /**
  * Split-panel view — full-screen left/right comparison layout.
@@ -48,11 +48,13 @@ export function SplitView({
     dragging.current = true;
   }, []);
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+  // Shared by both mouse and touch drag — clientX is the only thing that
+  // differs between MouseEvent and Touch.
+  const moveTo = useCallback(
+    (clientX: number) => {
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      const pct = ((clientX - rect.left) / rect.width) * 100;
       // Clamp to the same bounds the commit thresholds use, so the divider
       // can be dragged all the way out to the threshold before it commits.
       const clamped = Math.min(Math.max(pct, 100 - ADVANCE_THRESHOLD_PCT), ADVANCE_THRESHOLD_PCT);
@@ -73,6 +75,25 @@ export function SplitView({
       setSplitPct(clamped);
     },
     [onOpenSection]
+  );
+
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => moveTo(e.clientX), [moveTo]);
+
+  // Touch equivalents — the divider's touchstart "captures" the gesture, but
+  // touchmove/touchend still bubble up to the container the same way mouse
+  // events do, so this mirrors the mouse handlers 1:1. Relies on the
+  // ScreenStage ancestor setting touch-action:none so the browser never
+  // intercepts this as a page pan/scroll instead.
+  const onTouchStart = useCallback(() => {
+    dragging.current = true;
+  }, []);
+
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const touch = e.touches[0];
+      if (touch) moveTo(touch.clientX);
+    },
+    [moveTo]
   );
 
   const stopDrag = useCallback(() => {
@@ -100,10 +121,19 @@ export function SplitView({
     <div
       ref={containerRef}
       className="w-full h-full relative"
-      style={{ background: "#0d1224", overflow: "hidden", userSelect: "none", cursor: dragging.current ? "col-resize" : "default" }}
+      style={{
+        background: "#0d1224",
+        overflow: "hidden",
+        userSelect: "none",
+        touchAction: "none",
+        cursor: dragging.current ? "col-resize" : "default",
+      }}
       onMouseMove={onMouseMove}
       onMouseUp={stopDrag}
       onMouseLeave={stopDrag}
+      onTouchMove={onTouchMove}
+      onTouchEnd={stopDrag}
+      onTouchCancel={stopDrag}
     >
       {/* ── Left panel — full-stage size always; clip-path reveals/hides it
           instead of resizing it, so the image and label inside never move ── */}
@@ -152,6 +182,7 @@ export function SplitView({
       {/* ── Draggable divider ── */}
       <div
         onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
         style={{
           position: "absolute",
           top: 0,
@@ -159,6 +190,7 @@ export function SplitView({
           left: `${splitPct}%`,
           transform: "translateX(-50%)",
           width: 6,
+          touchAction: "none",
           zIndex: 20,
           cursor: "col-resize",
           display: "flex",
