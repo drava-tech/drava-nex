@@ -2,11 +2,15 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Power } from "lucide-react";
 import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
+import { setLightState, identifyLight, type LightStateInput } from "@/actions/light-actions";
+import { pressTvPower } from "@/actions/crabtree-actions";
+import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
+import { hexToRgb } from "./utils";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -24,6 +28,24 @@ export function EnvironmentView() {
   const [showColourPanel, setShowColourPanel] = useState(false);
   const [show3D, setShow3D] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
+
+  // Header TV on/off → live CrabController IR bridge (POST :8000/command).
+  // The TV codebook has a single Power toggle, so each press flips it; tvOn is a
+  // best-guess label that flips with each successful press.
+  const [tvOn, setTvOn] = useState(false);
+  const [tvBusy, setTvBusy] = useState(false);
+  const toggleTv = useCallback(async () => {
+    if (tvBusy) return;
+    setTvBusy(true);
+    try {
+      await pressTvPower();
+      setTvOn((v) => !v);
+    } catch (err) {
+      console.error("TV toggle failed:", err);
+    } finally {
+      setTvBusy(false);
+    }
+  }, [tvBusy]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -51,14 +73,21 @@ export function EnvironmentView() {
     zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", bass: 0, treble: 0, device: "Detecting..." });
+  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
+
+  // Mirrors `lighting` for reads inside callbacks that must stay pure setState
+  // updaters (queueLightState fires a server action — a side effect — so it
+  // can never run inside a setLighting(s => ...) updater; React may invoke
+  // updaters outside the normal commit flow, which is what was breaking this).
+  const lightingRef = useRef(lighting);
+  useEffect(() => { lightingRef.current = lighting; }, [lighting]);
 
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef<boolean>(false);
 
   // Real volume/mute/device — read live over WS from the native audio bridge
   // (apps/api/audio-helper/bridge.mjs), not local mock state like the other
-  // panels above. power/playing/input/bass/treble stay local-only: no
+  // panels above. power/playing/input/treble stay local-only: no
   // backend equivalent exists for those (NAudio only exposes volume/mute).
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -87,6 +116,18 @@ export function EnvironmentView() {
           const msg = JSON.parse(evt.data);
           if (msg.type === "AUDIO_STATUS_UPDATE") {
             setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted, device: msg.device }));
+          }
+          if (msg.type === "LIGHT_STATE_UPDATE") {
+            const zone = zoneForDeviceId(msg.deviceId);
+            if (zone) {
+              const nextBrightness = typeof msg.state?.brightness === "number" ? msg.state.brightness : undefined;
+              const nextHex = typeof msg.state?.color === "string" ? msg.state.color : undefined;
+              setLighting(s => ({
+                ...s,
+                zones: nextBrightness === undefined ? s.zones : { ...s.zones, [zone]: nextBrightness },
+                color: nextHex === undefined ? s.color : { ...s.color, ...hexToRgb(nextHex), hex: nextHex },
+              }));
+            }
           }
         } catch { /* ignore */ }
       };
@@ -146,6 +187,72 @@ export function EnvironmentView() {
     setAudio(s => ({ ...s, muted }));
     fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
       .catch(err => console.error("Error setting mute:", err));
+  }, []);
+
+  // Per-device command queue → real Casambi lights (apps/api/src/services/casambi-driver.ts).
+  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the 3
+  // zones (+ color, which fans out to all 3) don't block each other during drags.
+  const pendingLightStateRef = useRef<Map<string, LightStateInput>>(new Map());
+  const sendingLightRef = useRef<Set<string>>(new Set());
+
+  const queueLightState = useCallback((deviceUuid: string, state: LightStateInput) => {
+    pendingLightStateRef.current.set(deviceUuid, state);
+    if (sendingLightRef.current.has(deviceUuid)) return;
+
+    const sendNext = () => {
+      const next = pendingLightStateRef.current.get(deviceUuid);
+      if (!next) {
+        sendingLightRef.current.delete(deviceUuid);
+        return;
+      }
+      pendingLightStateRef.current.delete(deviceUuid);
+      sendingLightRef.current.add(deviceUuid);
+
+      setLightState(deviceUuid, next)
+        .catch(err => console.error(`Error setting light ${deviceUuid}:`, err))
+        .finally(() => { setTimeout(sendNext, 50); });
+    };
+
+    sendNext();
+  }, []);
+
+  // Master Brightness = "set every zone to this level" (there's no single
+  // physical device behind Master — it's a convenience action over all 3).
+  const apiSetMasterBrightness = useCallback((brightness: number) => {
+    setLighting(s => ({
+      ...s,
+      brightness,
+      zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, brightness])) as typeof s.zones,
+    }));
+    for (const zone of ZONE_NAMES) {
+      const dev = ZONE_DEVICES[zone];
+      if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
+    }
+  }, [queueLightState]);
+
+  const apiSetZoneBrightness = useCallback((zone: string, brightness: number) => {
+    setLighting(s => ({ ...s, zones: { ...s.zones, [zone]: brightness } }));
+    const dev = ZONE_DEVICES[zone];
+    if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
+  }, [queueLightState]);
+
+  // Shared color across the whole room (the UI has one color picker, not
+  // per-zone) — fans out to all 3 zone devices, carrying each zone's current
+  // brightness so a color change doesn't blast every light to full.
+  const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }) => {
+    setLighting(s => ({ ...s, color }));
+    const current = lightingRef.current;
+    for (const zone of ZONE_NAMES) {
+      const dev = ZONE_DEVICES[zone];
+      const brightness = (current.zones as Record<string, number>)[zone] ?? current.brightness;
+      if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
+    }
+  }, [queueLightState]);
+
+  const identifyZone = useCallback((zone: string) => {
+    const dev = ZONE_DEVICES[zone];
+    if (!dev) return;
+    identifyLight(dev.uuid).catch(err => console.error(`Error identifying ${zone}:`, err));
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock
@@ -239,12 +346,13 @@ export function EnvironmentView() {
       setLights: (lights: boolean) => setGlobalPower(s => ({ ...s, lights })),
       setAudio: (audio: boolean) => setGlobalPower(s => ({ ...s, audio })),
     }} actions={{
-      setBrightness: (brightness: number) => setLighting(s => ({ ...s, brightness })),
-      setZoneBrightness: (zone: string, brightness: number) => setLighting(s => ({ ...s, zones: { ...s.zones, [zone]: brightness } })),
+      setBrightness: apiSetMasterBrightness,
+      setZoneBrightness: apiSetZoneBrightness,
       setActiveScene: (activeScene: string) => setLighting(s => ({ ...s, activeScene })),
-      setColor: (color: any) => setLighting(s => ({ ...s, color })),
+      setColor: apiSetColor,
       setPower: (power: boolean) => setLighting(s => ({ ...s, power })),
       toggleColourPanel: () => { setFocused("lighting"); setShowColourPanel(s => !s); },
+      identifyZone,
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
@@ -252,7 +360,6 @@ export function EnvironmentView() {
       setMuted: apiSetMuted,
       setInput: (input: string) => setAudio(s => ({ ...s, input })),
       setPower: (power: boolean) => setAudio(s => ({ ...s, power })),
-      setBass: (bass: number) => setAudio(s => ({ ...s, bass })),
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),
     }} />;
     if (type === "security") return <SecurityContent key="security" isExpanded={isExpanded} state={security} actions={{
@@ -271,9 +378,20 @@ export function EnvironmentView() {
           <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
           <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
         </div>
-        <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
-          3D
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className={`rounded-xl font-bold tracking-widest text-xs uppercase ${tvOn ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" : ""}`}
+            onClick={toggleTv}
+            disabled={tvBusy}
+          >
+            <Power className="w-3.5 h-3.5 mr-1.5" />
+            TV {tvOn ? "On" : "Off"}
+          </Button>
+          <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
+            3D
+          </Button>
+        </div>
       </div>
 
       <div
@@ -332,7 +450,7 @@ export function EnvironmentView() {
                   <X className="w-5 h-5" />
                 </Button>
               </div>
-              <LightColourContent state={lighting} actions={{ setColor: (color: any) => setLighting(s => ({ ...s, color })), closeColourPanel: () => setShowColourPanel(false) }} />
+              <LightColourContent state={lighting} actions={{ setColor: apiSetColor, closeColourPanel: () => setShowColourPanel(false) }} />
             </motion.div>
           </motion.div>
         )}

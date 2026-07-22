@@ -12,7 +12,9 @@ import { mediaRouter, uploadRouter, mediaStreamRouter, mediaFilesRouter } from '
 import { setupRouter } from './routes/setup.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { devicesRouter } from './routes/devices.js';
-import { setMqttPublisher } from './services/devices.js';
+import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
+import { startCasambiIngest } from './services/casambi-ingest.js';
+import { startIrIngest } from './services/ir-ingest.js';
 import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
@@ -59,6 +61,10 @@ mqttManager.connect();
 // Let the device-driver layer publish MQTT commands without importing the
 // manager directly (avoids a circular import; see services/devices.ts).
 setMqttPublisher((deviceId, command) => mqttManager.publishCommand(deviceId, command));
+setMqttManager(mqttManager);
+setIrManager(mqttManager);
+void startCasambiIngest(mqttManager);
+void startIrIngest(mqttManager);
 
 if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
   console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
