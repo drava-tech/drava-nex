@@ -70,7 +70,7 @@ export function EnvironmentView() {
     power: true,
     brightness: 49,
     activeScene: "Presentation",
-    zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
+    zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, 49])) as Record<string, number>,
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
@@ -195,8 +195,8 @@ export function EnvironmentView() {
   }, []);
 
   // Per-device command queue → real Casambi lights (apps/api/src/services/casambi-driver.ts).
-  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the 3
-  // zones (+ color, which fans out to all 3) don't block each other during drags.
+  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the
+  // zones (+ color, which fans out to every zone) don't block each other during drags.
   const pendingLightStateRef = useRef<Map<string, LightStateInput>>(new Map());
   const sendingLightRef = useRef<Set<string>>(new Set());
 
@@ -242,7 +242,7 @@ export function EnvironmentView() {
   }, [queueLightState]);
 
   // Shared color across the whole room (the UI has one color picker, not
-  // per-zone) — fans out to all 3 zone devices, carrying each zone's current
+  // per-zone) — fans out to every zone device, carrying each zone's current
   // brightness so a color change doesn't blast every light to full.
   const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }) => {
     setLighting(s => ({ ...s, color }));
