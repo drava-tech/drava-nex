@@ -8,20 +8,18 @@ import { FilmsPanel } from "../components/films-panel";
 /**
  * Vertical page — shown at `/<vertical-slug>[/<section-slug>]`: the active
  * section's content (image slideshow or videos grid) fills the whole screen;
- * the back button, title, and section filter pills float on top under a
- * gradient scrim. First section is active by default.
+ * the back button and title float on top under a gradient scrim. First
+ * section is active by default.
  * Authored in real 1920×1080 px (inside ScreenStage).
  */
 export function VerticalView({
   card,
   activeSectionIndex,
   onBack,
-  onSelectSection,
 }: {
   card: OverviewCard;
   activeSectionIndex: number;
   onBack: () => void;
-  onSelectSection: (sectionIndex: number) => void;
 }) {
   const sections = normalizeSections(card.sections);
   const active = Math.min(Math.max(activeSectionIndex, 0), sections.length - 1);
@@ -38,9 +36,9 @@ export function VerticalView({
         )}
       </div>
 
-      {/* Header overlay: back + title left, section filter pills right */}
+      {/* Header overlay: back + title */}
       <div
-        className="absolute top-0 left-0 right-0 flex items-center justify-between gap-6"
+        className="absolute top-0 left-0 right-0 flex items-center gap-6"
         style={{
           padding: "36px 48px 72px",
           background: "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0))",
@@ -64,38 +62,23 @@ export function VerticalView({
           >
             <ChevronLeft size={36} />
           </button>
-          <h1
-            style={{
-              color: "#ffffff",
-              fontSize: 46,
-              fontWeight: 400,
-              lineHeight: 1.1,
-              textShadow: "0 2px 12px rgba(0,0,0,0.5)",
-            }}
-          >
-            {card.title}
-          </h1>
-        </div>
-
-        <div className="flex items-center shrink-0" style={{ gap: 14, pointerEvents: "auto" }}>
-          {sections.map((s, si) => (
-            <button
-              key={si}
-              onClick={() => onSelectSection(si)}
-              className="cursor-pointer transition-colors"
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* Which split-view category (e.g. "Build"/"Technology") this
+                slideshow is showing — stays pinned in the header regardless
+                of which slide is active. */}
+            <span
               style={{
-                background: si === active ? "#ffffff" : "rgba(0, 0, 0, 0.35)",
-                color: si === active ? "#1f1f1f" : "#ffffff",
-                border: "2px solid rgba(255, 255, 255, 0.8)",
-                borderRadius: 999,
-                padding: "12px 36px",
-                fontSize: 26,
-                fontWeight: 400,
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 30,
+                fontWeight: 100,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                textShadow: "0 2px 12px rgba(0,0,0,0.5)",
               }}
             >
-              {s.name}
-            </button>
-          ))}
+              {section.name}
+            </span>
+          </div>
         </div>
       </div>
     </div>

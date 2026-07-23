@@ -39,4 +39,3 @@ export async function getLightState(deviceUuid: string) {
   if (!res.ok) throw new Error(res.error.message);
   return res.data;
 }
-

@@ -12,16 +12,13 @@ import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
-import { ContentPickerOverlay } from "./ContentPickerOverlay";
 import { ContentTitleOverlay } from "./ContentTitleOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
   initialContent: Content | null;
   wsUrl: string;
-  apiUrl: string;
-  pickerEnabled?: boolean;
-  /** Registers as a preview mirror (CMS embed): no picker, excluded from online count. */
+  /** Registers as a preview mirror (CMS embed): excluded from the online count. */
   preview?: boolean;
 }
 
@@ -69,8 +66,6 @@ export function LiveScreenPlayer({
   screenId,
   initialContent,
   wsUrl,
-  apiUrl,
-  pickerEnabled = true,
   preview = false,
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
@@ -110,7 +105,7 @@ export function LiveScreenPlayer({
 
   // ponytail: sendRaw was only used by the (now-disconnected) browser detection
   // hook to emit CAMERA_/PRODUCT_ events. Restore it here when re-enabling.
-  const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
+  const { status, sendInteraction } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCommand: handleCommand,
@@ -225,15 +220,6 @@ export function LiveScreenPlayer({
         />
       )}
       {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
-      {pickerEnabled && (
-        <ContentPickerOverlay
-          apiUrl={apiUrl}
-          onSelect={(content) => {
-            queueContent(content);
-            sendContentChangeRequest(content);
-          }}
-        />
-      )}
     </>
   );
 }

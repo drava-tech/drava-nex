@@ -10,7 +10,7 @@ import type { PortfolioContent, PortfolioViewState } from "./content";
  * every client of this screen (the physical TV and any CMS mirror), and inbound
  * `portfolio-set-view` events are applied WITHOUT re-emitting — re-broadcasting
  * an applied command would loop through the gateway's echo-to-sender.
- * Old `{ cardIndex }`-only payloads coalesce sectionIndex to null.
+ * Old `{ cardIndex }`-only payloads coalesce sectionIndex/splitView/cameFromSplit to null/undefined.
  */
 export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
   const [view, setView] = useState<PortfolioViewState>({ cardIndex: null, sectionIndex: null });
@@ -20,15 +20,33 @@ export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
     if (typeof window === "undefined") return;
     window.dispatchEvent(
       new CustomEvent("screen-control", {
-        detail: { command: "SET_PORTFOLIO_VIEW", value: { cardIndex: v.cardIndex, sectionIndex: v.sectionIndex } },
+        detail: {
+          command: "SET_PORTFOLIO_VIEW",
+          value: {
+            cardIndex: v.cardIndex,
+            sectionIndex: v.sectionIndex,
+            splitView: v.splitView,
+            cameFromSplit: v.cameFromSplit,
+          },
+        },
       })
     );
   };
 
   useEffect(() => {
     const onSetView = (e: Event) => {
-      const detail = (e as CustomEvent<{ cardIndex?: number | null; sectionIndex?: number | null }>).detail;
-      setView({ cardIndex: detail?.cardIndex ?? null, sectionIndex: detail?.sectionIndex ?? null });
+      const detail = (e as CustomEvent<{
+        cardIndex?: number | null;
+        sectionIndex?: number | null;
+        splitView?: boolean;
+        cameFromSplit?: boolean;
+      }>).detail;
+      setView({
+        cardIndex: detail?.cardIndex ?? null,
+        sectionIndex: detail?.sectionIndex ?? null,
+        splitView: detail?.splitView,
+        cameFromSplit: detail?.cameFromSplit,
+      });
     };
     window.addEventListener("portfolio-set-view", onSetView);
     return () => window.removeEventListener("portfolio-set-view", onSetView);

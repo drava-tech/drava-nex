@@ -1,5 +1,5 @@
 import { eq, or, ilike, desc, count } from "drizzle-orm";
-import type { ListVisitorsQuery, UpdateVisitorInput } from "@platform/types";
+import type { CreateVisitorInput, ListVisitorsQuery, UpdateVisitorInput } from "@platform/types";
 import { db } from "../client.js";
 import { visitor, type Visitor } from "../schema/visitors.js";
 
@@ -28,6 +28,7 @@ export interface VisitorRow {
   email: string;
   role: string;
   imagePath: string | null;
+  photoUrl: string | null;
   userId: string | null;
   firstSeen: Date;
   lastSeen: Date;
@@ -46,6 +47,7 @@ const visitorColumns = {
   email: visitor.email,
   role: visitor.role,
   imagePath: visitor.imagePath,
+  photoUrl: visitor.photoUrl,
   userId: visitor.userId,
   firstSeen: visitor.firstSeen,
   lastSeen: visitor.lastSeen,
@@ -81,6 +83,28 @@ export async function getVisitorByUuid(uuid: string): Promise<VisitorRow | null>
     .where(eq(visitor.uuid, uuid))
     .limit(1);
   return row ?? null;
+}
+
+// ─── Create (staff adds a guest manually — no camera enrollment) ──────────────
+
+/**
+ * Inserts a visitor with no face embedding: `embedding` stays NULL, which
+ * both the HNSW index and the vision service's nearest-neighbor query treat
+ * as "never a match" (see schema comment on `visitor.embedding`). Role is
+ * hardcoded to "guest", same invariant as updateVisitorContact. `photoUrl`
+ * (if provided) is a public media-library URL, never the biometric `imagePath`.
+ */
+export async function createManualVisitor(input: CreateVisitorInput): Promise<VisitorRow> {
+  const [row] = await db
+    .insert(visitor)
+    .values({
+      name: input.name,
+      email: input.email ?? "",
+      photoUrl: input.photoUrl || null,
+    })
+    .returning(visitorColumns);
+  if (!row) throw new Error("Failed to create visitor.");
+  return row;
 }
 
 // ─── Update (staff assigns name/email; role stays "guest") ────────────────────

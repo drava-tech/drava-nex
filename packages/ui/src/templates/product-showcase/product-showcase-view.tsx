@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Box } from "lucide-react";
 import type { ProductDisplayData, ProductMediaRef } from "@platform/types";

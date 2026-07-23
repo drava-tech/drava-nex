@@ -64,7 +64,7 @@ export function EnvironmentView() {
     power: true,
     brightness: 49,
     activeScene: "Presentation",
-    zones: { "Roof Lights": 64, "Wall Lights 1": 70, "Wall Lights 2": 74 },
+    zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, 49])) as Record<string, number>,
     color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
   });
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
@@ -109,7 +109,12 @@ export function EnvironmentView() {
         try {
           const msg = JSON.parse(evt.data);
           if (msg.type === "AUDIO_STATUS_UPDATE") {
-            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted, device: msg.device }));
+            // Ignore stale volume echoes while a local drag/write is still in
+            // flight — NAudio's own change notification bounces back over WS
+            // a step or two behind the live pointer position, and applying it
+            // mid-drag fights the optimistic value and makes the slider stutter.
+            const applyVolume = pendingVolumeRef.current === null && !isSendingVolumeRef.current;
+            setAudio(s => ({ ...s, volume: applyVolume ? msg.volume : s.volume, muted: msg.muted, device: msg.device }));
           }
           if (msg.type === "LIGHT_STATE_UPDATE") {
             const zone = zoneForDeviceId(msg.deviceId);
@@ -201,8 +206,8 @@ export function EnvironmentView() {
   }, []);
 
   // Per-device command queue → real Casambi lights (apps/api/src/services/casambi-driver.ts).
-  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the 3
-  // zones (+ color, which fans out to all 3) don't block each other during drags.
+  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the
+  // zones (+ color, which fans out to every zone) don't block each other during drags.
   const pendingLightStateRef = useRef<Map<string, LightStateInput>>(new Map());
   const sendingLightRef = useRef<Set<string>>(new Set());
 
@@ -248,7 +253,7 @@ export function EnvironmentView() {
   }, [queueLightState]);
 
   // Shared color across the whole room (the UI has one color picker, not
-  // per-zone) — fans out to all 3 zone devices, carrying each zone's current
+  // per-zone) — fans out to every zone device, carrying each zone's current
   // brightness so a color change doesn't blast every light to full.
   const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }) => {
     setLighting(s => ({ ...s, color }));
@@ -540,9 +545,13 @@ export function EnvironmentView() {
               initial={false}
               animate={{ zIndex: isPrimary ? 50 : 1 }}
               transition={cardLayoutTransition}
-              style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
+              style={{ gridArea: role, originX: 0.5, originY: 0.5, touchAction: "manipulation" }}
               className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
-              onClick={isPrimary ? undefined : () => setFocused(type)}
+              // onTap (not onClick) — this card animates with `layout`, and on
+              // touchscreens a plain onClick's first tap can get swallowed while
+              // Framer Motion is mid layout-measurement; onTap is its own
+              // gesture-recognizer and doesn't have that race.
+              onTap={isPrimary ? undefined : () => setFocused(type)}
             >
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div

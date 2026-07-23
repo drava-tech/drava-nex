@@ -48,7 +48,13 @@ export function ScreenStage({
 
   if (variant === "fit-screen") {
     return (
-      <div ref={ref} className={`relative w-full h-full overflow-hidden bg-black ${className ?? ""}`}>
+      <div
+        ref={ref}
+        className={`relative w-full h-full overflow-hidden bg-black ${className ?? ""}`}
+        // Kiosk/touchscreen displays: a swipe here must never pan/bounce/zoom
+        // the page — only the app's own tap/drag handlers should react to it.
+        style={{ touchAction: "none", overscrollBehavior: "none" }}
+      >
         <div
           className="absolute top-1/2 left-1/2"
           style={{

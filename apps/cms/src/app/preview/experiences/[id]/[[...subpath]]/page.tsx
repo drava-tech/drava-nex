@@ -37,7 +37,7 @@ export default async function ExperiencePreviewPage({ params }: PreviewPageProps
 
   const Layout = TEMPLATE_DEFINITIONS[key].Layout;
   return (
-    <div className="w-screen h-screen bg-black overflow-hidden">
+    <div className="w-screen h-screen bg-black overflow-hidden touch-none overscroll-none">
       <Layout experience={exp} subpath={subpath} mode="preview" />
     </div>
   );

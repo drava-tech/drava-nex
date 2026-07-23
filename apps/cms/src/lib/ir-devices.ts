@@ -16,6 +16,7 @@ export interface IrDeviceConfig {
   irDevice: string;
 }
 
+/** The air-conditioner wired to the environment Climate panel. */
 export const IR_AC: IrDeviceConfig = {
   uuid: "93f84fcf-4ed3-4d83-81b3-0a88c2cafbd6",
   deviceId: "d7b14177089fe7d3f75rqe",

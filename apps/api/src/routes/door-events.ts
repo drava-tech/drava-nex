@@ -73,8 +73,7 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
 
     const { action } = body;
 
-    // Actual actuation of the physical lock — the Yale IFTTT webhook only
-    // records history for locks toggled elsewhere, it never drives this lock.
+    // Actual actuation of the physical lock via Home Assistant.
     try {
       await setHomeAssistantLockState(action);
     } catch (err) {

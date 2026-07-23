@@ -2,28 +2,28 @@
   "name": "@platform/ui",
   "version": "1.0.0",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./src/index.tsx",
+      "types": "./src/index.tsx"
     },
     "./templates/portfolio": {
-      "import": "./dist/templates/portfolio/index.js",
-      "types": "./dist/templates/portfolio/index.d.ts"
+      "import": "./src/templates/portfolio/index.ts",
+      "types": "./src/templates/portfolio/index.ts"
     },
     "./templates/live-stream": {
-      "import": "./dist/templates/live-stream/index.js",
-      "types": "./dist/templates/live-stream/index.d.ts"
+      "import": "./src/templates/live-stream/index.ts",
+      "types": "./src/templates/live-stream/index.ts"
     },
     "./templates/product-showcase": {
-      "import": "./dist/templates/product-showcase/index.js",
-      "types": "./dist/templates/product-showcase/index.d.ts"
+      "import": "./src/templates/product-showcase/index.ts",
+      "types": "./src/templates/product-showcase/index.ts"
     },
     "./templates/welcome": {
-      "import": "./dist/templates/welcome/index.js",
-      "types": "./dist/templates/welcome/index.d.ts"
+      "import": "./src/templates/welcome/index.ts",
+      "types": "./src/templates/welcome/index.ts"
     },
     "./globals.css": "./src/globals.css"
   },

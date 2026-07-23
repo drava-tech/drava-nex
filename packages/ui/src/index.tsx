@@ -3,7 +3,7 @@
 import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Monitor, MapPin, Tag } from "lucide-react";
-import { Screen } from "@platform/types";
+import type { Screen } from "@platform/types";
 import { cn } from "./lib/utils";
 
 export { cn };
@@ -96,7 +96,11 @@ export const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border bg-card text-card-foreground shadow-sm",
+      // min-w-0: a card inside a grid/flex row must be allowed to shrink
+      // below its content's intrinsic width (e.g. an SVG chart sized only via
+      // viewBox) — without it, that content's natural size can force the
+      // whole row wider than the viewport, causing page-level horizontal scroll.
+      "min-w-0 rounded-xl border bg-card text-card-foreground shadow-sm",
       className
     )}
     {...props}

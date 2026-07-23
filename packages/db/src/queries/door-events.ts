@@ -3,8 +3,8 @@ import { db } from "../client.js";
 import { doorEvent, type DoorEvent } from "../schema/door-events.js";
 
 /**
- * Door event history — one row per Yale lock webhook call. See
- * apps/api/src/routes/yale.ts, which is the only writer.
+ * Door event history — one row per lock toggle. See
+ * apps/api/src/routes/door-events.ts, which is the only writer.
  */
 
 export interface DoorEventListResult {

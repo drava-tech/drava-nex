@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
   Check,
   Loader2,
-  MoreVertical,
   Pencil,
   Eye,
   Trash2,
+  MonitorPlay,
 } from "lucide-react";
 import {
   DndContext,
@@ -41,6 +41,7 @@ import {
   cn,
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
+import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
@@ -55,6 +56,8 @@ interface ProjectsListProps {
   projects: (Experience & { typeIds?: string[]; coverImage?: string | null })[];
   isAdmin?: boolean;
   experienceTypes?: { id: string; name: string }[];
+  screens?: ScreenRow[];
+  initialActiveScreenIds?: string[];
 }
 
 const withTypeIds = (
@@ -84,13 +87,27 @@ interface SortableCardProps {
   isAdmin?: boolean;
   dragEnabled?: boolean;
   onDelete: (id: string) => void;
+  screens: ScreenRow[];
+  activeScreenIds: Set<string>;
 }
 
-function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: SortableCardProps) {
+const LONG_PRESS_MS = 500;
+// Beyond this pointer travel (px) a "press" is a drag/scroll, not a tap.
+const PRESS_MOVE_TOLERANCE = 6;
+
+function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [showPushDialog, setShowPushDialog] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = (node: HTMLDivElement | null) => {
+    setNodeRef(node);
+    cardRef.current = node;
+  };
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -105,17 +122,86 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: S
       router.refresh();
     });
 
+  // Tap = push straight to a screen; long-press = the full actions menu.
+  // dnd-kit's own pointerdown listener (when dragEnabled) must still fire so
+  // dragging keeps working — we call it through before running our own logic.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const draggableProps: Record<string, any> = dragEnabled ? { ...attributes, ...listeners } : {};
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressActive = useRef(false);
+  const longPressFired = useRef(false);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPressTimer = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  useEffect(() => clearPressTimer, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    draggableProps.onPointerDown?.(e);
+    if (!isAdmin) return;
+    pressActive.current = true;
+    longPressFired.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPressTimer();
+    pressTimer.current = setTimeout(() => {
+      if (!pressActive.current) return;
+      longPressFired.current = true;
+      pressActive.current = false;
+      // Open the menu right where the press happened instead of a fixed spot.
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (rect && pressStart.current) {
+        setMenuAnchor({ x: pressStart.current.x - rect.left, y: pressStart.current.y - rect.top });
+      }
+      setMenuOpen(true);
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    clearPressTimer();
+    if (!pressActive.current) return;
+    pressActive.current = false;
+    if (!isAdmin || isDragging || longPressFired.current) return;
+    if (pressStart.current) {
+      const dx = e.clientX - pressStart.current.x;
+      const dy = e.clientY - pressStart.current.y;
+      if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
+    }
+    if (proj.templateKey) setShowPushDialog(true);
+  };
+
+  const handlePressCancel = () => {
+    clearPressTimer();
+    pressActive.current = false;
+  };
+
   const num = String(index + 1).padStart(2, "0");
   const pal = PILL_STYLES[index % PILL_STYLES.length]!;
   // Alternate which end the number/name (and glow) sit on: odd pills up, even down.
   const dropped = index % 2 === 1;
+  // This experience is the live content on at least one currently-connected screen.
+  const isLive = screens.some(
+    (s) =>
+      s.currentContentKind === "experience" &&
+      s.currentExperienceId === proj.id &&
+      activeScreenIds.has(s.screenId)
+  );
 
   return (
+    <>
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
-      // The whole card is the drag handle (admins, when not filtering); the kebab is the only control.
-      {...(dragEnabled ? { ...attributes, ...listeners } : {})}
+      {...draggableProps}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePressCancel}
+      onPointerCancel={handlePressCancel}
+      onContextMenu={(e) => { if (isAdmin) e.preventDefault(); }}
       className={cn(
         "group relative select-none",
         dragEnabled && "cursor-grab active:cursor-grabbing"
@@ -137,90 +223,113 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: S
           )}
         />
 
-        {/* Actions menu — the 3 dots at the end opposite the number.
-            Edit / Preview / Assign template / Delete. Admins only. */}
+        {/* Actions menu — opened by long-pressing the card (see handlePointerDown
+            above); a quick tap pushes straight to a screen instead. This trigger
+            is just the invisible positioning anchor + keyboard entry point
+            (Tab + Enter). Edit / Preview / Push to screen / Assign template /
+            Delete. Admins only. */}
         {isAdmin && (
-          <div
-            className={cn(
-              "absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100",
-              dropped ? "bottom-6" : "top-6"
-            )}
-          >
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Experience actions"
-                  // Don't let a click on the menu start a card drag.
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/25"
-                >
-                  <MoreVertical className="h-5 w-5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
-                {/* Edit / Preview need a template assigned */}
-                {proj.templateKey ? (
-                  <DropdownMenuItem asChild className="cursor-pointer gap-2">
-                    <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
-                      <Pencil className="h-4 w-4" /> Edit content
-                    </a>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem disabled className="gap-2">
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Experience actions"
+                className="absolute z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0"
+                style={
+                  menuAnchor
+                    ? { left: menuAnchor.x, top: menuAnchor.y }
+                    : { left: "50%", top: "50%" }
+                }
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
+              {/* Edit / Preview need a template assigned */}
+              {proj.templateKey ? (
+                <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
+                  <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
                     <Pencil className="h-4 w-4" /> Edit content
-                  </DropdownMenuItem>
-                )}
-                {proj.templateKey ? (
-                  <DropdownMenuItem asChild className="cursor-pointer gap-2">
-                    <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
-                      <Eye className="h-4 w-4" /> Preview
-                    </a>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem disabled className="gap-2">
-                    <Eye className="h-4 w-4" /> Preview
-                  </DropdownMenuItem>
-                )}
-
-                {/* Assign / change template */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2">Assign template</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {TEMPLATE_KEYS.map((key) => (
-                      <DropdownMenuItem
-                        key={key}
-                        className="cursor-pointer gap-2"
-                        onSelect={() => assign(key)}
-                      >
-                        {proj.templateKey === key ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <span className="w-4" />
-                        )}
-                        {TEMPLATE_LABELS[key]}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer gap-2" onSelect={() => assign(null)}>
-                      {!proj.templateKey ? <Check className="h-4 w-4" /> : <span className="w-4" />}
-                      None
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                  onSelect={() => onDelete(proj.id)}
-                >
-                  <Trash2 className="h-4 w-4" /> Delete
+                  </a>
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+              ) : (
+                <DropdownMenuItem disabled className="gap-2 py-1">
+                  <Pencil className="h-4 w-4" /> Edit content
+                </DropdownMenuItem>
+              )}
+              {proj.templateKey ? (
+                <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
+                  <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
+                    <Eye className="h-4 w-4" /> Preview
+                  </a>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled className="gap-2 py-1">
+                  <Eye className="h-4 w-4" /> Preview
+                </DropdownMenuItem>
+              )}
+              {proj.templateKey ? (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 py-1"
+                  onSelect={() => setShowPushDialog(true)}
+                >
+                  <MonitorPlay className="h-4 w-4" /> Push to screen
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled className="gap-2 py-1">
+                  <MonitorPlay className="h-4 w-4" /> Push to screen
+                </DropdownMenuItem>
+              )}
+
+              {/* Assign / change template */}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="gap-2 py-0">Assign template</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {TEMPLATE_KEYS.map((key) => (
+                    <DropdownMenuItem
+                      key={key}
+                      className="cursor-pointer gap-2 py-1"
+                      onSelect={() => assign(key)}
+                    >
+                      {proj.templateKey === key ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <span className="w-4" />
+                      )}
+                      {TEMPLATE_LABELS[key]}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer gap-2 py-1" onSelect={() => assign(null)}>
+                    {!proj.templateKey ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+                    None
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 py-1 text-destructive focus:text-destructive"
+                onSelect={() => onDelete(proj.id)}
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
+
+      {/* Live badge — this experience is currently playing on a connected
+          screen. Sits opposite the number/name block so the two never overlap. */}
+      {isLive && (
+        <div
+          className={cn(
+            "pointer-events-none absolute left-4 z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm",
+            dropped ? "bottom-4" : "top-4"
+          )}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white">Live</span>
+        </div>
+      )}
 
       {/* Oversized index number + name — alternates top / bottom per pill.
           The digits are clipped to 60% height, emerging from the pill edge. */}
@@ -245,15 +354,32 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete }: S
         </span>
       </div>
     </div>
+    {showPushDialog && (
+      <PushToScreenDialog
+        experienceName={proj.name}
+        experienceId={proj.id}
+        screens={screens}
+        activeScreenIds={activeScreenIds}
+        onClose={() => setShowPushDialog(false)}
+      />
+    )}
+    </>
   );
 }
 
-export function ProjectsList({ projects, isAdmin = false, experienceTypes = [] }: ProjectsListProps) {
+export function ProjectsList({
+  projects,
+  isAdmin = false,
+  experienceTypes = [],
+  screens = [],
+  initialActiveScreenIds = [],
+}: ProjectsListProps) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [items, setItems] = useState<ExperienceWithTypes[]>(() => withTypeIds(projects));
   const [saving, setSaving] = useState(false);
   const [filterTypeIds, setFilterTypeIds] = useState<string[]>([]);
+  const [activeScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
 
   const isFiltering = filterTypeIds.length > 0;
   const dragEnabled = isAdmin && !isFiltering;
@@ -434,7 +560,7 @@ export function ProjectsList({ projects, isAdmin = false, experienceTypes = [] }
           </Card>
         ) : (
           /* Dark showcase stage — staggered arch-pill cards with oversized indices */
-          <div className="dark relative overflow-hidden rounded-[2rem] bg-zinc-950 px-6 py-10 md:px-10 md:py-14">
+          <div className="dark relative overflow-hidden rounded-[2rem] bg-zinc-950 p-0">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-2 items-start gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-8">
@@ -446,6 +572,8 @@ export function ProjectsList({ projects, isAdmin = false, experienceTypes = [] }
                       isAdmin={isAdmin}
                       dragEnabled={dragEnabled}
                       onDelete={handleDelete}
+                      screens={screens}
+                      activeScreenIds={activeScreenIds}
                     />
                   ))}
 

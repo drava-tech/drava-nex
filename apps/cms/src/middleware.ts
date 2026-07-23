@@ -14,6 +14,7 @@ export function middleware(request: NextRequest) {
     pathname === "/health" ||
     pathname === "/display" ||
     pathname.startsWith("/display/") ||
+    pathname.startsWith("/dev-preview/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {

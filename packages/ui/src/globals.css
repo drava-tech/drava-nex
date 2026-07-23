@@ -171,9 +171,22 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Reserve the scrollbar's width permanently so pages that don't need a
+       scrollbar don't get ~15-17px wider than pages that do — without this,
+       the whole layout shifts horizontally when navigating between them. */
+    scrollbar-gutter: stable;
+    /* Belt-and-suspenders alongside body's overflow-x: hidden below — don't
+       rely on the browser propagating body's value up to the viewport. */
+    overflow-x: hidden;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Safety net: nothing on the page should ever be scrollable sideways
+       (e.g. via a trackpad swipe) — a stray oversized element should get
+       clipped here rather than opening up page-level horizontal scroll. */
+    overflow-x: hidden;
   }
 
   /* Hide native browser password reveal/clear controls so they don't

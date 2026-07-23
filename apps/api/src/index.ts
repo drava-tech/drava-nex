@@ -8,7 +8,7 @@ import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import { db, sql } from '@platform/db';
 import { productsRouter } from './routes/products.js';
-import { mediaRouter, uploadRouter, mediaStreamRouter } from './routes/media.js';
+import { mediaRouter, uploadRouter, mediaStreamRouter, mediaFilesRouter } from './routes/media.js';
 import { setupRouter } from './routes/setup.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { devicesRouter } from './routes/devices.js';
@@ -22,7 +22,6 @@ import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
 import { createDoorEventsRouter } from './routes/door-events.js';
-import { createYaleRouter } from './routes/yale.js';
 import { visionTriggerRouter } from './routes/vision-trigger.js';
 import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
@@ -66,10 +65,6 @@ setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
 
-if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
-  console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
-}
-
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
   let dbStatus = 'disconnected';
@@ -108,6 +103,7 @@ app.route('/api/experience-types', experienceTypesRouter);
 app.route('/api/internal', internalRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
+app.route('/media', mediaFilesRouter);
 app.route('/api/products', productsRouter);
 app.route('/api/projects', projectsRouter);
 app.route('/api/screens', screensRouter);
@@ -117,7 +113,6 @@ app.route('/api/visitors', visitorsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
 app.route('/api/door-events', createDoorEventsRouter(mqttManager));
-app.route('/api/yale-webhook', createYaleRouter(mqttManager));
 app.route('/api/vision-trigger', visionTriggerRouter);
 app.route('/api/vision-snapshot', visionSnapshotRouter);
 

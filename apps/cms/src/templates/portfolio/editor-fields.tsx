@@ -47,6 +47,17 @@ export function PortfolioFields({
             />
           </div>
 
+          <div className="flex flex-col gap-1">
+            <label className={LABEL}>Description</label>
+            <textarea
+              className={FIELD}
+              rows={3}
+              value={card.description ?? ""}
+              disabled={disabled}
+              onChange={(e) => onChange(i, "description", e.target.value)}
+            />
+          </div>
+
           {/* Image — select from media library */}
           <div className="flex flex-col gap-1.5">
             <label className={LABEL}>Image</label>

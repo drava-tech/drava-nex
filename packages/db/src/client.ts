@@ -18,6 +18,9 @@ import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import dns from "dns";
 import os from "os";
+import { patchMultiHomeDns } from "./host-resolver.js";
+
+patchMultiHomeDns();
 
 // Dynamically get the host machine's IP
 function getLocalIp(): string {
