@@ -17,16 +17,16 @@ const CHIP: Record<LiquidAccent, string> = {
 interface StatCardProps {
   stat: DeltaStat;
   icon: LucideIcon;
-  accent: LiquidAccent;
-  href: string;
+  accent?: LiquidAccent;
+  href?: string;
 }
 
-export function StatCard({ stat, icon: Icon, accent, href }: StatCardProps) {
+export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardProps) {
   const positive = stat.delta >= 0;
   const DeltaIcon = positive ? ArrowUpRight : ArrowDownRight;
 
-  return (
-    <Link href={href} className={`${LIQUID_PANEL} flex flex-col gap-3 p-4`} style={liquidPanelStyle(accent)}>
+  const inner = (
+    <>
       <LiquidShine />
       <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-xl ${CHIP[accent]}`}>
         <Icon className="h-4 w-4" />
@@ -43,6 +43,20 @@ export function StatCard({ stat, icon: Icon, accent, href }: StatCardProps) {
         <DeltaIcon className="h-3 w-3" />
         {Math.abs(stat.delta)}%
       </span>
-    </Link>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={`${LIQUID_PANEL} flex flex-col gap-3 p-4`} style={liquidPanelStyle(accent)}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={`${LIQUID_PANEL} flex flex-col gap-3 p-4`} style={liquidPanelStyle(accent)}>
+      {inner}
+    </div>
   );
 }

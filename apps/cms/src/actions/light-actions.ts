@@ -27,3 +27,16 @@ export async function identifyLight(deviceUuid: string) {
   if (!res.ok) throw new Error(res.error.message);
   return res.data;
 }
+
+export async function getLightState(deviceUuid: string) {
+  await requireAdmin();
+  const res = await apiFetch<{
+    id: string;
+    deviceId: string;
+    status: string;
+    state: { on?: boolean; brightness?: number; color?: string };
+  }>(`/api/devices/${deviceUuid}/status`, { method: "GET" });
+  if (!res.ok) throw new Error(res.error.message);
+  return res.data;
+}
+

@@ -7,7 +7,7 @@ import { Button } from "@platform/ui";
 import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
-import { setLightState, identifyLight, type LightStateInput } from "@/actions/light-actions";
+import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
 import { pressTvPower } from "@/actions/crabtree-actions";
 import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
 import { hexToRgb } from "./utils";
@@ -122,8 +122,10 @@ export function EnvironmentView() {
             if (zone) {
               const nextBrightness = typeof msg.state?.brightness === "number" ? msg.state.brightness : undefined;
               const nextHex = typeof msg.state?.color === "string" ? msg.state.color : undefined;
+              const nextOn = typeof msg.state?.on === "boolean" ? msg.state.on : undefined;
               setLighting(s => ({
                 ...s,
+                power: nextOn !== undefined ? (nextOn || Object.values({ ...s.zones, [zone]: nextBrightness ?? s.zones[zone as keyof typeof s.zones] }).some(b => b > 0)) : s.power,
                 zones: nextBrightness === undefined ? s.zones : { ...s.zones, [zone]: nextBrightness },
                 color: nextHex === undefined ? s.color : { ...s.color, ...hexToRgb(nextHex), hex: nextHex },
               }));
@@ -253,6 +255,54 @@ export function EnvironmentView() {
     const dev = ZONE_DEVICES[zone];
     if (!dev) return;
     identifyLight(dev.uuid).catch(err => console.error(`Error identifying ${zone}:`, err));
+  }, []);
+
+  // Hydrate the Lighting panel from the registered Casambi devices' last-known persisted state.
+  useEffect(() => {
+    async function loadLightStates() {
+      try {
+        const results = await Promise.all(
+          Object.entries(ZONE_DEVICES).map(async ([zone, dev]) => {
+            try {
+              const res = await getLightState(dev.uuid);
+              return { zone, state: res.state };
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        setLighting(s => {
+          const nextZones = { ...s.zones };
+          let nextColor = s.color;
+          let lastBrightness: number | undefined = undefined;
+          const validResults = results.filter((r): r is { zone: string; state: { on?: boolean; brightness?: number; color?: string } } => r !== null && r.state !== undefined);
+
+          for (const item of validResults) {
+            if (typeof item.state.brightness === "number") {
+              nextZones[item.zone as keyof typeof s.zones] = item.state.brightness;
+              lastBrightness = item.state.brightness;
+            }
+            if (typeof item.state.color === "string") {
+              const rgb = hexToRgb(item.state.color);
+              nextColor = { ...nextColor, ...rgb, hex: item.state.color };
+            }
+          }
+
+          return {
+            ...s,
+            zones: nextZones,
+            power: validResults.some(r => r.state.on) ? true : (validResults.length > 0 ? false : s.power),
+            brightness: lastBrightness ?? s.brightness,
+            color: nextColor,
+          };
+        });
+      } catch (err) {
+        console.error("Failed to load light states:", err);
+      }
+    }
+
+    loadLightStates();
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock

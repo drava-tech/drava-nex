@@ -1,24 +1,19 @@
-import type { MQTTDeviceManager } from "@platform/iot";
+import { TuyaContext } from "@tuya/tuya-connector-nodejs";
 import type { Device } from "@platform/db";
 
-/**
- * Driver for IR appliances behind the CrabController bridge
- * (D:\GitHub\White Tusker\2026\CrabController — `python -m ir_controller.service`).
- * The bridge subscribes to a single command topic and fans commands out to a
- * Tuya IR hub; the CMS only speaks its MQTT contract:
- *
- *   publish  twt/av/ir/command  (QoS 1)  { device, command, params }
- *
- * `device.config.irDevice` is the bridge-side remote name ("ac", "tv", …). The
- * AC verb vocabulary is power_on|power_off|set_temp{temp}|set_mode{mode}|
- * set_fan{fan}; any other remote uses a codebook key as the `command`. This is
- * command-only — inbound acks/status are handled by ir-ingest.ts.
- */
+const HUB_ID = 'd7100900af2728b91bn2qw';
 
-const PUBLISH_ACK_TIMEOUT_MS = 2_000;
-
-function commandTopic(): string {
-  return process.env["IR_COMMAND_TOPIC"] ?? "twt/av/ir/command";
+// Lazy initialize TuyaContext to avoid crash if env vars are missing on startup
+let tuya: TuyaContext | null = null;
+function getTuya(): TuyaContext {
+  if (!tuya) {
+    tuya = new TuyaContext({
+      baseUrl: "https://openapi.tuyain.com",
+      accessKey: process.env.TUYA_ACCESS_ID || "",
+      secretKey: process.env.TUYA_ACCESS_SECRET || "",
+    });
+  }
+  return tuya;
 }
 
 export interface IrCommandInput {
@@ -26,40 +21,79 @@ export interface IrCommandInput {
   params?: Record<string, unknown>;
 }
 
-export class IrDeviceDriver {
-  constructor(private readonly mqtt: MQTTDeviceManager) {}
-
-  private target(device: Device): string | null {
-    const config = device.config as { irDevice?: string } | null;
-    const irDevice = config?.irDevice;
-    if (!irDevice) {
-      console.warn(`[ir] device ${device.deviceId} missing config.irDevice — skipping publish`);
-      return null;
-    }
-    return irDevice;
+async function callTuya(path: string, body: Record<string, unknown>) {
+  const t = getTuya();
+  const res = await t.request({ method: 'POST', path, body });
+  if (!res.success) {
+    throw new Error(`Tuya IR failed: ${res.msg} (code ${res.code})`);
   }
+  return res;
+}
+
+export class IrDeviceDriver {
+  // MQTT manager is no longer used but kept for signature compatibility with apps/api/src/services/devices.ts
+  constructor(_mqtt?: unknown) {}
 
   async sendCommand(device: Device, input: IrCommandInput): Promise<void> {
-    const irDevice = this.target(device);
-    if (!irDevice) return;
+    const config = device.config as { irDevice?: string; categoryId?: number; remoteIndex?: number } | null;
+    const irDevice = config?.irDevice;
+    const remoteId = device.deviceId;
 
-    const payload = {
-      device: irDevice,
-      command: input.command,
-      ...(input.params ? { params: input.params } : {}),
-    };
+    if (!irDevice) {
+      console.warn(`[ir] device ${device.deviceId} missing config.irDevice — skipping Tuya call`);
+      return;
+    }
 
     try {
-      await Promise.race([
-        this.mqtt.publishRaw(commandTopic(), JSON.stringify(payload), { qos: 1 }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("ack timeout")), PUBLISH_ACK_TIMEOUT_MS)
-        ),
-      ]);
+      if (irDevice === "ac") {
+        const state = (device.state as {
+          power?: boolean;
+          mode?: string;
+          temp?: number;
+          fan?: string;
+        }) || {};
+
+        let power = state.power ?? true;
+        let modeStr = state.mode ?? "cool";
+        let temp = state.temp ?? 24;
+        let fanStr = state.fan ?? "auto";
+
+        switch (input.command) {
+          case "power_on": power = true; break;
+          case "power_off": power = false; break;
+          case "set_temp": power = true; temp = Number(input.params?.temp ?? temp); break;
+          case "set_mode": power = true; modeStr = String(input.params?.mode ?? modeStr); break;
+          case "set_fan": power = true; fanStr = String(input.params?.fan ?? fanStr); break;
+        }
+
+        const modeMap: Record<string, number> = { cool: 0, heat: 1, auto: 2, fan: 3, dry: 4 };
+        const windMap: Record<string, number> = { auto: 0, low: 1, mid: 2, high: 3 };
+
+        const body = {
+          power: power ? 1 : 0,
+          mode: modeMap[modeStr.toLowerCase()] ?? 0,
+          temp: temp,
+          wind: windMap[fanStr.toLowerCase()] ?? 0,
+        };
+
+        await callTuya(`/v2.0/infrareds/${HUB_ID}/air-conditioners/${remoteId}/scenes/command`, body);
+      } else {
+        const categoryId = config.categoryId;
+        const remoteIndex = config.remoteIndex;
+
+        if (categoryId == null || remoteIndex == null) {
+          throw new Error(`[ir] device ${device.deviceId} missing categoryId or remoteIndex for TV/Soundbar`);
+        }
+
+        await callTuya(`/v2.0/infrareds/${HUB_ID}/remotes/${remoteId}/command`, {
+          category_id: categoryId,
+          remote_index: remoteIndex,
+          key: input.command,
+        });
+      }
     } catch (err) {
-      // Broker down or slow: mqtt.js still queues/flushes on reconnect, so this
-      // is a delivery delay, not a lost command — don't fail the caller over it.
-      console.error(`[ir] publish to ${commandTopic()} did not ack in time:`, err);
+      console.error(`[ir] Tuya cloud call failed:`, err);
+      throw err; // Propagate error so frontend sees the failure
     }
   }
 }

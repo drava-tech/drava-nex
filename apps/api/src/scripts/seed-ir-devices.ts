@@ -10,10 +10,9 @@ import { upsertDevice } from "@platform/db";
 // `config.driver: "ir"` selects the IR driver; `config.irDevice` is the
 // bridge-side remote name (the `device` field CrabController dispatches on).
 const IR_DEVICES = [
-  { deviceId: "ir-ac", type: "ir", name: "Air Conditioner", config: { driver: "ir", irDevice: "ac" } },
-  // Add codebook remotes here — each must ALSO be configured under `remotes:`
-  // in CrabController's config.yaml (and harvested) before its keys will fire:
-  // { deviceId: "ir-tv", type: "ir", name: "TV", config: { driver: "ir", irDevice: "tv" } },
+  { deviceId: "d7b14177089fe7d3f75rqe", type: "ir", name: "Air Conditioner", config: { driver: "ir", irDevice: "ac" } },
+  { deviceId: "d7d74af8f0b7a3a5c24ca6", type: "ir", name: "TV", config: { driver: "ir", irDevice: "tv", categoryId: 2, remoteIndex: 692 } },
+  { deviceId: "d746e7d41e962b00dd0jhl", type: "ir", name: "Soundbar", config: { driver: "ir", irDevice: "soundbar", categoryId: 7, remoteIndex: 417259975 } },
 ];
 
 async function main(): Promise<void> {

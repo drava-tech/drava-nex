@@ -16,10 +16,9 @@ export interface IrDeviceConfig {
   irDevice: string;
 }
 
-/** The air-conditioner wired to the environment Climate panel. */
 export const IR_AC: IrDeviceConfig = {
-  uuid: "REPLACE_WITH_AC_DEVICE_UUID",
-  deviceId: "ir-ac",
+  uuid: "93f84fcf-4ed3-4d83-81b3-0a88c2cafbd6",
+  deviceId: "d7b14177089fe7d3f75rqe",
   irDevice: "ac",
 };
 
@@ -41,15 +40,20 @@ export interface IrRemoteConfig extends IrDeviceConfig {
 }
 
 export const IR_REMOTES: IrRemoteConfig[] = [
-  // Example — fill uuid once the TV remote is registered in the DB AND
-  // configured under `remotes:` in CrabController's config.yaml:
-  // {
-  //   label: "TV",
-  //   uuid: "REPLACE_WITH_TV_DEVICE_UUID",
-  //   deviceId: "ir-tv",
-  //   irDevice: "tv",
-  //   keys: ["Power", "Volume+", "Volume-", "Channel+", "Channel-", "Mute", "Input"],
-  // },
+  {
+    label: "TV",
+    uuid: "06763297-4d5a-47e9-9b33-66c2bddf17ee",
+    deviceId: "d7d74af8f0b7a3a5c24ca6",
+    irDevice: "tv",
+    keys: ["Power", "Volume+", "Volume-", "Channel+", "Channel-", "Up", "Down", "Left", "Right", "OK", "Menu"],
+  },
+  {
+    label: "Soundbar",
+    uuid: "17f7abf9-768b-4611-b3cb-d80d33005563",
+    deviceId: "d746e7d41e962b00dd0jhl",
+    irDevice: "soundbar",
+    keys: ["Volume+", "Volume-", "Play", "Pause", "Previous", "Next"],
+  },
 ];
 
 /** Reverse-lookup an IR device by the deviceId carried on WS broadcasts. */

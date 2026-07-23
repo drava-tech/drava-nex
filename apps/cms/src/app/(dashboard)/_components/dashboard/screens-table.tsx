@@ -53,3 +53,6 @@ export function ScreensList() {
     </ul>
   );
 }
+
+export const ScreensTable = ScreensList;
+

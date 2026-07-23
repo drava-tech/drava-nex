@@ -16,6 +16,7 @@
     "@platform/db": "workspace:*",
     "@platform/iot": "workspace:*",
     "@platform/types": "workspace:*",
+    "@tuya/tuya-connector-nodejs": "^2.1.2",
     "better-auth": "^1.6.18",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.0.0",

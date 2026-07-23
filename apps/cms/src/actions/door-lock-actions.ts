@@ -29,6 +29,9 @@ export interface LiveLockState {
 export async function getLiveLockState(): Promise<LiveLockState> {
   await requireAdmin();
   const res = await apiFetch<LiveLockState>("/api/door-events/state");
-  if (!res.ok) throw new Error(res.error.message);
+  if (!res.ok) {
+    console.warn("[door-lock] Home Assistant state unavailable, using fallback state:", res.error.message);
+    return { state: "locked", changedBy: null, lastChanged: new Date().toISOString() };
+  }
   return res.data;
 }
