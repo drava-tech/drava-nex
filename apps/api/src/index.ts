@@ -22,7 +22,6 @@ import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
 import { createDoorEventsRouter } from './routes/door-events.js';
-import { createYaleRouter } from './routes/yale.js';
 import { visionTriggerRouter } from './routes/vision-trigger.js';
 import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
@@ -65,10 +64,6 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
-
-if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
-  console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
-}
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
@@ -118,7 +113,6 @@ app.route('/api/visitors', visitorsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
 app.route('/api/door-events', createDoorEventsRouter(mqttManager));
-app.route('/api/yale-webhook', createYaleRouter(mqttManager));
 app.route('/api/vision-trigger', visionTriggerRouter);
 app.route('/api/vision-snapshot', visionSnapshotRouter);
 

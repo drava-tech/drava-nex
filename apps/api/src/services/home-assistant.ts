@@ -2,8 +2,7 @@
  * Home Assistant REST API client for the physical door lock (entity
  * HA_ENTITY_ID — an HA-integrated Yale smart lock). This is the sole source
  * of truth for both actuation (setHomeAssistantLockState) and status
- * (getHomeAssistantLockState) — the Yale IFTTT webhook (yale.ts) is legacy
- * and no longer consulted for either.
+ * (getHomeAssistantLockState).
  */
 
 export class HomeAssistantError extends Error {}

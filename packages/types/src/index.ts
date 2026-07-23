@@ -255,8 +255,8 @@ export type WsCmsMessage =
   // internal event relay (POST /api/internal/vision-event). `name` may be ""
   // (the CMS already has it from the initial GET /api/visitors load).
   | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
-  // Yale lock webhook fired — drives the live Door Lock panel. Emitted directly
-  // from apps/api/src/routes/yale.ts (already an in-process Hono route, no relay).
+  // Door lock state changed (manual toggle via the CMS) — drives the live
+  // Door Lock panel. Emitted directly from apps/api/src/routes/door-events.ts.
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }
   // System volume/mute, relayed from the native audio bridge (see WsClientMessage
   // AUDIO_BRIDGE_STATUS) — drives the live Audio tile in Environment Control.
