@@ -20,6 +20,14 @@ class Program
     private static DeviceNotificationClient _notificationClient = new();
     private static readonly object _lock = new();
 
+    // Some Bluetooth speakers (AVRCP absolute-volume sync) renegotiate their
+    // level on mute/unmute and resync Windows to whatever the speaker itself
+    // last remembered — not what it was actually set to before muting. Capture
+    // the level per device right before muting and force it back right after
+    // unmuting so mute is a true, silent toggle regardless of what the
+    // Bluetooth stack does in between.
+    private static readonly Dictionary<string, float> _volumeBeforeMute = new();
+
     static async Task Main(string[] args)
     {
         // Prevent application from crashing due to unhandled exceptions
@@ -242,6 +250,28 @@ class Program
         }
     }
 
+    // Must be called from within _lock (both call sites already hold it).
+    private static void ApplyMute(bool mute)
+    {
+        foreach (var device in _currentDevices)
+        {
+            string id = device.ID;
+            if (mute)
+            {
+                _volumeBeforeMute[id] = device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                device.AudioEndpointVolume.Mute = true;
+            }
+            else
+            {
+                device.AudioEndpointVolume.Mute = false;
+                if (_volumeBeforeMute.Remove(id, out var prevVolume))
+                {
+                    device.AudioEndpointVolume.MasterVolumeLevelScalar = prevVolume;
+                }
+            }
+        }
+    }
+
     private static void ExecuteAction(string action, JsonElement root)
     {
         lock (_lock)
@@ -277,22 +307,14 @@ class Program
                     case "set-mute":
                         if (root.TryGetProperty("value", out var muteVal))
                         {
-                            bool mute = muteVal.GetBoolean();
-                            foreach (var device in _currentDevices)
-                            {
-                                device.AudioEndpointVolume.Mute = mute;
-                            }
+                            ApplyMute(muteVal.GetBoolean());
                         }
                         break;
                     case "toggle-mute":
                         {
                             // Toggle relative to the primary device so all pinned devices
                             // land on the same state (rather than each flipping its own).
-                            bool nextMute = !_currentDevice.AudioEndpointVolume.Mute;
-                            foreach (var device in _currentDevices)
-                            {
-                                device.AudioEndpointVolume.Mute = nextMute;
-                            }
+                            ApplyMute(!_currentDevice.AudioEndpointVolume.Mute);
                         }
                         break;
                     case "increment":

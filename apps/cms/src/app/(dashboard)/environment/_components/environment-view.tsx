@@ -495,9 +495,13 @@ export function EnvironmentView() {
               initial={false}
               animate={{ zIndex: isPrimary ? 50 : 1 }}
               transition={cardLayoutTransition}
-              style={{ gridArea: role, originX: 0.5, originY: 0.5 }}
+              style={{ gridArea: role, originX: 0.5, originY: 0.5, touchAction: "manipulation" }}
               className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
-              onClick={isPrimary ? undefined : () => setFocused(type)}
+              // onTap (not onClick) — this card animates with `layout`, and on
+              // touchscreens a plain onClick's first tap can get swallowed while
+              // Framer Motion is mid layout-measurement; onTap is its own
+              // gesture-recognizer and doesn't have that race.
+              onTap={isPrimary ? undefined : () => setFocused(type)}
             >
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
