@@ -36,7 +36,7 @@ export default async function DevPreviewPage({ params }: DevPreviewPageProps) {
 
   const Layout = TEMPLATE_DEFINITIONS[template].Layout;
   return (
-    <div className="w-screen h-screen bg-black overflow-hidden">
+    <div className="w-screen h-screen bg-black overflow-hidden touch-none overscroll-none">
       <Layout experience={mockExperience} subpath={subpath} mode="preview" />
     </div>
   );

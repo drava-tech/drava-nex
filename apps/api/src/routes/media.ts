@@ -11,6 +11,15 @@ import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 // mediaFilesRouter below — nginx proxies /media/ here, not to the CMS.
 const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
 
+// Static "seed" assets baked into the repo (default template imagery, demo
+// video) — in dev this is the SAME folder as UPLOAD_DIR above, but in Docker
+// prod UPLOAD_DIR is a separate persistent volume, so these wouldn't otherwise
+// be reachable at /media/* (the CMS image bakes its own copy of this folder,
+// but nginx routes /media/ to this api container, not the CMS — see
+// infra/nginx/default.conf). The Dockerfile copies apps/cms/public/media here
+// so this default path resolves inside the container too.
+const SEED_MEDIA_DIR = process.env["SEED_MEDIA_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
+
 // Max upload size (bytes). Generous default for signage video; tune via env.
 const MAX_UPLOAD_BYTES = Number(process.env["MAX_UPLOAD_BYTES"] ?? 1024 * 1024 * 1024); // 1 GiB
 
@@ -149,17 +158,21 @@ uploadRouter.post("/", requireAdmin, async (c) => {
   }
 });
 
-// Shared range-aware file responder. Files are ALWAYS resolved within
-// UPLOAD_DIR; arbitrary absolute/traversal paths are rejected (prevents
-// path-traversal / local-file disclosure).
-function serveMediaFile(c: import("hono").Context, fileName: string): Response {
-  const baseDir = path.resolve(UPLOAD_DIR);
+// Resolves fileName within dir, guarding against traversal escaping it.
+// Returns null if the containment check fails OR the file doesn't exist there.
+function resolveWithin(dir: string, fileName: string): string | null {
+  const baseDir = path.resolve(dir);
   const resolved = path.resolve(baseDir, fileName);
-  // Containment guard — resolved must stay inside UPLOAD_DIR.
-  if (resolved !== baseDir && !resolved.startsWith(baseDir + path.sep)) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  if (!fs.existsSync(resolved)) {
+  if (resolved !== baseDir && !resolved.startsWith(baseDir + path.sep)) return null;
+  return fs.existsSync(resolved) ? resolved : null;
+}
+
+// Shared range-aware file responder. Checks UPLOAD_DIR (runtime uploads) first,
+// then falls back to SEED_MEDIA_DIR (baked-in template imagery) — both are
+// addressed by the same /media/<file> URL scheme.
+function serveMediaFile(c: import("hono").Context, fileName: string): Response {
+  const resolved = resolveWithin(UPLOAD_DIR, fileName) ?? resolveWithin(SEED_MEDIA_DIR, fileName);
+  if (!resolved) {
     return new Response("File not found", { status: 404 });
   }
 

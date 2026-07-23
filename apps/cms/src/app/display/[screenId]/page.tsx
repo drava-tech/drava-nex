@@ -33,7 +33,7 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
 
     return (
       <Suspense fallback={<LoadingDisplay />}>
-        <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+        <style>{`html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none;touch-action:none;background:#000}`}</style>
         <LiveScreenPlayer
           screenId={screenId}
           initialContent={config.content}
@@ -51,7 +51,7 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
         // so the screen auto-updates the moment the CMS assigns something.
         return (
           <>
-            <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+            <style>{`html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none;touch-action:none;background:#000}`}</style>
             <LiveScreenPlayer
               screenId={screenId}
               initialContent={null}
