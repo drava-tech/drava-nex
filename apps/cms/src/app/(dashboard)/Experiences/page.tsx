@@ -4,13 +4,14 @@ import { db, experience, experienceToType, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 import { ProjectsList } from "./_components/projects-list";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
+import { getScreens, getActiveScreens } from "@/actions/screen-actions";
 import { extractCoverImage } from "@/lib/extract-cover-image";
 
 export default async function ProjectsPage() {
   const user = await requireGuestOrAdmin();
   const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN";
 
-  const [experiences, experienceTypes, assignments] = await Promise.all([
+  const [experiences, experienceTypes, assignments, screens, activeScreenIds] = await Promise.all([
     db
       .select()
       .from(experience)
@@ -23,6 +24,8 @@ export default async function ProjectsPage() {
         typeId: experienceToType.typeId,
       })
       .from(experienceToType),
+    getScreens(),
+    getActiveScreens(),
   ]);
 
   const typeIdsByExperience = new Map<string, string[]>();
@@ -46,6 +49,8 @@ export default async function ProjectsPage() {
         projects={projects}
         isAdmin={isAdmin}
         experienceTypes={experienceTypes}
+        screens={screens}
+        initialActiveScreenIds={activeScreenIds}
       />
     </div>
   );
