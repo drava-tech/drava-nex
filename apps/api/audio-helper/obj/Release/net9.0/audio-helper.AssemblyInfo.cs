@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("audio-helper")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8872a2957bf26b1992b940cd39e26dfa628b8129")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cc3a5abc1341b7bc5d4a99b7c9c3554dd7e37463")]
 [assembly: System.Reflection.AssemblyProductAttribute("audio-helper")]
 [assembly: System.Reflection.AssemblyTitleAttribute("audio-helper")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

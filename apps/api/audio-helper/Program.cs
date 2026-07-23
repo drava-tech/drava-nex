@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +12,11 @@ namespace AudioHelper;
 class Program
 {
     private static MMDeviceEnumerator _enumerator = new();
-    private static MMDevice? _currentDevice;
+    // Multiple devices can be pinned at once (TARGET_DEVICE_NAMES) so a single
+    // CMS slider drives all of them together. Index 0 is "primary" — its
+    // volume/mute is what gets reported back to the CMS.
+    private static List<MMDevice> _currentDevices = new();
+    private static MMDevice? _currentDevice => _currentDevices.Count > 0 ? _currentDevices[0] : null;
     private static DeviceNotificationClient _notificationClient = new();
     private static readonly object _lock = new();
 
@@ -47,27 +53,27 @@ class Program
         lock (_lock)
         {
             // Clean up old subscriptions if any
-            if (_currentDevice != null)
+            foreach (var device in _currentDevices)
             {
                 try
                 {
-                    _currentDevice.AudioEndpointVolume.OnVolumeNotification -= OnVolumeChanged;
+                    device.AudioEndpointVolume.OnVolumeNotification -= OnVolumeChanged;
                 }
                 catch { }
             }
 
             try
             {
-                _currentDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
-                if (_currentDevice != null)
+                _currentDevices = ResolveTargetDevices();
+                foreach (var device in _currentDevices)
                 {
-                    _currentDevice.AudioEndpointVolume.OnVolumeNotification += OnVolumeChanged;
+                    device.AudioEndpointVolume.OnVolumeNotification += OnVolumeChanged;
                 }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[Error] Failed to get default audio endpoint: {ex.Message}");
-                _currentDevice = null;
+                _currentDevices = new List<MMDevice>();
             }
 
             // Register notification callback for device changes (only once)
@@ -82,6 +88,49 @@ class Program
                 Console.Error.WriteLine($"[Error] Failed to register endpoint callback: {ex.Message}");
             }
         }
+    }
+
+    // Windows' notion of "default" playback device can silently drift (HDMI
+    // reconnects, driver updates, reboots) independently of which device(s) are
+    // physically wired to the room's speakers. TARGET_DEVICE_NAMES (comma
+    // separated, partial case-insensitive FriendlyName match) lets ops pin one
+    // or more specific devices so a single CMS slider keeps controlling the
+    // right outputs even after that drift. Unset/no matches preserves the old
+    // behavior of following the OS default (single device).
+    private static List<MMDevice> ResolveTargetDevices()
+    {
+        string? targetNames = Environment.GetEnvironmentVariable("TARGET_DEVICE_NAMES");
+        if (!string.IsNullOrWhiteSpace(targetNames))
+        {
+            try
+            {
+                var wanted = targetNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var active = _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).ToList();
+                var matches = wanted
+                    .Select(name => active.FirstOrDefault(d => d.FriendlyName.Contains(name, StringComparison.OrdinalIgnoreCase)))
+                    .Where(d => d != null)
+                    .Select(d => d!)
+                    .ToList();
+
+                if (matches.Count > 0)
+                {
+                    var unmatched = wanted.Where(name => !active.Any(d => d.FriendlyName.Contains(name, StringComparison.OrdinalIgnoreCase)));
+                    foreach (var name in unmatched)
+                    {
+                        Console.Error.WriteLine($"[Warn] TARGET_DEVICE_NAMES entry '{name}' matched no active device.");
+                    }
+                    return matches;
+                }
+                Console.Error.WriteLine($"[Warn] TARGET_DEVICE_NAMES '{targetNames}' matched no active device; falling back to OS default.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Error] Failed to enumerate audio endpoints for TARGET_DEVICE_NAMES lookup: {ex.Message}");
+            }
+        }
+
+        var fallback = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
+        return fallback != null ? new List<MMDevice> { fallback } : new List<MMDevice>();
     }
 
     private static void OnVolumeChanged(AudioVolumeNotificationData data)
@@ -108,8 +157,15 @@ class Program
                     return;
                 }
 
+                // Primary device (index 0) is the source of truth reported back to the
+                // CMS — all pinned devices are kept at the same volume/mute by
+                // ExecuteAction, but only one number can drive a single UI slider.
                 string friendlyName = _currentDevice.FriendlyName;
                 string cleanName = CleanDeviceName(friendlyName);
+                if (_currentDevices.Count > 1)
+                {
+                    cleanName = string.Join(" + ", _currentDevices.Select(d => CleanDeviceName(d.FriendlyName)));
+                }
 
                 var payload = new
                 {
@@ -149,11 +205,14 @@ class Program
             }
         }
 
-        // If it ends with something in parenthesis like "Realtek Audio (USB Audio Device)", clean it up to "Realtek Audio"
-        int lastOpen = fullName.LastIndexOf('(');
-        if (lastOpen > 0 && fullName.EndsWith(")"))
+        // If it ends with something in parenthesis like "Realtek Digital Output (Realtek(R) Audio)",
+        // clean it up to "Realtek Digital Output". Use the FIRST '(' (the one that opens the
+        // driver-name suffix) — LastIndexOf would instead match the "(R)" trademark symbol
+        // when the driver name contains one, truncating mid-word.
+        int firstOpen = fullName.IndexOf('(');
+        if (firstOpen > 0 && fullName.EndsWith(")"))
         {
-            return fullName.Substring(0, lastOpen).Trim();
+            return fullName.Substring(0, firstOpen).Trim();
         }
 
         return fullName;
@@ -209,18 +268,32 @@ class Program
                         {
                             int volume = volVal.GetInt32();
                             volume = Math.Clamp(volume, 0, 100);
-                            _currentDevice.AudioEndpointVolume.MasterVolumeLevelScalar = volume / 100.0f;
+                            foreach (var device in _currentDevices)
+                            {
+                                device.AudioEndpointVolume.MasterVolumeLevelScalar = volume / 100.0f;
+                            }
                         }
                         break;
                     case "set-mute":
                         if (root.TryGetProperty("value", out var muteVal))
                         {
                             bool mute = muteVal.GetBoolean();
-                            _currentDevice.AudioEndpointVolume.Mute = mute;
+                            foreach (var device in _currentDevices)
+                            {
+                                device.AudioEndpointVolume.Mute = mute;
+                            }
                         }
                         break;
                     case "toggle-mute":
-                        _currentDevice.AudioEndpointVolume.Mute = !_currentDevice.AudioEndpointVolume.Mute;
+                        {
+                            // Toggle relative to the primary device so all pinned devices
+                            // land on the same state (rather than each flipping its own).
+                            bool nextMute = !_currentDevice.AudioEndpointVolume.Mute;
+                            foreach (var device in _currentDevices)
+                            {
+                                device.AudioEndpointVolume.Mute = nextMute;
+                            }
+                        }
                         break;
                     case "increment":
                         {
@@ -231,7 +304,10 @@ class Program
                             }
                             int currentVol = (int)Math.Round(_currentDevice.AudioEndpointVolume.MasterVolumeLevelScalar * 100);
                             int nextVol = Math.Clamp(currentVol + increment, 0, 100);
-                            _currentDevice.AudioEndpointVolume.MasterVolumeLevelScalar = nextVol / 100.0f;
+                            foreach (var device in _currentDevices)
+                            {
+                                device.AudioEndpointVolume.MasterVolumeLevelScalar = nextVol / 100.0f;
+                            }
                         }
                         break;
                     case "decrement":
@@ -243,7 +319,10 @@ class Program
                             }
                             int currentVol = (int)Math.Round(_currentDevice.AudioEndpointVolume.MasterVolumeLevelScalar * 100);
                             int nextVol = Math.Clamp(currentVol - decrement, 0, 100);
-                            _currentDevice.AudioEndpointVolume.MasterVolumeLevelScalar = nextVol / 100.0f;
+                            foreach (var device in _currentDevices)
+                            {
+                                device.AudioEndpointVolume.MasterVolumeLevelScalar = nextVol / 100.0f;
+                            }
                         }
                         break;
                     default:

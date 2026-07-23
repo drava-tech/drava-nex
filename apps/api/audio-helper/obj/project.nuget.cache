@@ -1,12 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "pool68kkQ6E=",
+  "dgSpecHash": "QYGX1kmQemA=",
   "success": true,
-  "projectFilePath": "D:\\GitHub\\cms-platform\\apps\\api\\audio-helper\\audio-helper.csproj",
+  "projectFilePath": "E:\\EC\\cms-platform\\apps\\api\\audio-helper\\audio-helper.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\whiter\\.nuget\\packages\\microsoft.net.illink.tasks\\9.0.17\\microsoft.net.illink.tasks.9.0.17.nupkg.sha512",
-    "C:\\Users\\whiter\\.nuget\\packages\\naudio.core\\2.2.1\\naudio.core.2.2.1.nupkg.sha512",
-    "C:\\Users\\whiter\\.nuget\\packages\\naudio.wasapi\\2.2.1\\naudio.wasapi.2.2.1.nupkg.sha512"
+    "C:\\Users\\TWT\\.nuget\\packages\\microsoft.net.illink.tasks\\9.0.18\\microsoft.net.illink.tasks.9.0.18.nupkg.sha512",
+    "C:\\Users\\TWT\\.nuget\\packages\\naudio.core\\2.2.1\\naudio.core.2.2.1.nupkg.sha512",
+    "C:\\Users\\TWT\\.nuget\\packages\\naudio.wasapi\\2.2.1\\naudio.wasapi.2.2.1.nupkg.sha512"
   ],
   "logs": []
 }

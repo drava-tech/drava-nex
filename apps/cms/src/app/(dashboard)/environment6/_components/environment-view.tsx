@@ -115,7 +115,12 @@ export function EnvironmentView() {
         try {
           const msg = JSON.parse(evt.data);
           if (msg.type === "AUDIO_STATUS_UPDATE") {
-            setAudio(s => ({ ...s, volume: msg.volume, muted: msg.muted, device: msg.device }));
+            // Ignore stale volume echoes while a local drag/write is still in
+            // flight — NAudio's own change notification bounces back over WS
+            // a step or two behind the live pointer position, and applying it
+            // mid-drag fights the optimistic value and makes the slider stutter.
+            const applyVolume = pendingVolumeRef.current === null && !isSendingVolumeRef.current;
+            setAudio(s => ({ ...s, volume: applyVolume ? msg.volume : s.volume, muted: msg.muted, device: msg.device }));
           }
           if (msg.type === "LIGHT_STATE_UPDATE") {
             const zone = zoneForDeviceId(msg.deviceId);
@@ -177,7 +182,7 @@ export function EnvironmentView() {
         body: JSON.stringify({ volume: volToSend }),
       })
         .catch(err => console.error("Error setting volume:", err))
-        .finally(() => { setTimeout(sendNext, 50); });
+        .finally(sendNext);
     };
 
     sendNext();
