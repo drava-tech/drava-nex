@@ -8,9 +8,12 @@ subprocess by the supervisor; everything else is shared across workers.
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load services/vision/.env explicitly (next to this file), not cwd-relative —
+# `python -m vision` runs from services/, so a bare load_dotenv() would miss it.
+load_dotenv(Path(__file__).with_name(".env"))
 
 
 @dataclass(frozen=True)
@@ -27,11 +30,16 @@ class Config:
     # Logical camera id for this worker (set by the supervisor per subprocess).
     camera_id: str
 
-    # Camera backend: "opencv" (USB webcam, default for dev) or "realsense"
+    # Camera backend: "opencv" (USB webcam, default for dev), "realsense", or
+    # "rtsp" (IP camera, e.g. Tapo — see camera_rtsp.py)
     camera_backend: str = "opencv"
 
     # OpenCV device index — only used when camera_backend = "opencv"
     opencv_device_index: int = 0
+
+    # Pre-built RTSP URL — only used when camera_backend = "rtsp". Empty falls
+    # back to rtsp_url_from_env() (VISION_TAPO_USER/PASS/IP/STREAM) in camera.py.
+    rtsp_url: str = ""
 
     # RealSense RGB stream resolution
     realsense_width: int = 1280
@@ -123,6 +131,7 @@ def load_config() -> Config:
         opencv_device_index=int(
             os.getenv("VISION_CAMERA_INDEX", os.getenv("VISION_OPENCV_DEVICE_INDEX", "0"))
         ),
+        rtsp_url=os.getenv("VISION_RTSP_URL", ""),
         realsense_width=int(os.getenv("VISION_RS_WIDTH", "1280")),
         realsense_height=int(os.getenv("VISION_RS_HEIGHT", "720")),
         realsense_fps=int(os.getenv("VISION_RS_FPS", "30")),

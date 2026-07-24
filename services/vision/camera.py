@@ -168,8 +168,20 @@ def make_camera(cfg: Config) -> BaseCamera:
         return RealSenseCamera(cfg)
     elif cfg.camera_backend == "opencv":
         return OpenCVCamera(cfg)
+    elif cfg.camera_backend == "rtsp":
+        # IP camera (Tapo etc.) — reuse the additive RtspCamera. URL comes from
+        # cfg.rtsp_url (VISION_RTSP_URL) or falls back to VISION_TAPO_* env vars.
+        from .camera_rtsp import RtspCamera, rtsp_url_from_env
+
+        url = cfg.rtsp_url or rtsp_url_from_env()
+        if not url:
+            raise ValueError(
+                "camera_backend='rtsp' but no URL — set VISION_RTSP_URL or "
+                "VISION_TAPO_USER/PASS/IP(/STREAM)."
+            )
+        return RtspCamera(url)
     else:
         raise ValueError(
             f"Unknown FACE_CAMERA_BACKEND '{cfg.camera_backend}'. "
-            "Valid values: 'realsense', 'opencv'"
+            "Valid values: 'realsense', 'opencv', 'rtsp'"
         )

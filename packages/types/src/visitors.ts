@@ -28,6 +28,11 @@ export const updateVisitorSchema = z
   });
 export type UpdateVisitorInput = z.infer<typeof updateVisitorSchema>;
 
+export const mergeVisitorSchema = z.object({
+  targetUuid: z.string().uuid(),
+});
+export type MergeVisitorInput = z.infer<typeof mergeVisitorSchema>;
+
 /** Shape the API returns for a visitor row (image served separately). */
 export interface VisitorListItem {
   uuid: string;

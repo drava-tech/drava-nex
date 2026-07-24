@@ -18,3 +18,33 @@ export async function updateVisitor(
   revalidatePath("/visitors");
   return res.data;
 }
+
+export async function mergeVisitor(sourceUuid: string, targetUuid: string) {
+  await requireAdmin();
+  const res = await apiFetch<VisitorListItem>(
+    `/api/visitors/${encodeURIComponent(sourceUuid)}/merge`,
+    { method: "POST", body: JSON.stringify({ targetUuid }) }
+  );
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/visitors");
+  return res.data;
+}
+
+export async function listVisitorPhotos(uuid: string): Promise<number[]> {
+  await requireAdmin();
+  const res = await apiFetch<{ photos: number[] }>(
+    `/api/visitors/${encodeURIComponent(uuid)}/photos`
+  );
+  if (!res.ok) throw new Error(res.error.message);
+  return res.data.photos;
+}
+
+export async function deleteVisitorPhoto(uuid: string, photoNumber: number) {
+  await requireAdmin();
+  const res = await apiFetch(
+    `/api/visitors/${encodeURIComponent(uuid)}/photos/${photoNumber}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/visitors");
+}

@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Badge } from "@platform/ui";
-import { updateVisitor } from "@/actions/visitor-actions";
 import { setVisionTriggerArmed } from "@/actions/vision-actions";
+import { EditVisitorModal } from "./_components/edit-visitor-modal";
 import { useCmsScreenSync, type VisitorDetectedEvent } from "@/hooks/useCmsScreenSync";
 import type { VisitorListItem } from "@platform/types";
 
@@ -37,10 +37,8 @@ export function VisitorsClient({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
   const [searchInput, setSearchInput] = useState(search);
   const [editing, setEditing] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "" });
   const [error, setError] = useState<string | null>(null);
   const [triggerArmed, setTriggerArmed] = useState(initialTriggerArmed);
   const [isToggling, startToggleTransition] = useTransition();
@@ -122,29 +120,11 @@ export function VisitorsClient({
     router.push(qs ? `/visitors?${qs}` : "/visitors");
   }
 
-  function startEdit(v: VisitorListItem) {
-    setEditing(v.uuid);
-    setForm({ name: v.name, email: v.email });
-    setError(null);
-  }
-
-  function handleSave(uuid: string) {
-    setError(null);
-    const patch = { ...form };
-    startTransition(async () => {
-      try {
-        await updateVisitor(uuid, patch);
-        // Reflect the edit in the live list without a full refetch.
-        setItems((prev) =>
-          prev.map((x) =>
-            x.uuid === uuid ? { ...x, name: patch.name, email: patch.email } : x
-          )
-        );
-        setEditing(null);
-      } catch (err) {
-        setError((err as Error).message);
-      }
-    });
+  // Reflect a saved edit in the live list without a full refetch.
+  function applyEdit(uuid: string, patch: { name: string; email: string }) {
+    setItems((prev) =>
+      prev.map((x) => (x.uuid === uuid ? { ...x, name: patch.name, email: patch.email } : x))
+    );
   }
 
   return (
@@ -258,60 +238,19 @@ export function VisitorsClient({
                     </div>
                   )}
                 </td>
-                {editing === v.uuid ? (
-                  <>
-                    <td className="px-4 py-2">
-                      <input
-                        type="text"
-                        value={form.name}
-                        placeholder="Name"
-                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input
-                        type="email"
-                        value={form.email}
-                        placeholder="Email"
-                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      />
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-3 font-medium">
-                      {v.name || <span className="text-muted-foreground italic">Unknown</span>}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{v.email || "—"}</td>
-                  </>
-                )}
+                <td className="px-4 py-3 font-medium">
+                  {v.name || <span className="text-muted-foreground italic">Unknown</span>}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{v.email || "—"}</td>
                 <td className="px-4 py-3">
                   <Badge variant="secondary">{v.role}</Badge>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{formatSeen(v.firstSeen)}</td>
                 <td className="px-4 py-3 text-muted-foreground">{formatSeen(v.lastSeen)}</td>
                 <td className="px-4 py-3">
-                  {editing === v.uuid ? (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleSave(v.uuid)} disabled={isPending}>
-                        {isPending ? "Saving…" : "Save"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setEditing(null)}
-                        disabled={isPending}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button size="sm" variant="secondary" onClick={() => startEdit(v)}>
-                      Edit
-                    </Button>
-                  )}
+                  <Button size="sm" variant="secondary" onClick={() => setEditing(v.uuid)}>
+                    Edit
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -342,6 +281,25 @@ export function VisitorsClient({
           </Button>
         </div>
       )}
+
+      {editing &&
+        (() => {
+          const v = items.find((x) => x.uuid === editing);
+          return v ? (
+            <EditVisitorModal
+              uuid={v.uuid}
+              name={v.name}
+              email={v.email}
+              mergeTargets={items.filter((item) => item.uuid !== v.uuid)}
+              onClose={() => setEditing(null)}
+              onSaved={(patch) => applyEdit(v.uuid, patch)}
+              onMerged={() => {
+                setEditing(null);
+                router.refresh();
+              }}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }

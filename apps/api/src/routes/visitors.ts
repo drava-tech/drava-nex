@@ -1,30 +1,26 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import fs from "fs";
-import path from "path";
 import {
   listVisitors,
-  getVisitorByUuid,
+  getVisitorImage,
+  listVisitorPhotos,
+  getVisitorPhoto,
+  deleteVisitorPhoto,
   updateVisitorContact,
+  mergeVisitor,
   VisitorNotFoundError,
+  InvalidVisitorMergeError,
   type VisitorRow,
 } from "@platform/db";
 import {
   listVisitorsQuerySchema,
   updateVisitorSchema,
+  mergeVisitorSchema,
   formatZodError,
   type VisitorListItem,
 } from "@platform/types";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-
-// Face crops live where the face-vision service writes them (FACE_IMAGE_DIR
-// in both processes). They are biometric PII, so they are streamed through
-// this admin-authenticated route — never exposed as static files.
-const FACE_IMAGE_DIR =
-  process.env["VISION_IMAGE_DIR"] ??
-  process.env["FACE_IMAGE_DIR"] ??
-  path.join(process.cwd(), "../../services/vision/data/faces");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -91,35 +87,108 @@ visitorsRouter.patch("/:uuid", async (c) => {
   }
 });
 
-// GET /api/visitors/:uuid/image — stream the face crop (404 once purged)
+// POST /api/visitors/:uuid/merge — fold a duplicate identity into the target
+visitorsRouter.post("/:uuid/merge", async (c) => {
+  const uuid = getUuidParam(c);
+  if (!uuid) return fail(c, "VALIDATION", "Invalid visitor id.", 422);
+
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return fail(c, "INVALID_BODY", "Request body must be valid JSON.", 422);
+  }
+  const parsed = mergeVisitorSchema.safeParse(raw);
+  if (!parsed.success) {
+    return fail(c, "VALIDATION", "Validation failed.", 422, formatZodError(parsed.error));
+  }
+
+  try {
+    return ok(c, toItem(await mergeVisitor(uuid, parsed.data.targetUuid)));
+  } catch (err) {
+    if (err instanceof InvalidVisitorMergeError) {
+      return fail(c, "VALIDATION", err.message, 422);
+    }
+    if (err instanceof VisitorNotFoundError) {
+      return fail(c, "NOT_FOUND", err.message, 404);
+    }
+    console.error("[visitors] unhandled error:", err);
+    return fail(c, "INTERNAL", "Something went wrong.", 500);
+  }
+});
+
+// GET /api/visitors/:uuid/image — the face crop, served from the database.
+// The JPEG bytes live in Postgres (visitor.image_bytes); still streamed
+// through this admin-authenticated route, never exposed as a static file, as
+// biometric PII. 404 once the image has been purged (bytes set to NULL).
 visitorsRouter.get("/:uuid/image", async (c) => {
   const uuid = getUuidParam(c);
   if (!uuid) return fail(c, "VALIDATION", "Invalid visitor id.", 422);
 
   try {
-    const visitor = await getVisitorByUuid(uuid);
-    if (!visitor) return fail(c, "NOT_FOUND", "Visitor not found.", 404);
-    if (!visitor.imagePath) return fail(c, "NO_IMAGE", "Image has been purged.", 404);
+    const bytes = await getVisitorImage(uuid);
+    if (!bytes) return fail(c, "NO_IMAGE", "Image not found.", 404);
 
-    // Containment guard — imagePath is stored as a bare filename, but never
-    // trust it: the resolved path must stay inside FACE_IMAGE_DIR.
-    const baseDir = path.resolve(FACE_IMAGE_DIR);
-    const resolved = path.resolve(baseDir, visitor.imagePath);
-    if (resolved === baseDir || !resolved.startsWith(baseDir + path.sep)) {
-      return fail(c, "FORBIDDEN", "Invalid image path.", 403);
-    }
-    if (!fs.existsSync(resolved)) {
-      return fail(c, "NO_IMAGE", "Image file not found.", 404);
-    }
-
-    const stream = fs.createReadStream(resolved);
-    return new Response(stream as unknown as ReadableStream, {
+    return new Response(new Uint8Array(bytes), {
       headers: {
         "Content-Type": "image/jpeg",
-        "Content-Length": String(fs.statSync(resolved).size),
+        "Content-Length": String(bytes.length),
         "Cache-Control": "private, max-age=300",
       },
     });
+  } catch (err) {
+    console.error("[visitors] unhandled error:", err);
+    return fail(c, "INTERNAL", "Something went wrong.", 500);
+  }
+});
+
+function getPhotoNumber(c: Context): number | null {
+  const raw = (c.req.param() as Record<string, string | undefined>)["n"] ?? "";
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// GET /api/visitors/:uuid/photos — the visitor's captured crops' photo_numbers
+visitorsRouter.get("/:uuid/photos", async (c) => {
+  const uuid = getUuidParam(c);
+  if (!uuid) return fail(c, "VALIDATION", "Invalid visitor id.", 422);
+  try {
+    return ok(c, { photos: await listVisitorPhotos(uuid) });
+  } catch (err) {
+    console.error("[visitors] unhandled error:", err);
+    return fail(c, "INTERNAL", "Something went wrong.", 500);
+  }
+});
+
+// GET /api/visitors/:uuid/photos/:n/image — one captured crop, from the DB
+visitorsRouter.get("/:uuid/photos/:n/image", async (c) => {
+  const uuid = getUuidParam(c);
+  const n = getPhotoNumber(c);
+  if (!uuid || n === null) return fail(c, "VALIDATION", "Invalid request.", 422);
+  try {
+    const bytes = await getVisitorPhoto(uuid, n);
+    if (!bytes) return fail(c, "NO_IMAGE", "Image not found.", 404);
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Content-Length": String(bytes.length),
+        "Cache-Control": "private, max-age=300",
+      },
+    });
+  } catch (err) {
+    console.error("[visitors] unhandled error:", err);
+    return fail(c, "INTERNAL", "Something went wrong.", 500);
+  }
+});
+
+// DELETE /api/visitors/:uuid/photos/:n — remove a bad/wrong crop (+ its sample)
+visitorsRouter.delete("/:uuid/photos/:n", async (c) => {
+  const uuid = getUuidParam(c);
+  const n = getPhotoNumber(c);
+  if (!uuid || n === null) return fail(c, "VALIDATION", "Invalid request.", 422);
+  try {
+    await deleteVisitorPhoto(uuid, n);
+    return ok(c, { deleted: n });
   } catch (err) {
     console.error("[visitors] unhandled error:", err);
     return fail(c, "INTERNAL", "Something went wrong.", 500);
