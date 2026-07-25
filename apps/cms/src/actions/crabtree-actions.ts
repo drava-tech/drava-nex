@@ -1,15 +1,16 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth-helpers";
+import { sendIrCommand } from "./ir-actions";
+import { IR_REMOTES, IR_AC } from "@/lib/ir-devices";
 
 /**
- * Direct bridge to the running CrabController IR webapp (POST :8000/command) —
- * the same endpoint its bundled control page uses. Powers the quick header
- * controls (AC on/off) without the MQTT/device-registration round-trip. Payload
- * is CrabController's contract: { device, command, params }. AC verbs are
- * power_on|power_off|set_temp|set_mode|set_fan; other remotes use codebook keys.
+ * Routes the quick header controls (AC on/off, TV power) through the registered
+ * device rows, so commands take the same IR path as the rest of the CMS:
+ * sendIrCommand → POST /api/devices/ir/:uuid/command → the API's Tuya Cloud
+ * driver. AC verbs are power_on|power_off|set_temp|set_mode|set_fan; other
+ * remotes use codebook keys.
  */
-const CRAB_URL = process.env["CRABCONTROLLER_URL"] ?? "http://localhost:8000";
 
 export interface CrabAck {
   status: string;
@@ -23,28 +24,27 @@ export async function sendCrabCommand(
 ): Promise<CrabAck> {
   await requireAdmin();
 
-  let res: Response;
-  try {
-    res = await fetch(`${CRAB_URL}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device, command, params: params ?? {} }),
-      cache: "no-store",
-    });
-  } catch {
-    throw new Error(`Could not reach the IR bridge at ${CRAB_URL}.`);
+  let uuid: string | undefined;
+  if (device === "ac") uuid = IR_AC.uuid;
+  else if (device === "tv") uuid = IR_REMOTES.find(r => r.label === "TV" || r.irDevice === "tv")?.uuid;
+  else if (device === "soundbar") uuid = IR_REMOTES.find(r => r.label === "Soundbar" || r.irDevice === "soundbar")?.uuid;
+  else throw new Error(`Unknown device: ${device}`);
+
+  if (!uuid || uuid.startsWith("REPLACE_")) {
+    throw new Error(`Device UUID not configured for ${device}`);
   }
 
-  const ack = (await res.json().catch(() => null)) as CrabAck | null;
-  if (!res.ok || ack?.status !== "ok") {
-    throw new Error(ack?.detail || `IR command failed (${res.status}).`);
+  try {
+    await sendIrCommand(uuid, command, params);
+    return { status: "ok" };
+  } catch (err: any) {
+    throw new Error(err.message || "IR command failed.");
   }
-  return ack;
 }
 
 /**
- * Press the TV's Power key (CrabController `tv` remote). The TV codebook exposes
- * only a single Power toggle, so every press flips the TV between on and off.
+ * Press the TV's Power key. The TV codebook exposes only a single Power toggle,
+ * so every press flips the TV between on and off.
  */
 export async function pressTvPower(): Promise<CrabAck> {
   return sendCrabCommand("tv", "Power");

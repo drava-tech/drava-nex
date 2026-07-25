@@ -65,7 +65,7 @@ export function UptimeAreaChart() {
               x2={WIDTH - PAD_X}
               y1={y}
               y2={y}
-              className="stroke-border"
+              stroke="rgba(255,255,255,0.08)"
               strokeWidth={1}
               strokeDasharray="3 3"
             />
@@ -77,9 +77,10 @@ export function UptimeAreaChart() {
           d={linePath}
           fill="none"
           stroke="var(--chart-1)"
-          strokeWidth={2}
+          strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
+          style={{ filter: "drop-shadow(0 0 6px var(--chart-1))" }}
         />
 
         {/* active marker */}
@@ -90,7 +91,7 @@ export function UptimeAreaChart() {
               x2={active.x}
               y1={PAD_TOP}
               y2={PAD_TOP + innerH}
-              className="stroke-border"
+              stroke="rgba(255,255,255,0.12)"
               strokeWidth={1}
             />
             <circle
@@ -98,8 +99,9 @@ export function UptimeAreaChart() {
               cy={active.y}
               r={4}
               fill="var(--chart-1)"
-              className="stroke-background"
+              stroke="#05070d"
               strokeWidth={2}
+              style={{ filter: "drop-shadow(0 0 8px var(--chart-1))" }}
             />
           </>
         )}
@@ -120,7 +122,7 @@ export function UptimeAreaChart() {
               x={p.x}
               y={HEIGHT - 8}
               textAnchor="middle"
-              className="fill-muted-foreground text-[11px]"
+              className="fill-slate-400 text-[11px]"
             >
               {p.day}
             </text>
@@ -130,14 +132,14 @@ export function UptimeAreaChart() {
 
       {active && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md border bg-popover px-2 py-1 text-xs shadow-md"
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-[#0b0f1a]/90 px-2 py-1 text-xs shadow-lg backdrop-blur-sm"
           style={{
             left: `${(active.x / WIDTH) * 100}%`,
             top: `${(active.y / HEIGHT) * 100}%`,
           }}
         >
-          <span className="font-medium">{active.value}%</span>{" "}
-          <span className="text-muted-foreground">online</span>
+          <span className="font-medium text-white">{active.value}%</span>{" "}
+          <span className="text-slate-400">online</span>
         </div>
       )}
     </div>

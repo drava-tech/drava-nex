@@ -1,0 +1,36 @@
+# Real config for this site — gitignored. See config.yaml.example for docs.
+
+devices_json: devices.json
+cloud_creds: tinytuya.json
+
+mqtt:
+  host: localhost
+  port: 1883
+  username:
+  password:
+
+ac:
+  defaults: {mode: cool, temp: 24, fan: auto}   # modes/fans use code defaults; override here only if wrong
+
+# One entry per AC (device name -> remote). The name is what the web page / MQTT
+# payload uses as "device".
+acs:
+  ac:
+    remote_id: "d7b14177089fe7d3f75rqe"   # Air
+  hall_ac:
+    remote_id: "d73ea59a396b84072boahv"   # Experience Center Hall AC
+
+# Non-AC codebook remotes (TV, etc.). Pair in the Smart Life app, then look up
+# remote_id / category_id / remote_index from the cloud and add here.
+# Keys are Tuya's own identifiers and double as the web-page button labels.
+remotes:
+  tv:
+    remote_id: "d7d74af8f0b7a3a5c24ca6"
+    category_id: 2
+    remote_index: 692
+    keys: [Power, Volume+, Volume-, Channel+, Channel-, Up, Down, Left, Right, OK, Menu]
+  soundbar:
+    remote_id: "d746e7d41e962b00dd0jhl"
+    category_id: 7
+    remote_index: 417259975
+    keys: [Volume+, Volume-, Play, Pause, Previous, Next]

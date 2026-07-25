@@ -218,7 +218,11 @@ devicesRouter.post("/ir/:id/command", requireApiClient(["devices:write"]), async
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
 
-  await driver.sendCommand(device, body);
+  try {
+    await driver.sendCommand(device, body);
+  } catch (err: any) {
+    return fail(c, "DRIVER_ERROR", err.message || "Device driver failed", 500);
+  }
   const nextState = applyIrCommandToState(device.state ?? {}, body.command, body.params);
   const updated = await setDeviceState(device.id, nextState);
 
