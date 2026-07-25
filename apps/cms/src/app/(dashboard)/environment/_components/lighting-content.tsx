@@ -1,7 +1,86 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Lightbulb, Plus, Radar, Sparkles } from "lucide-react";
 import { Badge } from "@platform/ui";
 import { MiniSlider, Switch } from "./controls";
+
+const LONG_PRESS_MS = 500;
+// Beyond this pointer travel (px) a "press" is a drag/scroll, not a tap.
+const PRESS_MOVE_TOLERANCE = 6;
+
+// Tap = trigger the mode; long-press = arm it for in-place editing (see the
+// name/Save/Cancel bar above the Master Brightness slider). Same
+// timing/tolerance as the experiences page's push-to-screen long-press
+// (apps/cms/src/app/(dashboard)/experiences/_components/projects-list.tsx).
+function ModeCard({ name, isEditing, onTap, onLongPress }: { name: string; isEditing: boolean; onTap: () => void; onLongPress: () => void }) {
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressActive = useRef(false);
+  const longPressFired = useRef(false);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPressTimer = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  useEffect(() => clearPressTimer, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pressActive.current = true;
+    longPressFired.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPressTimer();
+    pressTimer.current = setTimeout(() => {
+      if (!pressActive.current) return;
+      longPressFired.current = true;
+      pressActive.current = false;
+      onLongPress();
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    clearPressTimer();
+    if (!pressActive.current) return;
+    pressActive.current = false;
+    if (longPressFired.current) return;
+    if (pressStart.current) {
+      const dx = e.clientX - pressStart.current.x;
+      const dy = e.clientY - pressStart.current.y;
+      if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
+    }
+    onTap();
+  };
+
+  const handlePressCancel = () => {
+    clearPressTimer();
+    pressActive.current = false;
+  };
+
+  return (
+    <div
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePressCancel}
+      onPointerCancel={handlePressCancel}
+      onContextMenu={(e) => e.preventDefault()}
+      className={`group/btn relative flex flex-col items-center justify-center p-3 lg:p-5 rounded-[20px] cursor-pointer select-none transition-all duration-500 overflow-hidden border hover:scale-[1.02] ${
+        isEditing
+          ? "bg-primary/10 border-primary ring-2 ring-primary/40"
+          : "bg-white/50 dark:bg-card/50 border-border hover:bg-card dark:hover:bg-card"
+      }`}
+    >
+      <div className="mb-2 lg:mb-3 transition-transform duration-500 group-hover/btn:scale-110">
+        <div className="p-3 lg:p-4 rounded-full text-muted-foreground">
+          <Sparkles className="w-5 h-5 lg:w-6 lg:h-6" />
+        </div>
+      </div>
+      <span className="text-[10px] lg:text-xs font-black tracking-widest uppercase text-muted-foreground text-center">
+        {name}
+      </span>
+    </div>
+  );
+}
 
 export default function LightingContent({ isExpanded, state, actions }: any) {
   return (
@@ -40,7 +119,34 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
             {/* Left Column: Master & Zones */}
             <div className="flex flex-col gap-4 lg:h-full lg:justify-between lg:gap-6">
                <div className="space-y-3 lg:space-y-5">
-                 <span className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Brightness Control</span>
+                 {state.editingModeId ? (
+                   <div className="flex items-center gap-2 mb-1">
+                     <input
+                       autoFocus
+                       type="text"
+                       value={state.editingModeName}
+                       onChange={(e) => actions.setEditingModeName?.(e.target.value)}
+                       onKeyDown={(e) => { if (e.key === "Enter") actions.saveEditingMode?.(); }}
+                       placeholder="Mode name"
+                       className="min-w-0 flex-1 bg-transparent border border-primary/40 focus:border-primary rounded-lg px-2.5 h-7 text-xs font-bold focus:outline-none"
+                     />
+                     <button
+                       onClick={() => actions.saveEditingMode?.()}
+                       disabled={!state.editingModeName?.trim() || state.savingEditMode}
+                       className="shrink-0 h-7 px-3 rounded-lg bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                     >
+                       {state.savingEditMode ? "Saving…" : "Save"}
+                     </button>
+                     <button
+                       onClick={() => actions.cancelEditingMode?.()}
+                       className="shrink-0 h-7 px-3 rounded-lg border border-border text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-muted"
+                     >
+                       Cancel
+                     </button>
+                   </div>
+                 ) : (
+                   <span className="text-[10px] md:text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Brightness Control</span>
+                 )}
                  <MiniSlider label="Master Brightness" value={state.power ? state.brightness : 0} onChange={actions.setBrightness} max={100} suffix="%" />
                </div>
 
@@ -89,20 +195,13 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
                  {state.modes?.length ? (
                    <div className="grid grid-cols-2 gap-2 md:gap-3 lg:gap-4 lg:flex-1 lg:auto-rows-fr lg:min-h-0">
                      {state.modes.map((mode: { id: string; name: string }) => (
-                       <div
+                       <ModeCard
                          key={mode.id}
-                         onClick={(e) => { e.stopPropagation(); actions.triggerMode?.(mode.id); }}
-                         className="group/btn relative flex flex-col items-center justify-center p-3 lg:p-5 rounded-[20px] cursor-pointer transition-all duration-500 overflow-hidden border bg-white/50 dark:bg-card/50 border-border hover:bg-card dark:hover:bg-card hover:scale-[1.02]"
-                       >
-                         <div className="mb-2 lg:mb-3 transition-transform duration-500 group-hover/btn:scale-110">
-                           <div className="p-3 lg:p-4 rounded-full text-muted-foreground">
-                             <Sparkles className="w-5 h-5 lg:w-6 lg:h-6" />
-                           </div>
-                         </div>
-                         <span className="text-[10px] lg:text-xs font-black tracking-widest uppercase text-muted-foreground text-center">
-                           {mode.name}
-                         </span>
-                       </div>
+                         name={mode.name}
+                         isEditing={state.editingModeId === mode.id}
+                         onTap={() => actions.triggerMode?.(mode.id)}
+                         onLongPress={() => actions.editMode?.(mode)}
+                       />
                      ))}
                    </div>
                  ) : (

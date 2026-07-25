@@ -1,0 +1,72 @@
+2026-07-25 17:59:59,448 INFO [supervisor] starting people worker for camera cam-entrance
+2026-07-25 18:00:00,572 INFO [pipeline] Starting — backend=realsense db_enabled=False min_bbox=80px presence_min_bbox=15px match<=0.50 cooldown=30s
+2026-07-25 18:00:00,574 INFO [pipeline] DB disabled (VISION_DB_ENABLED=false) — presence trigger only, no identity capture.
+2026-07-25 18:00:13,115 INFO [engine] Loading insightface pack 'buffalo_l' (root=E:/EC/cms-platform/services/vision/models)…
+2026-07-25 18:00:16,544 INFO [engine] Model loaded and warmed up (det_size=960).
+2026-07-25 18:00:17,468 INFO [camera] RealSense started — 1280x720 @ 30fps
+E:\EC\cms-platform\services\vision\.venv\Lib\site-packages\insightface\utils\face_align.py:23: FutureWarning: `estimate` is deprecated since version 0.26 and will be removed in version 2.2. Please use `SimilarityTransform.from_estimate` class constructor instead.
+  tform.estimate(lmk, dst)
+2026-07-25 18:00:27,492 INFO [pipeline] 22.4 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:00:37,485 INFO [pipeline] 21.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:00:47,483 INFO [pipeline] 18.1 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:00:57,522 INFO [pipeline] 19.4 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:07,541 INFO [pipeline] 16.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:17,548 INFO [pipeline] 18.3 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:27,545 INFO [pipeline] 19.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:37,561 INFO [pipeline] 19.1 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:47,561 INFO [pipeline] 27.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:01:57,565 INFO [pipeline] 27.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:07,570 INFO [pipeline] 29.5 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:17,583 INFO [pipeline] 29.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:27,601 INFO [pipeline] 30.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:37,607 INFO [pipeline] 29.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:47,621 INFO [pipeline] 27.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:02:57,661 INFO [pipeline] 25.6 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:07,692 INFO [pipeline] 19.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:17,712 INFO [pipeline] 19.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:27,735 INFO [pipeline] 20.1 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:37,737 INFO [pipeline] 19.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:47,773 INFO [pipeline] 20.6 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:03:57,808 INFO [pipeline] 19.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:07,812 INFO [pipeline] 20.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:17,821 INFO [pipeline] 19.6 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:27,813 INFO [pipeline] 18.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:37,854 INFO [pipeline] 21.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:47,841 INFO [pipeline] 21.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:04:57,873 INFO [pipeline] 21.3 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:07,917 INFO [pipeline] 21.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:17,906 INFO [pipeline] 18.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:27,946 INFO [pipeline] 20.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:37,975 INFO [pipeline] 19.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:47,968 INFO [pipeline] 18.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:05:57,973 INFO [pipeline] 19.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:08,000 INFO [pipeline] 20.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:17,996 INFO [pipeline] 24.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:28,014 INFO [pipeline] 19.3 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:38,061 INFO [pipeline] 19.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:48,101 INFO [pipeline] 20.5 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:06:58,130 INFO [pipeline] 18.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:08,123 INFO [pipeline] 19.5 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:18,147 INFO [pipeline] 18.9 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:28,161 INFO [pipeline] 19.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:38,158 INFO [pipeline] 26.5 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:48,171 INFO [pipeline] 27.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:07:58,200 INFO [pipeline] 24.1 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:08,220 INFO [pipeline] 18.6 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:18,248 INFO [pipeline] 18.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:28,254 INFO [pipeline] 19.1 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:38,260 INFO [pipeline] 18.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:48,280 INFO [pipeline] 18.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:08:58,315 INFO [pipeline] 18.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:08,323 INFO [pipeline] 18.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:18,329 INFO [pipeline] 18.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:28,341 INFO [pipeline] 18.4 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:38,374 INFO [pipeline] 18.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:48,379 INFO [pipeline] 21.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:09:58,389 INFO [pipeline] 28.2 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:08,397 INFO [pipeline] 27.7 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:18,415 INFO [pipeline] 27.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:28,440 INFO [pipeline] 27.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:38,457 INFO [pipeline] 27.8 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:48,471 INFO [pipeline] 28.0 fps | 0 active tracks | 0 matches | 0 enrolls
+2026-07-25 18:10:58,469 INFO [pipeline] 29.2 fps | 0 active tracks | 0 matches | 0 enrolls

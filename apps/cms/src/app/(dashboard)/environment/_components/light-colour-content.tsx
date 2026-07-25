@@ -6,11 +6,15 @@ import { hexToRgb, rgbToHex, hsvToRgb, rgbToHsv, noProp } from "./utils";
 
 export default function LightColourContent({ state, actions }: any) {
   const [hexInput, setHexInput] = useState(state.color.hex);
-  const [mode, setMode] = useState<"RGBW" | "RGB">("RGBW");
   const [isValidHex, setIsValidHex] = useState(true);
 
   const pickerRef = useRef<HTMLDivElement>(null);
-  const baseColorRef = useRef({ r: 1, g: 1, b: 1, w: 0 });
+  // The spectrum is hue+value only (saturation is locked to 1 in
+  // handlePickerDrag below), so it can never represent white/gray/black —
+  // those all compute hue 0, which is pure red. Remember the last hue that
+  // actually had color so the handle falls back to *that* instead of
+  // snapping to the red end whenever the current color is achromatic.
+  const lastHueRef = useRef(0);
 
   useEffect(() => {
     setHexInput(state.color.hex);
@@ -18,16 +22,9 @@ export default function LightColourContent({ state, actions }: any) {
   }, [state.color.hex]);
 
   useEffect(() => {
-    const max = Math.max(state.color.r, state.color.g, state.color.b, state.color.w);
-    if (max > 0) {
-      baseColorRef.current = {
-        r: state.color.r / max,
-        g: state.color.g / max,
-        b: state.color.b / max,
-        w: state.color.w / max,
-      };
-    }
-  }, [state.color.r, state.color.g, state.color.b, state.color.w]);
+    const { h, s } = rgbToHsv(state.color.r, state.color.g, state.color.b);
+    if (s > 0) lastHueRef.current = h;
+  }, [state.color.r, state.color.g, state.color.b]);
 
   const handleHexChange = (val: string) => {
     setHexInput(val);
@@ -42,9 +39,9 @@ export default function LightColourContent({ state, actions }: any) {
     }
   };
 
-  const handleRgbChange = (channel: 'r' | 'g' | 'b' | 'w', val: number) => {
+  const handleRgbChange = (channel: 'r' | 'g' | 'b', val: number) => {
     const newColor = { ...state.color, [channel]: val };
-    if (channel !== 'w') newColor.hex = rgbToHex(newColor.r, newColor.g, newColor.b);
+    newColor.hex = rgbToHex(newColor.r, newColor.g, newColor.b);
     actions.setColor(newColor);
   };
 
@@ -74,23 +71,17 @@ export default function LightColourContent({ state, actions }: any) {
     }
   };
 
-  // Derive handle position and brightness
-  const baseRgb = {
-    r: Math.round(baseColorRef.current.r * 255),
-    g: Math.round(baseColorRef.current.g * 255),
-    b: Math.round(baseColorRef.current.b * 255),
-  };
-  const hsv = rgbToHsv(baseRgb.r, baseRgb.g, baseRgb.b);
-  
-  // If the color is completely black, use the base hue so the handle doesn't snap to 0
-  const isBlack = state.color.r === 0 && state.color.g === 0 && state.color.b === 0;
+  // Derive handle position and brightness. White/gray/black all have no real
+  // hue (saturation 0) — fall back to the last hue that did, rather than
+  // letting the handle snap to red (hue 0).
   const currentHsv = rgbToHsv(state.color.r, state.color.g, state.color.b);
-  const handleX = (isDraggingPicker ? internalHsv.h : (isBlack ? hsv.h : currentHsv.h)) / 360 * 100;
+  const isAchromatic = currentHsv.s === 0;
+  const handleX = (isDraggingPicker ? internalHsv.h : (isAchromatic ? lastHueRef.current : currentHsv.h)) / 360 * 100;
   const handleY = (1 - (isDraggingPicker ? internalHsv.v : currentHsv.v)) * 100;
   
   const currentBrightness = isDraggingPicker
-    ? Math.round((Math.max(internalHsv.v * 255, state.color.w) / 255) * 100)
-    : Math.round((Math.max(state.color.r, state.color.g, state.color.b, state.color.w) / 255) * 100);
+    ? Math.round(internalHsv.v * 100)
+    : Math.round((Math.max(state.color.r, state.color.g, state.color.b) / 255) * 100);
 
   return (
     <div className="flex flex-col z-10 relative text-card-foreground" onClick={noProp}>
@@ -108,18 +99,6 @@ export default function LightColourContent({ state, actions }: any) {
 
         {/* Left Column (~45%) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-          <div className="flex bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl w-fit relative">
-            <div
-              className="absolute top-1 bottom-1 w-20 rounded-lg bg-white dark:bg-zinc-800 shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{ transform: mode === "RGBW" ? 'translateX(0)' : 'translateX(5rem)' }}
-            />
-            <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGBW" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => setMode("RGBW")}>RGBW</button>
-            <button className={`relative z-10 h-8 w-20 text-xs font-bold transition-colors ${mode === "RGB" ? 'text-foreground' : 'text-muted-foreground'}`} onClick={() => {
-              setMode("RGB");
-              handleRgbChange('w', 0); // Clear white channel when switching to RGB
-            }}>RGB</button>
-          </div>
-
           <div
             ref={pickerRef}
             className="w-full h-48 lg:h-56 rounded-2xl relative cursor-crosshair touch-none shadow-inner overflow-hidden"
@@ -184,23 +163,19 @@ export default function LightColourContent({ state, actions }: any) {
           </div>
 
           <div className="pt-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">RGBW Values</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-3">RGB Values</span>
             <div className="flex items-center gap-1.5">
-              {['r', 'g', 'b', 'w'].map(c => {
-                if (mode === "RGB" && c === 'w') return null;
-                return (
-                  <div key={c} className="flex-1 flex flex-col items-center gap-1.5">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground">{c}</span>
-                    <input
-                      type="number" min="0" max="255" step="any"
-                      value={state.color[c as 'r' | 'g' | 'b' | 'w']}
-                      onChange={(e) => handleRgbChange(c as 'r' | 'g' | 'b' | 'w', parseFloat(e.target.value) || 0)}
-                      className="w-full px-0.5 bg-muted/50 border border-transparent focus:border-primary focus:bg-background rounded-xl h-12 text-center text-xs font-black focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
-                );
-              })}
-              <div className="flex items-end pb-2 pl-1 shrink-0"><span className="text-muted-foreground font-black text-xs">%</span></div>
+              {(['r', 'g', 'b'] as const).map(c => (
+                <div key={c} className="flex-1 flex flex-col items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase text-muted-foreground">{c}</span>
+                  <input
+                    type="number" min="0" max="255" step="any"
+                    value={state.color[c]}
+                    onChange={(e) => handleRgbChange(c, parseFloat(e.target.value) || 0)}
+                    className="w-full px-0.5 bg-muted/50 border border-transparent focus:border-primary focus:bg-background rounded-xl h-12 text-center text-xs font-black focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>

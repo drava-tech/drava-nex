@@ -8,7 +8,7 @@ import { EnvironmentView as ThreeDView } from "../../environment5/_components/en
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
-import { listModes, createMode, triggerMode, type ModeSummary } from "@/actions/mode-actions";
+import { listModes, createMode, updateMode, triggerMode, type ModeSummary } from "@/actions/mode-actions";
 import { pressTvPower } from "@/actions/crabtree-actions";
 import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
 import { hexToRgb } from "./utils";
@@ -23,6 +23,60 @@ const SecurityContent = dynamic(() => import("./security-content"), { ssr: false
 type PanelType = "climate" | "lighting" | "audio" | "security";
 
 const cardLayoutTransition = { type: "spring", bounce: 0.14, duration: 0.9 } as any;
+
+type DraftColor = { r: number; g: number; b: number; w: number; hex: string };
+type ZoneDraft = { on: boolean; brightness: number; color?: DraftColor };
+
+// Shared per-zone on/off + brightness + color editor used by both the
+// Add-Mode and Edit-Mode dialogs. The swatch is clickable — it opens the
+// same color picker used everywhere else, but staged into this draft
+// instead of pushed live, so it's included in the physical push on Save.
+function ZoneSettingsEditor({
+  draft,
+  colors,
+  masterColor,
+  onChange,
+  onEditColor,
+}: {
+  draft: Record<string, ZoneDraft>;
+  colors: Record<string, { hex: string }>;
+  masterColor: { hex: string };
+  onChange: (zone: string, patch: Partial<ZoneDraft>) => void;
+  onEditColor: (zone: string) => void;
+}) {
+  return (
+    <div className="space-y-4 mb-5">
+      {ZONE_NAMES.map(zone => {
+        const z = draft[zone] ?? { on: false, brightness: 0 };
+        const swatchHex = z.color?.hex ?? (colors[zone] ?? masterColor).hex;
+        return (
+          <div key={zone}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  title="Edit color"
+                  className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 dark:border-white/20 hover:scale-125 transition-transform cursor-pointer"
+                  style={{ backgroundColor: swatchHex }}
+                  onClick={() => onEditColor(zone)}
+                />
+                <span className="text-xs font-bold uppercase tracking-widest">{zone}</span>
+              </div>
+              <Switch checked={z.on} onChange={(on: boolean) => onChange(zone, { on })} />
+            </div>
+            <MiniSlider
+              label=""
+              value={z.on ? z.brightness : 0}
+              onChange={(v: number) => onChange(zone, { brightness: v, on: v > 0 })}
+              max={100}
+              suffix="%"
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("climate");
@@ -90,7 +144,11 @@ export function EnvironmentView() {
   const [savingMode, setSavingMode] = useState(false);
   // Editable preview shown in the create-mode dialog — seeded from whatever
   // is live right now, but can be tweaked before Save actually pushes it out.
-  const [modeDraft, setModeDraft] = useState<Record<string, { on: boolean; brightness: number }>>({});
+  const [modeDraft, setModeDraft] = useState<Record<string, ZoneDraft>>({});
+  // Which zone's color swatch in the New-Mode dialog the color picker below
+  // is currently staging into — null means the picker is being used for its
+  // normal live-edit purpose (colourPanelZone) instead.
+  const [draftColorTarget, setDraftColorTarget] = useState<string | null>(null);
 
   const refreshModes = useCallback(() => {
     listModes().then(setModes).catch(err => console.error("Failed to load modes:", err));
@@ -103,7 +161,7 @@ export function EnvironmentView() {
     setModeDraft(Object.fromEntries(
       ZONE_NAMES.map(zone => {
         const brightness = current.zones[zone] ?? 0;
-        return [zone, { on: brightness > 0, brightness }];
+        return [zone, { on: brightness > 0, brightness, color: current.colors[zone] }];
       })
     ));
     setNewModeName("");
@@ -125,7 +183,7 @@ export function EnvironmentView() {
         await setLightState(dev.uuid, {
           on: draft.on,
           brightness: draft.brightness,
-          color: lightingRef.current.colors[zone]?.hex,
+          color: draft.color?.hex ?? lightingRef.current.colors[zone]?.hex,
         });
       }
       await createMode(name);
@@ -140,12 +198,67 @@ export function EnvironmentView() {
     }
   }, [newModeName, savingMode, modeDraft, refreshModes]);
 
-  const setModeDraftZone = useCallback((zone: string, patch: Partial<{ on: boolean; brightness: number }>) => {
-    setModeDraft(d => ({ ...d, [zone]: { ...d[zone], ...patch } as { on: boolean; brightness: number } }));
+  const setModeDraftZone = useCallback((zone: string, patch: Partial<ZoneDraft>) => {
+    setModeDraft(d => ({ ...d, [zone]: { ...d[zone], ...patch } as ZoneDraft }));
+  }, []);
+
+  // Edit in place — long-press a mode card to arm it for editing. Editing
+  // just means "the widget's own live controls" (Master/zone sliders, color
+  // dots — all unchanged): triggering the mode syncs them to its saved
+  // values via the normal LIGHT_STATE_UPDATE path, then Save reads back
+  // whatever the lights are now actually doing. No separate draft state.
+  const [editingMode, setEditingMode] = useState<ModeSummary | null>(null);
+  const [editingModeName, setEditingModeName] = useState("");
+  const [savingEditMode, setSavingEditMode] = useState(false);
+
+  const startEditMode = useCallback((mode: ModeSummary) => {
+    triggerMode(mode.id).catch(err => console.error("Failed to trigger mode:", err));
+    setEditingModeName(mode.name);
+    setEditingMode(mode);
+  }, []);
+
+  const saveEditingMode = useCallback(async () => {
+    const name = editingModeName.trim();
+    if (!name || !editingMode || savingEditMode) return;
+    setSavingEditMode(true);
+    try {
+      const current = lightingRef.current;
+      const targets: Record<string, { on: boolean; brightness?: number; color?: string }> = {};
+      for (const zone of ZONE_NAMES) {
+        const dev = ZONE_DEVICES[zone];
+        if (!dev) continue;
+        const brightness = current.zones[zone] ?? 0;
+        targets[dev.uuid] = { on: brightness > 0, brightness, color: current.colors[zone]?.hex };
+      }
+      await updateMode(editingMode.deviceId, name, targets);
+      setEditingMode(null);
+      refreshModes();
+    } catch (err) {
+      console.error("Failed to update mode:", err);
+    } finally {
+      setSavingEditMode(false);
+    }
+  }, [editingModeName, editingMode, savingEditMode, refreshModes]);
+
+  const cancelEditingMode = useCallback(() => {
+    setEditingMode(null);
   }, []);
 
   const runMode = useCallback((id: string) => {
     triggerMode(id).catch(err => console.error("Failed to trigger mode:", err));
+  }, []);
+
+  // Opens the shared color picker to stage a zone's color inside the
+  // New-Mode dialog's draft, instead of pushing it live like the main
+  // widget does.
+  const openDraftColorPanel = useCallback((zone: string) => {
+    setDraftColorTarget(zone);
+    setShowColourPanel(true);
+  }, []);
+
+  const closeColourPanelAny = useCallback(() => {
+    setShowColourPanel(false);
+    setDraftColorTarget(null);
   }, []);
 
   // Mirrors `lighting` for reads inside callbacks that must stay pure setState
@@ -490,7 +603,7 @@ export function EnvironmentView() {
       setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
       setFanSpeed: (fanSpeed: string) => setClimate(s => ({ ...s, fanSpeed })),
     }} />;
-    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ ...lighting, modes }} globalPowerState={globalPower} globalPowerActions={{
+    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ ...lighting, modes, editingModeId: editingMode?.id ?? null, editingModeName, savingEditMode }} globalPowerState={globalPower} globalPowerActions={{
       setAc: (ac: boolean) => setGlobalPower(s => ({ ...s, ac })),
       setLights: (lights: boolean) => setGlobalPower(s => ({ ...s, lights })),
       setAudio: (audio: boolean) => setGlobalPower(s => ({ ...s, audio })),
@@ -503,6 +616,10 @@ export function EnvironmentView() {
       identifyZone,
       addMode: openAddModeDialog,
       triggerMode: runMode,
+      editMode: startEditMode,
+      setEditingModeName,
+      saveEditingMode,
+      cancelEditingMode,
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
@@ -591,8 +708,8 @@ export function EnvironmentView() {
         {focused === "lighting" && showColourPanel && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
-            onClick={() => setShowColourPanel(false)}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
+            onClick={closeColourPanelAny}
           >
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
@@ -600,16 +717,27 @@ export function EnvironmentView() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute top-6 right-6 z-50">
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={closeColourPanelAny}>
                   <X className="w-5 h-5" />
                 </Button>
               </div>
               <LightColourContent
                 state={{
-                  color: colourPanelZone ? (lighting.colors[colourPanelZone] ?? lighting.color) : lighting.color,
-                  zoneLabel: colourPanelZone ?? "All Zones",
+                  color: draftColorTarget
+                    ? (modeDraft[draftColorTarget]?.color ?? lighting.colors[draftColorTarget] ?? lighting.color)
+                    : (colourPanelZone ? (lighting.colors[colourPanelZone] ?? lighting.color) : lighting.color),
+                  zoneLabel: draftColorTarget ? `${draftColorTarget} (unsaved)` : (colourPanelZone ?? "All Zones"),
                 }}
-                actions={{ setColor: (color: typeof lighting.color) => apiSetColor(color, colourPanelZone ?? undefined), closeColourPanel: () => setShowColourPanel(false) }}
+                actions={{
+                  setColor: (color: typeof lighting.color) => {
+                    if (draftColorTarget) {
+                      setModeDraftZone(draftColorTarget, { color });
+                      return;
+                    }
+                    apiSetColor(color, colourPanelZone ?? undefined);
+                  },
+                  closeColourPanel: closeColourPanelAny,
+                }}
               />
             </motion.div>
           </motion.div>
@@ -644,29 +772,7 @@ export function EnvironmentView() {
                 placeholder="Mode name"
                 className="w-full bg-transparent border border-border focus:border-primary rounded-2xl px-4 h-12 text-sm focus:outline-none mb-5"
               />
-              <div className="space-y-4 mb-5">
-                {ZONE_NAMES.map(zone => {
-                  const draft = modeDraft[zone] ?? { on: false, brightness: 0 };
-                  return (
-                    <div key={zone}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 dark:border-white/20" style={{ backgroundColor: (lighting.colors[zone] ?? lighting.color).hex }} />
-                          <span className="text-xs font-bold uppercase tracking-widest">{zone}</span>
-                        </div>
-                        <Switch checked={draft.on} onChange={(on: boolean) => setModeDraftZone(zone, { on })} />
-                      </div>
-                      <MiniSlider
-                        label=""
-                        value={draft.on ? draft.brightness : 0}
-                        onChange={(v: number) => setModeDraftZone(zone, { brightness: v, on: v > 0 })}
-                        max={100}
-                        suffix="%"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              <ZoneSettingsEditor draft={modeDraft} colors={lighting.colors} masterColor={lighting.color} onChange={setModeDraftZone} onEditColor={openDraftColorPanel} />
               <Button
                 className="w-full rounded-2xl font-bold"
                 onClick={submitNewMode}

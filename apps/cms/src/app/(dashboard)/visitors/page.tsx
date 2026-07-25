@@ -37,7 +37,6 @@ export default async function VisitorsPage({
           email: v.email,
           role: v.role,
           hasImage: v.imagePath !== null,
-          photoUrl: v.photoUrl,
           firstSeen: v.firstSeen.toISOString(),
           lastSeen: v.lastSeen.toISOString(),
         }))}

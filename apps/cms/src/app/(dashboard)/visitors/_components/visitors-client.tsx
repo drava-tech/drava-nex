@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Badge } from "@platform/ui";
 import { setVisionTriggerArmed } from "@/actions/vision-actions";
-import { EditVisitorModal } from "./_components/edit-visitor-modal";
+import { EditVisitorModal } from "./edit-visitor-modal";
 import { useCmsScreenSync, type VisitorDetectedEvent } from "@/hooks/useCmsScreenSync";
 import type { VisitorListItem } from "@platform/types";
 
