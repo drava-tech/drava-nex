@@ -6,3 +6,6 @@ data/
 # Keep the models/ dir (placeholder) but ignore the downloaded packs inside it.
 models/*
 !models/.gitkeep
+models/**/*.zip
+
+# Model packs are downloaded locally by InsightFace and are not committed.

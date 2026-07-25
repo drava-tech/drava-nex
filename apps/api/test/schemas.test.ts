@@ -4,6 +4,7 @@ import {
   createProductSchema,
   listProductsQuerySchema,
   productDetectedEventSchema,
+  mergeVisitorSchema,
 } from "@platform/types";
 
 describe("detectionLabelSchema", () => {
@@ -75,5 +76,17 @@ describe("productDetectedEventSchema", () => {
         detectedAt: new Date().toISOString(),
       }).success
     ).toBe(false);
+  });
+});
+
+describe("mergeVisitorSchema", () => {
+  it("accepts a UUID target", () => {
+    expect(
+      mergeVisitorSchema.safeParse({ targetUuid: "9f8c2b7a-1e3d-4c5b-8a6f-123456789abc" }).success
+    ).toBe(true);
+  });
+
+  it("rejects a malformed target", () => {
+    expect(mergeVisitorSchema.safeParse({ targetUuid: "same-visitor" }).success).toBe(false);
   });
 });

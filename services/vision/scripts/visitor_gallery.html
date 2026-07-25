@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Visitor gallery (local, real cms_db data)</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #16181d; color: #eee; margin: 0; padding: 24px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+  .card { background: #22252c; border-radius: 8px; overflow: hidden; }
+  .card .photos { display: flex; }
+  .card .photos img { width: 100%; height: 180px; object-fit: cover; display: block; background: #000; flex: 1; }
+  .meta { padding: 8px 10px; font-size: 13px; line-height: 1.5; }
+  .meta .name { font-weight: 600; color: #fff; }
+  .meta .uuid { color: #9aa; font-family: monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>Visitors currently in cms_db (6, all named)</h1>
+<div class="grid">
+  <div class="card"><div class="photos"><img src="../data/faces/Sufiyan_f709601d/01.jpg"><img src="../data/faces/Sufiyan_f709601d/02.jpg"></div><div class="meta"><div class="name">Sufiyan</div><div class="uuid">f709601d</div></div></div>
+  <div class="card"><div class="photos"><img src="../data/faces/Shrutha_1c755771/01.jpg"><img src="../data/faces/Shrutha_1c755771/02.jpg"><img src="../data/faces/Shrutha_1c755771/03.jpg"><img src="../data/faces/Shrutha_1c755771/04.jpg"></div><div class="meta"><div class="name">Shrutha</div><div class="uuid">1c755771</div></div></div>
+  <div class="card"><div class="photos"><img src="../data/faces/Sakthi_9fee4fa2/01.jpg"></div><div class="meta"><div class="name">Sakthi</div><div class="uuid">9fee4fa2</div></div></div>
+  <div class="card"><div class="photos"><img src="../data/faces/Vamsi_28ef612d/01.jpg"></div><div class="meta"><div class="name">Vamsi</div><div class="uuid">28ef612d</div></div></div>
+  <div class="card"><div class="photos"><img src="../data/faces/Kushal_07e4550d/01.jpg"><img src="../data/faces/Kushal_07e4550d/02.jpg"></div><div class="meta"><div class="name">Kushal</div><div class="uuid">07e4550d</div></div></div>
+  <div class="card"><div class="photos"><img src="../data/faces/Suman_8c82fa2d/01.jpg"></div><div class="meta"><div class="name">Suman</div><div class="uuid">8c82fa2d</div></div></div>
+</div>
+</body>
+</html>

@@ -22,6 +22,14 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# The supervisor reads VISION_CAMERAS (and passes the rest through to workers)
+# from the environment — load services/vision/.env here too, same as config.py,
+# so `python -m vision` works without the vars being exported in the shell.
+load_dotenv(Path(__file__).with_name(".env"))
 
 log = logging.getLogger("vision.supervisor")
 
