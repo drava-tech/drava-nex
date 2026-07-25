@@ -10,6 +10,7 @@ import {
   Eye,
   Trash2,
   MonitorPlay,
+  Radio,
 } from "lucide-react";
 import {
   DndContext,
@@ -42,6 +43,7 @@ import {
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
+import { LiveControlDialog } from "./live-control-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
@@ -101,6 +103,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
+  const [showControlDialog, setShowControlDialog] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -171,6 +174,11 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       const dy = e.clientY - pressStart.current.y;
       if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
     }
+    // Live experience: tap opens the interactive control right here.
+    if (isLive) {
+      setShowControlDialog(true);
+      return;
+    }
     if (proj.templateKey) setShowPushDialog(true);
   };
 
@@ -183,13 +191,14 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const pal = PILL_STYLES[index % PILL_STYLES.length]!;
   // Alternate which end the number/name (and glow) sit on: odd pills up, even down.
   const dropped = index % 2 === 1;
-  // This experience is the live content on at least one currently-connected screen.
-  const isLive = screens.some(
-    (s) =>
-      s.currentContentKind === "experience" &&
-      s.currentExperienceId === proj.id &&
-      activeScreenIds.has(s.screenId)
+  // Screens currently assigned this experience — shown regardless of whether
+  // that screen's client happens to be connected right now (it still holds
+  // this content and will display it once it reconnects).
+  const assignedScreens = screens.filter(
+    (s) => s.currentContentKind === "experience" && s.currentExperienceId === proj.id
   );
+  const isLive = assignedScreens.length > 0;
+  const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
 
   return (
     <>
@@ -266,6 +275,14 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
                   <Eye className="h-4 w-4" /> Preview
                 </DropdownMenuItem>
               )}
+              {isLive && (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 py-1"
+                  onSelect={() => setShowControlDialog(true)}
+                >
+                  <Radio className="h-4 w-4" /> Control{isOnline ? " (live)" : " (offline)"}
+                </DropdownMenuItem>
+              )}
               {proj.templateKey ? (
                 <DropdownMenuItem
                   className="cursor-pointer gap-2 py-1"
@@ -317,17 +334,33 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         )}
       </div>
 
-      {/* Live badge — this experience is currently playing on a connected
-          screen. Sits opposite the number/name block so the two never overlap. */}
+      {/* Assignment badge — this experience is assigned to a screen, plus
+          which screen(s). Green + "Live" when that screen is connected right
+          now; gray + "Offline" when it's assigned but not currently online.
+          Sits opposite the number/name block so the two never overlap. */}
       {isLive && (
         <div
           className={cn(
-            "pointer-events-none absolute left-4 z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm",
+            "pointer-events-none absolute left-4 z-20 flex flex-col items-start gap-1",
             dropped ? "bottom-4" : "top-4"
           )}
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white">Live</span>
+          <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" : "bg-zinc-400"
+              )}
+            />
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white">
+              {isOnline ? "Live" : "Offline"}
+            </span>
+          </div>
+          <span className="max-w-[8rem] truncate rounded-full bg-black/30 px-2 py-0.5 text-[8px] font-semibold text-white/80 backdrop-blur-sm">
+            {assignedScreens.length > 1
+              ? `${assignedScreens.length} screens`
+              : assignedScreens[0]?.screenName}
+          </span>
         </div>
       )}
 
@@ -354,6 +387,17 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         </span>
       </div>
     </div>
+    {showControlDialog && (
+      <LiveControlDialog
+        experienceName={proj.name}
+        screens={assignedScreens.map((s) => ({
+          screenId: s.screenId,
+          screenName: s.screenName,
+          isOnline: activeScreenIds.has(s.screenId),
+        }))}
+        onClose={() => setShowControlDialog(false)}
+      />
+    )}
     {showPushDialog && (
       <PushToScreenDialog
         experienceName={proj.name}
