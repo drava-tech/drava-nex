@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { listDevices, getDevice, upsertDevice, setDeviceState } from "@platform/db";
+import { listDevices, getDevice, upsertDevice, setDeviceState, type Device } from "@platform/db";
 import { requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { getDeviceDriver, getIrDriver } from "../services/devices.js";
@@ -12,6 +13,30 @@ const lightSchema = z.object({
   on: z.boolean(),
   brightness: z.number().min(0).max(100).optional(),
   color: z.string().optional(),
+});
+
+type LightStateInput = z.infer<typeof lightSchema>;
+
+/**
+ * Drive one light's real hardware, persist the resulting state, and tell
+ * both the CMS and UE about it. Shared by POST /lights/:id/state (one light)
+ * and the scene-trigger branch below (fans this out over every target).
+ */
+async function applyLightState(device: Device, state: LightStateInput) {
+  await getDeviceDriver(device).setLightState(device, state);
+  const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...state });
+  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
+  broadcastToUe({
+    type: "LIGHT_STATE_CHANGED",
+    deviceId: device.deviceId,
+    state: updated.state,
+    timestamp: Date.now(),
+  });
+  return updated;
+}
+
+const createModeSchema = z.object({
+  name: z.string().min(1),
 });
 
 const irCommandSchema = z.object({
@@ -94,23 +119,14 @@ devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), asy
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
-  let body;
+  let body: LightStateInput;
   try {
     body = lightSchema.parse(await c.req.json());
   } catch (err) {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
 
-  await getDeviceDriver(device).setLightState(device, body);
-  const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...body });
-
-  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  broadcastToUe({
-    type: "LIGHT_STATE_CHANGED",
-    deviceId: device.deviceId,
-    state: updated.state,
-    timestamp: Date.now(),
-  });
+  const updated = await applyLightState(device, body);
   return ok(c, updated);
 });
 
@@ -127,12 +143,55 @@ devicesRouter.post("/lights/:id/identify", requireApiClient(["devices:write"]), 
   return ok(c, { identified: true });
 });
 
-// POST /api/devices/scenes/:id/trigger
+// POST /api/devices/scenes — capture every real light's CURRENT state (read
+// from the DB, not the caller's belief of it) into a new named mode/preset.
+devicesRouter.post("/scenes", requireApiClient(["devices:write"]), async (c) => {
+  let body: z.infer<typeof createModeSchema>;
+  try {
+    body = createModeSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+
+  const lights = (await listDevices()).filter(
+    (d) => (d.config as { driver?: string } | null)?.driver === "casambi"
+  );
+
+  const targets: Record<string, LightStateInput> = {};
+  for (const light of lights) {
+    const state = light.state as { on?: boolean; brightness?: number; color?: string } | null;
+    targets[light.id] = {
+      on: Boolean(state?.on),
+      ...(typeof state?.brightness === "number" ? { brightness: state.brightness } : {}),
+      ...(typeof state?.color === "string" ? { color: state.color } : {}),
+    };
+  }
+
+  const device = await upsertDevice({
+    deviceId: `scene-${randomUUID()}`,
+    type: "scene",
+    name: body.name,
+    config: { driver: "scene", targets },
+  });
+  return ok(c, device, 201);
+});
+
+// POST /api/devices/scenes/:id/trigger — apply every target's saved state.
 devicesRouter.post("/scenes/:id/trigger", requireApiClient(["devices:write"]), async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
-  await getDeviceDriver(device).triggerScene(device);
+  const config = device.config as { driver?: string; targets?: Record<string, LightStateInput> } | null;
+  if (config?.driver === "scene" && config.targets) {
+    for (const [targetId, state] of Object.entries(config.targets)) {
+      const target = await getDevice(targetId);
+      if (!target) continue; // e.g. a retired/spare light referenced by an old preset — skip quietly
+      await applyLightState(target, state);
+    }
+  } else {
+    await getDeviceDriver(device).triggerScene(device);
+  }
+
   broadcastToUe({
     type: "DEVICE_STATUS_CHANGED",
     deviceId: device.deviceId,

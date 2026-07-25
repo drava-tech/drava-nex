@@ -97,6 +97,11 @@ export default function LightColourContent({ state, actions }: any) {
       <div className="flex items-center gap-2 mb-8">
         <Settings2 className="w-5 h-5" />
         <h3 className="font-semibold tracking-tight text-lg uppercase">Light Colour</h3>
+        {state.zoneLabel && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-full">
+            {state.zoneLabel}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

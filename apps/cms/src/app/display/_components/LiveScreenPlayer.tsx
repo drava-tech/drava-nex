@@ -12,7 +12,6 @@ import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
-import { ContentTitleOverlay } from "./ContentTitleOverlay";
 
 interface LiveScreenPlayerProps {
   screenId: string;
@@ -219,7 +218,6 @@ export function LiveScreenPlayer({
           stats={serverDetection.stats}
         />
       )}
-      {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
     </>
   );
 }

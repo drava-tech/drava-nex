@@ -8,9 +8,11 @@ import { EnvironmentView as ThreeDView } from "../../environment5/_components/en
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, type LightStateInput } from "@/actions/light-actions";
+import { listModes, createMode, triggerMode, type ModeSummary } from "@/actions/mode-actions";
 import { pressTvPower } from "@/actions/crabtree-actions";
 import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
 import { hexToRgb } from "./utils";
+import { MiniSlider, Switch } from "./controls";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -66,14 +68,85 @@ export function EnvironmentView() {
     timer: null as string | null,
     fanSpeed: "Med",
   });
+  const DEFAULT_COLOR = { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" };
   const [lighting, setLighting] = useState({
     power: true,
     brightness: 49,
-    activeScene: "Presentation",
     zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, 49])) as Record<string, number>,
-    color: { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" }
+    // `color` is the master (all-zones) color; `colors` holds each zone's own
+    // independent color — same master/per-zone split as brightness/zones above.
+    color: DEFAULT_COLOR,
+    colors: Object.fromEntries(ZONE_NAMES.map(zone => [zone, DEFAULT_COLOR])) as Record<string, typeof DEFAULT_COLOR>,
   });
+  const [colourPanelZone, setColourPanelZone] = useState<string | null>(null);
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
+
+  // Modes — named presets: whatever the lights are doing right now, saved and
+  // replayable later. Real device rows (type "scene") on the backend; see
+  // apps/api/src/routes/devices.ts POST /scenes + /scenes/:id/trigger.
+  const [modes, setModes] = useState<ModeSummary[]>([]);
+  const [showAddModeDialog, setShowAddModeDialog] = useState(false);
+  const [newModeName, setNewModeName] = useState("");
+  const [savingMode, setSavingMode] = useState(false);
+  // Editable preview shown in the create-mode dialog — seeded from whatever
+  // is live right now, but can be tweaked before Save actually pushes it out.
+  const [modeDraft, setModeDraft] = useState<Record<string, { on: boolean; brightness: number }>>({});
+
+  const refreshModes = useCallback(() => {
+    listModes().then(setModes).catch(err => console.error("Failed to load modes:", err));
+  }, []);
+
+  useEffect(() => { refreshModes(); }, [refreshModes]);
+
+  const openAddModeDialog = useCallback(() => {
+    const current = lightingRef.current;
+    setModeDraft(Object.fromEntries(
+      ZONE_NAMES.map(zone => {
+        const brightness = current.zones[zone] ?? 0;
+        return [zone, { on: brightness > 0, brightness }];
+      })
+    ));
+    setNewModeName("");
+    setShowAddModeDialog(true);
+  }, []);
+
+  const submitNewMode = useCallback(async () => {
+    const name = newModeName.trim();
+    if (!name || savingMode) return;
+    setSavingMode(true);
+    try {
+      // Push each (possibly edited) zone out to the real light first — the
+      // capture below reads from the DB, so the physical state must already
+      // match what we're about to save before we save it.
+      for (const zone of ZONE_NAMES) {
+        const dev = ZONE_DEVICES[zone];
+        const draft = modeDraft[zone];
+        if (!dev || !draft) continue;
+        await setLightState(dev.uuid, {
+          on: draft.on,
+          brightness: draft.brightness,
+          color: lightingRef.current.colors[zone]?.hex,
+        });
+      }
+      await createMode(name);
+      setLighting(s => ({ ...s, zones: { ...s.zones, ...Object.fromEntries(ZONE_NAMES.map(z => [z, modeDraft[z]?.brightness ?? s.zones[z] ?? 0])) } }));
+      setShowAddModeDialog(false);
+      setNewModeName("");
+      refreshModes();
+    } catch (err) {
+      console.error("Failed to create mode:", err);
+    } finally {
+      setSavingMode(false);
+    }
+  }, [newModeName, savingMode, modeDraft, refreshModes]);
+
+  const setModeDraftZone = useCallback((zone: string, patch: Partial<{ on: boolean; brightness: number }>) => {
+    setModeDraft(d => ({ ...d, [zone]: { ...d[zone], ...patch } as { on: boolean; brightness: number } }));
+  }, []);
+
+  const runMode = useCallback((id: string) => {
+    triggerMode(id).catch(err => console.error("Failed to trigger mode:", err));
+  }, []);
 
   // Mirrors `lighting` for reads inside callbacks that must stay pure setState
   // updaters (queueLightState fires a server action — a side effect — so it
@@ -130,7 +203,9 @@ export function EnvironmentView() {
               setLighting(s => ({
                 ...s,
                 zones: nextBrightness === undefined ? s.zones : { ...s.zones, [zone]: nextBrightness },
-                color: nextHex === undefined ? s.color : { ...s.color, ...hexToRgb(nextHex), hex: nextHex },
+                // No single physical device backs "master" (same as brightness) —
+                // a live update only ever tells us one zone's real color.
+                colors: nextHex === undefined ? s.colors : { ...s.colors, [zone]: { ...(s.colors[zone] ?? DEFAULT_COLOR), ...hexToRgb(nextHex), hex: nextHex } },
               }));
             }
           }
@@ -241,17 +316,24 @@ export function EnvironmentView() {
     if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
   }, [queueLightState]);
 
-  // Shared color across the whole room (the UI has one color picker, not
-  // per-zone) — fans out to every zone device, carrying each zone's current
-  // brightness so a color change doesn't blast every light to full.
-  const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }) => {
-    setLighting(s => ({ ...s, color }));
+  // `zone` omitted = master: same color fans out to every zone device (and
+  // every zone's own stored color is updated to match, like Master
+  // Brightness does for `zones`). `zone` given = only that one device/zone.
+  const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }, zone?: string) => {
     const current = lightingRef.current;
-    for (const zone of ZONE_NAMES) {
-      const dev = ZONE_DEVICES[zone];
-      const brightness = (current.zones as Record<string, number>)[zone] ?? current.brightness;
-      if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
+    if (!zone) {
+      setLighting(s => ({ ...s, color, colors: Object.fromEntries(ZONE_NAMES.map(z => [z, color])) as typeof s.colors }));
+      for (const z of ZONE_NAMES) {
+        const dev = ZONE_DEVICES[z];
+        const brightness = (current.zones as Record<string, number>)[z] ?? current.brightness;
+        if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
+      }
+      return;
     }
+    setLighting(s => ({ ...s, colors: { ...s.colors, [zone]: color } }));
+    const dev = ZONE_DEVICES[zone];
+    const brightness = (current.zones as Record<string, number>)[zone] ?? current.brightness;
+    if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
   }, [queueLightState]);
 
   const identifyZone = useCallback((zone: string) => {
@@ -346,18 +428,19 @@ export function EnvironmentView() {
       setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
       setFanSpeed: (fanSpeed: string) => setClimate(s => ({ ...s, fanSpeed })),
     }} />;
-    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={lighting} globalPowerState={globalPower} globalPowerActions={{
+    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ ...lighting, modes }} globalPowerState={globalPower} globalPowerActions={{
       setAc: (ac: boolean) => setGlobalPower(s => ({ ...s, ac })),
       setLights: (lights: boolean) => setGlobalPower(s => ({ ...s, lights })),
       setAudio: (audio: boolean) => setGlobalPower(s => ({ ...s, audio })),
     }} actions={{
       setBrightness: apiSetMasterBrightness,
       setZoneBrightness: apiSetZoneBrightness,
-      setActiveScene: (activeScene: string) => setLighting(s => ({ ...s, activeScene })),
       setColor: apiSetColor,
       setPower: (power: boolean) => setLighting(s => ({ ...s, power })),
-      toggleColourPanel: () => { setFocused("lighting"); setShowColourPanel(s => !s); },
+      toggleColourPanel: (zone?: string) => { setFocused("lighting"); setColourPanelZone(zone ?? null); setShowColourPanel(true); },
       identifyZone,
+      addMode: openAddModeDialog,
+      triggerMode: runMode,
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
@@ -459,7 +542,76 @@ export function EnvironmentView() {
                   <X className="w-5 h-5" />
                 </Button>
               </div>
-              <LightColourContent state={lighting} actions={{ setColor: apiSetColor, closeColourPanel: () => setShowColourPanel(false) }} />
+              <LightColourContent
+                state={{
+                  color: colourPanelZone ? (lighting.colors[colourPanelZone] ?? lighting.color) : lighting.color,
+                  zoneLabel: colourPanelZone ?? "All Zones",
+                }}
+                actions={{ setColor: (color: typeof lighting.color) => apiSetColor(color, colourPanelZone ?? undefined), closeColourPanel: () => setShowColourPanel(false) }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddModeDialog && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
+            onClick={() => setShowAddModeDialog(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+              className="w-full max-w-md rounded-3xl border border-border/50 bg-card shadow-2xl p-6 relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-6 right-6 z-50">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowAddModeDialog(false)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <h3 className="font-semibold tracking-tight text-lg uppercase mb-1">New Mode</h3>
+              <p className="text-xs text-muted-foreground mb-5">Review or adjust each light, then Save applies it physically and stores it.</p>
+              <input
+                autoFocus
+                type="text"
+                value={newModeName}
+                onChange={(e) => setNewModeName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submitNewMode(); }}
+                placeholder="Mode name"
+                className="w-full bg-transparent border border-border focus:border-primary rounded-2xl px-4 h-12 text-sm focus:outline-none mb-5"
+              />
+              <div className="space-y-4 mb-5">
+                {ZONE_NAMES.map(zone => {
+                  const draft = modeDraft[zone] ?? { on: false, brightness: 0 };
+                  return (
+                    <div key={zone}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 dark:border-white/20" style={{ backgroundColor: (lighting.colors[zone] ?? lighting.color).hex }} />
+                          <span className="text-xs font-bold uppercase tracking-widest">{zone}</span>
+                        </div>
+                        <Switch checked={draft.on} onChange={(on: boolean) => setModeDraftZone(zone, { on })} />
+                      </div>
+                      <MiniSlider
+                        label=""
+                        value={draft.on ? draft.brightness : 0}
+                        onChange={(v: number) => setModeDraftZone(zone, { brightness: v, on: v > 0 })}
+                        max={100}
+                        suffix="%"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <Button
+                className="w-full rounded-2xl font-bold"
+                onClick={submitNewMode}
+                disabled={!newModeName.trim() || savingMode}
+              >
+                {savingMode ? "Saving…" : "Save Mode"}
+              </Button>
             </motion.div>
           </motion.div>
         )}

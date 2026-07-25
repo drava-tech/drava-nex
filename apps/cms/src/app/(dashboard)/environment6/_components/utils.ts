@@ -25,14 +25,4 @@ export const getTempColor = (temp: number) => {
   return "from-rose-500 to-red-600";
 };
 
-export const getSceneGlow = (scene: string) => {
-  switch (scene) {
-    case "Presentation": return "from-violet-500 to-fuchsia-500 shadow-[0_0_30px_rgba(167,139,250,0.8)]";
-    case "Ambient":      return "from-indigo-600 to-purple-800 shadow-[0_0_30px_rgba(79,70,229,0.8)]";
-    case "Focus":        return "from-blue-400 to-cyan-500 shadow-[0_0_30px_rgba(56,189,248,0.8)]";
-    case "Relax":        return "from-emerald-400 to-teal-500 shadow-[0_0_30px_rgba(52,211,153,0.8)]";
-    default:             return "from-zinc-400 to-zinc-600 shadow-[0_0_30px_rgba(161,161,170,0.8)]";
-  }
-};
-
 export const noProp = (e: React.SyntheticEvent) => e.stopPropagation();

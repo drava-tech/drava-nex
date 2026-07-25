@@ -45,10 +45,10 @@ build` time, so changing them needs a rebuild.
 |---|---|---|
 | `BROADCAST_SECRET` | `<32-byte hex>` | Shared secret the CMS sends (`x-broadcast-secret`) when POSTing to the API `/api/internal/broadcast`; must match on both sides |
 | `INTERNAL_API_URL` | `http://api:4000` | Server-side base URL the CMS **and** screens use to reach the API by service name (`http://localhost:4000` in local dev) |
-| `CORS_ORIGIN` | `http://192.168.1.250,http://localhost` | Comma-separated allowed origins for the API |
-| `BETTER_AUTH_URL` | `http://192.168.1.250` | Base URL for better-auth (CMS login/session) |
+| `CORS_ORIGIN` | `http://ec-cms,http://localhost` | Comma-separated allowed origins for the API |
+| `BETTER_AUTH_URL` | `http://ec-cms` | Base URL for better-auth (CMS login/session) |
 | `BETTER_AUTH_SECRET` | `<hex>` | Session signing secret (each dev generates their own) |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | `http://192.168.1.250` | Trusted origins for auth |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | `http://ec-cms` | Trusted origins for auth |
 | `CONFIG_DIR` | `/app/apps/screens/public/config` | Docker-only mount path the API can read (legacy config dir) |
 
 ### MQTT Broker

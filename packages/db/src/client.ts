@@ -16,51 +16,6 @@ import * as schema from "./schema/index.js";
 
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
-import dns from "dns";
-import os from "os";
-import { patchMultiHomeDns } from "./host-resolver.js";
-
-patchMultiHomeDns();
-
-// Dynamically get the host machine's IP
-function getLocalIp(): string {
-  try {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-      const netInterface = interfaces[name];
-      if (netInterface) {
-        for (const net of netInterface) {
-          if (net.family === "IPv4" && !net.internal) {
-            return net.address;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    // Ignore error
-  }
-  return '127.0.0.1'; // fallback
-}
-
-const localIp = getLocalIp();
-
-// Override global dns.lookup to map ec-cms to the host machine's IP dynamically
-const originalLookup = dns.lookup;
-dns.lookup = function (this: any, hostname: string, options: any, callback: any) {
-  let cb = callback;
-  let opt = options;
-  if (typeof options === 'function') {
-    cb = options;
-    opt = {};
-  }
-  if (hostname === 'ec-cms') {
-    if (opt && opt.all) {
-      return cb(null, [{ address: localIp, family: 4 }]);
-    }
-    return cb(null, localIp, 4);
-  }
-  return (originalLookup as any).call(this, hostname, options, cb);
-} as any;
 
 // Load DATABASE_URL from root .env if not already defined in process.env
 let DATABASE_URL = process.env["DATABASE_URL"] ?? "";
