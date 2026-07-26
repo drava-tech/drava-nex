@@ -1,6 +1,6 @@
 import { eq, and, isNull, asc, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { WsContent } from "@platform/types";
+import { mediaAssetToWsContent, type WsContent } from "@platform/types";
 import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
@@ -94,14 +94,15 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
 
   if (!row) return null;
 
-  // Media asset assigned → video/image wire content.
+  // Media asset assigned → wire content for its kind (video/image natively,
+  // PDF/sheet/YouTube/Drive as an embedded page — see mediaAssetToWsContent).
   if (row.kind === "media" && row.mediaAssetId) {
-    return {
+    return mediaAssetToWsContent({
       id: row.mediaAssetId,
-      type: row.mediaType === "video" ? "video" : "image",
-      source: row.mediaUrl ?? "",
-      title: row.mediaName ?? undefined,
-    };
+      type: row.mediaType ?? "",
+      url: row.mediaUrl ?? "",
+      name: row.mediaName,
+    });
   }
 
   // Experience assigned → template wire content.
@@ -131,14 +132,7 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
       .limit(1);
 
     if (defaultMedia) {
-      return {
-        id: defaultMedia.id,
-        type: defaultMedia.type === "video" ? "video" : "image",
-        source: defaultMedia.url,
-        title: defaultMedia.name ?? undefined,
-        loop: true,
-        muted: true,
-      };
+      return mediaAssetToWsContent(defaultMedia, { loop: true, muted: true });
     }
   }
 

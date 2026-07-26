@@ -9,6 +9,7 @@ import {
 } from "@platform/ui";
 import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
 import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
+import { WhiteboardOverlay } from '@/app/(dashboard)/_components/whiteboard/whiteboard-overlay';
 
 export default function DashboardLayout({
   children,
@@ -31,6 +32,8 @@ export default function DashboardLayout({
         </header>
         {children}
       </SidebarInset>
+      {/* Floating whiteboard — available on every dashboard page */}
+      <WhiteboardOverlay />
     </SidebarProvider>
   );
 }
