@@ -22,6 +22,7 @@ export const MEDIA_TYPES = [
   "video",
   "document", // PDF
   "sheet", // .xlsx / .csv spreadsheet
+  "presentation", // .pptx slide deck
   "youtube",
   "drive", // Google Drive file, Docs, Sheets or Slides
   "link", // any other embeddable web page
@@ -42,6 +43,9 @@ export function isLinkMediaType(type: string): boolean {
 
 /** Path of the CMS-hosted spreadsheet viewer (see apps/cms/src/app/display/sheet). */
 export const SHEET_VIEWER_PATH = "/display/sheet";
+
+/** Path of the CMS-hosted slide-deck viewer (see apps/cms/src/app/display/slides). */
+export const SLIDES_VIEWER_PATH = "/display/slides";
 
 function safeUrl(raw: string): URL | null {
   try {
@@ -121,6 +125,9 @@ export function classifyLink(raw: string): { type: MediaType; url: string; name:
   if (ext === "xlsx" || ext === "csv") {
     return { type: "sheet", url, name: u.pathname.split("/").pop() || "Spreadsheet" };
   }
+  if (ext === "pptx") {
+    return { type: "presentation", url, name: u.pathname.split("/").pop() || "Presentation" };
+  }
 
   return { type: "link", url, name: u.hostname.replace(/^www\./, "") };
 }
@@ -153,6 +160,12 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
       // Google viewer, which would require the file to be reachable from the
       // public internet — signage servers usually aren't.
       return `${SHEET_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
+
+    case "presentation":
+      // Same reasoning as "sheet" above — our own client-side renderer rather
+      // than a hosted Office viewer. On a screen there's nobody to click
+      // through the deck, so kiosk mode hides the controls and auto-advances.
+      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}${kiosk ? "&kiosk=1" : ""}`;
 
     case "youtube": {
       const id = parseYouTubeId(url);
