@@ -7,12 +7,13 @@ import {
   setScreenExperience,
   setScreenMedia,
   setScreenDefaultMedia,
+  setScreenBlanked,
   getScreenContent,
   screenExists,
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, getConnectedScreenIds, resetScreenTakeover } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, getConnectedScreenIds, resetScreenTakeover } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -130,6 +131,24 @@ screensRouter.post("/:id/default-media", requireGuestOrAdmin, async (c) => {
   await setScreenDefaultMedia(screenId, body.mediaAssetId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
+});
+
+const blankSchema = z.object({ blanked: z.boolean() });
+
+// POST /api/screens/:id/blank — stop (full-black overlay) or resume a screen.
+// Persists to the screen row (so a reconnect stays black) and pushes the
+// SCREEN_BLANK/SCREEN_UNBLANK command live.
+screensRouter.post("/:id/blank", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = blankSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  await setScreenBlanked(screenId, body.blanked);
+  setScreenBlankState(screenId, body.blanked);
+  return ok(c, { screenId, blanked: body.blanked });
 });
 
 const commandSchema = z.object({ command: z.string().min(1), value: z.unknown().optional() });

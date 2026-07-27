@@ -13,6 +13,7 @@ import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
+import { BlackoutOverlay } from "./BlackoutOverlay";
 import {
   WHITEBOARD_START,
   WHITEBOARD_STOP,
@@ -132,6 +133,10 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("whiteboard-undo"));
     } else if (command === WHITEBOARD_CLEAR) {
       window.dispatchEvent(new CustomEvent("whiteboard-clear"));
+    } else if (command === "SCREEN_BLANK") {
+      window.dispatchEvent(new CustomEvent("screen-blank"));
+    } else if (command === "SCREEN_UNBLANK") {
+      window.dispatchEvent(new CustomEvent("screen-unblank"));
     }
   }, []);
 
@@ -243,6 +248,7 @@ export function LiveScreenPlayer({
         <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
+      <BlackoutOverlay />
       {runServer && debugMode && (
         <DetectionDebugOverlay
           stream={serverDetection.stream}

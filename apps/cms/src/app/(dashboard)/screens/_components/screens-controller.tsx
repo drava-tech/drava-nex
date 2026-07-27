@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
+import { removeScreen, assignExperience, assignMedia, setScreenBlanked } from "@/actions/screen-actions";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import { ScreenMirror } from "./screen-mirror";
 import { AddScreenModal } from "./add-screen-modal";
@@ -16,6 +16,7 @@ interface ScreenConfig {
   contentType: "video" | "image" | "experience";
   contentValue: string;
   contentLabel?: string;
+  blanked: boolean;
 }
 
 interface ScreenRow {
@@ -28,6 +29,7 @@ interface ScreenRow {
   mediaType: string | null;
   mediaUrl: string | null;
   mediaName: string | null;
+  blanked: boolean;
 }
 
 interface ScreensControllerProps {
@@ -74,6 +76,7 @@ export function ScreensController({
     initialScreens.map((row) => ({
       id: row.screenId,
       name: row.screenName,
+      blanked: row.blanked,
       ...deriveContentInfo(row),
     }))
   );
@@ -81,6 +84,7 @@ export function ScreensController({
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [idlingId, setIdlingId] = useState<string | null>(null);
+  const [blankingId, setBlankingId] = useState<string | null>(null);
 
   // Clears the current assignment so the screen falls back to its default/idle
   // media — same effect as "nothing assigned yet".
@@ -92,6 +96,20 @@ export function ScreensController({
       console.error("Failed to reset to idle:", err);
     } finally {
       setIdlingId(null);
+    }
+  };
+
+  // Toggle the full-black overlay for a screen (Stop/Resume).
+  const handleToggleBlank = async (screenId: string, next: boolean) => {
+    setBlankingId(screenId);
+    updateScreen(screenId, { blanked: next });
+    try {
+      await setScreenBlanked(screenId, next);
+    } catch (err) {
+      console.error("Failed to toggle screen blank state:", err);
+      updateScreen(screenId, { blanked: !next });
+    } finally {
+      setBlankingId(null);
     }
   };
 
@@ -113,6 +131,7 @@ export function ScreensController({
       initialScreens.map((row) => ({
         id: row.screenId,
         name: row.screenName,
+        blanked: row.blanked,
         ...deriveContentInfo(row),
       }))
     );
@@ -293,8 +312,8 @@ export function ScreensController({
                       )}
                     </button>
 
-                    {/* Actions: open the full control view, reset to idle, or change what's playing */}
-                    <div className="w-full grid grid-cols-3 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
+                    {/* Actions: open the full control view, reset to idle, stop/resume, or change what's playing */}
+                    <div className="w-full grid grid-cols-4 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
                       <button
                         onClick={() => openControl(screen.id)}
                         className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
@@ -310,6 +329,19 @@ export function ScreensController({
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         <span>{idlingId === screen.id ? "..." : "Idle"}</span>
+                      </button>
+                      <button
+                        onClick={() => handleToggleBlank(screen.id, !screen.blanked)}
+                        disabled={blankingId === screen.id}
+                        title={screen.blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
+                        className={`py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 border ${
+                          screen.blanked
+                            ? "bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 border-red-200/60 dark:border-red-900/60"
+                            : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200/60 dark:border-zinc-800/60"
+                        }`}
+                      >
+                        {screen.blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                        <span>{blankingId === screen.id ? "..." : screen.blanked ? "Resume" : "Stop"}</span>
                       </button>
                       <button
                         onClick={() => setPickerTargetId(screen.id)}

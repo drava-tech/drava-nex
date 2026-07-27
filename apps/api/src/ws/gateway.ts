@@ -5,6 +5,7 @@ import {
   setScreenExperience,
   getScreenWhiteboardState,
   setScreenWhiteboardState,
+  getScreenBlanked,
   verifyApiKey,
   scopeSatisfies,
 } from '@platform/db';
@@ -55,6 +56,11 @@ const viewStateCache = new Map<string, { command: string; value?: unknown }>();
 // socket disconnects — surviving that is the whole point (a TV refresh
 // closes its one socket right before/as it reconnects).
 const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
+// Full-black overlay per screen, set by an admin "Stop" action. Same
+// survives-a-reconnect requirement as whiteboardStateCache: presence/value here
+// is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
+// stopped comes back up still black, not showing its assigned content again.
+const screenBlankedCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
 const cameraStatusCache = new Map<string, CameraStatusUpdate>();
@@ -133,6 +139,12 @@ export function sendCommandToScreen(screenId: string, command: string, value?: a
     }
   }
   return count;
+}
+
+/** Set (or clear) a screen's full-black overlay and push the command live. */
+export function setScreenBlankState(screenId: string, blanked: boolean): void {
+  screenBlankedCache.set(screenId, blanked);
+  sendCommandToScreen(screenId, blanked ? 'SCREEN_BLANK' : 'SCREEN_UNBLANK');
 }
 
 export function broadcastActiveScreensToCms() {
@@ -426,11 +438,34 @@ export function createGateway(): WebSocketServer {
               .catch((err) => console.error('[gateway] Whiteboard state lookup failed for', sid, err));
           };
 
+          // If the screen was stopped (blanked), resume that for the newly
+          // (re)connected client — same reconnect-resilience need as the
+          // whiteboard state below.
+          const replayBlankState = () => {
+            const cachedBlanked = screenBlankedCache.get(sid);
+            if (cachedBlanked !== undefined) {
+              if (cachedBlanked && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_BLANK', timestamp: Date.now() }));
+              }
+              return;
+            }
+            // Not in memory (e.g. right after an API restart) — fall back to DB.
+            void getScreenBlanked(sid)
+              .then((blanked) => {
+                screenBlankedCache.set(sid, blanked);
+                if (blanked && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_BLANK', timestamp: Date.now() }));
+                }
+              })
+              .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
+          };
+
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
             replayViewState();
             replayWhiteboardState();
+            replayBlankState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
@@ -442,6 +477,7 @@ export function createGateway(): WebSocketServer {
                 replayViewState();
               }
               replayWhiteboardState();
+              replayBlankState();
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;
