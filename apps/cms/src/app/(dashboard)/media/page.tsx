@@ -1,38 +1,51 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  Search, 
-  Upload, 
-  Folder, 
-  Image as ImageIcon, 
-  Video, 
-  FileText, 
+import {
+  Search,
+  Upload,
+  Folder,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  FileSpreadsheet,
+  Link2,
+  Globe,
+  HardDrive,
+  Play,
   MoreVertical,
   Trash2,
   Download,
   Copy,
   Check,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@platform/ui";
-
-interface MediaItem {
-  id: string;
-  name: string;
-  type: string;
-  url: string;
-  size: string;
-  date: string;
-  selected?: boolean;
-}
+import { isLinkMediaType, parseYouTubeId } from "@platform/types";
+import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
+import { AddLinkDialog } from "./_components/add-link-dialog";
 
 const CATEGORIES = [
   { id: 'all', label: 'All Media', icon: Folder },
   { id: 'images', label: 'Images', icon: ImageIcon },
   { id: 'videos', label: 'Videos', icon: Video },
   { id: 'documents', label: 'Documents', icon: FileText },
+  { id: 'sheets', label: 'Spreadsheets', icon: FileSpreadsheet },
+  { id: 'links', label: 'Links', icon: Link2 },
 ];
+
+/** Small icon for a media kind, used in the type badge on each card. */
+function TypeIcon({ type, className }: { type: string; className?: string }) {
+  const Icon =
+    type === 'video' ? Video
+    : type === 'image' ? ImageIcon
+    : type === 'document' ? FileText
+    : type === 'sheet' ? FileSpreadsheet
+    : type === 'youtube' ? Play
+    : type === 'drive' ? HardDrive
+    : Globe;
+  return <Icon className={className} />;
+}
 
 export default function MediaPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -41,6 +54,8 @@ export default function MediaPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMedia = async () => {
@@ -102,6 +117,7 @@ export default function MediaPage() {
       });
       if (res.ok) {
         setMediaItems((prev) => prev.filter((item) => item.id !== id));
+        setPreviewItem((current) => (current?.id === id ? null : current));
       }
     } catch (err) {
       console.error("Delete failed:", err);
@@ -112,7 +128,7 @@ export default function MediaPage() {
     const absoluteUrl = item.url.startsWith("http")
       ? item.url
       : `${window.location.protocol}//${window.location.host}${item.url}`;
-    
+
     navigator.clipboard.writeText(absoluteUrl);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -124,18 +140,20 @@ export default function MediaPage() {
     if (activeCategory === "images") return item.type === "image" && matchesSearch;
     if (activeCategory === "videos") return item.type === "video" && matchesSearch;
     if (activeCategory === "documents") return item.type === "document" && matchesSearch;
+    if (activeCategory === "sheets") return item.type === "sheet" && matchesSearch;
+    if (activeCategory === "links") return isLinkMediaType(item.type) && matchesSearch;
     return matchesSearch;
   });
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-[#0a0a0a] min-h-[calc(100vh-4rem)] select-none">
       {/* Hidden file input */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        className="hidden" 
-        accept="image/*,video/*,application/pdf"
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept="image/*,video/*,application/pdf,.xlsx,.csv"
       />
 
       {/* Top Header Section */}
@@ -144,19 +162,26 @@ export default function MediaPage() {
           <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Manage and organize your assets</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search media..." 
+              placeholder="Search media..."
               className="h-10 pl-9 pr-4 w-full sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm outline-none dark:text-white"
             />
           </div>
-          <button 
+          <button
+            onClick={() => setShowLinkDialog(true)}
+            className="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-sm font-medium transition-all hover:bg-zinc-100 dark:hover:bg-white/5 active:scale-95"
+          >
+            <Link2 className="h-4 w-4" />
+            Add Link
+          </button>
+          <button
             onClick={handleUploadClick}
             disabled={uploading}
             className="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -186,8 +211,8 @@ export default function MediaPage() {
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  activeCategory === cat.id 
-                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' 
+                  activeCategory === cat.id
+                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
                     : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-zinc-100'
                 }`}
               >
@@ -215,7 +240,7 @@ export default function MediaPage() {
             <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
               <Folder className="h-8 w-8 text-zinc-400 opacity-60" />
               <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
-              <p className="text-xs text-zinc-400">Upload your first image, video, or document to get started.</p>
+              <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
             </div>
           ) : (
             /* Media Grid */
@@ -234,12 +259,24 @@ export default function MediaPage() {
                 </div>
               )}
               {filteredItems.map((media) => (
-                <div 
-                  key={media.id} 
-                  className="group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                <div
+                  key={media.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setPreviewItem(media)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setPreviewItem(media);
+                    }
+                  }}
+                  className="group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
-                  {/* Dropdown Menu */}
-                  <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {/* Dropdown Menu — its own click target, so it doesn't open the preview */}
+                  <div
+                    className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors">
@@ -247,20 +284,22 @@ export default function MediaPage() {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="cursor-pointer gap-2"
                           onClick={() => handleCopyLink(media)}
                         >
                           {copiedId === media.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                           {copiedId === media.id ? "Copied!" : "Copy Link"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer gap-2" asChild>
-                          <a href={media.url} download={media.name}>
-                            <Download className="w-4 h-4" /> Download
-                          </a>
-                        </DropdownMenuItem>
+                        {!isLinkMediaType(media.type) && (
+                          <DropdownMenuItem className="cursor-pointer gap-2" asChild>
+                            <a href={media.url} download={media.name}>
+                              <Download className="w-4 h-4" /> Download
+                            </a>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="cursor-pointer gap-2 text-red-600 focus:text-red-600"
                           onClick={() => handleDelete(media.id)}
                         >
@@ -272,33 +311,10 @@ export default function MediaPage() {
 
                   {/* Thumbnail Area */}
                   <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800/50 relative">
-                    {media.type === 'document' ? (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <FileText className="w-16 h-16 text-zinc-300 dark:text-zinc-600" />
-                      </div>
-                    ) : media.type === 'video' ? (
-                      <video 
-                        src={media.url}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                        loop
-                        onMouseOver={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
-                        onMouseOut={(e) => (e.target as HTMLVideoElement).pause()}
-                      />
-                    ) : (
-                      <img 
-                        src={media.url} 
-                        alt={media.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    )}
+                    <MediaThumbnail media={media} />
                     {/* Type Badge */}
                     <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md text-white text-[10px] font-medium tracking-wide uppercase">
-                      {media.type === 'video' && <Video className="w-3 h-3" />}
-                      {media.type === 'image' && <ImageIcon className="w-3 h-3" />}
-                      {media.type === 'document' && <FileText className="w-3 h-3" />}
+                      <TypeIcon type={media.type} className="w-3 h-3" />
                       {media.type}
                     </div>
                   </div>
@@ -319,6 +335,71 @@ export default function MediaPage() {
           )}
         </div>
       </div>
+
+      {previewItem && (
+        <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />
+      )}
+
+      {showLinkDialog && (
+        <AddLinkDialog
+          onClose={() => setShowLinkDialog(false)}
+          onAdded={(media) => setMediaItems((prev) => [media, ...prev])}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Card thumbnail: real media previews where we have one, a type glyph otherwise. */
+function MediaThumbnail({ media }: { media: MediaItem }) {
+  if (media.type === 'video') {
+    return (
+      <video
+        src={media.url}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        loop
+        onMouseOver={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
+        onMouseOut={(e) => (e.target as HTMLVideoElement).pause()}
+      />
+    );
+  }
+
+  if (media.type === 'image') {
+    return (
+      <img
+        src={media.url}
+        alt={media.name}
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (media.type === 'youtube') {
+    const videoId = parseYouTubeId(media.url);
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Play className="w-12 h-12 text-zinc-300 dark:text-zinc-600" />
+        {videoId && (
+          // YouTube's own thumbnail, layered over the glyph — if the screen has
+          // no internet the image just fails and the glyph shows through.
+          <img
+            src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+            alt={media.name}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <TypeIcon type={media.type} className="w-16 h-16 text-zinc-300 dark:text-zinc-600" />
     </div>
   );
 }

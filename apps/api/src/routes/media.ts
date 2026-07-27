@@ -4,6 +4,7 @@ import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, type MediaAsset } from "@platform/db";
+import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
@@ -29,6 +30,17 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
   image: { mimes: ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"], exts: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"] },
   video: { mimes: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"], exts: [".mp4", ".webm", ".ogg", ".mov", ".m4v"] },
   document: { mimes: ["application/pdf"], exts: [".pdf"] },
+  // Legacy binary .xls is intentionally excluded — the spreadsheet viewer
+  // (apps/cms/src/app/display/sheet) reads .xlsx and .csv only, and accepting a
+  // file we can't display would just fail later, on a screen.
+  sheet: {
+    mimes: [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "application/csv",
+    ],
+    exts: [".xlsx", ".csv"],
+  },
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
@@ -44,11 +56,12 @@ function classifyUpload(fileName: string, mime: string): { type: string; ext: st
 }
 
 function toMediaItem(a: MediaAsset) {
-  const bytes = a.sizeBytes ?? 0;
+  const bytes = a.sizeBytes;
+  // Link assets (YouTube/Drive/web pages) have no file, so no size to report.
   const size =
-    bytes > 1024 * 1024
-      ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-      : `${(bytes / 1024).toFixed(1)} KB`;
+    bytes == null ? "—"
+    : bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${(bytes / 1024).toFixed(1)} KB`;
   const date = new Date(a.createdAt).toLocaleDateString("en-US", {
     month: "short", day: "2-digit", year: "numeric",
   });
@@ -62,6 +75,12 @@ function getMimeType(filePath: string): string {
     ".ogg": "video/ogg", ".png": "image/png", ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
     ".webp": "image/webp", ".avif": "image/avif",
+    // PDFs must carry their real type or the browser downloads them instead of
+    // rendering them in the display iframe.
+    ".pdf": "application/pdf",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".csv": "text/csv",
   };
   return map[ext] ?? "application/octet-stream";
 }
@@ -77,6 +96,38 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
+  }
+});
+
+// --- Link assets ---
+
+// POST /api/media/link — register a pasted URL (YouTube, Drive, or any
+// embeddable page) as a media asset. Same row shape as an upload, just with an
+// absolute url and no file on disk, so screens/preview/push all work unchanged.
+mediaRouter.post("/link", requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json().catch(() => null);
+    const rawUrl = typeof body?.url === "string" ? body.url : "";
+    if (!rawUrl.trim()) return c.json({ error: "Missing url" }, 400);
+
+    const classified = classifyLink(rawUrl);
+    if (!classified) return c.json({ error: "Not a valid http(s) URL" }, 400);
+
+    const customName = typeof body?.name === "string" ? body.name.trim() : "";
+    const name = (customName || classified.name).slice(0, 200);
+
+    const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
+
+    const asset = await createMediaAsset({
+      type: classified.type,
+      url: classified.url,
+      name,
+      ...(uploadedByUserId ? { uploadedByUserId } : {}),
+    });
+
+    return c.json({ success: true, media: toMediaItem(asset) });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to add link" }, 500);
   }
 });
 
