@@ -14,6 +14,7 @@ import {
   Package,
   ScanFace,
   PenTool,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -104,6 +105,12 @@ const ALL_NAV = [
     icon: Film,
     roles: ["ADMIN"] as string[],
     guestModeVisible: true,
+  },
+  {
+    title: "Browser",
+    url: "/browser",
+    icon: Globe,
+    roles: ["ADMIN"] as string[],
   },
   // {
   //   title: "Settings",

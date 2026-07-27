@@ -9,6 +9,7 @@ import {
   Video,
   FileText,
   FileSpreadsheet,
+  Presentation,
   Link2,
   Globe,
   HardDrive,
@@ -31,6 +32,7 @@ const CATEGORIES = [
   { id: 'videos', label: 'Videos', icon: Video },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'sheets', label: 'Spreadsheets', icon: FileSpreadsheet },
+  { id: 'presentations', label: 'Presentations', icon: Presentation },
   { id: 'links', label: 'Links', icon: Link2 },
 ];
 
@@ -41,6 +43,7 @@ function TypeIcon({ type, className }: { type: string; className?: string }) {
     : type === 'image' ? ImageIcon
     : type === 'document' ? FileText
     : type === 'sheet' ? FileSpreadsheet
+    : type === 'presentation' ? Presentation
     : type === 'youtube' ? Play
     : type === 'drive' ? HardDrive
     : Globe;
@@ -141,6 +144,7 @@ export default function MediaPage() {
     if (activeCategory === "videos") return item.type === "video" && matchesSearch;
     if (activeCategory === "documents") return item.type === "document" && matchesSearch;
     if (activeCategory === "sheets") return item.type === "sheet" && matchesSearch;
+    if (activeCategory === "presentations") return item.type === "presentation" && matchesSearch;
     if (activeCategory === "links") return isLinkMediaType(item.type) && matchesSearch;
     return matchesSearch;
   });
@@ -153,7 +157,7 @@ export default function MediaPage() {
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept="image/*,video/*,application/pdf,.xlsx,.csv"
+        accept="image/*,video/*,application/pdf,.xlsx,.csv,.pptx"
       />
 
       {/* Top Header Section */}
