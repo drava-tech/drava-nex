@@ -37,7 +37,12 @@ export class IrDeviceDriver {
   async sendCommand(device: Device, input: IrCommandInput): Promise<void> {
     const config = device.config as { irDevice?: string; categoryId?: number; remoteIndex?: number } | null;
     const irDevice = config?.irDevice;
-    const remoteId = device.deviceId;
+    let remoteId = device.deviceId;
+    
+    // ponytail: Hardcode Experience AC because DB is unreachable to update the seed
+    if (irDevice === "ac") {
+      remoteId = "d73ea59a396b84072boahv";
+    }
 
     if (!irDevice) {
       console.warn(`[ir] device ${device.deviceId} missing config.irDevice — skipping Tuya call`);
