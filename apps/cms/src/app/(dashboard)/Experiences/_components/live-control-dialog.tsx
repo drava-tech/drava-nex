@@ -53,7 +53,7 @@ export function LiveControlDialog({ experienceName, screens, onClose, toolbar }:
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
       <div
-        className="relative w-full max-w-4xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-all transform scale-100"
+        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -117,16 +117,25 @@ export function LiveControlDialog({ experienceName, screens, onClose, toolbar }:
         {/* Interactive mirror — touch relays to the TV in realtime. The TV is
             16:9, so fullscreen letterboxes to that ratio (via the classic
             `min(100vw, 100vh*ratio)` trick) instead of stretching to whatever
-            the browser window's own aspect ratio happens to be. */}
-        <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div
-            ref={mirrorFrameRef}
-            className={
-              isFullscreen
-                ? "fixed inset-0 flex items-center justify-center bg-black"
-                : "relative w-full aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
-            }
-          >
+            the browser window's own aspect ratio happens to be. When there's a
+            toolbar (the whiteboard case), it sits BESIDE the mirror instead of
+            below it — narrows the mirror a bit, but the toolbar gets a proper
+            vertical rail instead of fighting the mirror for vertical space. */}
+        <div className={isFullscreen ? "shrink-0 flex items-center justify-center" : "shrink-0 flex items-center gap-4"}>
+          {/* The modal is now shrink-to-fit (w-auto) on desktop, so the mirror
+              can't be sized via flex-grow/percentage-of-parent — there's no
+              determinate space to grow into, which collapsed it to nothing.
+              It gets a real fixed width instead; aspect-[16/9] derives the
+              height from that, and max-w-full caps it on narrow viewports. */}
+          <div className={isFullscreen ? "" : "flex items-center justify-center"}>
+            <div
+              ref={mirrorFrameRef}
+              className={
+                isFullscreen
+                  ? "fixed inset-0 flex items-center justify-center bg-black"
+                  : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
+              }
+            >
             {isFullscreen ? (
               <div
                 className="relative bg-zinc-950"
@@ -138,31 +147,34 @@ export function LiveControlDialog({ experienceName, screens, onClose, toolbar }:
                 <button
                   onClick={toggleFullscreen}
                   title="Exit full screen"
-                  className="absolute top-4 right-4 z-10 p-2 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors"
+                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors"
                 >
                   <Minimize className="h-4 w-4" />
                 </button>
-                {/* The Fullscreen API only keeps this frame visible — the toolbar below
-                    would otherwise be unreachable while fullscreen, so it's mirrored here. */}
-                {toolbar && (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
-                    {toolbar}
-                  </div>
-                )}
+                {/* No CMS toolbar overlay here on purpose — fullscreen shows only
+                    the mirrored screen itself (which already has its own
+                    on-screen controls, e.g. the whiteboard's draw/undo/exit bar).
+                    Overlaying page/save controls on top of that covered the
+                    actual drawing surface. Exit fullscreen to reach them. */}
               </div>
             ) : (
               activeScreen && (
                 <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
               )
             )}
+            </div>
           </div>
+
+          {/* Side rail — only when a toolbar was actually given (the whiteboard case). */}
+          {!isFullscreen && toolbar && (
+            <div className="shrink-0 w-44 max-h-full overflow-y-auto">{toolbar}</div>
+          )}
         </div>
-        {!isFullscreen &&
-          (toolbar ?? (
-            <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-              Touch to explore — mirrored on the TV in realtime
-            </p>
-          ))}
+        {!isFullscreen && !toolbar && (
+          <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
+            Touch to explore — mirrored on the TV in realtime
+          </p>
+        )}
       </div>
     </div>
   );

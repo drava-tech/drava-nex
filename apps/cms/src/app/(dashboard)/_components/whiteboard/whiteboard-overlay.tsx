@@ -132,7 +132,14 @@ export function WhiteboardOverlay() {
       label: "Draw",
       icon: <Pencil />,
       onClick: () => {
-        startFreshWhiteboard();
+        // Only reset to a blank board when there's nothing worth keeping —
+        // otherwise re-clicking the pencil to check on (or resume) existing
+        // work would silently wipe it, saved or not.
+        syncActivePageIntoPages();
+        const isEmpty = pagesRef.current.every((p) => p.strokes.length === 0);
+        if (documentId === null && isEmpty) {
+          startFreshWhiteboard();
+        }
         setPreviewDataUrl(null);
         setShowPushDialog(true);
       },
@@ -558,43 +565,46 @@ export function WhiteboardOverlay() {
           screens={[{ screenId: pushTarget.screenId, screenName: pushTarget.screenName, isOnline: pushTarget.isOnline }]}
           onClose={stopPush}
           toolbar={
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-              <ToolbarButton
-                label="Previous page"
-                onClick={() => switchToPage(pageIndex - 1)}
-                disabled={pageIndex === 0}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </ToolbarButton>
-              <span className="px-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
-                Page {pageIndex + 1}/{pagesRef.current.length}
-              </span>
-              <ToolbarButton
-                label="Next page"
-                onClick={() => switchToPage(pageIndex + 1)}
-                disabled={pageIndex === pagesRef.current.length - 1}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </ToolbarButton>
-              <ToolbarButton label="New page" onClick={handleNewPage}>
+            <div className="flex flex-col items-stretch gap-1.5 rounded-2xl border border-black/10 bg-white/90 p-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#18181b]/90">
+              <div className="flex items-center gap-1">
+                <ToolbarButton
+                  label="Previous page"
+                  onClick={() => switchToPage(pageIndex - 1)}
+                  disabled={pageIndex === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </ToolbarButton>
+                <span className="flex-1 text-center text-[10px] font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
+                  Page {pageIndex + 1}/{pagesRef.current.length}
+                </span>
+                <ToolbarButton
+                  label="Next page"
+                  onClick={() => switchToPage(pageIndex + 1)}
+                  disabled={pageIndex === pagesRef.current.length - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </ToolbarButton>
+              </div>
+
+              <WideToolbarButton label="New page" onClick={handleNewPage}>
                 <Plus className="h-4 w-4" />
-              </ToolbarButton>
+              </WideToolbarButton>
 
-              <Divider />
+              <HDivider />
 
-              <ToolbarButton
+              <WideToolbarButton
                 label={documentId ? `Save "${documentName}"` : "Save whiteboard"}
                 onClick={handleSaveClick}
                 disabled={isSaving}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              </ToolbarButton>
+              </WideToolbarButton>
 
-              <Divider />
+              <HDivider />
 
-              <ToolbarButton label="Stop whiteboard" onClick={stopPush} danger>
+              <WideToolbarButton label="Stop whiteboard" onClick={stopPush} danger>
                 <X className="h-4 w-4" />
-              </ToolbarButton>
+              </WideToolbarButton>
             </div>
           }
         />
@@ -803,6 +813,41 @@ function WhiteboardToolStrip({
 
 function Divider() {
   return <span className="mx-1 h-6 w-px shrink-0 bg-black/10 dark:bg-white/10" />;
+}
+
+/** Horizontal rule for vertical (side-rail) toolbars — Divider above is for horizontal rows. */
+function HDivider() {
+  return <span className="my-0.5 h-px w-full shrink-0 bg-black/10 dark:bg-white/10" />;
+}
+
+/** Full-width labeled button for a vertical side rail — there's room for a label there, unlike the square icon buttons in a horizontal row. */
+function WideToolbarButton({
+  children,
+  label,
+  danger,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  label: string;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+        danger
+          ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
+      }`}
+    >
+      {children}
+      <span className="truncate">{label}</span>
+    </button>
+  );
 }
 
 function ToolbarButton({

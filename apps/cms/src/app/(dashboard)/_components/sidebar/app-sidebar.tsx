@@ -6,9 +6,7 @@ import { NavUser } from "./nav-user";
 import {
   LayoutDashboard,
   Monitor,
-  Settings2,
   SquareTerminal,
-  Sparkles,
   Users,
   Film,
   Cpu,
