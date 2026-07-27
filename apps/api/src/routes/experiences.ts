@@ -8,6 +8,7 @@ import {
   softDeleteExperience,
   setExperienceTemplate,
   mergeExperienceTemplateContent,
+  updateExperience,
   experienceSlugExists,
 } from "@platform/db";
 import { requireAdmin, type SessionUser } from "../middleware/auth.js";
@@ -95,6 +96,52 @@ experiencesRouter.post("/reorder", requireAdmin, async (c) => {
   }
   await reorderExperiences(body.orderedIds);
   return ok(c, { reordered: body.orderedIds.length });
+});
+
+// --- Update ---
+
+const updateSchema = z.object({
+  name: z.string(),
+  slug: z.string(),
+  templateKey: z.string().nullable().optional(),
+  typeIds: z.array(z.string()).optional(),
+});
+
+// PATCH /api/experiences/:id — update name, slug, template, and tags
+experiencesRouter.patch("/:id", requireAdmin, async (c) => {
+  let body;
+  try {
+    body = updateSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  const id = param(c, "id");
+  const name = body.name.trim();
+  const slug = body.slug.trim();
+  if (!name) return fail(c, "VALIDATION", "Project name is required.", 400);
+  if (!slug) return fail(c, "VALIDATION", "Slug is required.", 400);
+  if (!SLUG_REGEX.test(slug)) {
+    return fail(
+      c,
+      "VALIDATION",
+      "Slug must use only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen.",
+      400
+    );
+  }
+  if (body.templateKey != null && !isTemplateKey(body.templateKey)) {
+    return fail(c, "VALIDATION", `Unknown template: "${body.templateKey}".`, 400);
+  }
+  if (await experienceSlugExists(slug, id)) {
+    return fail(c, "DUPLICATE", `A project with slug "${slug}" already exists.`, 409);
+  }
+  await updateExperience(id, {
+    name,
+    slug,
+    templateKey: body.templateKey ?? null,
+    typeIds: body.typeIds ?? [],
+    updatedByUserId: userId(c),
+  });
+  return ok(c, { updated: true });
 });
 
 // --- Delete ---

@@ -11,6 +11,7 @@ import {
   Trash2,
   MonitorPlay,
   Radio,
+  Tags,
 } from "lucide-react";
 import {
   DndContext,
@@ -42,6 +43,7 @@ import {
   cn,
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
+import { EditExperienceModal } from "./edit-experience-modal";
 import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
 import { LiveControlDialog, type LiveScreen } from "./live-control-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
@@ -91,19 +93,21 @@ interface SortableCardProps {
   onDelete: (id: string) => void;
   screens: ScreenRow[];
   activeScreenIds: Set<string>;
+  experienceTypes: { id: string; name: string }[];
 }
 
 const LONG_PRESS_MS = 500;
 // Beyond this pointer travel (px) a "press" is a drag/scroll, not a tap.
 const PRESS_MOVE_TOLERANCE = 6;
 
-function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds }: SortableCardProps) {
+function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds, experienceTypes }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
   const [showControlDialog, setShowControlDialog] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [pendingControlScreens, setPendingControlScreens] = useState<LiveScreen[] | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
@@ -265,6 +269,12 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
                   <Pencil className="h-4 w-4" /> Edit content
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 py-1"
+                onSelect={() => setShowEditModal(true)}
+              >
+                <Tags className="h-4 w-4" /> Edit Experience
+              </DropdownMenuItem>
               {proj.templateKey ? (
                 <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
                   <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
@@ -365,6 +375,32 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         </div>
       )}
 
+      {/* Tag badges — the experience's assigned Experience Type(s). Sits in the
+          same corner as the Live/Offline indicator, stacked above/below it
+          when both are present so they never overlap. */}
+      {proj.typeIds.length > 0 && (
+        <div
+          className={cn(
+            "pointer-events-none absolute left-4 z-20 flex max-w-[70%] flex-wrap gap-1",
+            dropped ? (isLive ? "bottom-16" : "bottom-4") : isLive ? "top-16" : "top-4"
+          )}
+        >
+          {proj.typeIds.slice(0, 2).map((id) => {
+            const t = experienceTypes.find((et) => et.id === id);
+            return t ? (
+              <Badge key={id} variant="secondary" className="px-1.5 py-0 text-[9px] font-semibold">
+                {t.name}
+              </Badge>
+            ) : null;
+          })}
+          {proj.typeIds.length > 2 && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
+              +{proj.typeIds.length - 2}
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Oversized index number + name — alternates top / bottom per pill.
           The digits are clipped to 60% height, emerging from the pill edge. */}
       <div
@@ -424,6 +460,22 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
           );
           setShowPushDialog(false);
           setShowControlDialog(true);
+        }}
+      />
+    )}
+    {showEditModal && (
+      <EditExperienceModal
+        experience={{
+          id: proj.id,
+          name: proj.name,
+          slug: proj.slug,
+          templateKey: proj.templateKey,
+          typeIds: proj.typeIds,
+        }}
+        experienceTypes={experienceTypes}
+        onClose={() => {
+          setShowEditModal(false);
+          router.refresh();
         }}
       />
     )}
@@ -638,6 +690,7 @@ export function ProjectsList({
                       onDelete={handleDelete}
                       screens={screens}
                       activeScreenIds={activeScreenIds}
+                      experienceTypes={experienceTypes}
                     />
                   ))}
 

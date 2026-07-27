@@ -14,6 +14,7 @@ import {
   Package,
   ScanFace,
   PenTool,
+  Settings2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -105,12 +106,12 @@ const ALL_NAV = [
     roles: ["ADMIN"] as string[],
     guestModeVisible: true,
   },
-  // {
-  //   title: "Settings",
-  //   url: "/settings",
-  //   icon: Settings2,
-  //   roles: ["ADMIN"] as string[],
-  // },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
+    roles: ["ADMIN"] as string[],
+  },
 ];
 
 const GUEST_NAV_ITEMS = ALL_NAV.filter((item) => item.guestModeVisible);
