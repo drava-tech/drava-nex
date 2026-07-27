@@ -20,6 +20,7 @@ export * from "./queries/devices.js";
 export * from "./queries/users.js";
 export * from "./queries/visitors.js";
 export * from "./queries/door-events.js";
+export * from "./queries/whiteboards.js";
 
 // ─── Drizzle Utilities ────────────────────────────────────────────────────────
 export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count, isNull, isNotNull } from "drizzle-orm";

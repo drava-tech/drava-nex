@@ -15,27 +15,49 @@ import {
   Moon,
   Eye,
   Link as LinkIcon,
+  Cast,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  Loader2,
 } from "lucide-react";
 import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
 import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
 import { MediaPreviewModal, type MediaItem } from "@/app/(dashboard)/media/_components/media-preview-modal";
+import { LiveControlDialog } from "@/app/(dashboard)/experiences/_components/live-control-dialog";
+import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
+import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
+import {
+  applyStrokeStyle,
+  drawWhiteboardStroke,
+  normalizedPointFromClient,
+  WHITEBOARD_COLORS,
+  WHITEBOARD_WIDTHS,
+  type WhiteboardPageData,
+  type WhiteboardPoint as Point,
+  type WhiteboardStroke as Stroke,
+  type WhiteboardTool as Tool,
+} from "@/lib/whiteboard-canvas";
+import {
+  createWhiteboardSenderId,
+  WHITEBOARD_START,
+  WHITEBOARD_STOP,
+  WHITEBOARD_SYNC,
+  WHITEBOARD_SURFACE,
+  WHITEBOARD_SET_STYLE,
+  WHITEBOARD_STROKE_BEGIN,
+  WHITEBOARD_STROKE_POINT,
+  WHITEBOARD_STROKE_END,
+  WHITEBOARD_UNDO,
+  WHITEBOARD_CLEAR,
+} from "@/lib/whiteboard-protocol";
+import { applyWhiteboardCommand } from "@/lib/whiteboard-sync";
+import { WhiteboardScreenBridge } from "./whiteboard-screen-bridge";
+import { PushWhiteboardDialog } from "./push-whiteboard-dialog";
 
-type Tool = "pen" | "eraser" | "line" | "rect" | "circle";
 type Surface = "light" | "dark" | "clear";
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Stroke {
-  tool: Tool;
-  color: string;
-  width: number;
-  /** Freehand keeps every point; shapes only need start and end. */
-  points: Point[];
-}
 
 const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "pen", label: "Pen", icon: Pencil },
@@ -45,107 +67,76 @@ const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "circle", label: "Ellipse", icon: Circle },
 ];
 
-const COLORS = ["#18181b", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7", "#ffffff"];
-const WIDTHS = [2, 4, 8, 16];
-
 const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: string }[] = [
   { id: "light", label: "White board", icon: Sun, className: "bg-white" },
   { id: "dark", label: "Dark board", icon: Moon, className: "bg-[#101014]" },
   { id: "clear", label: "Annotate the page", icon: Eye, className: "bg-transparent" },
 ];
 
-function applyStrokeStyle(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = stroke.width;
-  if (stroke.tool === "eraser") {
-    // Punch through what's already drawn rather than painting over it, so the
-    // eraser works whatever the board colour is.
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.strokeStyle = "#000";
-  } else {
-    ctx.globalCompositeOperation = "source-over";
-    ctx.strokeStyle = stroke.color;
-  }
-}
-
-/** Draw a whole stroke — used for replays (undo, resize) and shape previews. */
-function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-  const start = stroke.points[0];
-  if (!start) return;
-  const end = stroke.points[stroke.points.length - 1] ?? start;
-
-  ctx.save();
-  applyStrokeStyle(ctx, stroke);
-  ctx.beginPath();
-
-  switch (stroke.tool) {
-    case "pen":
-    case "eraser": {
-      ctx.moveTo(start.x, start.y);
-      for (let i = 1; i < stroke.points.length; i++) {
-        const point = stroke.points[i];
-        if (point) ctx.lineTo(point.x, point.y);
-      }
-      // A single tap should still leave a dot.
-      if (stroke.points.length === 1) ctx.lineTo(start.x + 0.01, start.y);
-      ctx.stroke();
-      break;
-    }
-    case "line": {
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-      break;
-    }
-    case "rect": {
-      ctx.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
-      break;
-    }
-    case "circle": {
-      ctx.ellipse(
-        (start.x + end.x) / 2,
-        (start.y + end.y) / 2,
-        Math.abs(end.x - start.x) / 2,
-        Math.abs(end.y - start.y) / 2,
-        0,
-        0,
-        Math.PI * 2
-      );
-      ctx.stroke();
-      break;
-    }
-  }
-
-  ctx.restore();
-}
-
 /**
  * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
- * a menu with "Draw" (a full-screen drawing surface with a tool bar along the
- * bottom) and "Add Link" (push an existing Media Library item to a screen).
+ * a menu with "Draw" (pick a screen, then control it exactly like an
+ * experience — via the same LiveControlDialog + ScreenMirror everything else
+ * uses) and "Add Link" (push an existing Media Library item to a screen).
  *
  * Strokes are kept as objects and replayed rather than being flattened into
  * pixels — that's what makes undo and window resizing work at all.
  */
 export function WhiteboardOverlay() {
+  const { requestedDocumentId, clearRequestedDocument } = useWhiteboardEditor();
   const [open, setOpen] = useState(false);
   const [showAddLink, setShowAddLink] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [tool, setTool] = useState<Tool>("pen");
-  const [color, setColor] = useState<string>(COLORS[0] as string);
+  const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
   const [surface, setSurface] = useState<Surface>("light");
   const [showColors, setShowColors] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
 
+  // --- Multi-page saved documents ---------------------------------------------
+  /** Every page except the active one; the active page's live data lives in strokesRef/surface below. */
+  const pagesRef = useRef<WhiteboardPageData[]>([{ surface: "light", strokes: [] }]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState("Untitled Whiteboard");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveNameInput, setSaveNameInput] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // --- Live push to a screen -------------------------------------------------
+  const [showPushDialog, setShowPushDialog] = useState(false);
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+  const [pushTarget, setPushTarget] = useState<{ screenId: string; screenName: string; isOnline: boolean } | null>(
+    null
+  );
+  const sendRef = useRef<(command: string, value?: unknown) => void>(() => {});
+  const senderIdRef = useRef(createWhiteboardSenderId());
+
   const boardRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
+  /** The operator's own in-progress stroke (painted incrementally as they draw). */
   const currentRef = useRef<Stroke | null>(null);
+  /** An in-progress stroke someone else (the TV) is currently drawing — only touched by handleRemoteCommand. */
+  const remoteCurrentRef = useRef<Stroke | null>(null);
+
+  /** Every outgoing command carries our senderId so we can ignore the gateway's echo of our own messages. */
+  const send = useCallback((command: string, payload?: Record<string, unknown>) => {
+    sendRef.current(command, { senderId: senderIdRef.current, ...payload });
+  }, []);
 
   const fabItems: FabMenuItem[] = [
-    { id: "draw", label: "Draw", icon: <Pencil />, onClick: () => setOpen(true) },
+    {
+      id: "draw",
+      label: "Draw",
+      icon: <Pencil />,
+      onClick: () => {
+        startFreshWhiteboard();
+        setPreviewDataUrl(null);
+        setShowPushDialog(true);
+      },
+    },
     { id: "link", label: "Add Link", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
   ];
 
@@ -162,8 +153,41 @@ export function WhiteboardOverlay() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const stroke of strokesRef.current) drawStroke(ctx, stroke);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (const stroke of strokesRef.current) drawWhiteboardStroke(ctx, stroke, w, h);
+    if (remoteCurrentRef.current) drawWhiteboardStroke(ctx, remoteCurrentRef.current, w, h);
+    // Our own in-progress stroke isn't in strokesRef yet — repaint it too so a
+    // remote update arriving mid-stroke (redraw runs) doesn't erase it.
+    if (currentRef.current) drawWhiteboardStroke(ctx, currentRef.current, w, h);
   }, []);
+
+  /** Snapshot the currently-active page's live strokes/surface back into pagesRef before switching away or saving. */
+  const syncActivePageIntoPages = () => {
+    pagesRef.current[pageIndex] = { surface, strokes: strokesRef.current };
+  };
+
+  /** Check the given page's data out of pagesRef into the live strokesRef/surface refs, then repaint. */
+  const loadPageIntoActive = useCallback(
+    (index: number) => {
+      const page = pagesRef.current[index] ?? { surface: "light" as const, strokes: [] };
+      strokesRef.current = page.strokes;
+      currentRef.current = null;
+      remoteCurrentRef.current = null;
+      setSurface(page.surface);
+      setStrokeCount(page.strokes.length);
+      redraw();
+    },
+    [redraw]
+  );
+
+  const startFreshWhiteboard = () => {
+    pagesRef.current = [{ surface: "light", strokes: [] }];
+    setPageIndex(0);
+    setDocumentId(null);
+    setDocumentName("Untitled Whiteboard");
+    loadPageIntoActive(0);
+  };
 
   /** Size both layers to the viewport in device pixels, then replay the strokes. */
   const resizeCanvases = useCallback(() => {
@@ -196,10 +220,8 @@ export function WhiteboardOverlay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
+  const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point =>
+    normalizedPointFromClient(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
@@ -218,7 +240,16 @@ export function WhiteboardOverlay() {
     // rubber-banded on the preview layer until released.
     if (tool === "pen" || tool === "eraser") {
       const { board } = contexts();
-      if (board) drawStroke(board, stroke);
+      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
+    }
+
+    if (pushTarget) {
+      send(WHITEBOARD_STROKE_BEGIN, {
+        tool: stroke.tool,
+        color: stroke.color,
+        width: stroke.width,
+        point: stroke.points[0],
+      });
     }
   };
 
@@ -235,11 +266,12 @@ export function WhiteboardOverlay() {
         board.save();
         applyStrokeStyle(board, stroke);
         board.beginPath();
-        board.moveTo(previous.x, previous.y);
-        board.lineTo(point.x, point.y);
+        board.moveTo(previous.x * window.innerWidth, previous.y * window.innerHeight);
+        board.lineTo(point.x * window.innerWidth, point.y * window.innerHeight);
         board.stroke();
         board.restore();
       }
+      if (pushTarget) send(WHITEBOARD_STROKE_POINT, { point });
       return;
     }
 
@@ -248,8 +280,9 @@ export function WhiteboardOverlay() {
     if (preview) {
       // In CSS pixels — the context carries a devicePixelRatio transform.
       preview.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      drawStroke(preview, stroke);
+      drawWhiteboardStroke(preview, stroke, window.innerWidth, window.innerHeight);
     }
+    if (pushTarget) send(WHITEBOARD_STROKE_POINT, { point });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -261,30 +294,174 @@ export function WhiteboardOverlay() {
     const { board, preview } = contexts();
     if (stroke.tool !== "pen" && stroke.tool !== "eraser") {
       preview?.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (board) drawStroke(board, stroke);
+      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
     }
 
     strokesRef.current.push(stroke);
     setStrokeCount(strokesRef.current.length);
+    if (pushTarget) send(WHITEBOARD_STROKE_END);
   };
 
   const handleUndo = () => {
     strokesRef.current.pop();
     setStrokeCount(strokesRef.current.length);
     redraw();
+    if (pushTarget) send(WHITEBOARD_UNDO);
   };
 
   const handleClear = () => {
     strokesRef.current = [];
     setStrokeCount(0);
     redraw();
+    if (pushTarget) send(WHITEBOARD_CLEAR);
+  };
+
+  const handleSurfaceToggle = () => {
+    const index = SURFACES.findIndex((s) => s.id === surface);
+    const next = SURFACES[(index + 1) % SURFACES.length]!.id;
+    setSurface(next);
+    if (pushTarget) send(WHITEBOARD_SURFACE, { surface: next });
+  };
+
+  // --- Multi-page ---------------------------------------------------------
+
+  const switchToPage = (index: number) => {
+    if (index === pageIndex || index < 0 || index >= pagesRef.current.length) return;
+    syncActivePageIntoPages();
+    loadPageIntoActive(index);
+    setPageIndex(index);
+    // Live push stays scoped to whichever page you're looking at.
+    if (pushTarget) {
+      const page = pagesRef.current[index]!;
+      send(WHITEBOARD_SYNC, { strokes: page.strokes, surface: page.surface });
+    }
+  };
+
+  const handleNewPage = () => {
+    syncActivePageIntoPages();
+    pagesRef.current = [...pagesRef.current, { surface: "light", strokes: [] }];
+    const newIndex = pagesRef.current.length - 1;
+    loadPageIntoActive(newIndex);
+    setPageIndex(newIndex);
+    if (pushTarget) send(WHITEBOARD_SYNC, { strokes: [], surface: "light" });
+  };
+
+  // --- Save / open saved whiteboards --------------------------------------
+
+  const handleSaveClick = () => {
+    syncActivePageIntoPages();
+    if (documentId) {
+      setIsSaving(true);
+      updateWhiteboard(documentId, { pages: pagesRef.current })
+        .catch((err) => console.error("Failed to save whiteboard:", err))
+        .finally(() => setIsSaving(false));
+    } else {
+      setSaveNameInput(documentName === "Untitled Whiteboard" ? "" : documentName);
+      setShowSaveDialog(true);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    const name = saveNameInput.trim();
+    if (!name) return;
+    syncActivePageIntoPages();
+    setIsSaving(true);
+    try {
+      const id = await createWhiteboard(name, pagesRef.current);
+      setDocumentId(id);
+      setDocumentName(name);
+      setShowSaveDialog(false);
+    } catch (err) {
+      console.error("Failed to save whiteboard:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Opening a saved whiteboard from the /whiteboards list (see WhiteboardEditorProvider).
+  useEffect(() => {
+    if (!requestedDocumentId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getWhiteboardDocument(requestedDocumentId);
+        if (!cancelled && doc) {
+          const pages = doc.pages as unknown as WhiteboardPageData[];
+          pagesRef.current = pages.length > 0 ? pages : [{ surface: "light", strokes: [] }];
+          setDocumentId(doc.id);
+          setDocumentName(doc.name);
+          setPageIndex(0);
+          loadPageIntoActive(0);
+          setOpen(true);
+        }
+      } finally {
+        clearRequestedDocument();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedDocumentId, clearRequestedDocument, loadPageIntoActive]);
+
+  // --- Live push to a screen -------------------------------------------------
+
+  const handleBridgeStatusChange = useCallback(
+    (status: "connecting" | "connected" | "disconnected") => {
+      if (status !== "connected") return;
+      send(WHITEBOARD_START, { surface });
+      send(WHITEBOARD_SYNC, { strokes: strokesRef.current, surface });
+      send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
+    },
+    [send, surface, tool, color, width]
+  );
+
+  // Keep the TV's touch style current with the CMS toolbar while a session is live.
+  useEffect(() => {
+    if (!pushTarget) return;
+    send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
+  }, [pushTarget, tool, color, width, send]);
+
+  // Applies a stroke the TV (or the ScreenMirror preview) drew to our own
+  // board — the mirror image of the pointer handlers above, which apply our
+  // strokes to the TV.
+  const handleRemoteCommand = useCallback(
+    (command: string, value: any) => {
+      if (value?.senderId === senderIdRef.current) return; // our own echo
+      const next = applyWhiteboardCommand(
+        { strokes: strokesRef.current, current: remoteCurrentRef.current, surface },
+        command,
+        value
+      );
+      strokesRef.current = next.strokes;
+      remoteCurrentRef.current = next.current;
+      if (next.surface !== surface) setSurface(next.surface);
+      setStrokeCount(strokesRef.current.length);
+      redraw();
+    },
+    [surface, redraw]
+  );
+
+  const handleSelectPushTarget = (screenId: string, screenName: string, isOnline: boolean) => {
+    setShowPushDialog(false);
+    setOpen(false);
+    setPushTarget({ screenId, screenName, isOnline });
+  };
+
+  const handleSkipPush = () => {
+    setShowPushDialog(false);
+    setOpen(true);
+  };
+
+  const stopPush = () => {
+    send(WHITEBOARD_STOP);
+    setPushTarget(null);
   };
 
   const activeSurface = SURFACES.find((s) => s.id === surface) ?? SURFACES[0]!;
 
   return (
     <>
-      {/* Drawing surface */}
+      {/* Drawing surface — local-only sketch (no screen picked, or "Draw without pushing") */}
       {open && (
         <div className="fixed inset-0 z-[60]">
           <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
@@ -299,111 +476,191 @@ export function WhiteboardOverlay() {
             onPointerCancel={handlePointerUp}
           />
 
-          {/* Tool bar */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 sm:p-6">
-            <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl border border-black/10 bg-white/90 p-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#18181b]/90">
-              {TOOLS.map((t) => (
-                <ToolbarButton
-                  key={t.id}
-                  label={t.label}
-                  active={tool === t.id}
-                  onClick={() => setTool(t.id)}
-                >
-                  <t.icon className="h-4 w-4" />
-                </ToolbarButton>
-              ))}
-
-              <Divider />
-
-              {/* Colour */}
-              <div className="relative">
-                <ToolbarButton
-                  label="Colour"
-                  active={showColors}
-                  onClick={() => setShowColors((v) => !v)}
-                >
-                  <span className="relative flex h-4 w-4 items-center justify-center">
-                    <Palette className="h-4 w-4" />
-                    <span
-                      className="absolute -bottom-1.5 h-1 w-4 rounded-full ring-1 ring-black/20"
-                      style={{ backgroundColor: color }}
-                    />
-                  </span>
-                </ToolbarButton>
-
-                {showColors && (
-                  <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-black/10 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-[#18181b]">
-                    {COLORS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => {
-                          setColor(c);
-                          setShowColors(false);
-                          if (tool === "eraser") setTool("pen");
-                        }}
-                        aria-label={`Colour ${c}`}
-                        className={`h-6 w-6 shrink-0 rounded-full ring-1 ring-black/15 transition-transform hover:scale-110 dark:ring-white/20 ${
-                          color === c ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-[#18181b]" : ""
-                        }`}
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                    <label
-                      className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 ring-black/15 dark:ring-white/20"
-                      style={{ background: "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)" }}
-                      title="Custom colour"
-                    >
-                      <input
-                        type="color"
-                        value={color}
-                        onChange={(e) => setColor(e.target.value)}
-                        className="h-0 w-0 opacity-0"
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              {/* Stroke width */}
-              <div className="flex items-center gap-0.5">
-                {WIDTHS.map((w) => (
-                  <ToolbarButton key={w} label={`${w}px`} active={width === w} onClick={() => setWidth(w)}>
-                    <span
-                      className="rounded-full bg-current"
-                      style={{ width: Math.min(w + 2, 16), height: Math.min(w + 2, 16) }}
-                    />
+            <WhiteboardToolStrip
+              tool={tool}
+              setTool={setTool}
+              color={color}
+              setColor={setColor}
+              width={width}
+              setWidth={setWidth}
+              showColors={showColors}
+              setShowColors={setShowColors}
+              activeSurface={activeSurface}
+              onSurfaceToggle={handleSurfaceToggle}
+              strokeCount={strokeCount}
+              onUndo={handleUndo}
+              onClear={handleClear}
+              trailing={
+                <>
+                  <ToolbarButton
+                    label="Previous page"
+                    onClick={() => switchToPage(pageIndex - 1)}
+                    disabled={pageIndex === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
                   </ToolbarButton>
-                ))}
-              </div>
+                  <span className="px-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
+                    {pageIndex + 1}/{pagesRef.current.length}
+                  </span>
+                  <ToolbarButton
+                    label="Next page"
+                    onClick={() => switchToPage(pageIndex + 1)}
+                    disabled={pageIndex === pagesRef.current.length - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </ToolbarButton>
+                  <ToolbarButton label="New page" onClick={handleNewPage}>
+                    <Plus className="h-4 w-4" />
+                  </ToolbarButton>
+
+                  <Divider />
+
+                  <ToolbarButton
+                    label={documentId ? `Save "${documentName}"` : "Save whiteboard"}
+                    onClick={handleSaveClick}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  </ToolbarButton>
+
+                  <Divider />
+
+                  <ToolbarButton
+                    label={pushTarget ? `Live on ${pushTarget.screenName}` : "Push to screen"}
+                    active={!!pushTarget}
+                    onClick={() => {
+                      setPreviewDataUrl(boardRef.current?.toDataURL("image/png") ?? null);
+                      setShowPushDialog(true);
+                    }}
+                  >
+                    <Cast className="h-4 w-4" />
+                  </ToolbarButton>
+                  <Divider />
+                  <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
+                    <X className="h-4 w-4" />
+                  </ToolbarButton>
+                </>
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Live push — same control panel every other experience uses. Drawing
+          controls live on the mirror itself (it's the same page as the real
+          TV, so it already shows its own tool/color/undo/clear/exit bar) — but
+          page switching + save are CMS-side concerns (the TV only ever shows
+          the one active page), so those still live here. */}
+      {pushTarget && (
+        <LiveControlDialog
+          experienceName="Whiteboard"
+          screens={[{ screenId: pushTarget.screenId, screenName: pushTarget.screenName, isOnline: pushTarget.isOnline }]}
+          onClose={stopPush}
+          toolbar={
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+              <ToolbarButton
+                label="Previous page"
+                onClick={() => switchToPage(pageIndex - 1)}
+                disabled={pageIndex === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </ToolbarButton>
+              <span className="px-0.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
+                Page {pageIndex + 1}/{pagesRef.current.length}
+              </span>
+              <ToolbarButton
+                label="Next page"
+                onClick={() => switchToPage(pageIndex + 1)}
+                disabled={pageIndex === pagesRef.current.length - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton label="New page" onClick={handleNewPage}>
+                <Plus className="h-4 w-4" />
+              </ToolbarButton>
 
               <Divider />
 
               <ToolbarButton
-                label={`Board: ${activeSurface.label}`}
-                onClick={() => {
-                  const index = SURFACES.findIndex((s) => s.id === surface);
-                  setSurface(SURFACES[(index + 1) % SURFACES.length]!.id);
-                }}
+                label={documentId ? `Save "${documentName}"` : "Save whiteboard"}
+                onClick={handleSaveClick}
+                disabled={isSaving}
               >
-                <activeSurface.icon className="h-4 w-4" />
-              </ToolbarButton>
-
-              <ToolbarButton label="Undo" onClick={handleUndo} disabled={strokeCount === 0}>
-                <Undo2 className="h-4 w-4" />
-              </ToolbarButton>
-
-              <ToolbarButton label="Clear board" onClick={handleClear} disabled={strokeCount === 0} danger>
-                <Trash2 className="h-4 w-4" />
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               </ToolbarButton>
 
               <Divider />
 
-              <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
+              <ToolbarButton label="Stop whiteboard" onClick={stopPush} danger>
                 <X className="h-4 w-4" />
               </ToolbarButton>
             </div>
+          }
+        />
+      )}
+
+      {showPushDialog && (
+        <PushWhiteboardDialog
+          previewDataUrl={previewDataUrl}
+          onClose={() => setShowPushDialog(false)}
+          onSelect={handleSelectPushTarget}
+          onSkip={handleSkipPush}
+        />
+      )}
+
+      {showSaveDialog && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          onClick={() => setShowSaveDialog(false)}
+        >
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1">
+              Save Whiteboard
+            </p>
+            <input
+              autoFocus
+              value={saveNameInput}
+              onChange={(e) => setSaveNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmSave();
+              }}
+              placeholder="Whiteboard name"
+              className="mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSaveDialog(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={!saveNameInput.trim() || isSaving}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+              >
+                {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Save
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {pushTarget && (
+        <WhiteboardScreenBridge
+          screenId={pushTarget.screenId}
+          sendRef={sendRef}
+          onStatusChange={handleBridgeStatusChange}
+          onCommand={handleRemoteCommand}
+        />
       )}
 
       {showAddLink && (
@@ -421,6 +678,126 @@ export function WhiteboardOverlay() {
       {/* Speed-dial FAB — Draw opens the board above, Add Link opens the add-link dialog */}
       {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}
     </>
+  );
+}
+
+/** Tools / colour / width / surface / undo / clear — shared between the full-screen local board and the LiveControlDialog panel. */
+function WhiteboardToolStrip({
+  tool,
+  setTool,
+  color,
+  setColor,
+  width,
+  setWidth,
+  showColors,
+  setShowColors,
+  activeSurface,
+  onSurfaceToggle,
+  strokeCount,
+  onUndo,
+  onClear,
+  trailing,
+}: {
+  tool: Tool;
+  setTool: (t: Tool) => void;
+  color: string;
+  setColor: (c: string) => void;
+  width: number;
+  setWidth: (w: number) => void;
+  showColors: boolean;
+  setShowColors: (v: boolean | ((prev: boolean) => boolean)) => void;
+  activeSurface: { id: Surface; label: string; icon: typeof Sun; className: string };
+  onSurfaceToggle: () => void;
+  strokeCount: number;
+  onUndo: () => void;
+  onClear: () => void;
+  trailing: React.ReactNode;
+}) {
+  return (
+    <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl border border-black/10 bg-white/90 p-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#18181b]/90">
+      {TOOLS.map((t) => (
+        <ToolbarButton key={t.id} label={t.label} active={tool === t.id} onClick={() => setTool(t.id)}>
+          <t.icon className="h-4 w-4" />
+        </ToolbarButton>
+      ))}
+
+      <Divider />
+
+      {/* Colour */}
+      <div className="relative">
+        <ToolbarButton label="Colour" active={showColors} onClick={() => setShowColors((v) => !v)}>
+          <span className="relative flex h-4 w-4 items-center justify-center">
+            <Palette className="h-4 w-4" />
+            <span
+              className="absolute -bottom-1.5 h-1 w-4 rounded-full ring-1 ring-black/20"
+              style={{ backgroundColor: color }}
+            />
+          </span>
+        </ToolbarButton>
+
+        {showColors && (
+          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-black/10 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-[#18181b]">
+            {WHITEBOARD_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => {
+                  setColor(c);
+                  setShowColors(false);
+                  if (tool === "eraser") setTool("pen");
+                }}
+                aria-label={`Colour ${c}`}
+                className={`h-6 w-6 shrink-0 rounded-full ring-1 ring-black/15 transition-transform hover:scale-110 dark:ring-white/20 ${
+                  color === c ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-[#18181b]" : ""
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+            <label
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 ring-black/15 dark:ring-white/20"
+              style={{ background: "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)" }}
+              title="Custom colour"
+            >
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="h-0 w-0 opacity-0"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Stroke width */}
+      <div className="flex items-center gap-0.5">
+        {WHITEBOARD_WIDTHS.map((w) => (
+          <ToolbarButton key={w} label={`${w}px`} active={width === w} onClick={() => setWidth(w)}>
+            <span
+              className="rounded-full bg-current"
+              style={{ width: Math.min(w + 2, 16), height: Math.min(w + 2, 16) }}
+            />
+          </ToolbarButton>
+        ))}
+      </div>
+
+      <Divider />
+
+      <ToolbarButton label={`Board: ${activeSurface.label}`} onClick={onSurfaceToggle}>
+        <activeSurface.icon className="h-4 w-4" />
+      </ToolbarButton>
+
+      <ToolbarButton label="Undo" onClick={onUndo} disabled={strokeCount === 0}>
+        <Undo2 className="h-4 w-4" />
+      </ToolbarButton>
+
+      <ToolbarButton label="Clear board" onClick={onClear} disabled={strokeCount === 0} danger>
+        <Trash2 className="h-4 w-4" />
+      </ToolbarButton>
+
+      <Divider />
+
+      {trailing}
+    </div>
   );
 }
 

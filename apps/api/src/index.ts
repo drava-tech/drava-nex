@@ -30,6 +30,7 @@ import { auth } from './lib/auth.js';
 import { createGateway } from './ws/gateway.js';
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
+import { whiteboardsRouter } from './routes/whiteboards.js';
 
 const app = new Hono();
 
@@ -110,6 +111,7 @@ app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
 app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
+app.route('/api/whiteboards', whiteboardsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
 app.route('/api/door-events', createDoorEventsRouter(mqttManager));

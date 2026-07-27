@@ -14,6 +14,7 @@ import {
   Cpu,
   Package,
   ScanFace,
+  PenTool,
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,6 +75,12 @@ const ALL_NAV = [
     title: "Screens",
     url: "/screens",
     icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+  },
+  {
+    title: "Whiteboards",
+    url: "/whiteboards",
+    icon: PenTool,
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {

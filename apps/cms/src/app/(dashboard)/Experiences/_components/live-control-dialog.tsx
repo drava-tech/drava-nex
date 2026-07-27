@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Maximize, Minimize, X } from "lucide-react";
 import { ScreenMirror } from "../../screens/_components/screen-mirror";
 
 export interface LiveScreen {
@@ -14,6 +14,8 @@ interface LiveControlDialogProps {
   experienceName: string;
   screens: LiveScreen[];
   onClose: () => void;
+  /** Extra controls rendered below the mirror (e.g. the whiteboard's tool palette) — replaces the default caption when given. */
+  toolbar?: React.ReactNode;
 }
 
 /**
@@ -22,9 +24,26 @@ interface LiveControlDialogProps {
  * away from the experiences dashboard. If the experience is live on more
  * than one screen, tabs switch which mirror is shown.
  */
-export function LiveControlDialog({ experienceName, screens, onClose }: LiveControlDialogProps) {
+export function LiveControlDialog({ experienceName, screens, onClose, toolbar }: LiveControlDialogProps) {
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
   const activeScreen = screens.find((s) => s.screenId === activeScreenId) ?? screens[0];
+
+  const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement === mirrorFrameRef.current);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      mirrorFrameRef.current?.requestFullscreen();
+    }
+  };
 
   return (
     <div
@@ -72,12 +91,21 @@ export function LiveControlDialog({ experienceName, screens, onClose }: LiveCont
               </h2>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit full screen" : "Full screen"}
+              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {!activeScreen?.isOnline && (
@@ -86,17 +114,55 @@ export function LiveControlDialog({ experienceName, screens, onClose }: LiveCont
           </p>
         )}
 
-        {/* Interactive mirror — touch relays to the TV in realtime */}
+        {/* Interactive mirror — touch relays to the TV in realtime. The TV is
+            16:9, so fullscreen letterboxes to that ratio (via the classic
+            `min(100vw, 100vh*ratio)` trick) instead of stretching to whatever
+            the browser window's own aspect ratio happens to be. */}
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative w-full aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden">
-            {activeScreen && (
-              <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+          <div
+            ref={mirrorFrameRef}
+            className={
+              isFullscreen
+                ? "fixed inset-0 flex items-center justify-center bg-black"
+                : "relative w-full aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
+            }
+          >
+            {isFullscreen ? (
+              <div
+                className="relative bg-zinc-950"
+                style={{ width: "min(100vw, 177.78vh)", height: "min(100vh, 56.25vw)" }}
+              >
+                {activeScreen && (
+                  <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+                )}
+                <button
+                  onClick={toggleFullscreen}
+                  title="Exit full screen"
+                  className="absolute top-4 right-4 z-10 p-2 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors"
+                >
+                  <Minimize className="h-4 w-4" />
+                </button>
+                {/* The Fullscreen API only keeps this frame visible — the toolbar below
+                    would otherwise be unreachable while fullscreen, so it's mirrored here. */}
+                {toolbar && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+                    {toolbar}
+                  </div>
+                )}
+              </div>
+            ) : (
+              activeScreen && (
+                <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+              )
             )}
           </div>
         </div>
-        <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-          Touch to explore — mirrored on the TV in realtime
-        </p>
+        {!isFullscreen &&
+          (toolbar ?? (
+            <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
+              Touch to explore — mirrored on the TV in realtime
+            </p>
+          ))}
       </div>
     </div>
   );

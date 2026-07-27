@@ -113,6 +113,20 @@
       "when": 1784020305826,
       "tag": "0015_visitor_photo_url",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784020305827,
+      "tag": "0016_whiteboard_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784020305828,
+      "tag": "0017_screen_whiteboard_state",
+      "breakpoints": true
     }
   ]
 }
