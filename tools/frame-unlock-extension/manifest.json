@@ -18,7 +18,8 @@
     {
       "matches": [
         "http://localhost:3000/*",
-        "http://192.168.0.250:3000/*"
+        "https://ec-cms/*",
+        "https://192.168.1.250/*"
       ],
       "js": ["marker.js"],
       "run_at": "document_start"
