@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { ScreenMirror } from "../../screens/_components/screen-mirror";
 
-interface LiveScreen {
+export interface LiveScreen {
   screenId: string;
   screenName: string;
   isOnline: boolean;

@@ -43,7 +43,7 @@ import {
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
-import { LiveControlDialog } from "./live-control-dialog";
+import { LiveControlDialog, type LiveScreen } from "./live-control-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
@@ -104,6 +104,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
   const [showControlDialog, setShowControlDialog] = useState(false);
+  const [pendingControlScreens, setPendingControlScreens] = useState<LiveScreen[] | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -390,12 +391,18 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
     {showControlDialog && (
       <LiveControlDialog
         experienceName={proj.name}
-        screens={assignedScreens.map((s) => ({
-          screenId: s.screenId,
-          screenName: s.screenName,
-          isOnline: activeScreenIds.has(s.screenId),
-        }))}
-        onClose={() => setShowControlDialog(false)}
+        screens={
+          pendingControlScreens ??
+          assignedScreens.map((s) => ({
+            screenId: s.screenId,
+            screenName: s.screenName,
+            isOnline: activeScreenIds.has(s.screenId),
+          }))
+        }
+        onClose={() => {
+          setShowControlDialog(false);
+          setPendingControlScreens(null);
+        }}
       />
     )}
     {showPushDialog && (
@@ -405,6 +412,19 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         screens={screens}
         activeScreenIds={activeScreenIds}
         onClose={() => setShowPushDialog(false)}
+        onPushed={(screenIds) => {
+          setPendingControlScreens(
+            screens
+              .filter((s) => screenIds.includes(s.screenId))
+              .map((s) => ({
+                screenId: s.screenId,
+                screenName: s.screenName,
+                isOnline: activeScreenIds.has(s.screenId),
+              }))
+          );
+          setShowPushDialog(false);
+          setShowControlDialog(true);
+        }}
       />
     )}
     </>

@@ -14,7 +14,12 @@ import {
   Sun,
   Moon,
   Eye,
+  Link as LinkIcon,
 } from "lucide-react";
+import { FabMenu } from "@/components/fab-menu";
+import type { FabMenuItem } from "@/components/fab-menu";
+import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
+import { MediaPreviewModal, type MediaItem } from "@/app/(dashboard)/media/_components/media-preview-modal";
 
 type Tool = "pen" | "eraser" | "line" | "rect" | "circle";
 type Surface = "light" | "dark" | "clear";
@@ -48,11 +53,6 @@ const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: strin
   { id: "dark", label: "Dark board", icon: Moon, className: "bg-[#101014]" },
   { id: "clear", label: "Annotate the page", icon: Eye, className: "bg-transparent" },
 ];
-
-const FAB_POSITION_KEY = "cms:whiteboard:fab-position";
-const FAB_SIZE = 56;
-/** Pointer travel (px) below which a drag is treated as a click on the button. */
-const DRAG_THRESHOLD = 4;
 
 function applyStrokeStyle(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.lineCap = "round";
@@ -121,14 +121,17 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
 }
 
 /**
- * Floating whiteboard. A draggable button sits above the dashboard; pressing it
- * opens a full-screen drawing surface with a tool bar along the bottom.
+ * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
+ * a menu with "Draw" (a full-screen drawing surface with a tool bar along the
+ * bottom) and "Add Link" (push an existing Media Library item to a screen).
  *
  * Strokes are kept as objects and replayed rather than being flattened into
  * pixels — that's what makes undo and window resizing work at all.
  */
 export function WhiteboardOverlay() {
   const [open, setOpen] = useState(false);
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
@@ -136,84 +139,15 @@ export function WhiteboardOverlay() {
   const [showColors, setShowColors] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
 
-  // Position is null until mounted so the server and first client render agree.
-  const [fabPosition, setFabPosition] = useState<Point | null>(null);
-  const draggingRef = useRef(false);
-  const dragMovedRef = useRef(0);
-  const dragOffsetRef = useRef<Point>({ x: 0, y: 0 });
-
   const boardRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const currentRef = useRef<Stroke | null>(null);
 
-  // --- Floating button placement -------------------------------------------
-
-  const clampToViewport = useCallback(
-    (p: Point): Point => ({
-      x: Math.min(Math.max(p.x, 8), window.innerWidth - FAB_SIZE - 8),
-      y: Math.min(Math.max(p.y, 8), window.innerHeight - FAB_SIZE - 8),
-    }),
-    []
-  );
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(FAB_POSITION_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as Point;
-        if (typeof parsed?.x === "number" && typeof parsed?.y === "number") {
-          setFabPosition(clampToViewport(parsed));
-          return;
-        }
-      } catch {
-        /* fall through to the default corner */
-      }
-    }
-    setFabPosition({ x: window.innerWidth - FAB_SIZE - 24, y: window.innerHeight - FAB_SIZE - 24 });
-  }, [clampToViewport]);
-
-  // Keep the button reachable when the window shrinks.
-  useEffect(() => {
-    const onResize = () => setFabPosition((p) => (p ? clampToViewport(p) : p));
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [clampToViewport]);
-
-  const handleFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!fabPosition) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    draggingRef.current = true;
-    dragMovedRef.current = 0;
-    dragOffsetRef.current = { x: e.clientX - fabPosition.x, y: e.clientY - fabPosition.y };
-  };
-
-  const handleFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!draggingRef.current) return;
-    dragMovedRef.current += Math.abs(e.movementX) + Math.abs(e.movementY);
-    setFabPosition(
-      clampToViewport({
-        x: e.clientX - dragOffsetRef.current.x,
-        y: e.clientY - dragOffsetRef.current.y,
-      })
-    );
-  };
-
-  const handleFabPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-
-    // Barely moved → the user meant to press it, not reposition it.
-    if (dragMovedRef.current < DRAG_THRESHOLD) {
-      setOpen((v) => !v);
-      return;
-    }
-    setFabPosition((p) => {
-      if (p) window.localStorage.setItem(FAB_POSITION_KEY, JSON.stringify(p));
-      return p;
-    });
-  };
+  const fabItems: FabMenuItem[] = [
+    { id: "draw", label: "Draw", icon: <Pencil />, onClick: () => setOpen(true) },
+    { id: "link", label: "Add Link", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
+  ];
 
   // --- Canvas ---------------------------------------------------------------
 
@@ -472,27 +406,20 @@ export function WhiteboardOverlay() {
         </div>
       )}
 
-      {/* Floating button — above the board so it stays reachable while drawing */}
-      {fabPosition && (
-        <button
-          onPointerDown={handleFabPointerDown}
-          onPointerMove={handleFabPointerMove}
-          onPointerUp={handleFabPointerUp}
-          aria-label={open ? "Close whiteboard" : "Open whiteboard"}
-          title={open ? "Close whiteboard" : "Whiteboard (drag to move)"}
-          className={`fixed z-[70] flex cursor-grab touch-none items-center justify-center rounded-full text-white shadow-xl transition-colors active:cursor-grabbing active:scale-95 ${
-            open ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-700" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          style={{
-            left: fabPosition.x,
-            top: fabPosition.y,
-            width: FAB_SIZE,
-            height: FAB_SIZE,
+      {showAddLink && (
+        <AddLinkDialog
+          onClose={() => setShowAddLink(false)}
+          onAdded={(media) => {
+            setShowAddLink(false);
+            setPreviewItem(media);
           }}
-        >
-          {open ? <X className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
-        </button>
+        />
       )}
+
+      {previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
+
+      {/* Speed-dial FAB — Draw opens the board above, Add Link opens the add-link dialog */}
+      {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}
     </>
   );
 }

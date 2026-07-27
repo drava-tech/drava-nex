@@ -23,6 +23,7 @@ interface PushToScreenDialogProps {
   screens: ScreenRow[];
   activeScreenIds: Set<string>;
   onClose: () => void;
+  onPushed?: (screenIds: string[]) => void;
 }
 
 /** Label for whatever a screen is currently showing, so admins know what they'd overwrite. */
@@ -42,6 +43,7 @@ export function PushToScreenDialog({
   screens,
   activeScreenIds,
   onClose,
+  onPushed,
 }: PushToScreenDialogProps) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -59,7 +61,11 @@ export function PushToScreenDialog({
     startTransition(async () => {
       await Promise.all(selectedIds.map((screenId) => assignExperience(screenId, experienceId)));
       router.refresh();
-      onClose();
+      if (onPushed) {
+        onPushed(selectedIds);
+      } else {
+        onClose();
+      }
     });
   };
 

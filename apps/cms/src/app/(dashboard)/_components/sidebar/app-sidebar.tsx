@@ -40,30 +40,30 @@ const ALL_NAV = [
     icon: SquareTerminal,
     roles: ["ADMIN"] as string[]
   },
-  {
-    title: "Experience 2",
-    url: "/experiences2",
-    icon: Sparkles,
-    roles: ["ADMIN"] as string[]
-  },
+  // {
+  //   title: "Experience 2",
+  //   url: "/experiences2",
+  //   icon: Sparkles,
+  //   roles: ["ADMIN"] as string[]
+  // },
   {
     title: "Products",
     url: "/products",
     icon: Package,
     roles: ["ADMIN"] as string[],
   },
-  {
-    title: "Environment 4",
-    url: "/environment4",
-    icon: Cpu,
-    roles: ["ADMIN"] as string[],
-  },
-  {
-    title: "Environment 6",
-    url: "/environment6",
-    icon: Cpu,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Environment 4",
+  //   url: "/environment4",
+  //   icon: Cpu,
+  //   roles: ["ADMIN"] as string[],
+  // },
+  // {
+  //   title: "Environment 6",
+  //   url: "/environment6",
+  //   icon: Cpu,
+  //   roles: ["ADMIN"] as string[],
+  // },
   {
     title: "Environment",
     url: "/environment",
@@ -94,12 +94,12 @@ const ALL_NAV = [
     icon: Film,
     roles: ["ADMIN"] as string[],
   },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings2,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Settings",
+  //   url: "/settings",
+  //   icon: Settings2,
+  //   roles: ["ADMIN"] as string[],
+  // },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
