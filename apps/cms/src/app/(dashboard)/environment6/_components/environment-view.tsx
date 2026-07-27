@@ -10,6 +10,16 @@ import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
 import { listModes, createMode, updateMode, triggerMode, type ModeSummary } from "@/actions/mode-actions";
 import { pressTvPower } from "@/actions/crabtree-actions";
+import { acPower, acSetTemp, acSetMode, acSetFan, getIrDeviceState } from "@/actions/ir-actions";
+import {
+  IR_AC,
+  IR_AC_CONFIGURED,
+  irDeviceForDeviceId,
+  acModeToBridge,
+  acModeFromBridge,
+  acFanToBridge,
+  acFanFromBridge,
+} from "@/lib/ir-devices";
 import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
 import { hexToRgb } from "./utils";
 import { MiniSlider, Switch } from "./controls";
@@ -336,6 +346,21 @@ export function EnvironmentView() {
               }));
             }
           }
+          if (msg.type === "IR_STATE_UPDATE") {
+            const dev = irDeviceForDeviceId(msg.deviceId);
+            // Only the AC drives a live panel; its state is echoed back on each
+            // command (the bridge has no external AC-state feedback path).
+            if (dev && dev.deviceId === IR_AC.deviceId && msg.state) {
+              const st = msg.state as { power?: boolean; temp?: number; mode?: string; fan?: string };
+              setClimate(s => ({
+                ...s,
+                power: typeof st.power === "boolean" ? st.power : s.power,
+                temp: typeof st.temp === "number" ? st.temp : s.temp,
+                mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
+                fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
+              }));
+            }
+          }
         } catch { /* ignore */ }
       };
 
@@ -517,6 +542,73 @@ export function EnvironmentView() {
     loadLightStates();
   }, []);
 
+  // ── IR air-conditioner (CrabController bridge) ────────────────────────────
+  // Per-command-family coalescing (same shape as queueLightState) so a held
+  // temp +/- press collapses to the latest value instead of blasting the Tuya
+  // cloud path, while power/mode/fan don't block each other.
+  const pendingAcRef = useRef<Map<string, () => Promise<unknown>>>(new Map());
+  const sendingAcRef = useRef<Set<string>>(new Set());
+
+  const queueAcCommand = useCallback((family: string, run: () => Promise<unknown>) => {
+    if (!IR_AC_CONFIGURED) return; // still mock until a real device uuid is set
+    pendingAcRef.current.set(family, run);
+    if (sendingAcRef.current.has(family)) return;
+
+    const sendNext = () => {
+      const next = pendingAcRef.current.get(family);
+      if (!next) {
+        sendingAcRef.current.delete(family);
+        return;
+      }
+      pendingAcRef.current.delete(family);
+      sendingAcRef.current.add(family);
+      next()
+        .catch(err => console.error(`Error sending AC ${family}:`, err))
+        .finally(() => { setTimeout(sendNext, 50); });
+    };
+    sendNext();
+  }, []);
+
+  const acSetPowerCmd = useCallback((power: boolean) => {
+    setClimate(s => ({ ...s, power }));
+    queueAcCommand("power", () => acPower(IR_AC.uuid, power));
+  }, [queueAcCommand]);
+
+  // set_* commands turn the AC on bridge-side, so reflect that optimistically.
+  const acSetTempCmd = useCallback((temp: number) => {
+    setClimate(s => ({ ...s, temp, power: true }));
+    queueAcCommand("temp", () => acSetTemp(IR_AC.uuid, temp));
+  }, [queueAcCommand]);
+
+  const acSetModeCmd = useCallback((mode: string) => {
+    setClimate(s => ({ ...s, mode, power: true }));
+    queueAcCommand("mode", () => acSetMode(IR_AC.uuid, acModeToBridge(mode)));
+  }, [queueAcCommand]);
+
+  const acSetFanSpeedCmd = useCallback((fanSpeed: string) => {
+    setClimate(s => ({ ...s, fanSpeed, power: true }));
+    queueAcCommand("fan", () => acSetFan(IR_AC.uuid, acFanToBridge(fanSpeed)));
+  }, [queueAcCommand]);
+
+  // Hydrate the Climate panel from the AC's last-known persisted state, so a
+  // reload reflects reality instead of the hardcoded mock defaults.
+  useEffect(() => {
+    if (!IR_AC_CONFIGURED) return;
+    getIrDeviceState(IR_AC.uuid)
+      .then((dev) => {
+        const st = dev?.state as { power?: boolean; temp?: number; mode?: string; fan?: string } | undefined;
+        if (!st) return;
+        setClimate(s => ({
+          ...s,
+          power: typeof st.power === "boolean" ? st.power : s.power,
+          temp: typeof st.temp === "number" ? st.temp : s.temp,
+          mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
+          fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
+        }));
+      })
+      .catch(err => console.error("Failed to load AC state:", err));
+  }, []);
+
   // Real lock state — read live from Home Assistant (unlike the other mock
   // panels above), polled so it stays correct even when the lock changes
   // some other way (e.g. auto-lock). Toggling updates optimistically and
@@ -594,14 +686,17 @@ export function EnvironmentView() {
 
   const renderContent = (type: PanelType, isExpanded: boolean) => {
     if (type === "climate") return <ClimateContent key="climate" isExpanded={isExpanded} state={climate} actions={{
-      setTemp: (temp: number) => setClimate(s => ({ ...s, temp })),
-      setMode: (mode: string) => setClimate(s => ({ ...s, mode })),
+      // Wired to the real IR AC via the CrabController bridge (apps/api ir-driver).
+      setTemp: acSetTempCmd,
+      setMode: acSetModeCmd,
+      setPower: acSetPowerCmd,
+      setFanSpeed: acSetFanSpeedCmd,
+      // Local-only: the Tuya AC "scene" command carries only power/mode/temp/fan,
+      // so these have no bridge equivalent (can later map to raw codebook keys).
       setFan: (fan: number) => setClimate(s => ({ ...s, fan })),
-      setPower: (power: boolean) => setClimate(s => ({ ...s, power })),
       setSwing: (swing: boolean) => setClimate(s => ({ ...s, swing })),
       setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),
       setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
-      setFanSpeed: (fanSpeed: string) => setClimate(s => ({ ...s, fanSpeed })),
     }} />;
     if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ ...lighting, modes, editingModeId: editingMode?.id ?? null, editingModeName, savingEditMode }} globalPowerState={globalPower} globalPowerActions={{
       setAc: (ac: boolean) => setGlobalPower(s => ({ ...s, ac })),
