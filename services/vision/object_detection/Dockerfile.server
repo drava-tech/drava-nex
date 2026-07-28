@@ -1,0 +1,52 @@
+# Object-detection inference server (YOLO on CUDA).
+#
+# Build context is services/vision (the `vision` package root), NOT this folder —
+# the server imports `vision.object_detection.server.*`, so the package parent has
+# to be on the path. See infra/docker/docker-compose.yml (service: vision-inference):
+#
+#   build:
+#     context: ../../services/vision
+#     dockerfile: object_detection/Dockerfile.server
+#
+# Face vision builds from the SAME context with its own Dockerfile.server and is a
+# separate image/process on purpose: onnxruntime-gpu and torch bundle conflicting
+# CUDA/cuDNN runtimes.
+FROM python:3.11-slim
+
+# System deps for OpenCV / YOLO
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Prevent runtime downloading of assets/configs
+ENV YOLO_AUTOINSTALL=false
+ENV YOLO_CONFIG_DIR=/tmp/ultralytics
+
+COPY object_detection/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Only the server code — training scripts, datasets and the face pipeline are
+# excluded via services/vision/.dockerignore and by not copying them here.
+COPY __init__.py ./vision/__init__.py
+COPY object_detection/__init__.py ./vision/object_detection/__init__.py
+COPY object_detection/server ./vision/object_detection/server
+
+# Bake the model weight into the image so the container is self-contained.
+# The weight is gitignored — it must exist on disk at build time (SHA-256 in
+# object_detection/models/production/checksums.txt; VISION_SERVER_MODEL_SHA256
+# verifies it again at startup).
+COPY object_detection/models/production/coster-v1.pt ./models/production/coster-v1.pt
+
+# /app is the package root so `vision.object_detection.server` resolves.
+ENV PYTHONPATH=/app
+ENV VISION_SERVER_MODEL_PATH=/app/models/production/coster-v1.pt
+
+EXPOSE 8000
+
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
+
+CMD ["python", "-m", "vision.object_detection.server"]

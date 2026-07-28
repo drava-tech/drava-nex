@@ -2,8 +2,19 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.11",
-  "include": [".", "scripts"],
-  "exclude": [".git", ".venv", "data", "models"],
+  "extraPaths": [".."],
+  "include": [".", "scripts", "object_detection"],
+  "exclude": [
+    ".git",
+    "**/.venv",
+    "**/.venv-test",
+    "data",
+    "models",
+    "object_detection/models",
+    "object_detection/datasets",
+    "object_detection/runs",
+    "object_detection/predictions"
+  ],
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": "none"
 }

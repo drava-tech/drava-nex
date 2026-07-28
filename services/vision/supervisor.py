@@ -4,10 +4,22 @@ supervisor.py — manages one worker subprocess per configured camera.
 VISION_CAMERAS is a JSON array of camera configs, e.g.:
   [{"id": "cam-entrance", "mode": "PEOPLE", "backend": "opencv", "index": 0}]
 
-Today only PEOPLE (face detection) is implemented; OBJECT cameras are skipped
-with a warning (the object worker is a stub). Each camera runs in its own
-subprocess so that, when object detection is added, the two GPU runtimes
-(onnxruntime-gpu for faces, torch for YOLO) never load in the same process.
+The supervisor manages PEOPLE (face) cameras only, and that is deliberate:
+
+  OBJECT/product detection does NOT run a camera here. Its production path is
+  the browser — the CMS display page captures frames with getUserMedia and
+  sends them over /vision/ws to the YOLO inference server
+  (`python -m vision.object_detection.server`, or the vision-inference
+  container). See services/vision/object_detection/README.md.
+
+  So an OBJECT entry in VISION_CAMERAS is a configuration mistake, not an
+  unimplemented feature: spawning a second, host-side camera runtime for the
+  same product would fight the browser for the device and double-fire
+  PRODUCT_DETECTED. It is rejected with a pointer to the real path.
+
+Each camera still runs in its own subprocess, and the object server runs in its
+own process entirely, so the two GPU runtimes (onnxruntime-gpu for faces, torch
+for YOLO) never load together.
 
 ponytail: a 3s poll loop restarts crashed workers with exponential backoff.
 Upgrade path: long-poll GET /api/vision/cameras for CMS-driven live
@@ -58,15 +70,24 @@ def run() -> None:
     except (json.JSONDecodeError, AssertionError):
         raise SystemExit(f"[supervisor] VISION_CAMERAS must be a JSON array, got: {raw!r}")
 
-    # Only PEOPLE cameras run today; warn once for anything else.
+    # Only PEOPLE cameras are supervised here — see the module docstring.
     managed: list[dict] = []
     for cam in cameras:
         mode = str(cam.get("mode", "PEOPLE")).upper()
         if mode == "PEOPLE":
             managed.append(cam)
+        elif mode == "OBJECT":
+            log.warning(
+                "[supervisor] camera %s is mode OBJECT — not started here. Object "
+                "detection runs as a WebSocket inference server, fed by the browser: "
+                "start it with `python -m vision.object_detection.server` (or "
+                "`pnpm vision-server:up`) and remove this entry from VISION_CAMERAS.",
+                cam.get("id"),
+            )
         else:
             log.warning(
-                "[supervisor] mode %s not implemented yet — camera %s will not run",
+                "[supervisor] unknown mode %s — camera %s will not run "
+                "(valid modes: PEOPLE)",
                 mode, cam.get("id"),
             )
     if not managed:

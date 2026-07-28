@@ -3,7 +3,7 @@ import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { db, experience, experienceToType, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 // Experience 2 — variant of the experiences grid (see projects-list-2).
-import { ProjectsList2 } from "../Experiences/_components/projects-list-2";
+import { ProjectsList2 } from "../experiences/_components/projects-list-2";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
 import { extractCoverImage } from "@/lib/extract-cover-image";
 

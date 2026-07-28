@@ -1,0 +1,42 @@
+# Build context for BOTH images built from services/vision:
+#   - vision-inference (object_detection/Dockerfile.server) — YOLO server
+#   - face-inference   (Dockerfile.server)                  — insightface pipeline
+# Keep the context small; never exclude models/ (the insightface pack) or
+# object_detection/models/production/*.pt, which are baked into their images.
+
+# Virtualenvs
+.venv
+.venv-test
+.venv.old
+**/.venv
+
+# Python cache
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+
+# Local runtime state / secrets
+.env
+**/.env
+data
+*.log
+
+# Training-only artifacts — never needed by either runtime image
+object_detection/datasets
+object_detection/runs
+object_detection/predictions
+object_detection/models/candidates
+object_detection/models/**/*.onnx
+object_detection/models/yolov8n.pt
+object_detection/scripts
+object_detection/training
+object_detection/tests
+
+# Docs / dev-only files
+README.md
+**/README.md
+**/.env.example
+run.bat
+pyrightconfig.json
+**/pyrightconfig.json
