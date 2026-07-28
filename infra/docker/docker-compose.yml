@@ -128,13 +128,18 @@ services:
       - internal
 
   # ─── Vision Inference (GPU) ─────────────────────────────────────────────────
-  # FastAPI + YOLO on CUDA. Model weights are baked into the image at build time.
-  # Start with: pnpm vision-server:up
+  # FastAPI + YOLO on CUDA — services/vision/object_detection. Model weights are
+  # baked into the image at build time. Start with: pnpm vision-server:up
+  #
+  # Build context is services/vision (the `vision` package root) so the server's
+  # `vision.object_detection.server` imports resolve; the Dockerfile copies only
+  # the server subtree. Separate image from face-inference below on purpose —
+  # torch and onnxruntime-gpu bundle conflicting CUDA/cuDNN runtimes.
   vision-inference:
     profiles: [vision-server]
     build:
-      context: ../../services/product-vision
-      dockerfile: Dockerfile.server
+      context: ../../services/vision
+      dockerfile: object_detection/Dockerfile.server
     container_name: vision-inference
     restart: unless-stopped
     environment:
