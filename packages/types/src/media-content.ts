@@ -172,10 +172,11 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
       if (!id) return url;
       const params = new URLSearchParams({ rel: "0", modestbranding: "1", playsinline: "1" });
       if (kiosk) {
-        // Autoplay is only permitted while muted — this is a browser rule, not
-        // a preference. `loop` additionally requires `playlist` to be the same id.
+        // Autoplay may be blocked by browsers unless launched with specific flags
+        // (e.g., --autoplay-policy=no-user-gesture-required).
+        // ponytail: assuming kiosk environment allows unmuted autoplay.
+        // `loop` additionally requires `playlist` to be the same id.
         params.set("autoplay", "1");
-        params.set("mute", "1");
         params.set("controls", "0");
         params.set("loop", "1");
         params.set("playlist", id);
