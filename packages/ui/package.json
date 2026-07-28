@@ -17,6 +17,10 @@
       "import": "./src/templates/live-stream/index.ts",
       "types": "./src/templates/live-stream/index.ts"
     },
+    "./browser-session": {
+      "import": "./src/browser-session/index.ts",
+      "types": "./src/browser-session/index.ts"
+    },
     "./templates/product-showcase": {
       "import": "./src/templates/product-showcase/index.ts",
       "types": "./src/templates/product-showcase/index.ts"
