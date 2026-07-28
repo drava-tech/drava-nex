@@ -59,8 +59,14 @@ export function PushToScreenDialog({
   const handlePush = () => {
     if (selectedIds.length === 0) return;
     startTransition(async () => {
-      await Promise.all(selectedIds.map((screenId) => assignExperience(screenId, experienceId)));
-      router.refresh();
+      const targets = screens.filter((s) => selectedIds.includes(s.screenId));
+      // Screens already showing this exact experience don't need re-pushing —
+      // that would just reset them from the start for no reason.
+      const needsPush = targets.filter(
+        (s) => !(s.currentContentKind === "experience" && s.currentExperienceId === experienceId)
+      );
+      await Promise.all(needsPush.map((s) => assignExperience(s.screenId, experienceId)));
+      if (needsPush.length > 0) router.refresh();
       if (onPushed) {
         onPushed(selectedIds);
       } else {

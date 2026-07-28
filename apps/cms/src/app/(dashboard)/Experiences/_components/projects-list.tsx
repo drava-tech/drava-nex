@@ -46,6 +46,8 @@ import { CreateProjectModal } from "./create-project-modal";
 import { EditExperienceModal } from "./edit-experience-modal";
 import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
 import { LiveControlDialog, type LiveScreen } from "./live-control-dialog";
+import { ExperiencePreviewModal } from "./experience-preview-modal";
+import { ControlChooserDialog } from "./control-chooser-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
@@ -107,8 +109,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
   const [showControlDialog, setShowControlDialog] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [pendingControlScreens, setPendingControlScreens] = useState<LiveScreen[] | null>(null);
+  const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -130,7 +134,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       router.refresh();
     });
 
-  // Tap = push straight to a screen; long-press = the full actions menu.
+  // Tap = open the preview + screens + push modal; long-press = the full actions menu.
   // dnd-kit's own pointerdown listener (when dragEnabled) must still fire so
   // dragging keeps working — we call it through before running our own logic.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,12 +183,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       const dy = e.clientY - pressStart.current.y;
       if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
     }
-    // Live experience: tap opens the interactive control right here.
-    if (isLive) {
-      setShowControlDialog(true);
-      return;
-    }
-    if (proj.templateKey) setShowPushDialog(true);
+    // Tap always opens the preview + screens + push modal first (even when
+    // already live) — "Control" from the long-press menu remains the direct
+    // shortcut straight into LiveControlDialog.
+    if (proj.templateKey) setShowPreviewModal(true);
   };
 
   const handlePressCancel = () => {
@@ -204,6 +206,12 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   );
   const isLive = assignedScreens.length > 0;
   const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
+  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
+  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
+    screenId: s.screenId,
+    screenName: s.screenName,
+    isOnline: activeScreenIds.has(s.screenId),
+  }));
 
   return (
     <>
@@ -435,6 +443,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
             isOnline: activeScreenIds.has(s.screenId),
           }))
         }
+        allScreens={allScreensForControl}
         onClose={() => {
           setShowControlDialog(false);
           setPendingControlScreens(null);
@@ -449,18 +458,51 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         activeScreenIds={activeScreenIds}
         onClose={() => setShowPushDialog(false)}
         onPushed={(screenIds) => {
-          setPendingControlScreens(
-            screens
-              .filter((s) => screenIds.includes(s.screenId))
-              .map((s) => ({
-                screenId: s.screenId,
-                screenName: s.screenName,
-                isOnline: activeScreenIds.has(s.screenId),
-              }))
-          );
+          const pushed = screens
+            .filter((s) => screenIds.includes(s.screenId))
+            .map((s) => ({
+              screenId: s.screenId,
+              screenName: s.screenName,
+              isOnline: activeScreenIds.has(s.screenId),
+            }));
           setShowPushDialog(false);
+          // One screen: go straight to its control panel. Multiple: ask which
+          // one to control first (control mirrors one screen at a time).
+          if (pushed.length === 1) {
+            setPendingControlScreens(pushed);
+            setShowControlDialog(true);
+          } else {
+            setChooserScreens(pushed);
+          }
+        }}
+      />
+    )}
+    {chooserScreens && (
+      <ControlChooserDialog
+        contentName={proj.name}
+        screens={chooserScreens}
+        onChoose={(screen) => {
+          setChooserScreens(null);
+          setPendingControlScreens([screen]);
           setShowControlDialog(true);
         }}
+        // Dismissing the chooser shouldn't discard the push — go back to the
+        // push dialog, the previous step in this flow.
+        onClose={() => {
+          setChooserScreens(null);
+          setShowPushDialog(true);
+        }}
+      />
+    )}
+    {showPreviewModal && (
+      <ExperiencePreviewModal
+        experienceId={proj.id}
+        experienceName={proj.name}
+        slug={proj.slug}
+        templateKey={proj.templateKey}
+        screens={screens}
+        activeScreenIds={activeScreenIds}
+        onClose={() => setShowPreviewModal(false)}
       />
     )}
     {showEditModal && (

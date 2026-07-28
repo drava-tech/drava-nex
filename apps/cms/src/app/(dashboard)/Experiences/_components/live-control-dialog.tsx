@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Maximize, Minimize, X } from "lucide-react";
+import { ChevronDown, Maximize, Minimize, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { ScreenMirror } from "../../screens/_components/screen-mirror";
 
 export interface LiveScreen {
@@ -13,6 +14,8 @@ export interface LiveScreen {
 interface LiveControlDialogProps {
   experienceName: string;
   screens: LiveScreen[];
+  /** Every screen in the system, for the "switch screen" dropdown — falls back to `screens` when omitted. */
+  allScreens?: LiveScreen[];
   onClose: () => void;
   /** Extra controls rendered below the mirror (e.g. the whiteboard's tool palette) — replaces the default caption when given. */
   toolbar?: React.ReactNode;
@@ -21,12 +24,15 @@ interface LiveControlDialogProps {
 /**
  * Inline control for a live experience — reuses the same interactive
  * ScreenMirror as the full /screens/<id> control page, without navigating
- * away from the experiences dashboard. If the experience is live on more
- * than one screen, tabs switch which mirror is shown.
+ * away from the experiences dashboard. A dropdown lets you switch to
+ * controlling any other screen in the system instantly, not just the ones
+ * this content was pushed to.
  */
-export function LiveControlDialog({ experienceName, screens, onClose, toolbar }: LiveControlDialogProps) {
+export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar }: LiveControlDialogProps) {
+  const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
-  const activeScreen = screens.find((s) => s.screenId === activeScreenId) ?? screens[0];
+  const activeScreen =
+    switchableScreens.find((s) => s.screenId === activeScreenId) ?? screens[0] ?? switchableScreens[0];
 
   const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -67,29 +73,33 @@ export function LiveControlDialog({ experienceName, screens, onClose, toolbar }:
               />
               {activeScreen?.isOnline ? "Live" : "Offline"} · {experienceName}
             </p>
-            {screens.length > 1 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {screens.map((s) => (
-                  <button
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="-mx-1.5 -my-1 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  <h2 className="truncate text-base font-bold tracking-wide text-zinc-900 uppercase dark:text-zinc-100">
+                    {activeScreen?.screenName}
+                  </h2>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-zinc-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
+                {switchableScreens.map((s) => (
+                  <DropdownMenuItem
                     key={s.screenId}
-                    type="button"
-                    onClick={() => setActiveScreenId(s.screenId)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                      s.screenId === activeScreen?.screenId
-                        ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                        : "bg-zinc-100 dark:bg-zinc-900 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-                    }`}
+                    className="cursor-pointer gap-2"
+                    onSelect={() => setActiveScreenId(s.screenId)}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${s.isOnline ? "bg-green-500" : "bg-zinc-400"}`} />
-                    {s.screenName}
-                  </button>
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.isOnline ? "bg-green-500" : "bg-zinc-400"}`}
+                    />
+                    <span className="truncate">{s.screenName}</span>
+                  </DropdownMenuItem>
                 ))}
-              </div>
-            ) : (
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase truncate">
-                {activeScreen?.screenName}
-              </h2>
-            )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
