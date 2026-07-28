@@ -102,6 +102,18 @@ export async function assignDefaultMedia(screenId: string, mediaAssetId: string 
   revalidatePath("/");
 }
 
+/** Stop (full-black overlay) or resume a screen. Persists so a reconnect stays black. */
+export async function setScreenBlanked(screenId: string, blanked: boolean) {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/blank`, {
+    method: "POST",
+    body: JSON.stringify({ blanked }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}
+
 export async function resetDetection(screenId: string) {
   await requireAdmin();
   const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/reset-detection`, {

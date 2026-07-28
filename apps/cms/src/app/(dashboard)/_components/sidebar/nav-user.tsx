@@ -16,18 +16,22 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@platform/ui";
-import { BadgeCheck, ChevronsUpDown, LogOut } from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 
 export function NavUser({
   user,
+  isGuestMode,
+  onToggleGuestMode,
 }: {
   user: {
     name: string;
     email: string;
     avatar: string;
   };
+  isGuestMode: boolean;
+  onToggleGuestMode: () => void;
 }) {
   const { isMobile } = useSidebar();
   const router = useRouter();
@@ -89,6 +93,10 @@ export function NavUser({
               <DropdownMenuItem>
                 <BadgeCheck />
                 Account
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
+                <UserCog />
+                {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

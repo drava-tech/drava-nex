@@ -25,6 +25,7 @@ export async function listScreens(): Promise<{
   mediaName: string | null;
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
+  blanked: boolean;
 }[]> {
   const defaultMedia = alias(mediaAsset, "default_media");
   return db
@@ -40,6 +41,7 @@ export async function listScreens(): Promise<{
       mediaName: mediaAsset.name,
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
+      blanked: screen.blanked,
     })
     .from(screen)
     .leftJoin(
@@ -211,6 +213,56 @@ export async function setScreenDefaultMedia(
     .update(screen)
     .set({ defaultMediaAssetId: mediaAssetId, updatedAt: new Date() })
     .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Record (or clear, with null) the live whiteboard state for a screen — an
+ * overlay on top of whatever content is assigned, so a display-page refresh
+ * mid-session can resume it instead of falling back to the assigned content.
+ * See apps/api/src/ws/gateway.ts, which calls this on "settling" whiteboard
+ * commands (not the high-frequency stroke-point events).
+ */
+export async function setScreenWhiteboardState(
+  screenId: string,
+  state: unknown | null
+): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      whiteboardActive: state !== null,
+      whiteboardState: state,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenWhiteboardState(
+  screenId: string
+): Promise<{ active: boolean; state: unknown } | null> {
+  const [row] = await db
+    .select({ whiteboardActive: screen.whiteboardActive, whiteboardState: screen.whiteboardState })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  if (!row) return null;
+  return { active: row.whiteboardActive, state: row.whiteboardState };
+}
+
+/** Set (or clear) the full-black overlay for a screen — see `screen.blanked`. */
+export async function setScreenBlanked(screenId: string, blanked: boolean): Promise<void> {
+  await db
+    .update(screen)
+    .set({ blanked, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenBlanked(screenId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ blanked: screen.blanked })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row?.blanked ?? false;
 }
 
 /**

@@ -41,6 +41,12 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
     ],
     exts: [".xlsx", ".csv"],
   },
+  // Legacy binary .ppt is excluded for the same reason as .xls above: the slide
+  // viewer (apps/cms/src/app/display/slides) reads the Open XML .pptx zip only.
+  presentation: {
+    mimes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+    exts: [".pptx"],
+  },
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
@@ -81,6 +87,7 @@ function getMimeType(filePath: string): string {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".xls": "application/vnd.ms-excel",
     ".csv": "text/csv",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     // 3D template assets (see STATIC_ASSET_DIRS below).
     ".glb": "model/gltf-binary",
     ".gltf": "model/gltf+json",

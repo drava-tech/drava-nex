@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
 import {
@@ -12,6 +13,8 @@ import {
   Cpu,
   Package,
   ScanFace,
+  PenTool,
+  Settings2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,6 +27,7 @@ import {
   SidebarMenuSkeleton,
 } from "@platform/ui";
 import { useSession } from "@/lib/auth-client";
+import { useGuestMode } from "./use-guest-mode";
 
 const ALL_NAV = [
   {
@@ -36,7 +40,8 @@ const ALL_NAV = [
     title: "Experiences",
     url: "/experiences",
     icon: SquareTerminal,
-    roles: ["ADMIN"] as string[]
+    roles: ["ADMIN"] as string[],
+    guestModeVisible: true,
   },
   // {
   //   title: "Experience 2",
@@ -67,11 +72,19 @@ const ALL_NAV = [
     url: "/environment",
     icon: Cpu,
     roles: ["ADMIN"] as string[],
+    guestModeVisible: true,
   },
   {
     title: "Screens",
     url: "/screens",
     icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Whiteboards",
+    url: "/whiteboards",
+    icon: PenTool,
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
@@ -91,21 +104,39 @@ const ALL_NAV = [
     url: "/media",
     icon: Film,
     roles: ["ADMIN"] as string[],
+    guestModeVisible: true,
   },
-  // {
-  //   title: "Settings",
-  //   url: "/settings",
-  //   icon: Settings2,
-  //   roles: ["ADMIN"] as string[],
-  // },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
+    roles: ["ADMIN"] as string[],
+  },
 ];
+
+const GUEST_NAV_ITEMS = ALL_NAV.filter((item) => item.guestModeVisible);
+const GUEST_MODE_ROUTES = GUEST_NAV_ITEMS.map((item) => item.url);
+const GUEST_MODE_HOME = GUEST_MODE_ROUTES[0] ?? "/experiences";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: sessionData, isPending } = useSession();
   const role = (sessionData?.user as { role?: string } | undefined)?.role ?? "GUEST";
   const effectiveRole = role === "SUPERADMIN" ? "ADMIN" : role;
+  const [isGuestMode, toggleGuestMode] = useGuestMode();
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const navItems = ALL_NAV.filter((item) => item.roles.includes(effectiveRole));
+  const navItems = isGuestMode ? GUEST_NAV_ITEMS : ALL_NAV.filter((item) => item.roles.includes(effectiveRole));
+
+  React.useEffect(() => {
+    if (!isGuestMode) return;
+    const isAllowed = GUEST_MODE_ROUTES.some(
+      (url) => pathname === url || pathname?.startsWith(`${url}/`)
+    );
+    if (!isAllowed) {
+      router.replace(GUEST_MODE_HOME);
+    }
+  }, [isGuestMode, pathname, router]);
 
   const user = sessionData?.user
     ? {
@@ -133,7 +164,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser user={user} isGuestMode={isGuestMode} onToggleGuestMode={toggleGuestMode} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

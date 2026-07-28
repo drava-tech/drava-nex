@@ -11,6 +11,7 @@ import {
   Trash2,
   MonitorPlay,
   Radio,
+  Tags,
 } from "lucide-react";
 import {
   DndContext,
@@ -42,8 +43,11 @@ import {
   cn,
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
+import { EditExperienceModal } from "./edit-experience-modal";
 import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
 import { LiveControlDialog, type LiveScreen } from "./live-control-dialog";
+import { ExperiencePreviewModal } from "./experience-preview-modal";
+import { ControlChooserDialog } from "./control-chooser-dialog";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
@@ -91,20 +95,24 @@ interface SortableCardProps {
   onDelete: (id: string) => void;
   screens: ScreenRow[];
   activeScreenIds: Set<string>;
+  experienceTypes: { id: string; name: string }[];
 }
 
 const LONG_PRESS_MS = 500;
 // Beyond this pointer travel (px) a "press" is a drag/scroll, not a tap.
 const PRESS_MOVE_TOLERANCE = 6;
 
-function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds }: SortableCardProps) {
+function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds, experienceTypes }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
   const [showControlDialog, setShowControlDialog] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [pendingControlScreens, setPendingControlScreens] = useState<LiveScreen[] | null>(null);
+  const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -126,7 +134,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       router.refresh();
     });
 
-  // Tap = push straight to a screen; long-press = the full actions menu.
+  // Tap = open the preview + screens + push modal; long-press = the full actions menu.
   // dnd-kit's own pointerdown listener (when dragEnabled) must still fire so
   // dragging keeps working — we call it through before running our own logic.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -175,12 +183,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       const dy = e.clientY - pressStart.current.y;
       if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
     }
-    // Live experience: tap opens the interactive control right here.
-    if (isLive) {
-      setShowControlDialog(true);
-      return;
-    }
-    if (proj.templateKey) setShowPushDialog(true);
+    // Tap always opens the preview + screens + push modal first (even when
+    // already live) — "Control" from the long-press menu remains the direct
+    // shortcut straight into LiveControlDialog.
+    if (proj.templateKey) setShowPreviewModal(true);
   };
 
   const handlePressCancel = () => {
@@ -200,6 +206,12 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   );
   const isLive = assignedScreens.length > 0;
   const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
+  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
+  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
+    screenId: s.screenId,
+    screenName: s.screenName,
+    isOnline: activeScreenIds.has(s.screenId),
+  }));
 
   return (
     <>
@@ -265,6 +277,12 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
                   <Pencil className="h-4 w-4" /> Edit content
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 py-1"
+                onSelect={() => setShowEditModal(true)}
+              >
+                <Tags className="h-4 w-4" /> Edit Experience
+              </DropdownMenuItem>
               {proj.templateKey ? (
                 <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
                   <a href={`/preview/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
@@ -365,6 +383,32 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         </div>
       )}
 
+      {/* Tag badges — the experience's assigned Experience Type(s). Sits in the
+          same corner as the Live/Offline indicator, stacked above/below it
+          when both are present so they never overlap. */}
+      {proj.typeIds.length > 0 && (
+        <div
+          className={cn(
+            "pointer-events-none absolute left-4 z-20 flex max-w-[70%] flex-wrap gap-1",
+            dropped ? (isLive ? "bottom-16" : "bottom-4") : isLive ? "top-16" : "top-4"
+          )}
+        >
+          {proj.typeIds.slice(0, 2).map((id) => {
+            const t = experienceTypes.find((et) => et.id === id);
+            return t ? (
+              <Badge key={id} variant="secondary" className="px-1.5 py-0 text-[9px] font-semibold">
+                {t.name}
+              </Badge>
+            ) : null;
+          })}
+          {proj.typeIds.length > 2 && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
+              +{proj.typeIds.length - 2}
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Oversized index number + name — alternates top / bottom per pill.
           The digits are clipped to 60% height, emerging from the pill edge. */}
       <div
@@ -399,6 +443,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
             isOnline: activeScreenIds.has(s.screenId),
           }))
         }
+        allScreens={allScreensForControl}
         onClose={() => {
           setShowControlDialog(false);
           setPendingControlScreens(null);
@@ -413,17 +458,66 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         activeScreenIds={activeScreenIds}
         onClose={() => setShowPushDialog(false)}
         onPushed={(screenIds) => {
-          setPendingControlScreens(
-            screens
-              .filter((s) => screenIds.includes(s.screenId))
-              .map((s) => ({
-                screenId: s.screenId,
-                screenName: s.screenName,
-                isOnline: activeScreenIds.has(s.screenId),
-              }))
-          );
+          const pushed = screens
+            .filter((s) => screenIds.includes(s.screenId))
+            .map((s) => ({
+              screenId: s.screenId,
+              screenName: s.screenName,
+              isOnline: activeScreenIds.has(s.screenId),
+            }));
           setShowPushDialog(false);
+          // One screen: go straight to its control panel. Multiple: ask which
+          // one to control first (control mirrors one screen at a time).
+          if (pushed.length === 1) {
+            setPendingControlScreens(pushed);
+            setShowControlDialog(true);
+          } else {
+            setChooserScreens(pushed);
+          }
+        }}
+      />
+    )}
+    {chooserScreens && (
+      <ControlChooserDialog
+        contentName={proj.name}
+        screens={chooserScreens}
+        onChoose={(screen) => {
+          setChooserScreens(null);
+          setPendingControlScreens([screen]);
           setShowControlDialog(true);
+        }}
+        // Dismissing the chooser shouldn't discard the push — go back to the
+        // push dialog, the previous step in this flow.
+        onClose={() => {
+          setChooserScreens(null);
+          setShowPushDialog(true);
+        }}
+      />
+    )}
+    {showPreviewModal && (
+      <ExperiencePreviewModal
+        experienceId={proj.id}
+        experienceName={proj.name}
+        slug={proj.slug}
+        templateKey={proj.templateKey}
+        screens={screens}
+        activeScreenIds={activeScreenIds}
+        onClose={() => setShowPreviewModal(false)}
+      />
+    )}
+    {showEditModal && (
+      <EditExperienceModal
+        experience={{
+          id: proj.id,
+          name: proj.name,
+          slug: proj.slug,
+          templateKey: proj.templateKey,
+          typeIds: proj.typeIds,
+        }}
+        experienceTypes={experienceTypes}
+        onClose={() => {
+          setShowEditModal(false);
+          router.refresh();
         }}
       />
     )}
@@ -638,6 +732,7 @@ export function ProjectsList({
                       onDelete={handleDelete}
                       screens={screens}
                       activeScreenIds={activeScreenIds}
+                      experienceTypes={experienceTypes}
                     />
                   ))}
 

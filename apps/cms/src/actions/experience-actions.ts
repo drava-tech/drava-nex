@@ -42,3 +42,21 @@ export async function updateExperienceTemplateContent(
   revalidatePath("/experiences");
   return { success: true };
 }
+
+/**
+ * Update an experience's name, slug, template, and tags in one call.
+ */
+export async function updateExperience(
+  experienceId: string,
+  input: { name: string; slug: string; templateKey: string | null; typeIds: string[] }
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+  const res = await apiFetch(`/api/experiences/${encodeURIComponent(experienceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return { success: false, error: res.error.message };
+  revalidatePath("/experiences");
+  revalidatePath("/projects");
+  return { success: true };
+}

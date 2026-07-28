@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { mediaEmbedUrl, isLinkMediaType } from "@platform/types";
 import { assignMedia } from "@/actions/screen-actions";
+import { LiveControlDialog, type LiveScreen } from "@/app/(dashboard)/experiences/_components/live-control-dialog";
+import { ControlChooserDialog } from "@/app/(dashboard)/experiences/_components/control-chooser-dialog";
 
 export interface MediaItem {
   id: string;
@@ -43,11 +45,20 @@ export function MediaPreviewModal({
   onClose: () => void;
 }) {
   const [screens, setScreens] = useState<ScreenOption[]>([]);
+  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
   const [loadingScreens, setLoadingScreens] = useState(true);
-  const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
-  const [pushedTo, setPushedTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [controlScreens, setControlScreens] = useState<LiveScreen[] | null>(null);
+  const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
+
+  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
+  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
+    screenId: s.screenId,
+    screenName: s.screenName,
+    isOnline: activeScreenIds.has(s.screenId),
+  }));
 
   // Close on Escape, and stop the page behind from scrolling under the modal.
   useEffect(() => {
@@ -67,10 +78,17 @@ export function MediaPreviewModal({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/screens");
-        if (!res.ok) throw new Error("Failed to load screens");
-        const data = await res.json();
+        const [screensRes, activeRes] = await Promise.all([
+          fetch("/api/screens"),
+          fetch("/api/screens/active"),
+        ]);
+        if (!screensRes.ok) throw new Error("Failed to load screens");
+        const data = await screensRes.json();
         if (!cancelled) setScreens(data.screens ?? []);
+        if (activeRes.ok) {
+          const activeData = await activeRes.json();
+          if (!cancelled) setActiveScreenIds(new Set(activeData.activeScreenIds ?? []));
+        }
       } catch {
         if (!cancelled) setError("Could not load the screen list");
       } finally {
@@ -83,24 +101,66 @@ export function MediaPreviewModal({
   }, []);
 
   const handlePush = useCallback(async () => {
-    if (!selectedScreenId) return;
+    if (selectedIds.length === 0) return;
+    const targets = screens.filter((s) => selectedIds.includes(s.screenId));
     setPushing(true);
     setError(null);
     try {
-      await assignMedia(selectedScreenId, media.id);
-      setPushedTo(selectedScreenId);
-      // Refresh the list so "Now playing" badges reflect the push.
-      setScreens((prev) =>
-        prev.map((s) =>
-          s.screenId === selectedScreenId ? { ...s, currentMediaAssetId: media.id } : s
-        )
-      );
+      // Screens already showing this exact media don't need re-pushing —
+      // that would just reset them from the start for no reason.
+      const needsPush = targets.filter((s) => s.currentMediaAssetId !== media.id);
+      await Promise.all(needsPush.map((s) => assignMedia(s.screenId, media.id)));
+      if (needsPush.length > 0) {
+        // Refresh the list so "Now playing" badges reflect the push.
+        setScreens((prev) =>
+          prev.map((s) =>
+            selectedIds.includes(s.screenId) ? { ...s, currentMediaAssetId: media.id } : s
+          )
+        );
+      }
+      const pushed: LiveScreen[] = targets.map((s) => ({
+        screenId: s.screenId,
+        screenName: s.screenName,
+        isOnline: activeScreenIds.has(s.screenId),
+      }));
+      // One screen: go straight to its control panel. Multiple: ask which
+      // one to control first (control mirrors one screen at a time).
+      if (pushed.length === 1) {
+        setControlScreens(pushed);
+      } else {
+        setChooserScreens(pushed);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to push to screen");
     } finally {
       setPushing(false);
     }
-  }, [selectedScreenId, media.id]);
+  }, [selectedIds, media.id, screens, activeScreenIds]);
+
+  // Once pushed, swap straight into the same live control panel Experiences
+  // use — no need to keep the preview open behind it.
+  if (controlScreens) {
+    return (
+      <LiveControlDialog
+        experienceName={media.name}
+        screens={controlScreens}
+        allScreens={allScreensForControl}
+        onClose={onClose}
+      />
+    );
+  }
+  if (chooserScreens) {
+    return (
+      <ControlChooserDialog
+        contentName={media.name}
+        screens={chooserScreens}
+        onChoose={(screen) => setControlScreens([screen])}
+        // Dismissing the chooser shouldn't close the whole preview — go back
+        // to the preview + screen-select pane instead.
+        onClose={() => setChooserScreens(null)}
+      />
+    );
+  }
 
   return (
     <div
@@ -169,27 +229,37 @@ export function MediaPreviewModal({
               ) : (
                 <div className="space-y-1">
                   {screens.map((screen) => {
-                    const isSelected = selectedScreenId === screen.screenId;
+                    const isSelected = selectedIds.includes(screen.screenId);
                     const isPlaying = screen.currentMediaAssetId === media.id;
+                    const isOnline = activeScreenIds.has(screen.screenId);
                     return (
                       <button
                         key={screen.screenId}
-                        onClick={() => {
-                          setSelectedScreenId(screen.screenId);
-                          setPushedTo(null);
-                        }}
-                        className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                        onClick={() =>
+                          setSelectedIds((prev) =>
+                            prev.includes(screen.screenId)
+                              ? prev.filter((id) => id !== screen.screenId)
+                              : [...prev, screen.screenId]
+                          )
+                        }
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                           isSelected
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
                             : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
                         }`}
                       >
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e]" : "bg-zinc-400"
+                          }`}
+                        />
                         <span className="min-w-0 flex-1 truncate font-medium">{screen.screenName}</span>
                         {isPlaying && (
                           <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:bg-green-500/15 dark:text-green-400">
                             Now playing
                           </span>
                         )}
+                        {isSelected && <Check className="h-4 w-4 shrink-0" />}
                       </button>
                     );
                   })}
@@ -207,25 +277,17 @@ export function MediaPreviewModal({
             <div className="flex flex-col gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
               <button
                 onClick={handlePush}
-                disabled={!selectedScreenId || pushing}
-                className={`inline-flex h-11 items-center justify-center gap-2 rounded-full text-sm font-medium transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
-                  pushedTo && pushedTo === selectedScreenId
-                    ? "bg-green-600 text-white"
-                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25"
-                }`}
+                disabled={selectedIds.length === 0 || pushing}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {pushing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" /> Pushing…
                   </>
-                ) : pushedTo && pushedTo === selectedScreenId ? (
-                  <>
-                    <Check className="h-4 w-4" /> Pushed to screen
-                  </>
                 ) : (
                   <>
                     <Cast className="h-4 w-4" />
-                    {selectedScreenId ? "Push to screen" : "Select a screen"}
+                    {selectedIds.length > 0 ? `Push to ${selectedIds.length}` : "Select a screen"}
                   </>
                 )}
               </button>

@@ -1,6 +1,26 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
-import { getScreenContent, setScreenExperience, verifyApiKey, scopeSatisfies } from '@platform/db';
+import {
+  getScreenContent,
+  setScreenExperience,
+  getScreenWhiteboardState,
+  setScreenWhiteboardState,
+  getScreenBlanked,
+  verifyApiKey,
+  scopeSatisfies,
+} from '@platform/db';
+import {
+  isWhiteboardCommand,
+  isSettlingWhiteboardCommand,
+  applyWhiteboardCommand,
+  initialWhiteboardSyncState,
+  WHITEBOARD_START,
+  WHITEBOARD_STOP,
+  WHITEBOARD_SYNC,
+  type WhiteboardSyncState,
+  type WhiteboardSurface,
+  type WhiteboardStroke,
+} from '../services/whiteboard-state.js';
 import type {
   CameraStatus,
   CameraStatusUpdate,
@@ -29,6 +49,18 @@ const contentCache = new Map<string, WsContent>();
 // client that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
 // reconnecting TV) converges to the current view. Cleared when content changes.
 const viewStateCache = new Map<string, { command: string; value?: unknown }>();
+// Live whiteboard state per screen — reconstructed from SCREEN_INTERACTION
+// commands via the same reducer the CMS/TV clients use, and persisted to the
+// screen row on "settling" commands. Presence in this map means "active";
+// unlike viewStateCache, this is deliberately NOT cleared when the last
+// socket disconnects — surviving that is the whole point (a TV refresh
+// closes its one socket right before/as it reconnects).
+const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
+// Full-black overlay per screen, set by an admin "Stop" action. Same
+// survives-a-reconnect requirement as whiteboardStateCache: presence/value here
+// is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
+// stopped comes back up still black, not showing its assigned content again.
+const screenBlankedCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
 const cameraStatusCache = new Map<string, CameraStatusUpdate>();
@@ -107,6 +139,12 @@ export function sendCommandToScreen(screenId: string, command: string, value?: a
     }
   }
   return count;
+}
+
+/** Set (or clear) a screen's full-black overlay and push the command live. */
+export function setScreenBlankState(screenId: string, blanked: boolean): void {
+  screenBlankedCache.set(screenId, blanked);
+  sendCommandToScreen(screenId, blanked ? 'SCREEN_BLANK' : 'SCREEN_UNBLANK');
 }
 
 export function broadcastActiveScreensToCms() {
@@ -474,10 +512,70 @@ export function createGateway(): WebSocketServer {
             }));
           };
 
+          // If a whiteboard is live on this screen, resume it for the newly
+          // (re)connected client — this is what lets a TV survive a refresh
+          // mid-session instead of falling back to the assigned content.
+          const sendWhiteboardState = (state: WhiteboardSyncState) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({
+              type: 'SCREEN_COMMAND',
+              command: WHITEBOARD_START,
+              value: { surface: state.surface },
+              timestamp: Date.now(),
+            }));
+            ws.send(JSON.stringify({
+              type: 'SCREEN_COMMAND',
+              command: WHITEBOARD_SYNC,
+              value: { strokes: state.strokes, surface: state.surface },
+              timestamp: Date.now(),
+            }));
+          };
+          const replayWhiteboardState = () => {
+            const cachedWb = whiteboardStateCache.get(sid);
+            if (cachedWb) {
+              sendWhiteboardState(cachedWb);
+              return;
+            }
+            // Not in memory (e.g. right after an API restart) — fall back to DB.
+            void getScreenWhiteboardState(sid)
+              .then((row) => {
+                if (!row?.active || !row.state) return;
+                const state = row.state as { surface: WhiteboardSurface; strokes: WhiteboardStroke[] };
+                const restored: WhiteboardSyncState = { strokes: state.strokes, current: null, surface: state.surface };
+                whiteboardStateCache.set(sid, restored);
+                sendWhiteboardState(restored);
+              })
+              .catch((err) => console.error('[gateway] Whiteboard state lookup failed for', sid, err));
+          };
+
+          // If the screen was stopped (blanked), resume that for the newly
+          // (re)connected client — same reconnect-resilience need as the
+          // whiteboard state below.
+          const replayBlankState = () => {
+            const cachedBlanked = screenBlankedCache.get(sid);
+            if (cachedBlanked !== undefined) {
+              if (cachedBlanked && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_BLANK', timestamp: Date.now() }));
+              }
+              return;
+            }
+            // Not in memory (e.g. right after an API restart) — fall back to DB.
+            void getScreenBlanked(sid)
+              .then((blanked) => {
+                screenBlankedCache.set(sid, blanked);
+                if (blanked && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_BLANK', timestamp: Date.now() }));
+                }
+              })
+              .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
+          };
+
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
             replayViewState();
+            replayWhiteboardState();
+            replayBlankState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
@@ -488,6 +586,8 @@ export function createGateway(): WebSocketServer {
                 sendWelcome(content);
                 replayViewState();
               }
+              replayWhiteboardState();
+              replayBlankState();
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;
@@ -616,6 +716,38 @@ export function createGateway(): WebSocketServer {
           if (msg.command.startsWith('SET_')) {
             viewStateCache.set(msg.screenId, { command: msg.command, value: msg.value });
           }
+
+          if (isWhiteboardCommand(msg.command)) {
+            const value = msg.value as any;
+
+            if (msg.command === WHITEBOARD_STOP) {
+              whiteboardStateCache.delete(msg.screenId);
+              setScreenWhiteboardState(msg.screenId, null).catch((err) =>
+                console.error('[gateway] Failed to clear whiteboard state:', err)
+              );
+            } else {
+              const next =
+                msg.command === WHITEBOARD_START
+                  ? initialWhiteboardSyncState((value?.surface as WhiteboardSurface) ?? 'light')
+                  : applyWhiteboardCommand(
+                      whiteboardStateCache.get(msg.screenId) ?? initialWhiteboardSyncState(),
+                      msg.command,
+                      value
+                    );
+              whiteboardStateCache.set(msg.screenId, next);
+
+              if (isSettlingWhiteboardCommand(msg.command)) {
+                const snapshot: { surface: WhiteboardSurface; strokes: WhiteboardStroke[] } = {
+                  surface: next.surface,
+                  strokes: next.strokes,
+                };
+                setScreenWhiteboardState(msg.screenId, snapshot).catch((err) =>
+                  console.error('[gateway] Failed to persist whiteboard state:', err)
+                );
+              }
+            }
+          }
+
           // Relay an interaction from one client to every client of the screen
           // (including the sender) so all instances apply it identically.
           sendCommandToScreen(msg.screenId, msg.command, msg.value);
