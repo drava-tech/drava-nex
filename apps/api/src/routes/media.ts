@@ -88,6 +88,11 @@ function getMimeType(filePath: string): string {
     ".xls": "application/vnd.ms-excel",
     ".csv": "text/csv",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // 3D template assets (see STATIC_ASSET_DIRS below).
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".wasm": "application/wasm",
+    ".js": "text/javascript",
   };
   return map[ext] ?? "application/octet-stream";
 }
@@ -228,7 +233,11 @@ function resolveWithin(dir: string, fileName: string): string | null {
 // Shared range-aware file responder. Checks UPLOAD_DIR (runtime uploads) first,
 // then falls back to SEED_MEDIA_DIR (baked-in template imagery) — both are
 // addressed by the same /media/<file> URL scheme.
-function serveMediaFile(c: import("hono").Context, fileName: string): Response {
+function serveMediaFile(
+  c: import("hono").Context,
+  fileName: string,
+  cacheControl?: string
+): Response {
   const resolved = resolveWithin(UPLOAD_DIR, fileName) ?? resolveWithin(SEED_MEDIA_DIR, fileName);
   if (!resolved) {
     return new Response("File not found", { status: 404 });
@@ -266,6 +275,7 @@ function serveMediaFile(c: import("hono").Context, fileName: string): Response {
       "Content-Length": String(fileSize),
       "Content-Type": mimeType,
       "Accept-Ranges": "bytes",
+      ...(cacheControl ? { "Cache-Control": cacheControl } : {}),
     },
   });
 }
@@ -299,4 +309,36 @@ export const mediaFilesRouter = new Hono();
 mediaFilesRouter.get("/:filename", async (c) => {
   const fileName = path.basename(c.req.param("filename"));
   return serveMediaFile(c, fileName);
+});
+
+// Subdirectories holding large static assets that ship WITH the code (3D models,
+// decoders) rather than being uploaded — these can't be flattened into /media/
+// because some loaders resolve sibling files by hardcoded name (e.g. three's
+// DRACOLoader requests "<decoderPath>draco_wasm_wrapper.js"). Allowlisted rather
+// than accepting any depth, so this stays a narrow, auditable exception to the
+// otherwise-flat /media/<file> scheme.
+const STATIC_ASSET_DIRS = new Set(["flight-garden"]);
+
+// Code-shipped assets are immutable for a given build — a signage screen must
+// not re-download tens of MB of geometry on every reload.
+const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
+// GET /media/<dir>/<file> and /media/<dir>/<sub>/<file> (one nested level, for
+// the DRACO decoder folder). Both segments are basename-sanitized, and
+// resolveWithin still enforces containment.
+mediaFilesRouter.get("/:dir/:filename", async (c) => {
+  const dir = path.basename(c.req.param("dir"));
+  if (!STATIC_ASSET_DIRS.has(dir)) return new Response("File not found", { status: 404 });
+
+  const fileName = path.basename(c.req.param("filename"));
+  return serveMediaFile(c, `${dir}/${fileName}`, STATIC_ASSET_CACHE_CONTROL);
+});
+
+mediaFilesRouter.get("/:dir/:sub/:filename", async (c) => {
+  const dir = path.basename(c.req.param("dir"));
+  if (!STATIC_ASSET_DIRS.has(dir)) return new Response("File not found", { status: 404 });
+
+  const sub = path.basename(c.req.param("sub"));
+  const fileName = path.basename(c.req.param("filename"));
+  return serveMediaFile(c, `${dir}/${sub}/${fileName}`, STATIC_ASSET_CACHE_CONTROL);
 });

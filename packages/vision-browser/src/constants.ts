@@ -4,7 +4,7 @@ export const VISION_DEFAULTS = {
   confidenceThreshold: 0.4,
   // Balance point between false-positive suppression and real-detection
   // recall — the model has no true negative training data (see
-  // services/product-vision/README.md), so its confidence signal is noisy
+  // services/vision/object_detection/README.md), so its confidence signal is noisy
   // in both directions. Retrain is the actual fix; this is a tuning dial.
   stabilityFrames: 3,
   lostFrames: 10,

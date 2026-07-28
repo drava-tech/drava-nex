@@ -1,4 +1,4 @@
-import { isNull, asc, desc, eq, and } from "drizzle-orm";
+import { isNull, asc, desc, eq, and, ne } from "drizzle-orm";
 import { db } from "../client.js";
 import { experience } from "../schema/projects.js";
 import { experienceToType } from "../schema/experience-types.js";
@@ -24,12 +24,14 @@ export async function listProjectVerticals(): Promise<
   return rows.map((r) => ({ id: r.slug, title: r.name, position: r.position }));
 }
 
-/** True if a non-deleted experience already uses this slug. */
-export async function experienceSlugExists(slug: string): Promise<boolean> {
+/** True if a non-deleted experience (other than excludeId, if given) already uses this slug. */
+export async function experienceSlugExists(slug: string, excludeId?: string): Promise<boolean> {
+  const conditions = [eq(experience.slug, slug), isNull(experience.deletedAt)];
+  if (excludeId) conditions.push(ne(experience.id, excludeId));
   const [row] = await db
     .select({ id: experience.id })
     .from(experience)
-    .where(and(eq(experience.slug, slug), isNull(experience.deletedAt)))
+    .where(and(...conditions))
     .limit(1);
   return !!row;
 }
@@ -71,6 +73,38 @@ export async function createExperience(input: {
         .values(uniqueTypeIds.map((typeId) => ({ experienceId: created.id, typeId })));
     }
     return created;
+  });
+}
+
+/** Update an experience's name, slug, template, and type associations in one transaction. */
+export async function updateExperience(
+  id: string,
+  input: {
+    name: string;
+    slug: string;
+    templateKey: string | null;
+    typeIds: string[];
+    updatedByUserId: string;
+  }
+): Promise<void> {
+  const uniqueTypeIds = Array.from(new Set(input.typeIds.filter(Boolean)));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(experience)
+      .set({
+        name: input.name,
+        slug: input.slug,
+        templateKey: input.templateKey,
+        updatedByUserId: input.updatedByUserId,
+        updatedAt: new Date(),
+      })
+      .where(eq(experience.id, id));
+    await tx.delete(experienceToType).where(eq(experienceToType.experienceId, id));
+    if (uniqueTypeIds.length > 0) {
+      await tx
+        .insert(experienceToType)
+        .values(uniqueTypeIds.map((typeId) => ({ experienceId: id, typeId })));
+    }
   });
 }
 

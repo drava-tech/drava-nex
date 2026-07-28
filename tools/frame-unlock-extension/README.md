@@ -29,9 +29,10 @@ Edge and any other Chromium browser.
 ## Point it at your CMS
 
 `manifest.json` → `content_scripts[0].matches` lists the CMS origin, currently
-`localhost:3000` and `192.168.0.250:3000`. This only controls whether the
-Browser page can tell the extension is installed (it hides the amber banner) —
-the header rule itself works regardless.
+`localhost:3000` (local dev), `ec-cms` and `192.168.1.250` (the LAN deployment,
+served over HTTPS via nginx). This only controls whether the Browser page can
+tell the extension is installed (it hides the amber banner) — the header rule
+itself works regardless.
 
 After editing, hit **Reload** on the extension card in `chrome://extensions`.
 

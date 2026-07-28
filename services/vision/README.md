@@ -1,12 +1,30 @@
 # Vision Service
 
-Headless GPU vision for the platform. **This iteration ships face detection
-only** (people at entrance cameras); object/product detection is stubbed and
-added later without restructuring (see `workers/object.py`, `engines/object.py`).
+The canonical home for all platform vision. Two independent services live here:
+
+| | Face vision (this directory) | Object detection (`object_detection/`) |
+|---|---|---|
+| What | Visitor recognition at entrance cameras | Product detection → screen takeover |
+| Runtime | Supervisor + one worker subprocess per camera | FastAPI WebSocket inference server |
+| Frames from | Cameras attached to this host | The **browser** (CMS display page → `/vision/ws`) |
+| GPU stack | insightface + onnxruntime-gpu | ultralytics + PyTorch |
+| Start | `python -m vision` | `python -m vision.object_detection.server` |
+| Deps | `requirements.txt` | `object_detection/requirements.txt` |
+
+**They must never share a process or a venv.** onnxruntime-gpu and torch each
+bundle their own CUDA + cuDNN; loading both in one interpreter is the conflict
+this split exists to avoid. Separate venvs, separate processes, separate
+container images (`Dockerfile.server` vs `object_detection/Dockerfile.server`),
+one shared build context.
+
+Object detection has **no camera worker here** — its frames come from the
+browser, so an `OBJECT` entry in `VISION_CAMERAS` is rejected with a pointer to
+the inference server. See [object_detection/README.md](object_detection/README.md).
+
+## Face vision
 
 A **supervisor** owns the camera fleet and runs **one worker subprocess per
-camera** (isolated so the face runtime and the future YOLO runtime never share a
-process). Each people-worker: reads its camera → detects faces on the RTX 3090
+camera**. Each people-worker: reads its camera → detects faces on the RTX 3090
 (insightface `buffalo_l`: SCRFD + ArcFace 512-d) → matches against
 PostgreSQL + pgvector by cosine distance → bumps `last_seen` or enrolls a new
 anonymous visitor (blank name/email, role `guest`) with a cropped JPEG. Each
@@ -58,9 +76,28 @@ identification only once close enough to fill a meaningful part of the frame.
 - `python scripts/purge_images.py [--dry-run]` — delete face JPEGs older than
   `VISION_IMAGE_RETENTION_DAYS`, keeping embeddings (anonymization). Schedule daily.
 
-## Adding object detection later
+## Object detection
 
-Fill `workers/object.py` + `engines/object.py`; add `requirements-object.txt`
-(ultralytics/torch, cuDNN 9, separate venv/process); implement the
-`PRODUCT_DETECTED` case in `apps/api/src/routes/internal.ts`; add an `OBJECT`
-entry to `VISION_CAMERAS`. No directory moves, no API/type changes.
+Lives in [`object_detection/`](object_detection/README.md) — moved here from the
+former `services/product-vision`. It is a WebSocket inference server, not a
+camera worker: the CMS display page captures frames in the browser and posts
+them to `/vision/ws`.
+
+```powershell
+cd services\vision\object_detection
+python -m venv .venv                    # SEPARATE venv — never install into ..\.venv
+.venv\Scripts\pip install -r requirements.txt
+cd ..\..
+vision\object_detection\.venv\Scripts\python.exe -m vision.object_detection.server
+```
+
+`workers/object.py` and `engines/object.py` are intentionally not implemented and
+raise with a pointer to the above: a host-side OBJECT worker would be a second
+camera runtime competing with the browser for the device and double-firing
+`PRODUCT_DETECTED`. The supervisor rejects `OBJECT` entries in `VISION_CAMERAS`
+for the same reason.
+
+Both `PRODUCT_DETECTED` and `PRODUCT_LOST` are handled end to end by the API
+(`apps/api/src/routes/internal.ts` → `gateway.applyProductDetection` /
+`clearProductDetection`), so `events.emit_product()` here would work if a
+headless emitter is ever added — it just isn't the production path today.

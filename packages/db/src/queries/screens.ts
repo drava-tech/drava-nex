@@ -25,6 +25,7 @@ export async function listScreens(): Promise<{
   mediaName: string | null;
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
+  blanked: boolean;
 }[]> {
   const defaultMedia = alias(mediaAsset, "default_media");
   return db
@@ -40,6 +41,7 @@ export async function listScreens(): Promise<{
       mediaName: mediaAsset.name,
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
+      blanked: screen.blanked,
     })
     .from(screen)
     .leftJoin(
@@ -244,6 +246,23 @@ export async function getScreenWhiteboardState(
     .limit(1);
   if (!row) return null;
   return { active: row.whiteboardActive, state: row.whiteboardState };
+}
+
+/** Set (or clear) the full-black overlay for a screen — see `screen.blanked`. */
+export async function setScreenBlanked(screenId: string, blanked: boolean): Promise<void> {
+  await db
+    .update(screen)
+    .set({ blanked, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenBlanked(screenId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ blanked: screen.blanked })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row?.blanked ?? false;
 }
 
 /**

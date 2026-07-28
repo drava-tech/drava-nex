@@ -46,6 +46,11 @@ export const screen = pgTable(
     // owned by apps/cms/src/lib/whiteboard-canvas.ts, stored loosely here same
     // convention as experience.templateContent.
     whiteboardState: jsonb("whiteboard_state").$type<unknown>(),
+    // Full-black overlay covering whatever is assigned (content, whiteboard, or
+    // both) — set by an admin's "Stop" action, cleared by "Resume". Persisted
+    // (not just an in-memory WS relay) so a screen that reconnects mid-stop
+    // (power cycle, network blip, API restart) comes back up still black.
+    blanked: boolean("blanked").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
