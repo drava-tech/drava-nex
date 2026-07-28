@@ -15,6 +15,7 @@ import { devicesRouter } from './routes/devices.js';
 import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
 import { startCasambiIngest } from './services/casambi-ingest.js';
 import { startIrIngest } from './services/ir-ingest.js';
+import { startGmailIngest } from './services/gmail-ingest.js';
 import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
@@ -65,6 +66,7 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
+void startGmailIngest();
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {

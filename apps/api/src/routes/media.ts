@@ -10,7 +10,7 @@ import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
 // mediaFilesRouter below — nginx proxies /media/ here, not to the CMS.
-const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
+export const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
 
 // Static "seed" assets baked into the repo (default template imagery, demo
 // video) — in dev this is the SAME folder as UPLOAD_DIR above, but in Docker
@@ -50,7 +50,7 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
-function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
+export function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
   const ext = path.extname(fileName).toLowerCase();
   const mimeLower = (mime || "").toLowerCase();
   for (const [type, rule] of Object.entries(ALLOWED)) {

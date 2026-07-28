@@ -134,6 +134,13 @@
       "when": 1784020305829,
       "tag": "0018_screen_blanked",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784020305830,
+      "tag": "0019_gmail_ingest",
+      "breakpoints": true
     }
   ]
 }
