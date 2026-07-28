@@ -1,0 +1,27 @@
+# Object detection — TRAINING tooling deps (scripts/, not the inference server).
+# The server uses the pinned requirements.txt instead; the face-vision service
+# uses ../requirements.txt. Keep all three in separate venvs (conflicting CUDA
+# stacks — see requirements.txt for the why).
+#
+# scripts/parity_test.py additionally needs: pip install onnxruntime
+# train.py needs PyYAML (ultralytics pulls it in).
+
+# ── Computer Vision & ML ──────────────────────────────────────────────────────
+# YOLOv8 training + inference (includes torch, torchvision, numpy, cv2 extras)
+ultralytics
+
+# OpenCV — frame processing and display (used by both camera backends)
+opencv-python
+
+# Intel RealSense SDK Python bindings (Option A camera backend)
+# Requires Intel RealSense SDK 2.0 to be installed first:
+#   https://github.com/IntelRealSense/librealsense/releases/latest
+# Set VISION_CAMERA_BACKEND=opencv to skip this entirely.
+pyrealsense2
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+# Load .env files
+python-dotenv
+
+# Numerical arrays (ultralytics pulls this in, but listed explicitly)
+numpy

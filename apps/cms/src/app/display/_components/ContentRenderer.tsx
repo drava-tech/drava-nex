@@ -1,6 +1,10 @@
 import { PortfolioRenderer, type PortfolioContent } from "@platform/ui/templates/portfolio";
 import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
 import { WelcomeRenderer, readWelcomeContent } from "@platform/ui/templates/welcome";
+import {
+  FlightSimulationRenderer,
+  readFlightSimulationContent,
+} from "@platform/ui/templates/flight-simulation";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -41,6 +45,12 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);
         return <WelcomeRenderer content={welcome ?? undefined} speak={!preview} />;
+      }
+      if (content.templateKey === "flight-simulation") {
+        const flight = readFlightSimulationContent(content.templateContent);
+        // The scene fills the screen itself (camera-fitted, resolution
+        // independent) — no ScreenStage, which would letterbox and rescale it.
+        return <FlightSimulationRenderer content={flight} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

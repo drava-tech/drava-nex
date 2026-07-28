@@ -300,6 +300,116 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Apply a stability-confirmed product detection to the camera's screen.
+ *
+ * Single implementation shared by every producer: the browser detection loop
+ * (PRODUCT_DETECTED over the screen WebSocket, see useServerDetection.ts) and
+ * the headless relay (POST /api/internal/vision-event). Validation, the minimum
+ * confidence floor and the ACTIVE-product lookup all live in
+ * resolveDetectedProduct — nothing here re-implements them.
+ *
+ * Returns why nothing was displayed, so callers/tests can tell "rejected" from
+ * "unmapped camera".
+ */
+export type ProductDetectionOutcome =
+  | { applied: true; screenId: string; productId: string }
+  | { applied: false; reason: 'NO_SCREEN' | 'INVALID_EVENT' | 'LOW_CONFIDENCE' | 'NO_MATCH' };
+
+export async function applyProductDetection(input: {
+  cameraId: string;
+  label: string;
+  confidence: number;
+  detectedAt?: string;
+}): Promise<ProductDetectionOutcome> {
+  const screenId = getCameraScreen(input.cameraId);
+  if (!screenId) return { applied: false, reason: 'NO_SCREEN' };
+
+  noteCameraHeartbeat(input.cameraId);
+  updateCameraStatus(input.cameraId, 'detecting', undefined, {
+    confidence: input.confidence,
+    label: input.label,
+  });
+
+  const res = await resolveDetectedProduct({
+    cameraId: input.cameraId,
+    detectionLabel: input.label,
+    confidence: input.confidence,
+    detectedAt: input.detectedAt,
+  });
+
+  if (!res.matched || !res.productId) {
+    return { applied: false, reason: res.reason ?? 'NO_MATCH' };
+  }
+
+  const content: WsContent = {
+    id: `detection-${res.productId}`,
+    type: 'experience',
+    source: '',
+    title: res.name || input.label,
+    templateKey: 'product-showcase',
+    templateContent: {
+      'product-showcase': { productId: res.productId },
+    },
+  };
+
+  // Remember WHICH label owns the takeover — PRODUCT_LOST for a different
+  // label must not clear someone else's screen.
+  screenTakeover.set(screenId, input.label);
+
+  contentCache.set(screenId, content);
+  viewStateCache.delete(screenId);
+
+  const update: WsServerMessage = {
+    type: 'CONTENT_UPDATE',
+    screenId,
+    content,
+    timestamp: Date.now(),
+  };
+  const frame = JSON.stringify(update);
+
+  const sockets = screenRegistry.get(screenId);
+  if (sockets) {
+    for (const sock of sockets) {
+      if (sock.readyState === WebSocket.OPEN) {
+        sock.send(frame);
+      }
+    }
+  }
+
+  broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+  emitScreenContentChanged(screenId, content);
+  broadcastToUe({
+    type: 'PRODUCT_DETECTED',
+    cameraId: input.cameraId,
+    label: input.label,
+    confidence: input.confidence,
+    productId: res.productId,
+    timestamp: Date.now(),
+  });
+
+  return { applied: true, screenId, productId: res.productId };
+}
+
+/**
+ * Clear a product takeover — only the one owned by `label`. A stale PRODUCT_LOST
+ * for a product that has since been superseded, or for a screen showing normal
+ * assigned content, is a no-op rather than an unexpected screen change.
+ */
+export async function clearProductDetection(input: {
+  cameraId: string;
+  label: string;
+}): Promise<boolean> {
+  const screenId = getCameraScreen(input.cameraId);
+  if (!screenId) return false;
+
+  noteCameraHeartbeat(input.cameraId);
+  updateCameraStatus(input.cameraId, 'waiting');
+
+  if (screenTakeover.get(screenId) !== input.label) return false;
+  return resetScreenTakeover(screenId);
+}
+
 export function getConnectedScreenIds(): string[] {
   return Array.from(screenRegistry.keys()).filter((id) => {
     const sockets = screenRegistry.get(id);
@@ -706,78 +816,22 @@ export function createGateway(): WebSocketServer {
         }
 
         case 'PRODUCT_DETECTED': {
-          const screenId = getCameraScreen(msg.cameraId);
-          if (!screenId) break;
-          noteCameraHeartbeat(msg.cameraId);
-          updateCameraStatus(msg.cameraId, 'detecting', undefined, {
-            confidence: msg.confidence,
-            label: msg.label,
-          });
-
-          void resolveDetectedProduct({
+          void applyProductDetection({
             cameraId: msg.cameraId,
-            detectionLabel: msg.label,
+            label: msg.label,
             confidence: msg.confidence,
             detectedAt: msg.detectedAt,
-          }).then((res) => {
-            if (res.matched && res.productId) {
-              const content: WsContent = {
-                id: `detection-${res.productId}`,
-                type: 'experience',
-                source: '',
-                title: res.name || msg.label,
-                templateKey: 'product-showcase',
-                templateContent: {
-                  'product-showcase': { productId: res.productId }
-                }
-              };
-              
-              screenTakeover.set(screenId, msg.label);
-              
-              contentCache.set(screenId, content);
-              viewStateCache.delete(screenId);
-
-              const update: WsServerMessage = {
-                type: 'CONTENT_UPDATE',
-                screenId,
-                content,
-                timestamp: Date.now(),
-              };
-              const frame = JSON.stringify(update);
-
-              const sockets = screenRegistry.get(screenId);
-              if (sockets) {
-                for (const sock of sockets) {
-                  if (sock.readyState === WebSocket.OPEN) {
-                    sock.send(frame);
-                  }
-                }
-              }
-
-              broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
-              emitScreenContentChanged(screenId, content);
-              broadcastToUe({
-                type: 'PRODUCT_DETECTED',
-                cameraId: msg.cameraId,
-                label: msg.label,
-                confidence: msg.confidence,
-                productId: res.productId,
-                timestamp: Date.now(),
-              });
-            }
-          });
+          }).catch((err) =>
+            console.error('[gateway] PRODUCT_DETECTED failed:', err)
+          );
           break;
         }
 
         case 'PRODUCT_LOST': {
-          const screenId = getCameraScreen(msg.cameraId);
-          if (!screenId) break;
-          noteCameraHeartbeat(msg.cameraId);
-          updateCameraStatus(msg.cameraId, 'waiting');
-
-          if (screenTakeover.get(screenId) === msg.label) {
-            void resetScreenTakeover(screenId);
-          }
+          void clearProductDetection({
+            cameraId: msg.cameraId,
+            label: msg.label,
+          }).catch((err) => console.error('[gateway] PRODUCT_LOST failed:', err));
           break;
         }
 

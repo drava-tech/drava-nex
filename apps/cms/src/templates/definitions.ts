@@ -9,10 +9,13 @@ import { ProductShowcaseLayout } from "./product-showcase/product-showcase-layou
 import { ProductShowcaseEditorWorkspace } from "./product-showcase/editor-workspace";
 import { WelcomeLayout } from "./welcome/welcome-layout";
 import { WelcomeEditorWorkspace } from "./welcome/editor-workspace";
+import { FlightSimulationLayout } from "./flight-simulation/flight-simulation-layout";
+import { FlightSimulationEditorWorkspace } from "./flight-simulation/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
 import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
+import { DEFAULT_FLIGHT_SIMULATION_CONTENT } from "@platform/ui/templates/flight-simulation";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -60,6 +63,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: WelcomeLayout,
     defaultContent: DEFAULT_WELCOME_CONTENT,
     Workspace: WelcomeEditorWorkspace,
+  },
+  "flight-simulation": {
+    key: "flight-simulation",
+    label: TEMPLATE_LABELS["flight-simulation"],
+    Layout: FlightSimulationLayout,
+    defaultContent: DEFAULT_FLIGHT_SIMULATION_CONTENT,
+    Workspace: FlightSimulationEditorWorkspace,
   },
 };
 
