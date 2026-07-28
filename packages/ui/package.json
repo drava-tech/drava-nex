@@ -29,11 +29,16 @@
       "import": "./src/templates/welcome/index.ts",
       "types": "./src/templates/welcome/index.ts"
     },
+    "./templates/flight-simulation": {
+      "import": "./src/templates/flight-simulation/index.ts",
+      "types": "./src/templates/flight-simulation/index.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -48,7 +53,8 @@
     "lucide-react": "^1.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "three": "^0.158.0"
   },
   "devDependencies": {
     "@platform/types": "workspace:^",
@@ -56,9 +62,12 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.158.3",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.8"
   },
   "peerDependencies": {
     "react": "^19.0.0",

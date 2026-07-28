@@ -1,9 +1,11 @@
 import { Detection, StabilityEvent, VisionConfig } from "./types.js";
 
 /**
- * Debounce layer between raw per-frame detections and emitted events. Exact
- * port of services/product-vision/src/stability.py — same state machine,
- * same field semantics, so behavior matches the native service precisely.
+ * Debounce layer between raw per-frame detections and emitted events. Ported
+ * from the retired Python-side stability filter, and now the only
+ * implementation — detection runs in the browser, so this state machine alone
+ * decides when PRODUCT_DETECTED / PRODUCT_LOST reach the gateway. Covered by
+ * test/stability.test.ts.
  *
  * IDLE --(N hits)--> DETECTED --(M misses)--> IDLE
  *            ^                       |

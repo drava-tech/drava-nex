@@ -4,6 +4,10 @@
 # RTX 3090 is directly usable from Windows via onnxruntime-gpu. Build this only
 # when the stack moves to a Linux host with the camera SDKs and the nvidia
 # container toolkit available. Face-detection (PEOPLE) mode only.
+#
+# Object detection is a SEPARATE image built from the same context —
+# object_detection/Dockerfile.server. Never merge the two: onnxruntime-gpu and
+# torch bundle conflicting CUDA/cuDNN runtimes. Both share .dockerignore.
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

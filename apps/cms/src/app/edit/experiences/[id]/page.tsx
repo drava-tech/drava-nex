@@ -2,20 +2,30 @@ import React from "react";
 import { notFound } from "next/navigation";
 import { db, experience, eq, and, isNull } from "@platform/db";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { isTemplateKey } from "@/lib/templates";
+import { isTemplateKey, type TemplateKey } from "@/lib/templates";
 import { TEMPLATE_DEFINITIONS } from "@/templates/definitions";
-import {
-  DEFAULT_PORTFOLIO_CONTENT,
-  readPortfolioContent,
-} from "@platform/ui/templates/portfolio";
-import {
-  DEFAULT_LIVE_STREAM_CONTENT,
-  readLiveStreamContent,
-} from "@platform/ui/templates/live-stream";
-import {
-  DEFAULT_PRODUCT_SHOWCASE_CONTENT,
-  readProductShowcaseContent,
-} from "@platform/ui/templates/product-showcase";
+import { readPortfolioContent } from "@platform/ui/templates/portfolio";
+import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
+import { readProductShowcaseContent } from "@platform/ui/templates/product-showcase";
+import { readWelcomeContent } from "@platform/ui/templates/welcome";
+import { readFlightSimulationContent } from "@platform/ui/templates/flight-simulation";
+
+/**
+ * Per-template reader for the experience's saved content slice. Table-driven so
+ * adding a template is one entry here (and one in @/templates/definitions) —
+ * a missing entry is a compile error, not a silent fallback to another
+ * template's content.
+ */
+const CONTENT_READERS: Record<
+  TemplateKey,
+  (templateContent: Record<string, unknown> | null | undefined) => unknown | null
+> = {
+  portfolio: readPortfolioContent,
+  "live-stream": readLiveStreamContent,
+  "product-showcase": readProductShowcaseContent,
+  welcome: readWelcomeContent,
+  "flight-simulation": readFlightSimulationContent,
+};
 
 interface EditPageProps {
   params: Promise<{ id: string }>;
@@ -52,14 +62,8 @@ export default async function ExperienceEditPage({ params }: EditPageProps) {
   const Workspace = def.Workspace;
   if (!Workspace) return <FullScreenMessage>This template has no content editor.</FullScreenMessage>;
 
-  let initialContent: unknown;
-  if (key === "live-stream") {
-    initialContent = readLiveStreamContent(exp.templateContent) ?? DEFAULT_LIVE_STREAM_CONTENT;
-  } else if (key === "product-showcase") {
-    initialContent =
-      readProductShowcaseContent(exp.templateContent) ?? DEFAULT_PRODUCT_SHOWCASE_CONTENT;
-  } else {
-    initialContent = readPortfolioContent(exp.templateContent) ?? DEFAULT_PORTFOLIO_CONTENT;
-  }
+  const initialContent =
+    CONTENT_READERS[key](exp.templateContent) ?? def.defaultContent;
+
   return <Workspace experience={exp} initialContent={initialContent} />;
 }

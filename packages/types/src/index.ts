@@ -9,8 +9,17 @@ export * from "./visitors.js";
 // --- Media library → display content mapping (PDF/sheet/YouTube/Drive embeds) ---
 export * from "./media-content.js";
 
+// --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
+export * from "./flight-simulation.js";
+
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
-export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase", "welcome"] as const;
+export const TEMPLATE_KEYS = [
+  "portfolio",
+  "live-stream",
+  "product-showcase",
+  "welcome",
+  "flight-simulation",
+] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);

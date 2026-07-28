@@ -1,0 +1,14 @@
+# YOLO Dataset Configuration — coster-v1
+# Used by scripts/train.py and the Ultralytics training framework.
+# Path is relative to the monorepo root (where you run training from).
+
+path: services/vision/object_detection/datasets/coster-v1
+train: images/train
+val:   images/val
+test:  images/test
+
+# Class definitions — must match the detectionLabel set in the CMS product.
+# Single class for now; add more later (bump nc and append names).
+nc: 1
+names:
+  0: coster

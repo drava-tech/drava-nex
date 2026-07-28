@@ -1,0 +1,906 @@
+/* =============================================================
+   FLIGHT GARDEN — premium glass control-tower UI
+   ============================================================= */
+
+.fg-root {
+  --bg:            #05070a;
+
+  --glass:         rgba(10, 16, 22, 0.58);
+  --glass-hi:      rgba(255, 255, 255, 0.055);
+  --stroke:        rgba(255, 255, 255, 0.10);
+  --stroke-soft:   rgba(255, 255, 255, 0.055);
+
+  --text:          #e9eff3;
+  --muted:         rgba(233, 239, 243, 0.52);
+  --faint:         rgba(233, 239, 243, 0.30);
+
+  --cyan:          #62dcff;
+  --amber:         #ffc46b;
+  --soft-white:    rgba(255, 255, 255, 0.82);
+
+  --radius:        16px;
+  --radius-sm:     10px;
+
+  --shadow:        0 24px 60px -20px rgba(0, 0, 0, 0.85),
+                   0 2px 10px -2px rgba(0, 0, 0, 0.6);
+
+  --pad:           16px;
+  --blur:          blur(22px) saturate(140%);
+
+  --font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, "Cascadia Mono",
+          "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* HUD layout variables for desktop */
+  --hud-padding: clamp(14px, 2.2vw, 28px);
+  --hud-gap: 20px;
+  --left-col-width: clamp(220px, 18vw, 280px);
+  --right-col-width: clamp(240px, 20vw, 300px);
+}
+
+.fg-root, .fg-root * { box-sizing: border-box; }
+
+.fg-root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+.fg-root .sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =============================================================
+   STAGE
+   ============================================================= */
+
+.fg-root .stage {
+  position: absolute;
+  inset: 0;
+}
+
+@media (min-width: 721px) {
+  .fg-root .stage {
+    top: var(--hud-padding);
+    bottom: var(--hud-padding);
+    left: calc(var(--left-col-width) + var(--hud-padding) + var(--hud-gap));
+    right: calc(var(--right-col-width) + var(--hud-padding) + var(--hud-gap));
+  }
+}
+
+.fg-root #scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.fg-root .vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: none;
+}
+
+/* =============================================================
+   IN-WORLD LABELS (projected from Three.js)
+   ============================================================= */
+
+.fg-root .label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.fg-root .zone-label,
+.fg-root .gate-label {
+  position: absolute;
+  top: 0; left: 0;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  will-change: transform, opacity;
+}
+
+.fg-root .zone-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  text-align: center;
+}
+
+.fg-root .zone-label .zl-name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--soft-white);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+}
+
+.fg-root .zone-label .zl-note {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.10em;
+  color: rgba(233, 239, 243, 0.62);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 1px 12px rgba(0, 0, 0, 0.95);
+}
+
+.fg-root .zone-label .zl-name {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 1px 14px rgba(0, 0, 0, 0.95);
+}
+
+.fg-root .zone-label::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  margin-bottom: 4px;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.fg-root .zone-label[data-kind="arrival"] { color: var(--cyan); }
+.fg-root .zone-label[data-kind="departure"] { color: var(--amber); }
+.fg-root .zone-label[data-kind="holding"] { color: rgba(255,255,255,0.7); }
+.fg-root .zone-label[data-kind="terminal"] { color: #9fe6b8; }
+.fg-root .zone-label[data-kind="runway"] { color: rgba(196, 196, 255, 0.68); }
+
+.fg-root .gate-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(4, 8, 12, 0.45);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.5s ease, color 0.4s ease, border-color 0.4s ease;
+}
+
+/* Idle tint distinguishing the two terminals sharing the bloom — Terminal 2
+   (Garden Terminal, hero) reads mint like the terminal-zone label; Terminal 1
+   (Domestic Pier) reads a warmer neutral. Both are overridden by .occupied /
+   .inbound below once a flight actually claims the gate. */
+.fg-root .gate-label.gate-t2 { border-color: rgba(159, 230, 184, 0.22); }
+.fg-root .gate-label.gate-t1 { border-color: rgba(255, 196, 107, 0.18); }
+
+.fg-root .gate-label.occupied {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.fg-root .gate-label.inbound {
+  color: var(--cyan);
+  border-color: rgba(98, 220, 255, 0.35);
+}
+
+/* =============================================================
+   HUD SHELL
+   ============================================================= */
+
+.fg-root .hud {
+  position: absolute;
+  inset: 0;
+  padding: var(--hud-padding);
+  display: grid;
+  grid-template-columns: var(--left-col-width) 1fr var(--right-col-width);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "tower  .  stats"
+    "legend .  detail";
+  gap: var(--hud-gap);
+  pointer-events: none;
+}
+
+.fg-root .panel {
+  pointer-events: auto;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+
+  /* cinematic entrance */
+  opacity: 0;
+  transform: translateY(10px);
+  animation: panel-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hairline of light along the top edge — the "glass art" tell */
+.fg-root .panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    var(--glass-hi) 0%,
+    rgba(255, 255, 255, 0) 38%);
+}
+
+.fg-root .panel { position: relative; }
+
+@keyframes panel-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fg-root .tower { grid-area: tower;  animation-delay: 1.9s; width: 100%; }
+.fg-root .stats { grid-area: stats;  animation-delay: 2.1s; width: 100%; }
+.fg-root .legend { grid-area: legend; animation-delay: 2.3s; width: 100%; }
+.fg-root .detail { grid-area: detail; animation-delay: 2.3s; width: 100%; }
+
+.fg-root .eyebrow {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* =============================================================
+   TOWER PANEL
+   ============================================================= */
+
+.fg-root .tower-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fg-root .tower-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.fg-root .tower-sub {
+  margin: 4px 0 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fg-root .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #57e39a;
+  box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.55);
+  animation: pulse-dot 2.4s ease-out infinite;
+  flex: none;
+}
+
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.5); }
+  70%  { box-shadow: 0 0 0 7px rgba(87, 227, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(87, 227, 154, 0); }
+}
+
+.fg-root .select-wrap {
+  position: relative;
+  display: block;
+}
+
+.fg-root .select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -4px;
+  border-right: 1.4px solid var(--muted);
+  border-bottom: 1.4px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.fg-root #airportSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.fg-root #airportSelect:hover { border-color: rgba(255, 255, 255, 0.22); }
+.fg-root #airportSelect:focus-visible {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(98, 220, 255, 0.14);
+}
+.fg-root #airportSelect option { background: #0a1016; color: var(--text); }
+
+/* =============================================================
+   STATS PANEL
+   ============================================================= */
+
+.fg-root .stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(56px, auto));
+  gap: 0;
+}
+
+.fg-root .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 14px;
+  border-left: 1px solid var(--stroke-soft);
+}
+.fg-root .stat:first-child { border-left: 0; padding-left: 4px; }
+.fg-root .stat:last-child { padding-right: 4px; }
+
+.fg-root .stat-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.4s ease;
+}
+
+.fg-root .stat[data-kind="arrival"]   .stat-value { color: var(--cyan); }
+.fg-root .stat[data-kind="departure"] .stat-value { color: var(--amber); }
+.fg-root .stat[data-kind="parked"]    .stat-value { color: #9fe6b8; }
+.fg-root .stat[data-kind="active"]    .stat-value { color: var(--text); }
+
+.fg-root .stat-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* =============================================================
+   LEGEND PANEL
+   ============================================================= */
+
+.fg-root .legend { width: 100%; }
+
+.fg-root .route-key,
+.fg-root .airline-key {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fg-root .route-key li,
+.fg-root .airline-key li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fg-root .route-key .line {
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  flex: none;
+}
+.fg-root .route-key .cyan { background: var(--cyan);  box-shadow: 0 0 10px rgba(98, 220, 255, 0.7); }
+.fg-root .route-key .amber { background: var(--amber); box-shadow: 0 0 10px rgba(255, 196, 107, 0.6); }
+.fg-root .route-key .white.dashed {
+  background: repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.85) 0 4px, transparent 4px 7px);
+  box-shadow: none;
+}
+
+.fg-root .airline-head { margin-top: 16px; }
+
+.fg-root .airline-key li {
+  justify-content: space-between;
+  gap: 8px;
+  transition: opacity 0.4s ease;
+}
+.fg-root .airline-key li.idle { opacity: 0.32; }
+
+.fg-root .airline-key .ak-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.fg-root .airline-key .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.fg-root .airline-key .ak-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fg-root .airline-key .ak-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+
+/* =============================================================
+   DETAIL PANEL
+   ============================================================= */
+
+.fg-root .detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fg-root .unpin {
+  pointer-events: auto;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.fg-root .unpin:hover { color: var(--text); border-color: rgba(255,255,255,0.28); }
+
+.fg-root .detail-empty {
+  margin: 12px 0 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.fg-root .detail-body { margin-top: 12px; }
+
+.fg-root .detail-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fg-root .swatch {
+  width: 3px;
+  height: 32px;
+  border-radius: 3px;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.fg-root .detail-id { min-width: 0; flex: 1; }
+
+.fg-root .flight-no {
+  display: block;
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.fg-root .airline-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fg-root .status-chip {
+  flex: none;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.fg-root .status-chip[data-state="inbound"],
+.fg-root .status-chip[data-state="final"] { color: var(--cyan); }
+.fg-root .status-chip[data-state="holding"] { color: rgba(255,255,255,0.8); }
+.fg-root .status-chip[data-state="parked"] { color: #9fe6b8; }
+.fg-root .status-chip[data-state="boarding"],
+.fg-root .status-chip[data-state="climb"] { color: var(--amber); }
+
+.fg-root .detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 10px;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--stroke-soft);
+}
+
+.fg-root .detail-grid dt {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.fg-root .detail-grid dd {
+  margin: 4px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+/* =============================================================
+   TOOLTIP
+   ============================================================= */
+
+.fg-root .tooltip {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -160%);
+  transition: opacity 0.18s ease;
+
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: rgba(6, 10, 14, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.9);
+
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: var(--text);
+}
+.fg-root .tooltip.visible { opacity: 1; }
+.fg-root .tooltip .tt-accent { color: var(--cyan); }
+
+/* =============================================================
+   CINEMATIC INTRO
+   ============================================================= */
+
+.fg-root .veil {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: var(--bg);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fg-root .veil.lifted { opacity: 0; }
+
+/* airport switch: quick breath of darkness */
+.fg-root .veil.switching {
+  opacity: 0.72;
+  transition: opacity 0.28s ease-out;
+}
+
+.fg-root .titlecard {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(84px, 16vh, 170px);
+  z-index: 25;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  /* Must be gone before the zone captions appear (see ZONE_REVEAL_AT). */
+  animation: titlecard 4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+
+@keyframes titlecard {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  68%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+}
+
+/* The card lands on bright moss. Without a scrim the metaphor line —
+   the single most important sentence on the page — is unreadable. */
+.fg-root .titlecard::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: min(820px, 96vw);
+  height: 260px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.52) 40%,
+    rgba(0, 0, 0, 0) 72%);
+}
+
+.fg-root .tc-kicker {
+  font-size: clamp(20px, 3.6vw, 34px);
+  font-weight: 200;
+  letter-spacing: 0.36em;
+  text-indent: 0.36em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.9);
+}
+
+.fg-root .tc-line {
+  font-size: clamp(10px, 1.3vw, 12px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(233, 239, 243, 0.80);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.95);
+}
+
+.fg-root .tc-sub {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(233, 239, 243, 0.60);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.95);
+}
+
+/* =============================================================
+   RESPONSIVE
+   ============================================================= */
+
+@media (max-width: 900px) {
+  .fg-root .legend { width: min(200px, 54vw); }
+  .fg-root .detail { width: min(260px, 60vw); }
+  .fg-root .stat { padding: 2px 10px; }
+  .fg-root .stat-value { font-size: 19px; }
+}
+
+@media (max-width: 720px) {
+  .fg-root { --pad: 13px; --radius: 14px; }
+
+  .fg-root .hud {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas:
+      "tower"
+      "stats"
+      "."
+      "detail";
+    gap: 10px;
+    padding: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .fg-root .tower { width: 100%; }
+  .fg-root .detail { width: 100%; }
+
+  /* Airline roster is the first thing to go — the garden must breathe */
+  .fg-root .legend { display: none; }
+
+  .fg-root .stats { grid-template-columns: repeat(4, 1fr); }
+  .fg-root .stat { padding: 2px 4px; }
+  .fg-root .stat-value { font-size: 18px; }
+  .fg-root .stat-label { font-size: 7.5px; letter-spacing: 0.10em; }
+
+  .fg-root .tower-sub { margin-bottom: 11px; }
+
+  .fg-root .zone-label .zl-note { display: none; }
+  .fg-root .zone-label .zl-name { font-size: 8.5px; letter-spacing: 0.16em; }
+
+  /* keep the one note that names the gates, since the captions are hidden */
+  .fg-root .zone-label[data-kind="terminal"] .zl-note { display: block; }
+
+  /* Ten gate captions collide at this scale. The rings still pulse, and
+     "T2 · C1–C6 · T1 · D1–D4" under Kempegowda Bloom carries the meaning. */
+  .fg-root .gate-label { display: none; }
+
+  .fg-root .titlecard { bottom: 28vh; }
+}
+
+@media (max-width: 400px) {
+  .fg-root .stat-value { font-size: 16px; }
+  .fg-root .detail-grid { grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+}
+
+/*
+ * Dedicated 195 × 390 portrait display.
+ * The garden remains a centred landscape diorama while controls occupy the
+ * otherwise-unused black space above and below it.
+ */
+@media (max-width: 240px) and (max-height: 460px) and (orientation: portrait) {
+  .fg-root {
+    --pad: 7px;
+    --radius: 9px;
+    --radius-sm: 6px;
+  }
+
+  .fg-root .stage { inset: 0; }
+
+  .fg-root .hud {
+    display: block;
+    padding: 0;
+  }
+
+  .fg-root .tower {
+    position: absolute;
+    top: max(5px, env(safe-area-inset-top));
+    left: 5px;
+    right: 5px;
+    width: auto;
+    padding: 7px;
+    border-radius: 9px;
+  }
+
+  .fg-root .tower-head { gap: 5px; }
+  .fg-root .live-dot { width: 4px; height: 4px; }
+  .fg-root .tower-title {
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+  }
+  .fg-root .tower-sub { display: none; }
+
+  .fg-root .select-wrap { margin-top: 6px; }
+  .fg-root .select-wrap::after {
+    right: 8px;
+    width: 4px;
+    height: 4px;
+  }
+  .fg-root #airportSelect {
+    height: 25px;
+    padding: 3px 22px 3px 8px;
+    font-size: 9px;
+    border-radius: 6px;
+  }
+
+  .fg-root .stats {
+    position: absolute;
+    right: 5px;
+    bottom: max(5px, env(safe-area-inset-bottom));
+    left: 5px;
+    width: auto;
+    padding: 6px 4px;
+    border-radius: 9px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .fg-root .stat,
+.fg-root .stat:first-child,
+.fg-root .stat:last-child {
+    min-width: 0;
+    gap: 2px;
+    padding: 0 2px;
+  }
+  .fg-root .stat-value { font-size: 13px; }
+  .fg-root .stat-label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 5.5px;
+    letter-spacing: 0.01em;
+    text-overflow: clip;
+  }
+
+  .fg-root .legend,
+.fg-root .detail,
+.fg-root .tooltip,
+.fg-root .zone-label,
+.fg-root .gate-label {
+    display: none !important;
+  }
+
+  .fg-root .titlecard { display: none; }
+}
+
+/* Landscape phones: keep the stage clear */
+@media (max-height: 460px) and (orientation: landscape) {
+  .fg-root .legend { display: none; }
+  .fg-root .titlecard { bottom: 14px; }
+  .fg-root .tc-kicker { font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-root .panel { animation-duration: 0.01ms; opacity: 1; transform: none; }
+  .fg-root .titlecard { animation-duration: 0.01ms; animation-delay: 0s; opacity: 0; }
+  .fg-root .live-dot { animation: none; }
+  .fg-root .veil { transition-duration: 0.01ms; }
+}
+
+/* =============================================================
+   CONTAINER CONTRACT  (added for the CMS integration)
+   The original stylesheet assumed it owned <html>/<body>. Every
+   rule above is now scoped to .fg-root and every `position: fixed`
+   became `absolute`, so the whole piece is contained by its host
+   element — which is what lets it render inside the CMS editor
+   preview, the ScreenStage, and full-screen on a display.
+   ============================================================= */
+
+.fg-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.fg-root canvas.fg-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+/* HUD suppressed via options — the garden alone, as an ambient wall. */
+.fg-root.fg-no-hud .hud,
+.fg-root.fg-no-hud .tooltip,
+.fg-root.fg-no-hud .titlecard {
+  display: none;
+}
+
+.fg-root.fg-no-switching .select-wrap {
+  display: none;
+}
+
+/* Flight-feed state on the tower's live dot (added for the CMS integration).
+   Amber = running on locally generated traffic because the API is unreachable. */
+.fg-root .live-dot[data-feed="simulated"] {
+  background: var(--amber);
+  box-shadow: 0 0 0 0 rgba(255, 196, 107, 0.5);
+  animation: none;
+}
+
+.fg-root .live-dot[data-feed="connecting"] {
+  opacity: 0.55;
+}

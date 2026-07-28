@@ -15,9 +15,11 @@ import { devicesRouter } from './routes/devices.js';
 import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
 import { startCasambiIngest } from './services/casambi-ingest.js';
 import { startIrIngest } from './services/ir-ingest.js';
+import { startGmailIngest } from './services/gmail-ingest.js';
 import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
+import { flightSimulationRouter } from './routes/flight-simulation.js';
 import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
@@ -65,6 +67,7 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
+void startGmailIngest();
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
@@ -101,6 +104,7 @@ app.route('/api/api-keys', apiKeysRouter);
 app.route('/api/devices', devicesRouter);
 app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
+app.route('/api/flight-simulation', flightSimulationRouter);
 app.route('/api/internal', internalRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);

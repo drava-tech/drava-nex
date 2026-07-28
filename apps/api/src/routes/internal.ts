@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { broadcastToCms } from "../ws/gateway.js";
+import { applyProductDetection, broadcastToCms, clearProductDetection } from "../ws/gateway.js";
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
@@ -13,8 +13,15 @@ import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
  * Visitors list updates live. PERSON_PRESENT is identity-agnostic (fired
  * straight off raw detection) and is what drives the welcome-screen trigger.
  * CAMERA_SNAPSHOT feeds the CMS camera debug preview (see vision-snapshot.ts).
- * PRODUCT_DETECTED is accepted as a no-op stub so the Python side can emit it
- * once object detection is built, without an API change.
+ *
+ * PRODUCT_DETECTED / PRODUCT_LOST are a secondary entry point for the SAME
+ * takeover behavior the browser detection loop drives over the screen
+ * WebSocket. Object detection's production path is the browser →
+ * /vision/ws inference server (services/vision/object_detection), so nothing in
+ * this repo posts these today; they are handled rather than stubbed so a
+ * headless emitter (vision/events.py emit_product) can never silently no-op.
+ * Both delegate to gateway.applyProductDetection / clearProductDetection, which
+ * own the single implementation — no duplicated product lookup here.
  */
 export const internalRouter = new Hono();
 
@@ -77,10 +84,26 @@ internalRouter.post("/vision-event", async (c) => {
       return ok(c, { ok: true });
     }
 
-    case "PRODUCT_DETECTED":
-      // Object detection not built yet — accept + no-op so the Python side can
-      // emit without a 4xx. Wire resolveDetectedProduct + broadcast here later.
-      return ok(c, { ok: true });
+    case "PRODUCT_DETECTED": {
+      // resolveDetectedProduct (inside applyProductDetection) does the schema
+      // validation, confidence floor and ACTIVE-product lookup — a malformed or
+      // low-confidence payload is rejected there, not here.
+      const outcome = await applyProductDetection({
+        cameraId: String(body["cameraId"] ?? ""),
+        label: String(body["label"] ?? ""),
+        confidence: Number(body["confidence"]),
+        detectedAt: typeof body["detectedAt"] === "string" ? body["detectedAt"] : undefined,
+      });
+      return ok(c, outcome);
+    }
+
+    case "PRODUCT_LOST": {
+      const cleared = await clearProductDetection({
+        cameraId: String(body["cameraId"] ?? ""),
+        label: String(body["label"] ?? ""),
+      });
+      return ok(c, { ok: true, cleared });
+    }
 
     default:
       return fail(c, "UNKNOWN_TYPE", `Unknown event type: ${String(body?.["type"])}`, 422);

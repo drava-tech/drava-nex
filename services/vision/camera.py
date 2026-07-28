@@ -1,7 +1,7 @@
 """
 camera.py — Camera abstraction for the Face Vision service.
 
-Adapted from services/product-vision/src/camera.py (same interface, FACE_*
+Adapted from the object-detection training camera (object_detection/training/camera.py) (same interface, FACE_*
 env names). Supports two backends selected by Config.camera_backend:
 
   Option A — "opencv" (default, any USB/IP webcam)
