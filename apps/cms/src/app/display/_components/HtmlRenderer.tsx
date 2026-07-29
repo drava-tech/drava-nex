@@ -12,6 +12,14 @@ import type { HtmlContent } from "@/types/display";
  * its first frame.
  */
 export function HtmlRenderer({ content }: { content: HtmlContent }) {
+  // Chromium's built-in PDF viewer is a privileged extension that refuses to
+  // run inside a sandboxed iframe at all — it shows a hard "This page has
+  // been blocked" screen instead of the document. `source` is the only thing
+  // available here (no original asset type is threaded through the WS
+  // content model), so detect a raw PDF by its URL shape, matching how
+  // mediaEmbedUrl() builds one (`<url ending in .pdf>#view=FitH` etc.).
+  const isRawPdf = /\.pdf(#|\?|$)/i.test(content.source);
+
   return (
     <iframe
       key={content.source}
@@ -25,7 +33,9 @@ export function HtmlRenderer({ content }: { content: HtmlContent }) {
         backgroundColor: "#000",
         display: "block",
       }}
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+      {...(!isRawPdf && {
+        sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
+      })}
       allow="autoplay; encrypted-media; fullscreen"
     />
   );

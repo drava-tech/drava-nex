@@ -102,7 +102,14 @@ export function useBrowserSession(
   useEffect(() => {
     if (!initialUrl) return;
 
-    const resolved = resolveWsUrl(opts.wsUrl ?? "/ws/");
+    // A bare relative "/ws/" only works if a dev-server rewrite proxy handles
+    // the WebSocket upgrade correctly, which is inconsistent — every other WS
+    // consumer in this app instead connects straight to the absolute gateway
+    // URL. Match that convention here too, rather than silently depending on
+    // rewrite proxying no other feature relies on.
+    const resolved = resolveWsUrl(
+      opts.wsUrl ?? process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/"
+    );
     let closed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let decoding = false; // drop frames while a previous decode is still in flight
