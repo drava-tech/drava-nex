@@ -46,7 +46,9 @@ function loadServiceAccountCredentials(): { client_email: string; private_key: s
 
 async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise<void> {
   const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
-  const subject = res.data.payload?.headers?.find((h) => h.name?.toLowerCase() === "subject")?.value;
+  const headers = res.data.payload?.headers ?? [];
+  const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value;
+  const from = headers.find((h) => h.name?.toLowerCase() === "from")?.value;
 
   for (const part of flattenAttachmentParts(res.data.payload)) {
     const attachmentId = part.body?.attachmentId;
@@ -73,6 +75,9 @@ async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise
       url: `/media/${storedName}`,
       name: displayName,
       sizeBytes: bytes.length,
+      source: "gmail",
+      emailFrom: from ?? null,
+      emailSubject: subject ?? null,
     });
   }
 

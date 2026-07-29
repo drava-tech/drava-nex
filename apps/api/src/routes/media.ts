@@ -71,7 +71,10 @@ function toMediaItem(a: MediaAsset) {
   const date = new Date(a.createdAt).toLocaleDateString("en-US", {
     month: "short", day: "2-digit", year: "numeric",
   });
-  return { id: a.id, name: a.name, type: a.type, url: a.url, size, date };
+  return {
+    id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
+  };
 }
 
 function getMimeType(filePath: string): string {
@@ -101,10 +104,12 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets
+// GET /api/media — list all media assets. ?source=gmail filters to just the
+// email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
-    const assets = await listMediaAssets();
+    const source = c.req.query("source");
+    const assets = await listMediaAssets(source ? { source } : undefined);
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
