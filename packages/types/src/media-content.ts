@@ -219,6 +219,16 @@ export function mediaAssetToWsContent(
     return { ...base, type: "image", source: asset.url };
   }
 
+  if (asset.type === "link") {
+    // Rendered server-side by services/browser-render (real headless Chromium,
+    // top-level navigation) instead of an iframe — sites that send
+    // X-Frame-Options/CSP frame-ancestors never trigger those checks this way.
+    // Everything else stays in the iframe/mediaEmbedUrl path below: PDFs,
+    // sheets, decks, YouTube and Drive already have purpose-built embeds and
+    // aren't the case that breaks.
+    return { ...base, type: "webpage", source: asset.url };
+  }
+
   if (isMediaType(asset.type)) {
     return { ...base, type: "html", source: mediaEmbedUrl(asset.type, asset.url, { kiosk: true }) };
   }

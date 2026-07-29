@@ -145,6 +145,14 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
           </button>
         </div>
 
+        {screens.length > 0 && (
+          <p className="mb-4 flex items-start gap-2 rounded-lg bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
+            <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+            The screen renders this page server-side too, so it shows exactly what you saw here —
+            no extra setup needed on the display machine.
+          </p>
+        )}
+
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-400">
@@ -192,19 +200,6 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
             </div>
           )}
         </div>
-
-        {/*
-          The screen renders pages in an iframe too, so a site that refuses
-          embedding refuses there as well — the display machine needs the same
-          extension the CMS machine does.
-        */}
-        {screens.length > 0 && (
-          <p className="mt-4 flex items-start gap-2 rounded-lg bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
-            <Info className="mt-px h-3.5 w-3.5 shrink-0" />
-            Sites that block embedding need the Frame Unlock extension on the screen&apos;s
-            machine too, not just this one.
-          </p>
-        )}
 
         {error && (
           <p className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-500/10 dark:text-red-400">
