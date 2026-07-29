@@ -15,7 +15,9 @@ import {
   Puzzle,
   Cast,
 } from "lucide-react";
-import { classifyLink, mediaEmbedUrl } from "@platform/types";
+// normalizeUrl is shared with the media Add-link dialog and the API, so the
+// omnibox here accepts exactly what the library will accept.
+import { classifyLink, mediaEmbedUrl, normalizeUrl } from "@platform/types";
 import { PushPageDialog } from "./push-page-dialog";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -24,6 +26,8 @@ const TYPE_LABELS: Record<string, string> = {
   document: "PDF",
   sheet: "Spreadsheet",
   presentation: "Presentation",
+  image: "Image",
+  video: "Video",
   link: "Web page",
 };
 
@@ -46,32 +50,6 @@ const SUGGESTIONS = [
 /** Anything that isn't an address is handed to Google, exactly as an omnibox does. */
 function googleSearchUrl(query: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-}
-
-/**
- * Accept what people actually type — "example.com" as readily as a full URL.
- * Returns null for anything that isn't a usable http(s) address, which the
- * caller then treats as a search phrase.
- */
-function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  // A bare host/path gets the scheme it obviously meant. Anything with a space
-  // or no dot is a search phrase, so it fails the parse below on purpose.
-  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : /^[^\s/]+\.[^\s/]/.test(trimmed)
-      ? `https://${trimmed}`
-      : trimmed;
-
-  try {
-    const url = new URL(candidate);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 export function BrowserView() {
