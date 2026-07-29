@@ -120,7 +120,7 @@ export class SessionManager {
 
     await session.cdp.send("Page.startScreencast", {
       format: "jpeg",
-      quality: 80,
+      quality: 90,
       maxWidth: viewport.width,
       maxHeight: viewport.height,
       everyNthFrame: 1,
@@ -172,7 +172,14 @@ export class SessionManager {
           break;
         case "scroll":
           if (msg.deltaY !== undefined) {
-            await page.evaluate((dy) => window.scrollBy(0, dy), msg.deltaY);
+            // Animated rather than an instant jump — lets Chromium interpolate
+            // over its own compositor frames instead of teleporting, which the
+            // screencast then captures progressively (feels like real scrolling
+            // rather than a stepped jump).
+            await page.evaluate(
+              (dy) => window.scrollBy({ top: dy, left: 0, behavior: "smooth" }),
+              msg.deltaY
+            );
           }
           break;
         case "key":
@@ -230,8 +237,12 @@ export class SessionManager {
       }
     } finally {
       // Must ack every frame (by its CDP screencast session id, not ours) or the
-      // browser stops sending new ones.
-      await session.cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {});
+      // browser stops sending new ones. Logged rather than swallowed — a
+      // silently-failing ack looks identical to "everything's fine" right up
+      // until the screencast permanently stalls after this one frame.
+      await session.cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch((err) => {
+        console.error(`[sessions] screencastFrameAck failed for ${session.sessionId}:`, (err as Error).message);
+      });
     }
   }
 
@@ -241,6 +252,20 @@ export class SessionManager {
       sock.send(JSON.stringify({ type: "STREAM_PUBLISH", streamId: sessionId, format: "mjpeg" }));
     });
     sock.on("error", (err) => console.error(`[sessions] publish socket error for ${sessionId}:`, err.message));
+    sock.on("close", () => {
+      const session = this.sessions.get(sessionId);
+      // Only reconnect if the session is still alive and this socket is still
+      // the one it's using — teardown() deletes the session before closing
+      // this socket deliberately, and that must NOT respawn a new one. Without
+      // this, any drop of this socket (network blip, gateway hiccup) silently
+      // stops every future frame forever even though Puppeteer/CDP keeps
+      // screencasting and acking normally — the same "one frame then stale"
+      // symptom as an ack failure, just from the other end of the pipe.
+      if (session && session.publishSocket === sock) {
+        console.warn(`[sessions] publish socket closed for ${sessionId} — reconnecting`);
+        session.publishSocket = this.openPublishSocket(sessionId);
+      }
+    });
     return sock;
   }
 

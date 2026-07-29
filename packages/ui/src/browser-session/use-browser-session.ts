@@ -38,6 +38,8 @@ export interface UseBrowserSessionOptions {
    */
   sessionId?: string;
   wsUrl?: string;
+  /** Render resolution — defaults to the render service's own default (1280x720) when omitted. */
+  viewport?: { width: number; height: number };
 }
 
 export interface UseBrowserSessionResult {
@@ -155,6 +157,7 @@ export function useBrowserSession(
           sessionId,
           url: initialUrl,
           interactive: opts.interactive,
+          ...(opts.viewport ? { viewport: opts.viewport } : {}),
         };
         sock.send(JSON.stringify(start));
       };
