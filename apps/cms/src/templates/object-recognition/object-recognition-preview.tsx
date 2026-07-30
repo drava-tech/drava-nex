@@ -1,24 +1,22 @@
 "use client";
 
-import type { MatInventoryDisplayItem } from "@platform/types";
+import { useEffect, useState } from "react";
 import { ScreenStage } from "@platform/ui/templates/portfolio";
-import { ObjectRecognitionView, type ObjectRecognitionContent } from "@platform/ui/templates/object-recognition";
-
-// Object Recognition has no authored content — the real screen always shows
-// whatever apps/api/src/ws/gateway.ts's applyMatInventoryUpdate() last pushed
-// live from the mat camera. There's nothing to fetch here (no productId to
-// look up), so the CMS editor/preview routes show a fixed sample instead, just
-// so you can see the layout — it never reflects a live mat.
-const SAMPLE_ITEMS: MatInventoryDisplayItem[] = [
-  { productId: "sample-1", name: "A6 Raw Press Lock Journal", detectionLabel: "a6_raw_press_lock_journal", count: 1 },
-  { productId: "sample-2", name: "Pen", detectionLabel: "pen", count: 1 },
-  { productId: "sample-3", name: "Card Holder", detectionLabel: "card_holder", count: 1 },
-];
+import {
+  ObjectRecognitionView,
+  ObjectRecognitionEmpty,
+  type ObjectRecognitionContent,
+} from "@platform/ui/templates/object-recognition";
+import { listProductsForPickerAction } from "@/actions/product-actions";
 
 /**
- * Sample-data preview of the Object Recognition template for the CMS editor/
- * preview routes. The live screen never uses this component — see
- * apps/cms/src/app/display/_components/ObjectRecognitionRenderer.tsx for that.
+ * Object Recognition has no authored content — the real screen always shows
+ * whatever apps/api/src/ws/gateway.ts's applyMatInventoryUpdate() last pushed
+ * live from the mat camera. There's no productId stored on the experience to
+ * look up, so instead this fetches a few real ACTIVE catalogue products that
+ * have a detectionLabel configured (the ones this feature can actually
+ * recognize) and previews the layout with them — real ids/names from your
+ * catalogue, not fabricated placeholder data. Never reflects a live mat.
  */
 export function ObjectRecognitionPreview({
   content,
@@ -27,12 +25,37 @@ export function ObjectRecognitionPreview({
   content: ObjectRecognitionContent;
   variant?: "fit-width" | "fit-screen";
 }) {
-  const items = content.items.length > 0 ? content.items : SAMPLE_ITEMS;
+  const [sampleItems, setSampleItems] = useState<
+    ObjectRecognitionContent["items"] | null
+  >(null);
+
+  useEffect(() => {
+    if (content.items.length > 0) return; // already have real (live-pushed) content
+    let active = true;
+    listProductsForPickerAction().then((res) => {
+      if (!active) return;
+      const detectable = (res.success ? res.data?.items ?? [] : [])
+        .filter((p) => p.status === "ACTIVE" && p.detectionLabel)
+        .slice(0, 3)
+        .map((p) => ({
+          productId: p.id,
+          name: p.name,
+          detectionLabel: p.detectionLabel!,
+          count: 1,
+        }));
+      setSampleItems(detectable);
+    });
+    return () => {
+      active = false;
+    };
+  }, [content.items]);
+
+  const items = content.items.length > 0 ? content.items : sampleItems;
 
   return (
     <ScreenStage variant={variant}>
       <div style={{ width: 1920, height: 1080 }}>
-        <ObjectRecognitionView items={items} />
+        {items && items.length > 0 ? <ObjectRecognitionView items={items} /> : <ObjectRecognitionEmpty />}
       </div>
     </ScreenStage>
   );

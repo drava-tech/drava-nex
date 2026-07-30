@@ -13,7 +13,20 @@ from dotenv import load_dotenv
 
 # Load services/vision/.env explicitly (next to this file), not cwd-relative —
 # `python -m vision` runs from services/, so a bare load_dotenv() would miss it.
-load_dotenv(Path(__file__).with_name(".env"))
+_VISION_DIR = Path(__file__).parent
+load_dotenv(_VISION_DIR / ".env")
+
+
+def _resolve_vision_path(value: str) -> str:
+    """Resolve a config path relative to services/vision/, not the process cwd.
+
+    supervisor.py/run.bat launch workers with cwd=services/ (one level up from
+    this package), so a bare relative default like "./models" would otherwise
+    land at services/models instead of services/vision/models. Absolute paths
+    (e.g. an operator-supplied VISION_IMAGE_DIR on a different drive) pass through.
+    """
+    path = Path(value)
+    return str(path) if path.is_absolute() else str(_VISION_DIR / path)
 
 
 @dataclass(frozen=True)
@@ -145,7 +158,7 @@ def load_config() -> Config:
         realsense_height=int(os.getenv("VISION_RS_HEIGHT", "720")),
         realsense_fps=int(os.getenv("VISION_RS_FPS", "30")),
         model_pack=os.getenv("VISION_MODEL_PACK", "buffalo_l"),
-        model_root=os.getenv("VISION_MODEL_ROOT", "./models"),
+        model_root=_resolve_vision_path(os.getenv("VISION_MODEL_ROOT", "./models")),
         det_size=int(os.getenv("VISION_DET_SIZE", "640")),
         det_score_threshold=env_float("VISION_DET_SCORE_THRESHOLD", "0.5", 0.0, 1.0),
         min_bbox_px=int(os.getenv("VISION_MIN_BBOX_PX", "80")),
@@ -156,14 +169,18 @@ def load_config() -> Config:
         cooldown_seconds=env_float("VISION_COOLDOWN_SECONDS", "30", 0.0, 86400.0),
         presence_cooldown_seconds=env_float("VISION_PRESENCE_COOLDOWN_SECONDS", "5", 0.0, 300.0),
         snapshot_interval_seconds=env_float("VISION_SNAPSHOT_INTERVAL_SECONDS", "1.5", 0.0, 60.0),
-        image_dir=os.getenv("VISION_IMAGE_DIR", "./data/faces"),
+        image_dir=_resolve_vision_path(os.getenv("VISION_IMAGE_DIR", "./data/faces")),
         image_retention_days=int(os.getenv("VISION_IMAGE_RETENTION_DAYS", "30")),
         track_iou_threshold=env_float("VISION_TRACK_IOU_THRESHOLD", "0.3", 0.0, 1.0),
         track_max_misses=int(os.getenv("VISION_TRACK_MAX_MISSES", "15")),
         track_confirm_frames=int(os.getenv("VISION_TRACK_CONFIRM_FRAMES", "3")),
         reverify_seconds=env_float("VISION_REVERIFY_SECONDS", "60", 1.0, 86400.0),
-        object_model_path=os.getenv("VISION_OBJECT_MODEL_PATH", "./models/latticelane-detector.pt"),
+        object_model_path=_resolve_vision_path(
+            os.getenv("VISION_OBJECT_MODEL_PATH", "./models/latticelane-detector.pt")
+        ),
         object_conf_threshold=env_float("VISION_OBJECT_CONF_THRESHOLD", "0.25", 0.0, 1.0),
         object_iou_threshold=env_float("VISION_OBJECT_IOU_THRESHOLD", "0.6", 0.0, 1.0),
-        object_mat_roi_path=os.getenv("VISION_OBJECT_MAT_ROI_PATH", "./data/mat_roi.json"),
+        object_mat_roi_path=_resolve_vision_path(
+            os.getenv("VISION_OBJECT_MAT_ROI_PATH", "./data/mat_roi.json")
+        ),
     )

@@ -3,8 +3,10 @@
 // Showcase, this content is NOT authored in the CMS — it's overwritten live by
 // apps/api/src/ws/gateway.ts's applyMatInventoryUpdate() every time the mat's
 // contents change. The screen always shows whatever's physically on the mat
-// right now; there's nothing to configure beyond which camera feeds it
-// (set via CAMERA_SCREEN_MAP, not stored here).
+// right now; there's nothing to configure beyond which screen(s) the
+// experience is pushed to (the usual "Push to screen" flow — see
+// getScreenIdsByTemplateKey in packages/db, which applyMatInventoryUpdate
+// uses to find every screen currently showing this template).
 
 import type { MatInventoryDisplayItem } from "@platform/types";
 

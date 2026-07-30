@@ -24,6 +24,7 @@ Switch between backends by setting FACE_CAMERA_BACKEND=opencv|realsense in .env.
 from __future__ import annotations
 import abc
 import logging
+import time
 from typing import Optional
 
 import numpy as np
@@ -69,10 +70,24 @@ class RealSenseCamera(BaseCamera):
     Depth data is available through self._pipeline and can be added later.
     """
 
+    # A dead USB/pipeline session (frame timeouts, or the SDK reporting the
+    # pipeline as stopped) doesn't self-heal — read_frame() would otherwise
+    # fail forever with nothing but a warning log. After this many
+    # back-to-back failures, tear down and re-create the pipeline instead.
+    _MAX_CONSECUTIVE_ERRORS = 5
+    # Cooldown between reconnect attempts once the pipeline is torn down
+    # (whether from a failed restart, or the device being physically
+    # unplugged) — avoids hammering pipeline.start() every 50ms while the
+    # device is genuinely gone, but still recovers within a few seconds once
+    # Windows re-enumerates it.
+    _RETRY_COOLDOWN_SECONDS = 3.0
+
     def __init__(self, cfg: Config) -> None:
         self._cfg = cfg
         self._pipeline = None
         self._align = None
+        self._consecutive_errors = 0
+        self._last_start_attempt = 0.0
 
     def start(self) -> None:
         try:
@@ -98,6 +113,7 @@ class RealSenseCamera(BaseCamera):
         pipeline.start(config)
         self._pipeline = pipeline
         self._align = rs.align(rs.stream.color)
+        self._consecutive_errors = 0
         log.info(
             "[camera] RealSense started — %dx%d @ %dfps",
             self._cfg.realsense_width,
@@ -107,16 +123,53 @@ class RealSenseCamera(BaseCamera):
 
     def read_frame(self) -> Optional[np.ndarray]:
         if self._pipeline is None:
+            # No live pipeline — either never started, or a previous restart
+            # attempt failed (e.g. the device was physically unplugged).
+            # Keep retrying on a cooldown instead of giving up permanently.
+            self._try_start()
             return None
         try:
             frames = self._pipeline.wait_for_frames(timeout_ms=2000)
             color_frame = frames.get_color_frame()
             if not color_frame:
                 return None
+            self._consecutive_errors = 0
             return np.asanyarray(color_frame.get_data())
         except Exception:
-            log.warning("[camera] RealSense frame error", exc_info=True)
+            self._consecutive_errors += 1
+            log.warning(
+                "[camera] RealSense frame error (%d consecutive)",
+                self._consecutive_errors,
+                exc_info=True,
+            )
+            if self._consecutive_errors >= self._MAX_CONSECUTIVE_ERRORS:
+                self._teardown()
             return None
+
+    def _try_start(self) -> None:
+        now = time.monotonic()
+        if now - self._last_start_attempt < self._RETRY_COOLDOWN_SECONDS:
+            return
+        self._last_start_attempt = now
+        try:
+            self.start()
+            log.info("[camera] RealSense (re)connected")
+        except Exception:
+            log.warning("[camera] RealSense not available yet — will keep retrying", exc_info=True)
+
+    def _teardown(self) -> None:
+        log.error(
+            "[camera] RealSense stream dead after %d consecutive errors — reconnecting",
+            self._consecutive_errors,
+        )
+        self._consecutive_errors = 0
+        try:
+            if self._pipeline is not None:
+                self._pipeline.stop()
+        except Exception:
+            log.warning("[camera] error stopping stale RealSense pipeline", exc_info=True)
+        self._pipeline = None
+        self._try_start()
 
     def stop(self) -> None:
         if self._pipeline:
