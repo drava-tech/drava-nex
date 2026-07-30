@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { broadcastToCms } from "../ws/gateway.js";
+import { broadcastToCms, applyMatInventoryUpdate } from "../ws/gateway.js";
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
@@ -13,8 +13,10 @@ import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
  * Visitors list updates live. PERSON_PRESENT is identity-agnostic (fired
  * straight off raw detection) and is what drives the welcome-screen trigger.
  * CAMERA_SNAPSHOT feeds the CMS camera debug preview (see vision-snapshot.ts).
- * PRODUCT_DETECTED is accepted as a no-op stub so the Python side can emit it
- * once object detection is built, without an API change.
+ * PRODUCT_DETECTED is accepted as a no-op stub — reserved for the single-item
+ * browser-camera pipeline, which doesn't use this relay. INVENTORY_UPDATE is
+ * the multi-item counterpart used by services/vision's OBJECT worker (full
+ * current mat contents, not a single best guess).
  */
 export const internalRouter = new Hono();
 
@@ -78,8 +80,16 @@ internalRouter.post("/vision-event", async (c) => {
     }
 
     case "PRODUCT_DETECTED":
-      // Object detection not built yet — accept + no-op so the Python side can
-      // emit without a 4xx. Wire resolveDetectedProduct + broadcast here later.
+      // Reserved for the single-item browser-camera pipeline (see
+      // apps/api/src/ws/gateway.ts's inline PRODUCT_DETECTED WS-message
+      // handling) — that path doesn't go through this HTTP relay, so this
+      // case stays a no-op. services/vision's OBJECT worker uses
+      // INVENTORY_UPDATE below instead.
+      return ok(c, { ok: true });
+
+    case "INVENTORY_UPDATE":
+      // Full current mat contents from services/vision's OBJECT worker.
+      await applyMatInventoryUpdate(String(body["cameraId"] ?? ""), body["items"]);
       return ok(c, { ok: true });
 
     default:

@@ -13,6 +13,7 @@ import {
   Radio,
   Package,
   Loader2,
+  ScanEye,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -96,6 +97,12 @@ const TEMPLATE_META: Record<string, TemplateMeta> = {
     label: TEMPLATE_LABELS["product-showcase"],
     badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     number: "text-emerald-500/15 dark:text-emerald-400/30",
+  },
+  "object-recognition": {
+    icon: ScanEye,
+    label: TEMPLATE_LABELS["object-recognition"],
+    badge: "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    number: "text-amber-500/15 dark:text-amber-400/30",
   },
 };
 

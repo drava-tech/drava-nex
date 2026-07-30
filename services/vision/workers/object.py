@@ -1,10 +1,12 @@
-"""
-object.py — product/object detection worker (NOT YET IMPLEMENTED).
+"""Entry for `python -m vision.workers.object` (spawned by the supervisor)."""
 
-Placeholder so the import tree and supervisor wiring are complete. When built,
-this runs the YOLO pipeline (ultralytics + torch, cuDNN 9) in its own
-subprocess and emits PRODUCT_DETECTED via events.emit_product(...).
-"""
+import logging
 
-# TODO: YOLO pipeline for product detection (see engines/object.py).
-raise NotImplementedError("Object detection worker not yet implemented.")
+from ..object_pipeline import main
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    main()

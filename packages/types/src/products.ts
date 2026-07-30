@@ -153,6 +153,34 @@ export const displayProductEventSchema = z.object({
 });
 export type DisplayProductEvent = z.infer<typeof displayProductEventSchema>;
 
+// ─── Mat inventory (multi-item detection) ──────────────────────────────────
+// Emitted by services/vision's OBJECT worker (see workers/object.py) via the
+// internal event relay — the full current mix of products on a mat/table at
+// once, not a single best guess. Distinct from productDetectedEventSchema
+// above (single-item, browser-camera pipeline) which this does not replace.
+
+export const matInventoryItemSchema = z.object({
+  detectionLabel: detectionLabelSchema,
+  count: z.number().int().min(1),
+});
+export type MatInventoryItem = z.infer<typeof matInventoryItemSchema>;
+
+export const inventoryUpdateEventSchema = z.object({
+  type: z.literal("INVENTORY_UPDATE"),
+  cameraId: z.string().min(1),
+  items: z.array(matInventoryItemSchema),
+  detectedAt: z.string().min(1),
+});
+export type InventoryUpdateEvent = z.infer<typeof inventoryUpdateEventSchema>;
+
+/** A resolved mat-inventory item, ready for display (label -> catalogue product). */
+export interface MatInventoryDisplayItem {
+  productId: string;
+  name: string;
+  detectionLabel: string;
+  count: number;
+}
+
 
 // ─── Display/response types ───────────────────────────────────────────────────
 // The shape returned by GET /api/products/:id/display and consumed by the

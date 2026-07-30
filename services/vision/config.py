@@ -95,6 +95,15 @@ class Config:
     track_confirm_frames: int = 3
     reverify_seconds: float = 60.0
 
+    # ─── Object detection (mat product detector) ───────────────────────────────
+    # Path to the trained YOLO weights (ultralytics .pt).
+    object_model_path: str = "./models/latticelane-detector.pt"
+    object_conf_threshold: float = 0.25
+    object_iou_threshold: float = 0.6
+    # Calibrated mat polygon (see mat_roi.py, scripts/calibrate_mat.py). Empty
+    # string disables the mat filter — every detection anywhere in frame counts.
+    object_mat_roi_path: str = "./data/mat_roi.json"
+
 
 def load_config() -> Config:
     """Load and validate configuration from environment variables."""
@@ -153,4 +162,8 @@ def load_config() -> Config:
         track_max_misses=int(os.getenv("VISION_TRACK_MAX_MISSES", "15")),
         track_confirm_frames=int(os.getenv("VISION_TRACK_CONFIRM_FRAMES", "3")),
         reverify_seconds=env_float("VISION_REVERIFY_SECONDS", "60", 1.0, 86400.0),
+        object_model_path=os.getenv("VISION_OBJECT_MODEL_PATH", "./models/latticelane-detector.pt"),
+        object_conf_threshold=env_float("VISION_OBJECT_CONF_THRESHOLD", "0.25", 0.0, 1.0),
+        object_iou_threshold=env_float("VISION_OBJECT_IOU_THRESHOLD", "0.6", 0.0, 1.0),
+        object_mat_roi_path=os.getenv("VISION_OBJECT_MAT_ROI_PATH", "./data/mat_roi.json"),
     )

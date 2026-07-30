@@ -15,6 +15,7 @@ import type {
 } from '@platform/types';
 import { getCameraScreen } from '../lib/camera-map.js';
 import { resolveDetectedProduct } from '../services/detection.js';
+import { resolveMatInventory } from '../services/inventory.js';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Per-screen WebSocket connections (one screen can have multiple tabs/devices)
@@ -31,6 +32,10 @@ const contentCache = new Map<string, WsContent>();
 const viewStateCache = new Map<string, { command: string; value?: unknown }>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
+// Tracks the current mat-inventory takeover per screen (screenId -> detectionLabel -> count),
+// the multi-item counterpart to screenTakeover above. Drives the "Object
+// Recognition" experience template (see applyMatInventoryUpdate below).
+const screenMatInventory = new Map<string, Record<string, number>>();
 const cameraStatusCache = new Map<string, CameraStatusUpdate>();
 const cameraHeartbeatTimers = new Map<string, NodeJS.Timeout>();
 const CAMERA_HEARTBEAT_TIMEOUT_MS = 15_000;
@@ -260,6 +265,68 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+/** Push a CONTENT_UPDATE to a screen's live sockets + notify CMS/UE watchers. */
+function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
+  contentCache.set(screenId, content);
+  viewStateCache.delete(screenId);
+
+  const update: WsServerMessage = { type: 'CONTENT_UPDATE', screenId, content, timestamp: Date.now() };
+  const frame = JSON.stringify(update);
+  const sockets = screenRegistry.get(screenId);
+  if (sockets) {
+    for (const sock of sockets) {
+      if (sock.readyState === WebSocket.OPEN) sock.send(frame);
+    }
+  }
+
+  broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+  emitScreenContentChanged(screenId, content);
+}
+
+/**
+ * Applies a full mat-inventory snapshot (services/vision OBJECT worker, via
+ * POST /api/internal/vision-event) to whichever screen the camera maps to.
+ * Multi-item counterpart to the inline PRODUCT_DETECTED WS-message handling
+ * below — this one is called from routes/internal.ts, not a screen's own WS
+ * connection, since the Python service talks HTTP, not a screen socket.
+ */
+export async function applyMatInventoryUpdate(cameraId: string, rawItems: unknown): Promise<void> {
+  const screenId = getCameraScreen(cameraId);
+  if (!screenId) return;
+
+  const resolution = await resolveMatInventory({ cameraId, items: rawItems });
+  if (!resolution.resolved) return;
+
+  const inventoryRecord: Record<string, number> = {};
+  for (const item of resolution.items) inventoryRecord[item.detectionLabel] = item.count;
+
+  if (resolution.items.length === 0) {
+    // Empty mat — clear any active takeover and fall back to the screen's
+    // assigned content, same as PRODUCT_LOST does for the single-item path.
+    if (screenMatInventory.has(screenId)) {
+      screenMatInventory.delete(screenId);
+      const content = await getScreenContent(screenId);
+      if (content) pushContentUpdateToScreen(screenId, content);
+    }
+    broadcastToCms({ type: 'INVENTORY_UPDATE', cameraId, screenId, items: [], timestamp: Date.now() });
+    return;
+  }
+
+  const content: WsContent = {
+    id: `object-recognition-${screenId}`,
+    type: 'experience',
+    source: '',
+    title: 'Object Recognition',
+    templateKey: 'object-recognition',
+    templateContent: { 'object-recognition': { items: resolution.items } },
+  };
+
+  screenMatInventory.set(screenId, inventoryRecord);
+  pushContentUpdateToScreen(screenId, content);
+  broadcastToCms({ type: 'INVENTORY_UPDATE', cameraId, screenId, items: resolution.items, timestamp: Date.now() });
+  broadcastToUe({ type: 'INVENTORY_UPDATE', cameraId, items: resolution.items, timestamp: Date.now() });
 }
 
 export function getConnectedScreenIds(): string[] {

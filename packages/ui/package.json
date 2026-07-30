@@ -25,6 +25,10 @@
       "import": "./dist/templates/welcome/index.js",
       "types": "./dist/templates/welcome/index.d.ts"
     },
+    "./templates/object-recognition": {
+      "import": "./dist/templates/object-recognition/index.js",
+      "types": "./dist/templates/object-recognition/index.d.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

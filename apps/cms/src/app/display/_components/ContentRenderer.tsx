@@ -8,6 +8,7 @@ import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
 import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
+import { ObjectRecognitionRenderer } from "./ObjectRecognitionRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
 export function ContentRenderer({ content, screenId, preview }: { content: Content; screenId?: string; preview?: boolean }) {
@@ -37,6 +38,9 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       }
       if (content.templateKey === "product-showcase") {
         return <ProductShowcaseRenderer content={content} preview={preview} />;
+      }
+      if (content.templateKey === "object-recognition") {
+        return <ObjectRecognitionRenderer content={content} preview={preview} />;
       }
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);

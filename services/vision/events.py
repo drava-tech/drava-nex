@@ -78,6 +78,15 @@ class Events:
             "label": label, "confidence": confidence,
         })
 
+    def emit_inventory(self, camera_id: str, items: dict[str, int]) -> None:
+        # Full current mat contents (not a delta) — object_pipeline.py only calls
+        # this once the stabilizer holds a mix steady, so each call is a
+        # complete, ready-to-display snapshot.
+        self._enqueue({
+            "type": "INVENTORY_UPDATE", "cameraId": camera_id,
+            "items": [{"detectionLabel": label, "count": count} for label, count in items.items()],
+        })
+
     def _run(self) -> None:
         while True:
             item = self._q.get()

@@ -7,7 +7,7 @@ export * from "./products.js";
 export * from "./visitors.js";
 
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
-export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase", "welcome"] as const;
+export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase", "welcome", "object-recognition"] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);
@@ -219,7 +219,10 @@ export type WsUeEvent =
   | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
   | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
   | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
-  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number };
+  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number }
+  // Full current mat contents (services/vision OBJECT worker) — a snapshot, not
+  // a single best guess like PRODUCT_DETECTED above.
+  | { type: 'INVENTORY_UPDATE'; cameraId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number };
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
@@ -230,6 +233,10 @@ export type WsCmsMessage =
   // internal event relay (POST /api/internal/vision-event). `name` may be ""
   // (the CMS already has it from the initial GET /api/visitors load).
   | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
+  // Full current mat contents, resolved to catalogue products. Emitted by
+  // services/vision's OBJECT worker via the internal event relay (POST
+  // /api/internal/vision-event) — drives live admin-facing mat-contents views.
+  | { type: 'INVENTORY_UPDATE'; cameraId: string; screenId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number }
   // Yale lock webhook fired — drives the live Door Lock panel. Emitted directly
   // from apps/api/src/routes/yale.ts (already an in-process Hono route, no relay).
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }

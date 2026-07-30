@@ -2,12 +2,18 @@
 supervisor.py — manages one worker subprocess per configured camera.
 
 VISION_CAMERAS is a JSON array of camera configs, e.g.:
-  [{"id": "cam-entrance", "mode": "PEOPLE", "backend": "opencv", "index": 0}]
+  [{"id": "cam-entrance", "mode": "PEOPLE", "backend": "opencv", "index": 0},
+   {"id": "cam-mat", "mode": "OBJECT", "backend": "realsense", "width": 1280, "height": 800}]
 
-Today only PEOPLE (face detection) is implemented; OBJECT cameras are skipped
-with a warning (the object worker is a stub). Each camera runs in its own
-subprocess so that, when object detection is added, the two GPU runtimes
-(onnxruntime-gpu for faces, torch for YOLO) never load in the same process.
+PEOPLE (face detection) and OBJECT (product detection) are both implemented;
+any other mode is skipped with a warning. Each camera runs in its own
+subprocess so the two GPU runtimes (onnxruntime-gpu for faces, torch for
+YOLO) never load in the same process — see requirements.txt vs
+requirements-object.txt.
+
+Optional per-camera `width`/`height`/`fps` override the RealSense stream
+resolution for just that subprocess (e.g. the mat camera wants 1280x800 for
+tiled inference, distinct from the face default of 1280x720).
 
 ponytail: a 3s poll loop restarts crashed workers with exponential backoff.
 Upgrade path: long-poll GET /api/vision/cameras for CMS-driven live
@@ -38,16 +44,34 @@ _BACKOFF_START = 1.0
 _BACKOFF_MAX = 60.0
 
 
+_WORKER_MODULES = {
+    "PEOPLE": "vision.workers.people",
+    "OBJECT": "vision.workers.object",
+}
+
+
 def _spawn(cam: dict) -> subprocess.Popen:
-    """Start the people worker subprocess for one camera."""
+    """Start the right worker subprocess (by mode) for one camera."""
+    mode = str(cam.get("mode", "PEOPLE")).upper()
     env = {
         **os.environ,
         "VISION_CAMERA_ID": str(cam["id"]),
         "VISION_CAMERA_BACKEND": str(cam.get("backend", "opencv")),
         "VISION_CAMERA_INDEX": str(cam.get("index", 0)),
     }
-    log.info("[supervisor] starting people worker for camera %s", cam["id"])
-    return subprocess.Popen([sys.executable, "-m", "vision.workers.people"], env=env)
+    # Per-camera resolution override (e.g. the mat camera wants 1280x800 for
+    # tiled inference) — only injected into this subprocess's env, so it never
+    # affects other cameras sharing the same supervisor.
+    if "width" in cam:
+        env["VISION_RS_WIDTH"] = str(cam["width"])
+    if "height" in cam:
+        env["VISION_RS_HEIGHT"] = str(cam["height"])
+    if "fps" in cam:
+        env["VISION_RS_FPS"] = str(cam["fps"])
+
+    module = _WORKER_MODULES[mode]
+    log.info("[supervisor] starting %s worker (%s) for camera %s", mode, module, cam["id"])
+    return subprocess.Popen([sys.executable, "-m", module], env=env)
 
 
 def run() -> None:
@@ -58,19 +82,19 @@ def run() -> None:
     except (json.JSONDecodeError, AssertionError):
         raise SystemExit(f"[supervisor] VISION_CAMERAS must be a JSON array, got: {raw!r}")
 
-    # Only PEOPLE cameras run today; warn once for anything else.
+    # PEOPLE and OBJECT cameras run; warn once for anything else.
     managed: list[dict] = []
     for cam in cameras:
         mode = str(cam.get("mode", "PEOPLE")).upper()
-        if mode == "PEOPLE":
+        if mode in _WORKER_MODULES:
             managed.append(cam)
         else:
             log.warning(
-                "[supervisor] mode %s not implemented yet — camera %s will not run",
+                "[supervisor] mode %s not implemented — camera %s will not run",
                 mode, cam.get("id"),
             )
     if not managed:
-        log.warning("[supervisor] no PEOPLE cameras configured — nothing to run.")
+        log.warning("[supervisor] no PEOPLE/OBJECT cameras configured — nothing to run.")
 
     procs: dict[str, subprocess.Popen] = {}
     backoff: dict[str, float] = {}
