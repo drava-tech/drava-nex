@@ -12,6 +12,7 @@ export { experience } from "./projects.js";
 export { experienceType, experienceToType } from "./experience-types.js";
 export { screen } from "./screens.js";
 export { mediaAsset } from "./media.js";
+export { gmailIngestedMessage } from "./gmail-ingest.js";
 export {
   product,
   productFeature,
@@ -53,6 +54,7 @@ export type { WhiteboardDocument, NewWhiteboardDocument } from "./whiteboards.js
 export type { ExperienceType, NewExperienceType } from "./experience-types.js";
 export type { Screen, NewScreen } from "./screens.js";
 export type { MediaAsset, NewMediaAsset } from "./media.js";
+export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-ingest.js";
 export type { Visitor, NewVisitor } from "./visitors.js";
 export type { DoorEvent, NewDoorEvent } from "./door-events.js";
 export type {

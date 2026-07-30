@@ -10,13 +10,18 @@ const TYPE_LABELS: Record<string, string> = {
   drive: "Google Drive",
   document: "PDF document",
   sheet: "Spreadsheet",
+  presentation: "Presentation",
+  image: "Image",
+  video: "Video",
   link: "Web page",
 };
 
 /**
- * Add a YouTube / Drive / web link to the library. Link assets are ordinary
- * media rows with an absolute url and no file on disk, so preview, push and
- * screen playback all work exactly as they do for uploads.
+ * Add any link to the library — a YouTube or Vimeo video, a Drive doc, a direct
+ * image/video/PDF URL, or a plain web page. Nothing is turned away: whatever
+ * isn't a recognised kind is stored as a web page and framed. Link assets are
+ * ordinary media rows with an absolute url and no file on disk, so preview,
+ * push and screen playback all work exactly as they do for uploads.
  */
 export function AddLinkDialog({
   onClose,
@@ -102,25 +107,39 @@ export function AddLinkDialog({
               <Link2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 id="media-link-url"
-                type="url"
+                // Deliberately not type="url": the browser's own validation
+                // rejects "example.com", which classifyLink accepts and the
+                // server stores happily. One rule for what's valid, and it
+                // lives in classifyLink.
+                type="text"
+                inputMode="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://youtube.com/watch?v=…"
+                placeholder="example.com, or paste any link"
                 autoFocus
+                spellCheck={false}
+                autoComplete="off"
                 className="h-11 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white"
               />
             </div>
             <p className="mt-2 min-h-[1rem] text-xs">
               {url.trim() && !detected ? (
                 <span className="text-amber-600 dark:text-amber-400">
-                  That doesn&apos;t look like a valid http(s) URL
+                  That isn&apos;t an address — enter a domain or a full http(s) link
                 </span>
               ) : detected ? (
                 <span className="text-green-600 dark:text-green-400">
                   Detected: {TYPE_LABELS[detected.type] ?? detected.type}
+                  {/* Show what will actually be stored when it isn't what was
+                      typed — e.g. a bare host that just gained https://. */}
+                  {detected.url !== url.trim() && (
+                    <span className="text-zinc-400"> · saves as {detected.url}</span>
+                  )}
                 </span>
               ) : (
-                <span className="text-zinc-400">YouTube, Google Drive/Docs/Sheets, PDF or any web page</span>
+                <span className="text-zinc-400">
+                  Any link — video, Drive, PDF, image or a whole web page
+                </span>
               )}
             </p>
           </div>

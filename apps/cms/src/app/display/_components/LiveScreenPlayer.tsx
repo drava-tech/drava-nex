@@ -60,6 +60,8 @@ function toDisplayContent(ws: WsContent): Content {
       return { id: ws.id, type: "image", source: ws.source };
     case "html":
       return { id: ws.id, type: "html", source: ws.source };
+    case "webpage":
+      return { id: ws.id, type: "webpage", source: ws.source };
     case "stream":
       return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
     case "experience":

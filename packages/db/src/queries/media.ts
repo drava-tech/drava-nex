@@ -3,11 +3,15 @@ import { db } from "../client.js";
 import { mediaAsset, type MediaAsset } from "../schema/media.js";
 
 /** All non-deleted media assets, newest first (backs the media library + pickers). */
-export async function listMediaAssets(): Promise<MediaAsset[]> {
+export async function listMediaAssets(filter?: { source?: string }): Promise<MediaAsset[]> {
   return db
     .select()
     .from(mediaAsset)
-    .where(isNull(mediaAsset.deletedAt))
+    .where(
+      filter?.source
+        ? and(isNull(mediaAsset.deletedAt), eq(mediaAsset.source, filter.source))
+        : isNull(mediaAsset.deletedAt)
+    )
     .orderBy(desc(mediaAsset.createdAt));
 }
 
@@ -26,6 +30,9 @@ export async function createMediaAsset(values: {
   name: string;
   sizeBytes?: number | null;
   uploadedByUserId?: string | null;
+  source?: string | null;
+  emailFrom?: string | null;
+  emailSubject?: string | null;
 }): Promise<MediaAsset> {
   const [row] = await db.insert(mediaAsset).values(values).returning();
   if (!row) throw new Error("Failed to create media asset");

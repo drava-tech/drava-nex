@@ -10,7 +10,7 @@ import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
 // mediaFilesRouter below — nginx proxies /media/ here, not to the CMS.
-const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
+export const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
 
 // Static "seed" assets baked into the repo (default template imagery, demo
 // video) — in dev this is the SAME folder as UPLOAD_DIR above, but in Docker
@@ -50,7 +50,7 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
-function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
+export function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
   const ext = path.extname(fileName).toLowerCase();
   const mimeLower = (mime || "").toLowerCase();
   for (const [type, rule] of Object.entries(ALLOWED)) {
@@ -71,7 +71,10 @@ function toMediaItem(a: MediaAsset) {
   const date = new Date(a.createdAt).toLocaleDateString("en-US", {
     month: "short", day: "2-digit", year: "numeric",
   });
-  return { id: a.id, name: a.name, type: a.type, url: a.url, size, date };
+  return {
+    id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
+  };
 }
 
 function getMimeType(filePath: string): string {
@@ -101,10 +104,12 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets
+// GET /api/media — list all media assets. ?source=gmail filters to just the
+// email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
-    const assets = await listMediaAssets();
+    const source = c.req.query("source");
+    const assets = await listMediaAssets(source ? { source } : undefined);
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);

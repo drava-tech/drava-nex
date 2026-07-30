@@ -158,7 +158,7 @@ export interface IrAcState {
 
 // --- WebSocket Protocol Types ---
 
-export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
+export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience' | 'webpage';
 
 /** Wire format the publisher EXE pushes for a live stream. */
 export type StreamFormat = 'h264' | 'mjpeg';
@@ -213,7 +213,18 @@ export type WsServerMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER_ACK' }
   | { type: 'AUDIO_BRIDGE_REGISTER_NACK'; reason: string }
   // Sent only to the registered native audio-bridge socket (apps/api/audio-helper/bridge.mjs).
-  | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean };
+  | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean }
+  // Headless-Chromium render relay (services/browser-render). ACK/NACK go only to
+  // the registering socket; READY/ERROR/URL_CHANGED are the gateway's relay of the
+  // browser-render-originated BROWSER_SESSION_STATUS/BROWSER_PAGE_NAVIGATED client
+  // messages below, sent only to whichever socket opened that sessionId (see
+  // gateway.ts browserSessionOwner). Frame delivery itself reuses
+  // STREAM_PUBLISH/STREAM_SUBSCRIBE/STREAM_STATUS above unchanged.
+  | { type: 'BROWSER_RENDER_REGISTER_ACK' }
+  | { type: 'BROWSER_RENDER_REGISTER_NACK'; reason: string }
+  | { type: 'BROWSER_SESSION_READY'; sessionId: string }
+  | { type: 'BROWSER_SESSION_ERROR'; sessionId: string; message: string }
+  | { type: 'BROWSER_URL_CHANGED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -244,7 +255,36 @@ export type WsClientMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER'; secret: string }
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
-  | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus);
+  | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus)
+  // Headless-Chromium render relay (services/browser-render registers itself as
+  // the single control connection; a CMS tab or a screen sends START/STOP/CONTROL
+  // for a sessionId it owns). Auth mirrors AUDIO_BRIDGE_REGISTER (BROADCAST_SECRET).
+  | { type: 'BROWSER_RENDER_REGISTER'; secret: string }
+  | {
+      type: 'BROWSER_SESSION_START';
+      sessionId: string;
+      url: string;
+      interactive: boolean;
+      viewport?: { width: number; height: number };
+    }
+  | { type: 'BROWSER_SESSION_STOP'; sessionId: string }
+  | {
+      type: 'BROWSER_CONTROL';
+      sessionId: string;
+      action: 'navigate' | 'back' | 'forward' | 'reload' | 'click' | 'scroll' | 'key' | 'type';
+      x?: number;
+      y?: number;
+      deltaY?: number;
+      key?: string;
+      text?: string;
+      url?: string;
+    }
+  // browser-render (the control connection only) reports session lifecycle and
+  // navigation back to the gateway, which relays them to browserSessionOwner as
+  // BROWSER_SESSION_READY/BROWSER_SESSION_ERROR/BROWSER_URL_CHANGED respectively —
+  // same inbound-report/outbound-relay split as CAMERA_STATUS → CAMERA_STATUS_UPDATE.
+  | { type: 'BROWSER_SESSION_STATUS'; sessionId: string; status: 'ready' | 'error'; message?: string }
+  | { type: 'BROWSER_PAGE_NAVIGATED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean };
 
 /**
  * Events the gateway pushes to subscribed Unreal Engine / automation clients

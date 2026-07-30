@@ -105,19 +105,31 @@ The whole stack runs as Docker containers on one host (e.g. `ec-cms`, LAN IP `19
 
 ## Default Ports & URLs
 
-Once deployed, the following URLs are available locally via the host's LAN name (`ec-cms`):
+Once deployed, the following URLs are available locally via the host's LAN name (`ec-cms`) or its
+IP (`192.168.1.250` — use the IP from phones and tablets, which often can't resolve the hostname).
+Nginx accepts **only** those two names; any other `Host` is refused with a bare closed connection.
+
+Session-bearing routes are forced to **https**; public display routes stay on **http**:
 
 | Service | Address |
 | --- | --- |
-| CMS admin | `http://ec-cms/` |
-| Screen control (CMS) | `http://ec-cms/screens/<screenId>` |
+| CMS admin | `https://ec-cms/` |
+| Screen control (CMS) | `https://ec-cms/screens/<screenId>` |
 | A screen / TV (display) | `http://ec-cms/display/<screenId>` |
+| Uploaded media | `http://ec-cms/media/<file>` |
 | Live-stream publisher endpoint | `ws://ec-cms/ws/` |
 | Health | `http://ec-cms/health` |
 
-You can safely visit `http://ec-cms/` from an iPad connected to the same WiFi and control the screens dynamically.
+Requesting the admin over `http://` 301-redirects to https — better-auth issues `Secure` cookies
+that browsers silently drop over plain http, which would otherwise cause an endless login loop.
+Displays deliberately stay on http: they're public and unauthenticated, and an https display page
+would block every `http://` link pushed to it as mixed content.
 
-See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
+You can control the screens from a tablet on the same WiFi, but the admin dashboard is https with
+a locally-generated certificate, so **the device must trust the mkcert root CA first**.
+
+See [`.doc/device-setup.md`](./.doc/device-setup.md) for connecting a TV or tablet (certificates,
+kiosk flags, Frame Unlock), and [`.doc/infrastructure.md`](./.doc/infrastructure.md) plus
 [`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
 
 ## Team / Contributor Setup (shared host database)
