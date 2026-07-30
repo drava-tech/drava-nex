@@ -244,16 +244,14 @@ export function MediaPreviewModal({
                               : [...prev, screen.screenId]
                           )
                         }
-                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                          isSelected
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${isSelected
                             ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
                             : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e]" : "bg-zinc-400"
-                          }`}
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e]" : "bg-zinc-400"
+                            }`}
                         />
                         <span className="min-w-0 flex-1 truncate font-medium">{screen.screenName}</span>
                         {isPlaying && (
@@ -370,6 +368,12 @@ function EmbedSurface({ media }: { media: MediaItem }) {
   // Only arbitrary web pages hit framing headers — YouTube, Drive and our own
   // viewers all publish embeds built to be framed.
   const isWebPage = media.type === "link";
+  // Chromium's built-in PDF viewer is a privileged extension that refuses to
+  // run inside a sandboxed iframe at all — it shows a hard "This page has
+  // been blocked" screen instead of the document, so PDFs skip sandboxing
+  // entirely (a same-origin PDF poses none of the risk sandboxing guards
+  // against here).
+  const isRawPdf = media.type === "document";
 
   // Checked after mount so SSR markup and the first client render agree.
   useEffect(() => {
@@ -390,7 +394,9 @@ function EmbedSurface({ media }: { media: MediaItem }) {
         title={media.name}
         onLoad={() => setMaybeBlocked(false)}
         className="h-full w-full border-0 bg-white"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation"
+        {...(!isRawPdf && {
+          sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation",
+        })}
         allow="autoplay; encrypted-media; fullscreen; clipboard-write"
       />
 

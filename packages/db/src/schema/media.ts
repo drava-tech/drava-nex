@@ -29,6 +29,15 @@ export const mediaAsset = pgTable(
     uploadedByUserId: text("uploaded_by_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    // Where this asset came from — null for a manual upload/pasted link,
+    // 'gmail' when it was auto-ingested from an email attachment (see
+    // apps/api/src/services/gmail-ingest.ts). Free text like `type` above, so
+    // new sources don't need an enum migration.
+    source: text("source"),
+    // Populated only for source = 'gmail' — the originating email's sender
+    // and subject, kept for display context on the Email Media page.
+    emailFrom: text("email_from"),
+    emailSubject: text("email_subject"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -40,6 +49,7 @@ export const mediaAsset = pgTable(
   (table) => [
     index("media_asset_type_idx").on(table.type),
     index("media_asset_deleted_at_idx").on(table.deletedAt),
+    index("media_asset_source_idx").on(table.source),
   ]
 );
 

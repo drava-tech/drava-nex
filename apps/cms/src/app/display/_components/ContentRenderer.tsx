@@ -9,6 +9,7 @@ import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
 import { HtmlRenderer } from "./HtmlRenderer";
+import { WebpageRenderer } from "./WebpageRenderer";
 import { StreamRenderer } from "./StreamRenderer";
 import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
@@ -22,6 +23,8 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       return <ImageRenderer content={content} />;
     case "html":
       return <HtmlRenderer content={content} />;
+    case "webpage":
+      return <WebpageRenderer content={content} />;
     case "stream":
       return <StreamRenderer content={content} />;
     case "experience": {

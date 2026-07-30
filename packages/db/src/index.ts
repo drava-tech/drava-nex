@@ -14,6 +14,7 @@ export * from "./queries/screens.js";
 export * from "./queries/experiences.js";
 export * from "./queries/experience-types.js";
 export * from "./queries/media.js";
+export * from "./queries/gmail-ingest.js";
 export * from "./queries/products.js";
 export * from "./queries/api-keys.js";
 export * from "./queries/devices.js";
