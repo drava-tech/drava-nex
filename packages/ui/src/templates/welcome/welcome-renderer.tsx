@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WelcomeContent } from "./content";
 
 const TYPE_SPEED_MS = 95;
@@ -66,8 +66,34 @@ export function WelcomeRenderer({
   const subtitleDelay = START_DELAY_MS + title.length * TYPE_SPEED_MS + 250;
   const typedSubtitle = useTypewriter(subtitle ?? "", subtitleDelay);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // Unmuted autoplay is blocked by default outside kiosk mode (real kiosk TVs
+  // launch with --autoplay-policy=no-user-gesture-required, per
+  // .doc/device-setup.md, so they never hit this). Without this fallback the
+  // video branch below has nothing else to show, so a blocked autoplay reads
+  // as "Welcome isn't playing" — every other template always renders
+  // something regardless of one asset's state, this was the one exception.
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+
   useEffect(() => {
-    if (!speak || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!videoUrl) return;
+    setAutoplayBlocked(false);
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => setAutoplayBlocked(true));
+  }, [videoUrl]);
+
+  const handleTapToPlay = () => {
+    videoRef.current
+      ?.play()
+      .then(() => setAutoplayBlocked(false))
+      .catch(() => setAutoplayBlocked(true));
+  };
+
+  useEffect(() => {
+    // A full-screen video already carries its own audio — narrating the
+    // headline over it would just talk over the video's own sound.
+    if (!speak || videoUrl || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     let cancelled = false;
@@ -123,6 +149,65 @@ export function WelcomeRenderer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speak, title, subtitle]);
 
+  // A video takes over the whole screen on its own — no headline, subtitle,
+  // gradient, or padding around it, just the video edge-to-edge.
+  if (videoUrl) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#000", position: "relative" }}>
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          playsInline
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+        {autoplayBlocked && (
+          <button
+            onClick={handleTapToPlay}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0,0,0,0.35)",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+            }}
+            aria-label="Play video"
+          >
+            <span
+              style={{
+                width: "6vw",
+                height: "6vw",
+                minWidth: "56px",
+                minHeight: "56px",
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                style={{
+                  marginLeft: "0.35em",
+                  width: 0,
+                  height: 0,
+                  borderTop: "1.4em solid transparent",
+                  borderBottom: "1.4em solid transparent",
+                  borderLeft: "2.2em solid #111",
+                }}
+              />
+            </span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -157,7 +242,7 @@ export function WelcomeRenderer({
         </span>
         <h1
           style={{
-            fontSize: videoUrl ? "4.2vw" : "6vw",
+            fontSize: "6vw",
             fontWeight: 800,
             lineHeight: 1.1,
             margin: 0,
@@ -197,28 +282,6 @@ export function WelcomeRenderer({
           50% { opacity: 0; }
         }
       `}</style>
-
-      {videoUrl ? (
-        <div
-          style={{
-            width: "min(70vw, 1400px)",
-            aspectRatio: "16 / 9",
-            borderRadius: "1.5vw",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow: "0 0 8vw rgba(245, 190, 90, 0.12), 0 2vh 4vh rgba(0,0,0,0.5)",
-          }}
-        >
-          <video
-            src={videoUrl}
-            autoPlay
-            muted
-            loop
-            playsInline
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

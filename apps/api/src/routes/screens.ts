@@ -15,7 +15,7 @@ import {
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -99,6 +99,10 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenExperience(screenId, body.experienceId);
+  // An explicit assignment always wins over a stale product-detection
+  // takeover — otherwise a takeover armed before this call keeps that old
+  // camera state relevant to a screen the admin just repointed elsewhere.
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -116,6 +120,7 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenMedia(screenId, body.mediaAssetId);
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -134,6 +139,7 @@ screensRouter.post("/:id/default-media", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenDefaultMedia(screenId, body.mediaAssetId);
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
