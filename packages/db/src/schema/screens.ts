@@ -3,6 +3,8 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
+  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 import { experience } from "./projects.js";
@@ -35,6 +37,20 @@ export const screen = pgTable(
       { onDelete: "set null" }
     ),
     position: integer("position").notNull().default(0),
+    // Overlays whatever content is assigned above — set while a CMS operator
+    // is live-pushing a whiteboard to this screen, so a display-page refresh
+    // can resume it instead of falling back to the assigned content. Cleared
+    // (active=false, state=null) when the operator explicitly stops it.
+    whiteboardActive: boolean("whiteboard_active").notNull().default(false),
+    // Shape: { surface: "light"|"dark"|"clear", strokes: WhiteboardStroke[] } —
+    // owned by apps/cms/src/lib/whiteboard-canvas.ts, stored loosely here same
+    // convention as experience.templateContent.
+    whiteboardState: jsonb("whiteboard_state").$type<unknown>(),
+    // Full-black overlay covering whatever is assigned (content, whiteboard, or
+    // both) — set by an admin's "Stop" action, cleared by "Resume". Persisted
+    // (not just an in-memory WS relay) so a screen that reconnects mid-stop
+    // (power cycle, network blip, API restart) comes back up still black.
+    blanked: boolean("blanked").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

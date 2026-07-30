@@ -14,6 +14,13 @@ export function middleware(request: NextRequest) {
     pathname === "/health" ||
     pathname === "/display" ||
     pathname.startsWith("/display/") ||
+    pathname.startsWith("/dev-preview/") ||
+    // Static media is public by design: in production nginx routes /media/ to
+    // the API, which serves it unauthenticated so TVs can load images, video
+    // and 3D template assets with no session (see mediaFilesRouter). In dev
+    // Next serves the same files from public/, so it must match — otherwise
+    // assets 307 to /login and templates render empty.
+    pathname.startsWith("/media/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {

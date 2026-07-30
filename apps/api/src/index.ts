@@ -8,19 +8,21 @@ import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
 import { db, sql } from '@platform/db';
 import { productsRouter } from './routes/products.js';
-import { mediaRouter, uploadRouter, mediaStreamRouter } from './routes/media.js';
+import { mediaRouter, uploadRouter, mediaStreamRouter, mediaFilesRouter } from './routes/media.js';
 import { setupRouter } from './routes/setup.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { devicesRouter } from './routes/devices.js';
-import { setMqttPublisher } from './services/devices.js';
+import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
+import { startCasambiIngest } from './services/casambi-ingest.js';
+import { startIrIngest } from './services/ir-ingest.js';
 import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
+import { flightSimulationRouter } from './routes/flight-simulation.js';
 import { internalRouter } from './routes/internal.js';
 import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
 import { createDoorEventsRouter } from './routes/door-events.js';
-import { createYaleRouter } from './routes/yale.js';
 import { visionTriggerRouter } from './routes/vision-trigger.js';
 import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
@@ -29,6 +31,7 @@ import { auth } from './lib/auth.js';
 import { createGateway } from './ws/gateway.js';
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
+import { whiteboardsRouter } from './routes/whiteboards.js';
 
 const app = new Hono();
 
@@ -59,10 +62,10 @@ mqttManager.connect();
 // Let the device-driver layer publish MQTT commands without importing the
 // manager directly (avoids a circular import; see services/devices.ts).
 setMqttPublisher((deviceId, command) => mqttManager.publishCommand(deviceId, command));
-
-if (!process.env['YALE_LOCK_ID'] || !process.env['YALE_WEBHOOK_TOKEN']) {
-  console.warn('[yale] disabled — YALE_LOCK_ID/YALE_WEBHOOK_TOKEN not set');
-}
+setMqttManager(mqttManager);
+setIrManager(mqttManager);
+void startCasambiIngest(mqttManager);
+void startIrIngest(mqttManager);
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
 async function buildHealthPayload() {
@@ -99,19 +102,21 @@ app.route('/api/api-keys', apiKeysRouter);
 app.route('/api/devices', devicesRouter);
 app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
+app.route('/api/flight-simulation', flightSimulationRouter);
 app.route('/api/internal', internalRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
+app.route('/media', mediaFilesRouter);
 app.route('/api/products', productsRouter);
 app.route('/api/projects', projectsRouter);
 app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);
 app.route('/api/users', usersRouter);
 app.route('/api/visitors', visitorsRouter);
+app.route('/api/whiteboards', whiteboardsRouter);
 app.route('/api/audio', audioRouter);
 app.route('/audio', audioRouter);
 app.route('/api/door-events', createDoorEventsRouter(mqttManager));
-app.route('/api/yale-webhook', createYaleRouter(mqttManager));
 app.route('/api/vision-trigger', visionTriggerRouter);
 app.route('/api/vision-snapshot', visionSnapshotRouter);
 

@@ -1,22 +1,22 @@
 {
-  "venvPath": "services/product-vision",
+  "venvPath": "services/vision",
   "venv": ".venv",
   "pythonVersion": "3.11",
   "pythonPlatform": "Windows",
   "extraPaths": [
-    "services/product-vision/src"
+    "services"
   ],
   "include": [
-    "services/product-vision/src",
-    "services/product-vision/scripts"
+    "services/vision"
   ],
   "exclude": [
     ".git",
-    "services/product-vision/.venv",
-    "services/product-vision/.venv.old",
-    "services/product-vision/runs",
-    "services/product-vision/predictions",
-    "services/product-vision/models",
+    "**/.venv",
+    "**/.venv-object",
+    "**/.venv-test",
+    "**/.venv.old",
+    "services/vision/data",
+    "services/vision/models",
     "node_modules"
   ],
   "typeCheckingMode": "basic",

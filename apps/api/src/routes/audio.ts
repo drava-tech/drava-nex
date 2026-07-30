@@ -22,7 +22,6 @@ audioRouter.post('/volume', async (c) => {
       return c.json({ success: false, error: 'Invalid volume value' }, 400);
     }
     audioService.setVolume(result.data.volume);
-    await new Promise((resolve) => setTimeout(resolve, 30));
     return c.json(audioService.getStatus());
   } catch (err) {
     return c.json({ success: false, error: 'Malformed JSON payload' }, 400);
@@ -30,23 +29,20 @@ audioRouter.post('/volume', async (c) => {
 });
 
 // POST /audio/mute
-audioRouter.post('/mute', async (c) => {
+audioRouter.post('/mute', (c) => {
   audioService.setMute(true);
-  await new Promise((resolve) => setTimeout(resolve, 30));
   return c.json(audioService.getStatus());
 });
 
 // POST /audio/unmute
-audioRouter.post('/unmute', async (c) => {
+audioRouter.post('/unmute', (c) => {
   audioService.setMute(false);
-  await new Promise((resolve) => setTimeout(resolve, 30));
   return c.json(audioService.getStatus());
 });
 
 // POST /audio/toggle-mute
-audioRouter.post('/toggle-mute', async (c) => {
+audioRouter.post('/toggle-mute', (c) => {
   audioService.toggleMute();
-  await new Promise((resolve) => setTimeout(resolve, 30));
   return c.json(audioService.getStatus());
 });
 

@@ -72,10 +72,23 @@ class Events:
         })
 
     def emit_product(self, camera_id: str, label: str, confidence: float) -> None:
-        # Defined for the future object worker; unused today.
+        # Unused today: product detection runs in the browser (frames → the
+        # /vision/ws YOLO server in services/product-vision/), and the browser emits
+        # PRODUCT_DETECTED straight over the screen WebSocket. Kept because the
+        # API handles this event for real (routes/internal.ts →
+        # gateway.applyProductDetection) — a headless emitter would work, it
+        # just isn't the production path. `label` must match the CMS product's
+        # detectionLabel exactly ([a-z0-9_]+).
         self._enqueue({
             "type": "PRODUCT_DETECTED", "cameraId": camera_id,
             "label": label, "confidence": confidence,
+        })
+
+    def emit_product_lost(self, camera_id: str, label: str) -> None:
+        # Counterpart to emit_product: clears only the takeover owned by this
+        # same label, restoring the screen's assigned content.
+        self._enqueue({
+            "type": "PRODUCT_LOST", "cameraId": camera_id, "label": label,
         })
 
     def emit_inventory(self, camera_id: str, items: dict[str, int]) -> None:

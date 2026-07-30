@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import type { Device } from "@platform/db";
 import type { DeviceCommand, LightState } from "@platform/types";
+import type { MQTTDeviceManager } from "@platform/iot";
+import { CasambiDeviceDriver } from "./casambi-driver.js";
+import { IrDeviceDriver } from "./ir-driver.js";
 
 /**
  * Device control is abstracted behind a driver so the REST contract
@@ -12,6 +15,8 @@ import type { DeviceCommand, LightState } from "@platform/types";
 export interface DeviceDriver {
   setLightState(device: Device, state: LightState): Promise<void>;
   triggerScene(device: Device): Promise<void>;
+  /** Optional: briefly flash/pulse the physical device so a user can visually identify it. */
+  identify?(device: Device): Promise<void>;
 }
 
 // MQTT publisher is injected at startup (see apps/api/src/index.ts) to avoid a
@@ -21,6 +26,28 @@ let mqttPublish: Publisher | null = null;
 
 export function setMqttPublisher(fn: Publisher): void {
   mqttPublish = fn;
+}
+
+// The Casambi driver needs the manager itself (publishRaw), not the generic
+// publishCommand indirection above — same injection pattern, different setter.
+let casambiDriver: CasambiDeviceDriver | null = null;
+
+export function setMqttManager(mgr: MQTTDeviceManager): void {
+  casambiDriver = new CasambiDeviceDriver(mgr);
+}
+
+// IR verbs (power_on/set_temp/codebook keys) don't fit the light-centric
+// DeviceDriver interface, so the IR driver lives in its own registry with a
+// parallel getter used by the /api/devices/ir route. Same startup injection.
+let irDriver: IrDeviceDriver | null = null;
+
+export function setIrManager(mgr: MQTTDeviceManager): void {
+  irDriver = new IrDeviceDriver(mgr);
+}
+
+/** The IR driver, once wired at startup (see apps/api/src/index.ts). */
+export function getIrDriver(): IrDeviceDriver | null {
+  return irDriver;
 }
 
 function command(deviceId: string, action: string, payload?: Record<string, unknown>): DeviceCommand {
@@ -51,6 +78,7 @@ const noopDriver = new NoopDeviceDriver();
 /** Pick a driver for a device. `config.driver` selects it; defaults to no-op. */
 export function getDeviceDriver(device: Device): DeviceDriver {
   const driver = (device.config as { driver?: string } | null)?.driver;
+  if (driver === "casambi" && casambiDriver) return casambiDriver;
   if (driver === "mqtt" && mqttPublish) return mqttDriver;
   return noopDriver;
 }

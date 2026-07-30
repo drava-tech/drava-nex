@@ -2,28 +2,32 @@
   "name": "@platform/ui",
   "version": "1.0.0",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./src/index.tsx",
+      "types": "./src/index.tsx"
     },
     "./templates/portfolio": {
-      "import": "./dist/templates/portfolio/index.js",
-      "types": "./dist/templates/portfolio/index.d.ts"
+      "import": "./src/templates/portfolio/index.ts",
+      "types": "./src/templates/portfolio/index.ts"
     },
     "./templates/live-stream": {
-      "import": "./dist/templates/live-stream/index.js",
-      "types": "./dist/templates/live-stream/index.d.ts"
+      "import": "./src/templates/live-stream/index.ts",
+      "types": "./src/templates/live-stream/index.ts"
     },
     "./templates/product-showcase": {
-      "import": "./dist/templates/product-showcase/index.js",
-      "types": "./dist/templates/product-showcase/index.d.ts"
+      "import": "./src/templates/product-showcase/index.ts",
+      "types": "./src/templates/product-showcase/index.ts"
     },
     "./templates/welcome": {
-      "import": "./dist/templates/welcome/index.js",
-      "types": "./dist/templates/welcome/index.d.ts"
+      "import": "./src/templates/welcome/index.ts",
+      "types": "./src/templates/welcome/index.ts"
+    },
+    "./templates/flight-simulation": {
+      "import": "./src/templates/flight-simulation/index.ts",
+      "types": "./src/templates/flight-simulation/index.ts"
     },
     "./templates/object-recognition": {
       "import": "./dist/templates/object-recognition/index.js",
@@ -33,7 +37,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -48,7 +53,8 @@
     "lucide-react": "^1.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "three": "^0.158.0"
   },
   "devDependencies": {
     "@platform/types": "workspace:^",
@@ -56,9 +62,12 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.158.3",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.8"
   },
   "peerDependencies": {
     "react": "^19.0.0",

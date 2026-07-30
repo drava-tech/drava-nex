@@ -21,7 +21,7 @@ import { WebSocket } from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const WS_URL = process.env.AUDIO_BRIDGE_WS_URL || 'ws://192.168.0.250/ws/';
+const WS_URL = process.env.AUDIO_BRIDGE_WS_URL || 'ws://ec-cms/ws/';
 const SECRET = process.env.BROADCAST_SECRET || '';
 
 if (!SECRET) {

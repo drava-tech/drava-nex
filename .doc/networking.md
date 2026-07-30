@@ -91,7 +91,7 @@ Browser-side requests from CMS/Screens always go through Nginx (`http://localhos
 
 `apps/api/src/index.ts` reads `CORS_ORIGIN` (comma-separated), defaulting to
 `http://localhost:3000`, `http://localhost:3001`, `http://localhost`. For the office LAN, add
-the host origin (e.g. `http://192.168.1.250`) to `CORS_ORIGIN` in the root `.env`.
+the host origin (e.g. `http://ec-cms`) to `CORS_ORIGIN` in the root `.env`.
 
 ---
 
@@ -114,7 +114,7 @@ handshake dies (this silently broke all real-time sync until the exact block was
 
 ## 7. Production LAN Deployment
 
-The stack runs on one host (e.g. `192.168.1.250`); only Nginx is published (`80:80`). All
+The stack runs on one host (e.g. `ec-cms`, LAN IP `192.168.1.250`); only Nginx is published (`80:80`). All
 devices use one shared instance via relative `/api` and `/ws` URLs. Per-service server-side
 calls use `INTERNAL_API_URL=http://api:4000` (set for **both** cms and screens). The screens
 app is built with `NEXT_PUBLIC_SCREENS_BASE_PATH=/display` so its routes/assets live under

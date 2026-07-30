@@ -2,9 +2,9 @@ import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 /**
- * One row per Yale lock webhook call — persisted history alongside the
- * retained MQTT state (which only ever holds the latest value). See
- * apps/api/src/routes/yale.ts.
+ * One row per lock toggle — persisted history alongside the retained MQTT
+ * state (which only ever holds the latest value). See
+ * apps/api/src/routes/door-events.ts.
  */
 export const doorEvent = pgTable(
   "door_event",

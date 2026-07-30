@@ -22,6 +22,8 @@ export interface MediaPickerItem {
  * upload a new file (POST /api/upload), and pick one. Calls onSelect with the URL
  * (back-compat) and, when provided, onSelectItem with the full media row — needed
  * when the caller must persist the media id (e.g. product media links).
+ * With `multi`, the picker stays open after each pick (onSelect fires per click)
+ * so the caller can collect any number of items; "Done" closes it.
  */
 export function MediaPicker({
   open,
@@ -29,12 +31,14 @@ export function MediaPicker({
   onSelect,
   onSelectItem,
   accept = "image",
+  multi = false,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect?: (url: string) => void;
   onSelectItem?: (item: MediaPickerItem) => void;
   accept?: "image" | "video" | "all";
+  multi?: boolean;
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +97,14 @@ export function MediaPicker({
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               Upload
             </button>
+            {multi ? (
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors"
+              >
+                Done
+              </button>
+            ) : null}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
@@ -120,7 +132,7 @@ export function MediaPicker({
                   onClick={() => {
                     onSelect?.(m.url);
                     onSelectItem?.(m);
-                    onClose();
+                    if (!multi) onClose();
                   }}
                   className="group relative aspect-video rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"
                   title={m.name}

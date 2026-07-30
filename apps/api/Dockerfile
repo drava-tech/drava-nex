@@ -41,6 +41,11 @@ COPY --from=builder /app/pnpm-lock.yaml      ./pnpm-lock.yaml
 COPY --from=builder /app/apps/api            ./apps/api
 COPY --from=builder /app/packages            ./packages
 
+# Static seed media (default template imagery, demo video) — served at
+# /media/<file> as a fallback behind runtime uploads; see SEED_MEDIA_DIR in
+# apps/api/src/routes/media.ts.
+COPY apps/cms/public/media                   ./apps/cms/public/media
+
 EXPOSE 4000
 
 WORKDIR /app/apps/api

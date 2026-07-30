@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Wifi, WifiOff, Layers, RotateCcw } from "lucide-react";
+import { Camera, Wifi, WifiOff, Layers, RotateCcw, Ban, Play } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { assignExperience, assignMedia, assignDefaultMedia, resetDetection } from "@/actions/screen-actions";
+import { assignExperience, assignMedia, assignDefaultMedia, resetDetection, setScreenBlanked } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { ScreenMirror } from "./screen-mirror";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
@@ -15,6 +15,7 @@ interface ScreenControlViewProps {
   experiences: { id: string; title: string }[];
   defaultMediaAssetId?: string | null;
   defaultMediaName?: string | null;
+  initialBlanked?: boolean;
 }
 
 /**
@@ -28,12 +29,15 @@ export function ScreenControlView({
   experiences,
   defaultMediaAssetId = null,
   defaultMediaName = null,
+  initialBlanked = false,
 }: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resettingToIdle, setResettingToIdle] = useState(false);
+  const [blanked, setBlanked] = useState(initialBlanked);
+  const [togglingBlank, setTogglingBlank] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: defaultMediaAssetId,
     name: defaultMediaName,
@@ -60,6 +64,20 @@ export function ScreenControlView({
       console.error("Failed to reset to idle:", err);
     } finally {
       setResettingToIdle(false);
+    }
+  };
+
+  const handleToggleBlank = async () => {
+    const next = !blanked;
+    setTogglingBlank(true);
+    setBlanked(next);
+    try {
+      await setScreenBlanked(screenId, next);
+    } catch (err) {
+      console.error("Failed to toggle screen blank state:", err);
+      setBlanked(!next);
+    } finally {
+      setTogglingBlank(false);
     }
   };
 
@@ -138,6 +156,19 @@ export function ScreenControlView({
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingToIdle ? "Resetting..." : "Reset to idle"}
+          </button>
+          <button
+            onClick={handleToggleBlank}
+            disabled={togglingBlank}
+            title={blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
+              blanked
+                ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
+                : "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+            }`}
+          >
+            {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+            {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
           </button>
           <button
             onClick={() => setShowPicker(true)}

@@ -34,10 +34,10 @@ export default async function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard stat={stats.screens} icon={Monitor} />
-        <StatCard stat={stats.experiences} icon={SquareTerminal} />
-        <StatCard stat={stats.media} icon={Film} />
-        <StatCard stat={stats.users} icon={Users} />
+        <StatCard stat={stats.screens} icon={Monitor} accent="blue" href="/screens" />
+        <StatCard stat={stats.experiences} icon={SquareTerminal} accent="violet" href="/experiences" />
+        <StatCard stat={stats.media} icon={Film} accent="amber" href="/media" />
+        <StatCard stat={stats.users} icon={Users} accent="emerald" href="/users" />
       </div>
 
       {/* Charts row */}

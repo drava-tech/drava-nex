@@ -12,16 +12,26 @@ import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
-import { ContentPickerOverlay } from "./ContentPickerOverlay";
-import { ContentTitleOverlay } from "./ContentTitleOverlay";
+import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
+import { BlackoutOverlay } from "./BlackoutOverlay";
+import {
+  WHITEBOARD_START,
+  WHITEBOARD_STOP,
+  WHITEBOARD_SYNC,
+  WHITEBOARD_SURFACE,
+  WHITEBOARD_SET_STYLE,
+  WHITEBOARD_STROKE_BEGIN,
+  WHITEBOARD_STROKE_POINT,
+  WHITEBOARD_STROKE_END,
+  WHITEBOARD_UNDO,
+  WHITEBOARD_CLEAR,
+} from "@/lib/whiteboard-protocol";
 
 interface LiveScreenPlayerProps {
   screenId: string;
   initialContent: Content | null;
   wsUrl: string;
-  apiUrl: string;
-  pickerEnabled?: boolean;
-  /** Registers as a preview mirror (CMS embed): no picker, excluded from online count. */
+  /** Registers as a preview mirror (CMS embed): excluded from the online count. */
   preview?: boolean;
 }
 
@@ -69,8 +79,6 @@ export function LiveScreenPlayer({
   screenId,
   initialContent,
   wsUrl,
-  apiUrl,
-  pickerEnabled = true,
   preview = false,
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
@@ -105,12 +113,36 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
     } else if (command === "SET_PORTFOLIO_VIDEO") {
       window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+    } else if (command === WHITEBOARD_START) {
+      window.dispatchEvent(new CustomEvent("whiteboard-start"));
+    } else if (command === WHITEBOARD_STOP) {
+      window.dispatchEvent(new CustomEvent("whiteboard-stop"));
+    } else if (command === WHITEBOARD_SYNC) {
+      window.dispatchEvent(new CustomEvent("whiteboard-sync", { detail: value }));
+    } else if (command === WHITEBOARD_SURFACE) {
+      window.dispatchEvent(new CustomEvent("whiteboard-surface", { detail: value }));
+    } else if (command === WHITEBOARD_SET_STYLE) {
+      window.dispatchEvent(new CustomEvent("whiteboard-set-style", { detail: value }));
+    } else if (command === WHITEBOARD_STROKE_BEGIN) {
+      window.dispatchEvent(new CustomEvent("whiteboard-stroke-begin", { detail: value }));
+    } else if (command === WHITEBOARD_STROKE_POINT) {
+      window.dispatchEvent(new CustomEvent("whiteboard-stroke-point", { detail: value }));
+    } else if (command === WHITEBOARD_STROKE_END) {
+      window.dispatchEvent(new CustomEvent("whiteboard-stroke-end"));
+    } else if (command === WHITEBOARD_UNDO) {
+      window.dispatchEvent(new CustomEvent("whiteboard-undo"));
+    } else if (command === WHITEBOARD_CLEAR) {
+      window.dispatchEvent(new CustomEvent("whiteboard-clear"));
+    } else if (command === "SCREEN_BLANK") {
+      window.dispatchEvent(new CustomEvent("screen-blank"));
+    } else if (command === "SCREEN_UNBLANK") {
+      window.dispatchEvent(new CustomEvent("screen-unblank"));
     }
   }, []);
 
   // ponytail: sendRaw was only used by the (now-disconnected) browser detection
   // hook to emit CAMERA_/PRODUCT_ events. Restore it here when re-enabling.
-  const { status, sendContentChangeRequest, sendInteraction } = useScreenWebSocket({
+  const { status, sendInteraction } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCommand: handleCommand,
@@ -215,6 +247,8 @@ export function LiveScreenPlayer({
       <div key={activeKey} className="screen-content-fade">
         <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
       </div>
+      <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
+      <BlackoutOverlay />
       {runServer && debugMode && (
         <DetectionDebugOverlay
           stream={serverDetection.stream}
@@ -222,16 +256,6 @@ export function LiveScreenPlayer({
           status={serverDetection.status}
           cameraId={serverDetection.cameraId}
           stats={serverDetection.stats}
-        />
-      )}
-      {activeContent.title && <ContentTitleOverlay title={activeContent.title} />}
-      {pickerEnabled && (
-        <ContentPickerOverlay
-          apiUrl={apiUrl}
-          onSelect={(content) => {
-            queueContent(content);
-            sendContentChangeRequest(content);
-          }}
         />
       )}
     </>

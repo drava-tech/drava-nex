@@ -23,6 +23,7 @@ export default async function ScreenControlPage({ params }: PageProps) {
       screenName: screen.screenName,
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: mediaAsset.name,
+      blanked: screen.blanked,
     })
     .from(screen)
     .leftJoin(
@@ -43,6 +44,7 @@ export default async function ScreenControlPage({ params }: PageProps) {
       experiences={experiences}
       defaultMediaAssetId={row.defaultMediaAssetId}
       defaultMediaName={row.defaultMediaName}
+      initialBlanked={row.blanked}
     />
   );
 }

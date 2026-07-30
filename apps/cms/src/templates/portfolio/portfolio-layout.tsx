@@ -3,28 +3,45 @@ import Link from "next/link";
 import type { Experience } from "@platform/db";
 import {
   ScreenStage,
-  OverviewView,
   readPortfolioContent,
+  cardSlugs,
+  sectionSlugs,
+  normalizeSections,
+  DEFAULT_PORTFOLIO_CONTENT,
+  SPLIT_VIEW_SEGMENT,
   type PortfolioContent,
+  type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
+import { PortfolioRoutedApp } from "./portfolio-routed-app";
 
-interface PortfolioView {
-  key: string;
-  label: string;
-  /** URL sub-path segment for this view ("" = base / Overview). */
-  segment: string;
-  View: React.ComponentType<{ content?: PortfolioContent }>;
+/**
+ * Resolves the URL sub-path to a portfolio view:
+ *   []                                    → overview
+ *   [<vertical-slug>]                     → that vertical's page (2 section buttons)
+ *   [<vertical-slug>, <section-slug>]     → that section's slideshow
+ *   [<vertical-slug>, SPLIT_VIEW_SEGMENT] → that vertical's split-panel view
+ * Unknown slugs degrade gracefully (bad vertical → overview, bad section →
+ * vertical page) so stale links after a title rename don't 404.
+ */
+function resolveView(content: PortfolioContent, subpath: string[]): PortfolioViewState {
+  const cards = content.overview.cards;
+  const seg0 = subpath[0] ?? "";
+  const cardIndex = seg0 ? cardSlugs(cards).indexOf(seg0) : -1;
+  if (cardIndex < 0) return { cardIndex: null, sectionIndex: null };
+
+  const seg1 = subpath[1] ?? "";
+  if (seg1 === SPLIT_VIEW_SEGMENT) {
+    return { cardIndex, sectionIndex: null, splitView: true };
+  }
+  const sections = normalizeSections(cards[cardIndex]?.sections);
+  const sectionIndex = seg1 ? sectionSlugs(sections).indexOf(seg1) : -1;
+  return { cardIndex, sectionIndex: sectionIndex >= 0 ? sectionIndex : null };
 }
-
-/** Predefined views (tabs). Adding a tab later = one entry here + its view file. */
-const VIEWS: PortfolioView[] = [
-  { key: "overview", label: "Overview", segment: "", View: OverviewView },
-];
 
 /**
  * Portfolio template — a routed multi-view shell. The active view is chosen from
- * the URL sub-path (`/experiences/<slug>/<segment>`); each view is a predefined
- * 1920×1080 layout rendered inside the ScreenStage.
+ * the URL sub-path; each view is a predefined 1920×1080 layout rendered inside
+ * the ScreenStage.
  */
 export function PortfolioLayout({
   experience,
@@ -35,20 +52,23 @@ export function PortfolioLayout({
   subpath: string[];
   mode?: "edit" | "preview";
 }) {
-  const seg = subpath[0] ?? "";
-  const active = VIEWS.find((v) => v.segment === seg) ?? VIEWS[0]!;
-  const ActiveView = active.View;
-  const content = readPortfolioContent(experience.templateContent) ?? undefined;
+  const content = readPortfolioContent(experience.templateContent) ?? DEFAULT_PORTFOLIO_CONTENT;
+  const view = resolveView(content, subpath);
 
-  // Full-screen preview tab: just the active view, scaled to fit the whole window.
+  // Full-screen preview tab: URL-driven navigation through the [[...subpath]] catch-all.
   if (mode === "preview") {
     return (
       <ScreenStage variant="fit-screen">
-        <ActiveView content={content} />
+        <PortfolioRoutedApp
+          content={content}
+          view={view}
+          baseHref={`/preview/experiences/${experience.slug}`}
+        />
       </ScreenStage>
     );
   }
 
+  // Edit mode has no sub-path route — navigation stays local to the stage.
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center gap-4 flex-wrap">
@@ -56,28 +76,17 @@ export function PortfolioLayout({
           Portfolio
         </span>
         <nav className="flex items-center gap-1">
-          {VIEWS.map((v) => {
-            const href = `/experiences/${experience.slug}${v.segment ? `/${v.segment}` : ""}`;
-            const isActive = v.key === active.key;
-            return (
-              <Link
-                key={v.key}
-                href={href}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  isActive
-                    ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                    : "text-zinc-500 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                }`}
-              >
-                {v.label}
-              </Link>
-            );
-          })}
+          <Link
+            href={`/experiences/${experience.slug}`}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+          >
+            Overview
+          </Link>
         </nav>
       </div>
 
       <ScreenStage>
-        <ActiveView content={content} />
+        <PortfolioRoutedApp content={content} view={view} baseHref={null} />
       </ScreenStage>
     </div>
   );

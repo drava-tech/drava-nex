@@ -6,8 +6,21 @@ export * from "./products.js";
 // --- Visitor domain (face-recognition entrance tracking) ---
 export * from "./visitors.js";
 
+// --- Media library → display content mapping (PDF/sheet/YouTube/Drive embeds) ---
+export * from "./media-content.js";
+
+// --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
+export * from "./flight-simulation.js";
+
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
-export const TEMPLATE_KEYS = ["portfolio", "live-stream", "product-showcase", "welcome", "object-recognition"] as const;
+export const TEMPLATE_KEYS = [
+  "portfolio",
+  "live-stream",
+  "product-showcase",
+  "welcome",
+  "object-recognition",
+  "flight-simulation",
+] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
   return typeof value === "string" && (TEMPLATE_KEYS as readonly string[]).includes(value);
@@ -109,13 +122,38 @@ export interface DeviceCommand {
 }
 
 /** Kinds of registered device the platform can address (REST: /api/devices). */
-export type DeviceKind = 'light' | 'scene' | 'camera' | 'speaker' | 'generic';
+export type DeviceKind = 'light' | 'scene' | 'camera' | 'speaker' | 'ir' | 'generic';
 
 /** Desired state for a controllable light. brightness is 0-100. */
 export interface LightState {
   on: boolean;
   brightness?: number;
   color?: string;
+}
+
+/**
+ * A single IR command sent to the CrabController bridge (twt/av/ir/command).
+ * `device` is the bridge-side remote name (e.g. "ac", "tv"), `command` is the
+ * verb (AC: power_on|power_off|set_temp|set_mode|set_fan; other remotes: a
+ * codebook key name), and `params` carries verb arguments (e.g. { temp: 24 }).
+ */
+export interface IrCommand {
+  device: string;
+  command: string;
+  params?: Record<string, unknown>;
+}
+
+/**
+ * Last-known state of an IR air-conditioner, mirrored from the discrete commands
+ * the CMS has sent (the Tuya AC "scene" carries the full state each press). Used
+ * to rehydrate the Climate panel on reload. mode ∈ cool|heat|auto|fan|dry,
+ * fan ∈ auto|low|mid|high.
+ */
+export interface IrAcState {
+  power: boolean;
+  temp: number;
+  mode: string;
+  fan: string;
 }
 
 // --- WebSocket Protocol Types ---
@@ -237,12 +275,21 @@ export type WsCmsMessage =
   // services/vision's OBJECT worker via the internal event relay (POST
   // /api/internal/vision-event) — drives live admin-facing mat-contents views.
   | { type: 'INVENTORY_UPDATE'; cameraId: string; screenId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number }
-  // Yale lock webhook fired — drives the live Door Lock panel. Emitted directly
-  // from apps/api/src/routes/yale.ts (already an in-process Hono route, no relay).
+  // Door lock state changed (manual toggle via the CMS) — drives the live
+  // Door Lock panel. Emitted directly from apps/api/src/routes/door-events.ts.
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }
   // System volume/mute, relayed from the native audio bridge (see WsClientMessage
   // AUDIO_BRIDGE_STATUS) — drives the live Audio tile in Environment Control.
-  | ({ type: 'AUDIO_STATUS_UPDATE' } & AudioStatus);
+  | ({ type: 'AUDIO_STATUS_UPDATE' } & AudioStatus)
+  // A light's real-world state changed — either a CMS-initiated command was
+  // applied, or the Casambi ingest service observed a change from another
+  // source (wall switch, Casambi app, another user). Drives the live
+  // Lighting panel in Environment Control.
+  | { type: 'LIGHT_STATE_UPDATE'; deviceId: string; state: Record<string, unknown> }
+  // An IR device changed — a CMS command was applied (state echoed back), or the
+  // IR ingest observed the CrabController bridge going online/offline (status).
+  // Drives the live Climate panel + Remotes overlay in Environment Control.
+  | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string };
 
 export interface BroadcastRequest {
   screenId: string;

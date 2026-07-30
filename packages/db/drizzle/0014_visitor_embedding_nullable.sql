@@ -1,0 +1,1 @@
+ALTER TABLE "visitor" ALTER COLUMN "embedding" DROP NOT NULL;

@@ -1,6 +1,6 @@
 import { eq, and, isNull, asc, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { WsContent } from "@platform/types";
+import { mediaAssetToWsContent, type WsContent } from "@platform/types";
 import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
@@ -25,6 +25,7 @@ export async function listScreens(): Promise<{
   mediaName: string | null;
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
+  blanked: boolean;
 }[]> {
   const defaultMedia = alias(mediaAsset, "default_media");
   return db
@@ -40,6 +41,7 @@ export async function listScreens(): Promise<{
       mediaName: mediaAsset.name,
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
+      blanked: screen.blanked,
     })
     .from(screen)
     .leftJoin(
@@ -94,14 +96,15 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
 
   if (!row) return null;
 
-  // Media asset assigned → video/image wire content.
+  // Media asset assigned → wire content for its kind (video/image natively,
+  // PDF/sheet/YouTube/Drive as an embedded page — see mediaAssetToWsContent).
   if (row.kind === "media" && row.mediaAssetId) {
-    return {
+    return mediaAssetToWsContent({
       id: row.mediaAssetId,
-      type: row.mediaType === "video" ? "video" : "image",
-      source: row.mediaUrl ?? "",
-      title: row.mediaName ?? undefined,
-    };
+      type: row.mediaType ?? "",
+      url: row.mediaUrl ?? "",
+      name: row.mediaName,
+    });
   }
 
   // Experience assigned → template wire content.
@@ -131,14 +134,7 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
       .limit(1);
 
     if (defaultMedia) {
-      return {
-        id: defaultMedia.id,
-        type: defaultMedia.type === "video" ? "video" : "image",
-        source: defaultMedia.url,
-        title: defaultMedia.name ?? undefined,
-        loop: true,
-        muted: true,
-      };
+      return mediaAssetToWsContent(defaultMedia, { loop: true, muted: true });
     }
   }
 
@@ -217,6 +213,56 @@ export async function setScreenDefaultMedia(
     .update(screen)
     .set({ defaultMediaAssetId: mediaAssetId, updatedAt: new Date() })
     .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Record (or clear, with null) the live whiteboard state for a screen — an
+ * overlay on top of whatever content is assigned, so a display-page refresh
+ * mid-session can resume it instead of falling back to the assigned content.
+ * See apps/api/src/ws/gateway.ts, which calls this on "settling" whiteboard
+ * commands (not the high-frequency stroke-point events).
+ */
+export async function setScreenWhiteboardState(
+  screenId: string,
+  state: unknown | null
+): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      whiteboardActive: state !== null,
+      whiteboardState: state,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenWhiteboardState(
+  screenId: string
+): Promise<{ active: boolean; state: unknown } | null> {
+  const [row] = await db
+    .select({ whiteboardActive: screen.whiteboardActive, whiteboardState: screen.whiteboardState })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  if (!row) return null;
+  return { active: row.whiteboardActive, state: row.whiteboardState };
+}
+
+/** Set (or clear) the full-black overlay for a screen — see `screen.blanked`. */
+export async function setScreenBlanked(screenId: string, blanked: boolean): Promise<void> {
+  await db
+    .update(screen)
+    .set({ blanked, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenBlanked(screenId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ blanked: screen.blanked })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row?.blanked ?? false;
 }
 
 /**

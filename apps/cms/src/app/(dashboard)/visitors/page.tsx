@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth-helpers";
 import { listVisitors } from "@platform/db";
 import { getVisionTriggerArmed } from "@/actions/vision-actions";
-import { VisitorsClient } from "./visitors-client";
+import { VisitorsClient } from "./_components/visitors-client";
 
 const PAGE_SIZE = 20;
 

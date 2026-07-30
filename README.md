@@ -101,21 +101,21 @@ In dev the apps run directly: CMS `http://localhost:3000`, API `http://localhost
 
 ## Production Deployment (office LAN)
 
-The whole stack runs as Docker containers on one host (e.g. `192.168.0.250`); **only Nginx is exposed to the local network** mapping ports 80/443 directly. Everything inside (CMS app, Hono API, Postgres, Mosquitto, local-inference services) communicates inside the Docker network safely behind Nginx.
+The whole stack runs as Docker containers on one host (e.g. `ec-cms`, LAN IP `192.168.1.250`); **only Nginx is exposed to the local network** mapping ports 80/443 directly. Everything inside (CMS app, Hono API, Postgres, Mosquitto, local-inference services) communicates inside the Docker network safely behind Nginx.
 
 ## Default Ports & URLs
 
-Once deployed to `192.168.0.250`, the following URLs are available locally:
+Once deployed, the following URLs are available locally via the host's LAN name (`ec-cms`):
 
 | Service | Address |
 | --- | --- |
-| CMS admin | `http://192.168.0.250/` |
-| Screen control (CMS) | `http://192.168.0.250/screens/<screenId>` |
-| A screen / TV (display) | `http://192.168.0.250/display/<screenId>` |
-| Live-stream publisher endpoint | `ws://192.168.0.250/ws/` |
-| Health | `http://192.168.0.250/health` |
+| CMS admin | `http://ec-cms/` |
+| Screen control (CMS) | `http://ec-cms/screens/<screenId>` |
+| A screen / TV (display) | `http://ec-cms/display/<screenId>` |
+| Live-stream publisher endpoint | `ws://ec-cms/ws/` |
+| Health | `http://ec-cms/health` |
 
-You can safely visit `http://192.168.0.250/` from an iPad connected to the same WiFi and control the screens dynamically.
+You can safely visit `http://ec-cms/` from an iPad connected to the same WiFi and control the screens dynamically.
 
 See [`.doc/infrastructure.md`](./.doc/infrastructure.md) and
 [`.doc/networking.md`](./.doc/networking.md) for the full deployment + routing details.
@@ -139,7 +139,7 @@ cp .env.team.example          .env
 cp apps/cms/.env.example       apps/cms/.env
 
 # 3. Edit ONLY the root .env:
-#    - set <HOST_IP>      → e.g. 192.168.1.250
+#    - set <HOST_IP>      → e.g. ec-cms
 #    - set <DB_PASSWORD>  → the password from the host owner
 #    (apps/cms/.env: generate your own BETTER_AUTH_SECRET via `openssl rand -hex 32`)
 

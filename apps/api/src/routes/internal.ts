@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { broadcastToCms, applyMatInventoryUpdate } from "../ws/gateway.js";
+import {
+  applyMatInventoryUpdate,
+  applyProductDetection,
+  broadcastToCms,
+  clearProductDetection,
+} from "../ws/gateway.js";
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
@@ -13,10 +18,13 @@ import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
  * Visitors list updates live. PERSON_PRESENT is identity-agnostic (fired
  * straight off raw detection) and is what drives the welcome-screen trigger.
  * CAMERA_SNAPSHOT feeds the CMS camera debug preview (see vision-snapshot.ts).
- * PRODUCT_DETECTED is accepted as a no-op stub — reserved for the single-item
- * browser-camera pipeline, which doesn't use this relay. INVENTORY_UPDATE is
- * the multi-item counterpart used by services/vision's OBJECT worker (full
- * current mat contents, not a single best guess).
+ * PRODUCT_DETECTED / PRODUCT_LOST are the single-item counterpart driven by
+ * the browser detection loop over the screen WebSocket; handled here too
+ * (delegating to gateway.applyProductDetection / clearProductDetection) so a
+ * headless emitter (vision/events.py's emit_product/emit_product_lost) works
+ * as well. INVENTORY_UPDATE is the multi-item counterpart used by
+ * services/vision's dedicated-camera OBJECT worker (full current mat
+ * contents, not a single best guess) — see gateway.applyMatInventoryUpdate.
  */
 export const internalRouter = new Hono();
 
@@ -79,16 +87,30 @@ internalRouter.post("/vision-event", async (c) => {
       return ok(c, { ok: true });
     }
 
-    case "PRODUCT_DETECTED":
-      // Reserved for the single-item browser-camera pipeline (see
-      // apps/api/src/ws/gateway.ts's inline PRODUCT_DETECTED WS-message
-      // handling) — that path doesn't go through this HTTP relay, so this
-      // case stays a no-op. services/vision's OBJECT worker uses
-      // INVENTORY_UPDATE below instead.
-      return ok(c, { ok: true });
+    case "PRODUCT_DETECTED": {
+      // resolveDetectedProduct (inside applyProductDetection) does the schema
+      // validation, confidence floor and ACTIVE-product lookup — a malformed or
+      // low-confidence payload is rejected there, not here.
+      const outcome = await applyProductDetection({
+        cameraId: String(body["cameraId"] ?? ""),
+        label: String(body["label"] ?? ""),
+        confidence: Number(body["confidence"]),
+        detectedAt: typeof body["detectedAt"] === "string" ? body["detectedAt"] : undefined,
+      });
+      return ok(c, outcome);
+    }
+
+    case "PRODUCT_LOST": {
+      const cleared = await clearProductDetection({
+        cameraId: String(body["cameraId"] ?? ""),
+        label: String(body["label"] ?? ""),
+      });
+      return ok(c, { ok: true, cleared });
+    }
 
     case "INVENTORY_UPDATE":
-      // Full current mat contents from services/vision's OBJECT worker.
+      // Full current mat contents from services/vision's dedicated-camera
+      // OBJECT worker.
       await applyMatInventoryUpdate(String(body["cameraId"] ?? ""), body["items"]);
       return ok(c, { ok: true });
 

@@ -13,4 +13,5 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   "product-showcase": "Product Showcase",
   welcome: "Welcome",
   "object-recognition": "Object Recognition",
+  "flight-simulation": "Flight Simulation",
 };

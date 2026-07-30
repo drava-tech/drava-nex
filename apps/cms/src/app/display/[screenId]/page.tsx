@@ -20,30 +20,24 @@ export async function generateMetadata({
 
 interface PageProps {
   params: Promise<{ screenId: string }>;
-  searchParams: Promise<{ picker?: string; preview?: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }
 
 export default async function DisplayPage({ params, searchParams }: PageProps) {
   const [{ screenId }, sp] = await Promise.all([params, searchParams]);
   const preview = sp.preview === "1" || sp.preview === "true";
-  // `preview` only controls the WS "don't count as online" flag — the picker is
-  // independent, so a control console (?preview=1) is still fully interactive.
-  const pickerEnabled = sp.picker !== "false";
   const wsUrl = process.env["NEXT_PUBLIC_WS_GATEWAY_URL"] ?? "/ws/";
-  const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "";
 
   try {
     const config = await resolveDisplayConfig(screenId);
 
     return (
       <Suspense fallback={<LoadingDisplay />}>
-        <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+        <style>{`html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none;touch-action:none;background:#000}`}</style>
         <LiveScreenPlayer
           screenId={screenId}
           initialContent={config.content}
           wsUrl={wsUrl}
-          apiUrl={apiUrl}
-          pickerEnabled={pickerEnabled}
           preview={preview}
         />
       </Suspense>
@@ -57,13 +51,11 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
         // so the screen auto-updates the moment the CMS assigns something.
         return (
           <>
-            <style>{`html,body{margin:0;padding:0;overflow:hidden;background:#000}`}</style>
+            <style>{`html,body{margin:0;padding:0;overflow:hidden;overscroll-behavior:none;touch-action:none;background:#000}`}</style>
             <LiveScreenPlayer
               screenId={screenId}
               initialContent={null}
               wsUrl={wsUrl}
-              apiUrl={apiUrl}
-              pickerEnabled={pickerEnabled}
               preview={preview}
             />
           </>

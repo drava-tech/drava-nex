@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
   # ponytail: Commented out local postgres service because we want everything
-  # to connect directly to the production Postgres database at 192.168.0.250.
+  # to connect directly to the production Postgres database at ec-cms.
   # NOTE: that server must have the pgvector extension installed (image
   # pgvector/pgvector:pg16 or postgresql-16-pgvector) before running
   # `pnpm --filter @platform/db db:migrate` — the visitor table needs it.
