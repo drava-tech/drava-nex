@@ -288,6 +288,19 @@ export function getContentCache(screenId: string): WsContent | undefined {
   return contentCache.get(screenId);
 }
 
+/**
+ * Drop a screen's active product-detection takeover flag without re-fetching
+ * or re-broadcasting content — the caller (an explicit CMS assignment) is
+ * about to push fresh content itself. Without this, a takeover armed before
+ * the assignment lingers and a subsequent PRODUCT_LOST would still treat that
+ * old detection as authoritative (harmlessly, since it re-reads the DB — but
+ * more importantly a screen with an active takeover shouldn't look "stuck"
+ * to camera state that's no longer relevant to what the admin just chose).
+ */
+export function clearTakeoverFlag(screenId: string): void {
+  screenTakeover.delete(screenId);
+}
+
 export async function resetScreenTakeover(screenId: string): Promise<boolean> {
   if (screenTakeover.get(screenId)) {
     screenTakeover.delete(screenId);
