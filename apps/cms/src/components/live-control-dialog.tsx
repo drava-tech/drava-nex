@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
-import { ScreenMirror } from "../../screens/_components/screen-mirror";
+import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 
 export interface LiveScreen {
   screenId: string;
