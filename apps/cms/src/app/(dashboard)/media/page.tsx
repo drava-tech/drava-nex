@@ -347,7 +347,13 @@ export default function MediaPage() {
       {showLinkDialog && (
         <AddLinkDialog
           onClose={() => setShowLinkDialog(false)}
-          onAdded={(media) => setMediaItems((prev) => [media, ...prev])}
+          // Pending-save (same as a Browser-tool push) — open its preview/push
+          // popup right away instead of adding a tile to the grid; it only
+          // shows up in the library if explicitly kept via "Save link" there.
+          onAdded={(media) => {
+            setShowLinkDialog(false);
+            setPreviewItem(media);
+          }}
         />
       )}
     </div>

@@ -14,6 +14,10 @@ export interface MediaItem {
   url: string;
   size: string;
   date: string;
+  /** True for a not-yet-kept link (Add Link / Browser push) — hidden from the
+   * Media Library listing until explicitly saved. Only present on items just
+   * created via those flows; ordinary already-listed items omit it (falsy). */
+  pendingSave?: boolean;
 }
 
 /**
@@ -31,6 +35,12 @@ export function MediaPreviewModal({
   media: MediaItem;
   onClose: () => void;
 }) {
+  const handleSaveLink = async () => {
+    const res = await fetch(`/api/media/${media.id}/save`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.error ?? "Could not save this link");
+  };
+
   return (
     <PushToScreenModal
       contentName={media.name}
@@ -44,6 +54,9 @@ export function MediaPreviewModal({
       }
       onPush={(screenId) => assignMedia(screenId, media.id)}
       isAlreadyShowing={(s: ScreenRow) => s.currentMediaAssetId === media.id}
+      // Only a not-yet-saved link has anything to save — an ordinary already-
+      // listed item (upload, or a link kept earlier) shouldn't show the button.
+      onSaveLink={media.pendingSave ? handleSaveLink : undefined}
     />
   );
 }

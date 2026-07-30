@@ -74,6 +74,7 @@ function toMediaItem(a: MediaAsset) {
   return {
     id: a.id, name: a.name, type: a.type, url: a.url, size, date,
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
+    pendingSave: a.pendingSave,
   };
 }
 
