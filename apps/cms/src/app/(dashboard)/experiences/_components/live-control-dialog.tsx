@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Maximize, Minimize, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { ScreenMirror } from "../../screens/_components/screen-mirror";
 
@@ -19,6 +19,12 @@ interface LiveControlDialogProps {
   onClose: () => void;
   /** Extra controls rendered below the mirror (e.g. the whiteboard's tool palette) — replaces the default caption when given. */
   toolbar?: React.ReactNode;
+  /**
+   * When set, shows a "Save link" action in the header — the content just
+   * pushed is an ad-hoc link (Browser tool) not yet kept in the Media
+   * Library. Resolves once the save actually lands.
+   */
+  onSaveLink?: () => Promise<void>;
 }
 
 /**
@@ -28,7 +34,7 @@ interface LiveControlDialogProps {
  * controlling any other screen in the system instantly, not just the ones
  * this content was pushed to.
  */
-export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar }: LiveControlDialogProps) {
+export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink }: LiveControlDialogProps) {
   const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
   const activeScreen =
@@ -36,6 +42,21 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
 
   const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveLink = async () => {
+    if (!onSaveLink || saving || saved) return;
+    setSaving(true);
+    try {
+      await onSaveLink();
+      setSaved(true);
+    } catch {
+      // best-effort — leave the button as-is so the admin can retry
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement === mirrorFrameRef.current);
@@ -102,6 +123,27 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
             </DropdownMenu>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {onSaveLink && (
+              <button
+                onClick={handleSaveLink}
+                disabled={saving || saved}
+                title={saved ? "Saved to Media Library" : "Save link to Media Library"}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:pointer-events-none ${
+                  saved
+                    ? "bg-green-600 text-white"
+                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+                }`}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : saved ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {saving ? "Saving…" : saved ? "Saved" : "Save link"}
+              </button>
+            )}
             <button
               onClick={toggleFullscreen}
               title={isFullscreen ? "Exit full screen" : "Full screen"}

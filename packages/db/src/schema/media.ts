@@ -3,6 +3,7 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
   index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -38,6 +39,11 @@ export const mediaAsset = pgTable(
     // and subject, kept for display context on the Email Media page.
     emailFrom: text("email_from"),
     emailSubject: text("email_subject"),
+    // True for a link pushed ad-hoc from the Browser tool before the admin has
+    // chosen to keep it — hidden from the Media Library listing until saved
+    // (see markMediaSaved). Screens can still be pointed at it either way;
+    // this only gates library visibility, not playback.
+    pendingSave: boolean("pending_save").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

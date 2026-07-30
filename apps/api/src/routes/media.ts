@@ -3,7 +3,7 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 
@@ -121,6 +121,8 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
 // POST /api/media/link — register a pasted URL (YouTube, Drive, or any
 // embeddable page) as a media asset. Same row shape as an upload, just with an
 // absolute url and no file on disk, so screens/preview/push all work unchanged.
+// pendingSave: true (used by the Browser tool's ad-hoc push) hides the row
+// from the Media Library listing until explicitly saved via POST /:id/save.
 mediaRouter.post("/link", requireAdmin, async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
@@ -132,6 +134,7 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
 
     const customName = typeof body?.name === "string" ? body.name.trim() : "";
     const name = (customName || classified.name).slice(0, 200);
+    const pendingSave = body?.pendingSave === true;
 
     const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
 
@@ -139,12 +142,28 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       type: classified.type,
       url: classified.url,
       name,
+      pendingSave,
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
     return c.json({ success: true, media: toMediaItem(asset) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to add link" }, 500);
+  }
+});
+
+// POST /api/media/:id/save — confirms an ad-hoc pushed link is worth keeping,
+// making it show up in the Media Library from now on.
+mediaRouter.post("/:id/save", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    if (!id) return c.json({ error: "Missing id" }, 400);
+    const asset = await getMediaAsset(id);
+    if (!asset) return c.json({ error: "Media item not found" }, 404);
+    await markMediaSaved(id);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to save media" }, 500);
   }
 });
 

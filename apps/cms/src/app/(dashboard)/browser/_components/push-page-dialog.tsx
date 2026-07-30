@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { X, Check, Loader2, MonitorPlay, AlertCircle, Info } from "lucide-react";
 import { assignMedia } from "@/actions/screen-actions";
+import { LiveControlDialog, type LiveScreen } from "@/app/(dashboard)/experiences/_components/live-control-dialog";
+import { ControlChooserDialog } from "@/app/(dashboard)/experiences/_components/control-chooser-dialog";
 
 interface ScreenOption {
   screenId: string;
@@ -31,14 +33,23 @@ function currentLabel(screen: ScreenOption): string {
  * first registered as a link asset (the same row an "Add link" in the media
  * library creates) and that asset is then assigned. One asset, however many
  * screens — so they all show the same row rather than a duplicate each.
+ *
+ * That registration is created as pending-save: an ad-hoc push shouldn't
+ * clutter the Media Library on its own. It's still fully playable/assignable
+ * either way — pending-save only hides it from the library listing until the
+ * admin explicitly keeps it via the "Save link" action in the control panel
+ * that opens right after pushing.
  */
 export function PushPageDialog({ url, onClose }: { url: string; onClose: () => void }) {
   const [screens, setScreens] = useState<ScreenOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
-  const [pushedCount, setPushedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [mediaId, setMediaId] = useState<string | null>(null);
+  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
+  const [controlScreens, setControlScreens] = useState<LiveScreen[] | null>(null);
+  const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,10 +63,17 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/screens");
-        if (!res.ok) throw new Error("Failed to load screens");
-        const data = await res.json();
+        const [screensRes, activeRes] = await Promise.all([
+          fetch("/api/screens"),
+          fetch("/api/screens/active"),
+        ]);
+        if (!screensRes.ok) throw new Error("Failed to load screens");
+        const data = await screensRes.json();
         if (!cancelled) setScreens(data.screens ?? []);
+        if (activeRes.ok) {
+          const activeData = await activeRes.json();
+          if (!cancelled) setActiveScreenIds(new Set(activeData.activeScreenIds ?? []));
+        }
       } catch {
         if (!cancelled) setError("Could not load the screen list");
       } finally {
@@ -78,36 +96,74 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
     setError(null);
 
     try {
-      // Register the page once, then point every selected screen at that asset.
+      // Register the page once (pending-save — not shown in the Media Library
+      // unless explicitly kept), then point every selected screen at that asset.
       const res = await fetch("/api/media/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, pendingSave: true }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.error ?? "Could not save this page");
+      if (!res.ok || !data.success) throw new Error(data.error ?? "Could not push this page");
 
-      const mediaId = data.media.id;
-      await Promise.all(selectedIds.map((screenId) => assignMedia(screenId, mediaId)));
+      const newMediaId = data.media.id as string;
+      setMediaId(newMediaId);
+      await Promise.all(selectedIds.map((screenId) => assignMedia(screenId, newMediaId)));
 
-      setPushedCount(selectedIds.length);
-      setScreens((prev) =>
-        prev.map((s) =>
-          selectedIds.includes(s.screenId) ? { ...s, currentMediaAssetId: mediaId } : s
-        )
-      );
+      const pushed: LiveScreen[] = screens
+        .filter((s) => selectedIds.includes(s.screenId))
+        .map((s) => ({ screenId: s.screenId, screenName: s.screenName, isOnline: activeScreenIds.has(s.screenId) }));
+      // One screen: go straight to its control panel. Multiple: ask which
+      // one to control first (control mirrors one screen at a time).
+      if (pushed.length === 1) {
+        setControlScreens(pushed);
+      } else {
+        setChooserScreens(pushed);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to push to screen");
     } finally {
       setPushing(false);
     }
-  }, [selectedIds, pushing, url]);
+  }, [selectedIds, pushing, url, screens, activeScreenIds]);
+
+  const handleSaveLink = useCallback(async () => {
+    if (!mediaId) return;
+    const res = await fetch(`/api/media/${mediaId}/save`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.error ?? "Could not save this link");
+  }, [mediaId]);
 
   let hostLabel = url;
   try {
     hostLabel = new URL(url).hostname.replace(/^www\./, "");
   } catch {
     /* keep the raw string */
+  }
+
+  // Once pushed, swap straight into the control panel — the "Save link"
+  // action there is the only way this page ends up in the Media Library.
+  if (controlScreens) {
+    return (
+      <LiveControlDialog
+        experienceName={hostLabel}
+        screens={controlScreens}
+        onSaveLink={handleSaveLink}
+        onClose={onClose}
+      />
+    );
+  }
+  if (chooserScreens) {
+    return (
+      <ControlChooserDialog
+        contentName={hostLabel}
+        screens={chooserScreens}
+        onChoose={(screen) => setControlScreens([screen])}
+        // Dismissing the chooser shouldn't discard the push — go back to
+        // this push dialog, the previous step in the flow.
+        onClose={() => setChooserScreens(null)}
+      />
+    );
   }
 
   return (
@@ -215,30 +271,16 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
               onClick={onClose}
               className="rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
             >
-              {pushedCount > 0 ? "Done" : "Cancel"}
+              Cancel
             </button>
             <button
               type="button"
               onClick={handlePush}
               disabled={selectedIds.length === 0 || pushing}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors disabled:pointer-events-none disabled:opacity-50 ${
-                pushedCount > 0
-                  ? "bg-green-600 text-white hover:bg-green-700"
-                  : "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              }`}
+              className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-100 transition-colors hover:bg-zinc-800 disabled:pointer-events-none disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             >
-              {pushing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : pushedCount > 0 ? (
-                <Check className="h-3.5 w-3.5" />
-              ) : (
-                <MonitorPlay className="h-3.5 w-3.5" />
-              )}
-              {pushing
-                ? "Pushing…"
-                : pushedCount > 0
-                  ? `Pushed to ${pushedCount}`
-                  : `Push${selectedIds.length > 0 ? ` to ${selectedIds.length}` : ""}`}
+              {pushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MonitorPlay className="h-3.5 w-3.5" />}
+              {pushing ? "Pushing…" : `Push${selectedIds.length > 0 ? ` to ${selectedIds.length}` : ""}`}
             </button>
           </div>
         )}

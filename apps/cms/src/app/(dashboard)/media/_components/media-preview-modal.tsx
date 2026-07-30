@@ -14,6 +14,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import { mediaEmbedUrl, isLinkMediaType } from "@platform/types";
+import { useBrowserSession } from "@platform/ui/browser-session";
 import { assignMedia } from "@/actions/screen-actions";
 import { LiveControlDialog, type LiveScreen } from "@/app/(dashboard)/experiences/_components/live-control-dialog";
 import { ControlChooserDialog } from "@/app/(dashboard)/experiences/_components/control-chooser-dialog";
@@ -319,6 +320,31 @@ export function MediaPreviewModal({
   );
 }
 
+/**
+ * Live headless-Chromium render of a "link" asset, screencast onto a canvas —
+ * same mechanism as WebpageRenderer (the screen-side version), but its own
+ * session namespace ("preview:") so opening this never joins/disturbs
+ * whatever a live screen is doing with the same asset.
+ */
+function WebpageMediaPreview({ mediaId, url }: { mediaId: string; url: string }) {
+  const session = useBrowserSession(url, { interactive: false, sessionId: `preview:${mediaId}` });
+  return (
+    <div className="relative h-full w-full bg-black">
+      <canvas ref={session.canvasRef} className="h-full w-full object-contain" />
+      {!session.ready && !session.error && (
+        <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-white/50">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading page…
+        </div>
+      )}
+      {session.error && (
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-red-400">
+          {session.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Renders the asset itself, using the same embed URL a screen would load. */
 function MediaPreviewSurface({ media }: { media: MediaItem }) {
   if (media.type === "image") {
@@ -332,6 +358,14 @@ function MediaPreviewSurface({ media }: { media: MediaItem }) {
     return (
       <video src={media.url} controls playsInline className="max-h-full max-w-full" />
     );
+  }
+
+  // Generic web links: rendered server-side (real headless Chromium) instead
+  // of an iframe — this is what lets a viewer on another device (a tablet,
+  // say) actually control the same live page rather than getting an
+  // independent, unrelated copy the way an iframe would.
+  if (media.type === "link") {
+    return <WebpageMediaPreview mediaId={media.id} url={media.url} />;
   }
 
   // Everything else renders as an embedded page — kiosk mode off, so the
