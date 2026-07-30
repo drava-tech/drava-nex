@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
+import { WebpageControlPad } from "@/app/(dashboard)/screens/_components/webpage-control-pad";
 
 export interface LiveScreen {
   screenId: string;
@@ -25,6 +26,16 @@ interface LiveControlDialogProps {
    * Library. Resolves once the save actually lands.
    */
   onSaveLink?: () => Promise<void>;
+  /**
+   * When the pushed content is a "link" media asset, switches from tap-on-
+   * mirror control to a split view: the mirror becomes a passive live view
+   * ("the display") and a blank trackpad ("the control pad") drives the
+   * shared browser-render session by relative motion instead — more accurate
+   * than tapping an exact spot on a shrunk preview. mediaId derives the same
+   * sessionId WebpageRenderer uses (`webpage:${mediaId}`), so this joins the
+   * SAME live session already running on the real screen.
+   */
+  webpage?: { mediaId: string; url: string };
 }
 
 /**
@@ -34,7 +45,7 @@ interface LiveControlDialogProps {
  * controlling any other screen in the system instantly, not just the ones
  * this content was pushed to.
  */
-export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink }: LiveControlDialogProps) {
+export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink, webpage }: LiveControlDialogProps) {
   const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
   const activeScreen =
@@ -144,13 +155,18 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
                 {saving ? "Saving…" : saved ? "Saved" : "Save link"}
               </button>
             )}
-            <button
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "Exit full screen" : "Full screen"}
-              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </button>
+            {/* Fullscreen only makes sense for the tap-on-mirror model — the
+                trackpad control pad needs to stay visible alongside the
+                display, so webpage mode skips this toggle entirely. */}
+            {!webpage && (
+              <button
+                onClick={toggleFullscreen}
+                title={isFullscreen ? "Exit full screen" : "Full screen"}
+                className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+              >
+                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
@@ -211,7 +227,14 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
               </div>
             ) : (
               activeScreen && (
-                <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+                <ScreenMirror
+                  screenId={activeScreen.screenId}
+                  title={activeScreen.screenName}
+                  // Passive in webpage mode — "the display" — the control pad
+                  // below is what actually drives the session; tapping the
+                  // mirror itself would fight the pad's own cursor tracking.
+                  interactive={!webpage}
+                />
               )
             )}
             </div>
@@ -222,7 +245,17 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
             <div className="shrink-0 w-44 max-h-full overflow-y-auto">{toolbar}</div>
           )}
         </div>
-        {!isFullscreen && !toolbar && (
+
+        {/* "The control pad" — a blank trackpad below "the display" above,
+            instead of tapping the mirror directly. Same fixed-width box the
+            mirror uses so the two stay visually aligned. */}
+        {!isFullscreen && webpage && (
+          <div className="mt-3 w-[48rem] max-w-full h-56 rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden mx-auto">
+            <WebpageControlPad sessionId={`webpage:${webpage.mediaId}`} url={webpage.url} />
+          </div>
+        )}
+
+        {!isFullscreen && !toolbar && !webpage && (
           <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
             Touch to explore — mirrored on the TV in realtime
           </p>

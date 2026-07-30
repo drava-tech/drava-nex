@@ -58,9 +58,22 @@ export interface UseBrowserSessionResult {
   reload: () => void;
   /** Client-space coordinates — converted through the canvas's bounding rect. */
   click: (clientX: number, clientY: number) => void;
-  scroll: (deltaY: number) => void;
+  /**
+   * clientX/clientY (optional) position the wheel event so the renderer's own
+   * hit-testing picks the right scrollable element under the cursor — omit only
+   * when no pointer position is available.
+   */
+  scroll: (deltaY: number, clientX?: number, clientY?: number) => void;
   sendKey: (key: string) => void;
   type: (text: string) => void;
+  /**
+   * Trackpad-style relative motion — dx/dy are raw CSS pixels, unrelated to any
+   * canvas/mirror (no canvasRef target needed, unlike click/scroll above). The
+   * renderer tracks the resulting cursor position itself; see clickAtCursor.
+   */
+  moveCursor: (dx: number, dy: number) => void;
+  /** Click wherever the renderer's tracked cursor currently is — the trackpad-mode counterpart to click(clientX, clientY). */
+  clickAtCursor: () => void;
 }
 
 /**
@@ -229,21 +242,39 @@ export function useBrowserSession(
   const goBack = useCallback(() => sendControl("back"), [sendControl]);
   const goForward = useCallback(() => sendControl("forward"), [sendControl]);
   const reload = useCallback(() => sendControl("reload"), [sendControl]);
-  const scroll = useCallback((deltaY: number) => sendControl("scroll", { deltaY }), [sendControl]);
   const sendKey = useCallback((key: string) => sendControl("key", { key }), [sendControl]);
   const type = useCallback((text: string) => sendControl("type", { text }), [sendControl]);
 
+  /** Client-space (clientX/clientY) → the canvas's own pixel space, via its bounding rect. */
+  const toCanvasCoords = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((clientX - rect.left) / rect.width) * canvas.width,
+      y: ((clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }, []);
+
   const click = useCallback(
     (clientX: number, clientY: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas || canvas.width === 0 || canvas.height === 0) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = ((clientX - rect.left) / rect.width) * canvas.width;
-      const y = ((clientY - rect.top) / rect.height) * canvas.height;
-      sendControl("click", { x, y });
+      const pos = toCanvasCoords(clientX, clientY);
+      if (!pos) return;
+      sendControl("click", pos);
     },
-    [sendControl]
+    [sendControl, toCanvasCoords]
   );
 
-  return { canvasRef, ready, error, url, canGoBack, canGoForward, navigate, goBack, goForward, reload, click, scroll, sendKey, type };
+  const scroll = useCallback(
+    (deltaY: number, clientX?: number, clientY?: number) => {
+      const pos = clientX !== undefined && clientY !== undefined ? toCanvasCoords(clientX, clientY) : null;
+      sendControl("scroll", { deltaY, ...pos });
+    },
+    [sendControl, toCanvasCoords]
+  );
+
+  const moveCursor = useCallback((dx: number, dy: number) => sendControl("move", { dx, dy }), [sendControl]);
+  const clickAtCursor = useCallback(() => sendControl("click"), [sendControl]);
+
+  return { canvasRef, ready, error, url, canGoBack, canGoForward, navigate, goBack, goForward, reload, click, scroll, sendKey, type, moveCursor, clickAtCursor };
 }

@@ -20,9 +20,11 @@ export type ControlMessage =
   | {
       type: "BROWSER_CONTROL";
       sessionId: string;
-      action: "navigate" | "back" | "forward" | "reload" | "click" | "scroll" | "key" | "type";
+      action: "navigate" | "back" | "forward" | "reload" | "click" | "scroll" | "key" | "type" | "move";
       x?: number;
       y?: number;
+      dx?: number;
+      dy?: number;
       deltaY?: number;
       key?: string;
       text?: string;

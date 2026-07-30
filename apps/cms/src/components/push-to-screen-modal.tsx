@@ -36,6 +36,13 @@ interface PushToScreenModalProps {
   isAlreadyShowing?: (screen: ScreenRow) => boolean;
   /** Passed straight through to LiveControlDialog's "Save link" button (Browser). */
   onSaveLink?: () => Promise<void>;
+  /**
+   * Set when the content being pushed is a "link" media asset — passed
+   * straight through to LiveControlDialog, which then switches from tap-on-
+   * mirror control to the trackpad-style split display/control-pad view (see
+   * LiveControlDialog for why). Omit for any other content type.
+   */
+  webpage?: { mediaId: string; url: string };
 }
 
 /** Label for whatever a screen is currently showing, so admins know what they'd overwrite. */
@@ -64,6 +71,7 @@ export function PushToScreenModal({
   onPush,
   isAlreadyShowing,
   onSaveLink,
+  webpage,
 }: PushToScreenModalProps) {
   const [screens, setScreens] = useState<ScreenRow[]>([]);
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
@@ -166,6 +174,7 @@ export function PushToScreenModal({
         allScreens={allScreensForControl}
         onSaveLink={onSaveLink}
         onClose={onClose}
+        webpage={webpage}
       />
     );
   }

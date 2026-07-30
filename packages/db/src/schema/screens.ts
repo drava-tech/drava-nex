@@ -51,6 +51,12 @@ export const screen = pgTable(
     // (not just an in-memory WS relay) so a screen that reconnects mid-stop
     // (power cycle, network blip, API restart) comes back up still black.
     blanked: boolean("blanked").notNull().default(false),
+    // Master interactivity switch — governs BOTH the physical display's own
+    // touch input AND any CMS admin tab/popup mirroring this same screen, all
+    // at once (see WebpageRenderer, the single choke point both paths render
+    // through). Independent of `blanked`: content stays visible when this is
+    // false, it just can't be clicked/scrolled/typed into anywhere.
+    interactionEnabled: boolean("interaction_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

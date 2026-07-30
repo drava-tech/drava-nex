@@ -15,7 +15,17 @@ import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
-export function ContentRenderer({ content, screenId, preview }: { content: Content; screenId?: string; preview?: boolean }) {
+export function ContentRenderer({
+  content,
+  screenId,
+  preview,
+  interactionEnabled,
+}: {
+  content: Content;
+  screenId?: string;
+  preview?: boolean;
+  interactionEnabled?: boolean;
+}) {
   switch (content.type) {
     case "video":
       return <VideoRenderer content={content} />;
@@ -24,7 +34,7 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
     case "html":
       return <HtmlRenderer content={content} />;
     case "webpage":
-      return <WebpageRenderer content={content} />;
+      return <WebpageRenderer content={content} interactionEnabled={interactionEnabled} />;
     case "stream":
       return <StreamRenderer content={content} />;
     case "experience": {

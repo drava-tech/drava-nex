@@ -6,6 +6,7 @@ import {
   getScreenWhiteboardState,
   setScreenWhiteboardState,
   getScreenBlanked,
+  getScreenInteractionEnabled,
   verifyApiKey,
   scopeSatisfies,
 } from '@platform/db';
@@ -61,6 +62,11 @@ const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
 // is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
 // stopped comes back up still black, not showing its assigned content again.
 const screenBlankedCache = new Map<string, boolean>();
+// Master interactivity switch per screen — same survives-a-reconnect need as
+// screenBlankedCache. Governs whether click/scroll/type reaches the pushed
+// "link" asset's Puppeteer session from ANY renderer of this screen (the
+// physical TV or a CMS mirror/popup) — see WebpageRenderer.
+const screenInteractionEnabledCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
 const cameraStatusCache = new Map<string, CameraStatusUpdate>();
@@ -95,12 +101,17 @@ let audioStatusCache: AudioStatus = { volume: 50, muted: false, device: 'Unknown
 // (interactive Browser page) or a screen (kiosk render of a pushed "link" asset)
 // sends BROWSER_SESSION_START/STOP/CONTROL for a sessionId it owns; those are
 // forwarded verbatim to the control connection. Replies targeted at one session
-// (READY/ERROR/URL_CHANGED) are routed back only to the socket that opened it.
+// (READY/ERROR/URL_CHANGED) are fanned out to every socket that opened it — a
+// sessionId is derived from the media asset id (see WebpageRenderer), so
+// multiple screens PLUS the CMS Live Control popup can legitimately open the
+// same sessionId at once, sharing one Puppeteer page/screencast. A single-owner
+// map here previously meant the last opener silently stole all future replies
+// and earlier openers hung forever waiting for a READY that would never come.
 // The actual video frames never touch this map — browser-render opens a SEPARATE
 // WS connection per session and STREAM_PUBLISHes on it, reusing the live-stream
 // binary relay above completely unchanged.
 let browserRenderConn: WebSocket | null = null;
-const browserSessionOwner = new Map<string, WebSocket>();
+const browserSessionOwners = new Map<string, Set<WebSocket>>();
 
 export function sendAudioCommand(
   action: 'set-volume' | 'set-mute' | 'toggle-mute',
@@ -118,11 +129,13 @@ export function getAudioStatus(): AudioStatus {
   return audioStatusCache;
 }
 
-/** Send a message to whichever single socket opened this browser-render sessionId. */
-function sendToSessionOwner(sessionId: string, msg: WsServerMessage): void {
-  const owner = browserSessionOwner.get(sessionId);
-  if (owner && owner.readyState === WebSocket.OPEN) {
-    owner.send(JSON.stringify(msg));
+/** Send a message to every socket that currently has this browser-render sessionId open. */
+function sendToSessionOwners(sessionId: string, msg: WsServerMessage): void {
+  const owners = browserSessionOwners.get(sessionId);
+  if (!owners || owners.size === 0) return;
+  const payload = JSON.stringify(msg);
+  for (const owner of owners) {
+    if (owner.readyState === WebSocket.OPEN) owner.send(payload);
   }
 }
 
@@ -166,6 +179,12 @@ export function sendCommandToScreen(screenId: string, command: string, value?: a
 export function setScreenBlankState(screenId: string, blanked: boolean): void {
   screenBlankedCache.set(screenId, blanked);
   sendCommandToScreen(screenId, blanked ? 'SCREEN_BLANK' : 'SCREEN_UNBLANK');
+}
+
+/** Enable/disable interactivity for a screen everywhere it's rendered, live. */
+export function setScreenInteractionState(screenId: string, enabled: boolean): void {
+  screenInteractionEnabledCache.set(screenId, enabled);
+  sendCommandToScreen(screenId, enabled ? 'SCREEN_ENABLE_CONTROLS' : 'SCREEN_DISABLE_CONTROLS');
 }
 
 export function broadcastActiveScreensToCms() {
@@ -606,12 +625,36 @@ export function createGateway(): WebSocketServer {
               .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
           };
 
+          // If controls were disabled for this screen, replay that for the
+          // newly (re)connected client too — same reconnect-resilience need as
+          // blanked. Only the disabled case needs an explicit push (default is
+          // enabled, so a never-toggled screen sends nothing).
+          const replayInteractionState = () => {
+            const cachedEnabled = screenInteractionEnabledCache.get(sid);
+            if (cachedEnabled !== undefined) {
+              if (cachedEnabled === false && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
+              }
+              return;
+            }
+            // Not in memory (e.g. right after an API restart) — fall back to DB.
+            void getScreenInteractionEnabled(sid)
+              .then((enabled) => {
+                screenInteractionEnabledCache.set(sid, enabled);
+                if (!enabled && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
+                }
+              })
+              .catch((err) => console.error('[gateway] Interaction-state lookup failed for', sid, err));
+          };
+
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
             replayViewState();
             replayWhiteboardState();
             replayBlankState();
+            replayInteractionState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
@@ -624,6 +667,7 @@ export function createGateway(): WebSocketServer {
               }
               replayWhiteboardState();
               replayBlankState();
+              replayInteractionState();
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;
@@ -706,22 +750,40 @@ export function createGateway(): WebSocketServer {
         // browser-render control connection; the actual video frames arrive
         // separately via that service's own STREAM_PUBLISH connection, unrelated to
         // this socket. If no renderer is registered, fail fast rather than hang.
+        // Multiple sockets can share one sessionId (see browserSessionOwners above),
+        // so every START is still forwarded even if the session already exists —
+        // SessionManager.start() on the renderer side dedups that safely and acks
+        // "ready" without spinning up a second page.
         case 'BROWSER_SESSION_START': {
-          browserSessionOwner.set(msg.sessionId, ws);
+          let owners = browserSessionOwners.get(msg.sessionId);
+          if (!owners) {
+            owners = new Set();
+            browserSessionOwners.set(msg.sessionId, owners);
+          }
+          owners.add(ws);
           ownedBrowserSessionIds.add(msg.sessionId);
           if (!browserRenderConn || browserRenderConn.readyState !== WebSocket.OPEN) {
-            sendToSessionOwner(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: 'Renderer offline' });
+            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: 'Renderer offline' });
             break;
           }
           browserRenderConn.send(JSON.stringify(msg));
           break;
         }
 
+        // Only the LAST remaining owner actually tears down the renderer session —
+        // e.g. closing the CMS Live Control popup shouldn't kill playback on the
+        // TV still mirroring the same pushed page.
         case 'BROWSER_SESSION_STOP': {
-          if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
-            browserRenderConn.send(JSON.stringify(msg));
+          const owners = browserSessionOwners.get(msg.sessionId);
+          if (owners) {
+            owners.delete(ws);
+            if (owners.size === 0) {
+              browserSessionOwners.delete(msg.sessionId);
+              if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
+                browserRenderConn.send(JSON.stringify(msg));
+              }
+            }
           }
-          browserSessionOwner.delete(msg.sessionId);
           ownedBrowserSessionIds.delete(msg.sessionId);
           break;
         }
@@ -733,21 +795,22 @@ export function createGateway(): WebSocketServer {
           break;
         }
 
-        // Reports FROM the browser-render control connection about a session it
-        // owns — relayed to whichever client opened that sessionId only.
+        // Reports FROM the browser-render control connection about a session —
+        // relayed to every client that has it open (could be several screens
+        // plus a CMS Live Control popup sharing one sessionId).
         case 'BROWSER_SESSION_STATUS': {
           if (!isBrowserRenderConn) break; // ignore from any unauthenticated socket
           if (msg.status === 'ready') {
-            sendToSessionOwner(msg.sessionId, { type: 'BROWSER_SESSION_READY', sessionId: msg.sessionId });
+            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_READY', sessionId: msg.sessionId });
           } else {
-            sendToSessionOwner(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: msg.message ?? 'Render error' });
+            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: msg.message ?? 'Render error' });
           }
           break;
         }
 
         case 'BROWSER_PAGE_NAVIGATED': {
           if (!isBrowserRenderConn) break; // ignore from any unauthenticated socket
-          sendToSessionOwner(msg.sessionId, {
+          sendToSessionOwners(msg.sessionId, {
             type: 'BROWSER_URL_CHANGED',
             sessionId: msg.sessionId,
             url: msg.url,
@@ -984,13 +1047,20 @@ export function createGateway(): WebSocketServer {
         // which already tears them down via the streamPublishers branch below on
         // those separate connections) — nothing further to clean up here.
       }
-      // This socket owned one or more browser-render sessions (a CMS tab or a
-      // screen) and went away without a clean BROWSER_SESSION_STOP — tell the
-      // renderer to free the Puppeteer page rather than leaking it.
+      // This socket had one or more browser-render sessions open (a CMS tab or a
+      // screen) and went away without a clean BROWSER_SESSION_STOP. Only tell the
+      // renderer to free the Puppeteer page once it was the LAST socket sharing
+      // that sessionId — others (e.g. another screen mirroring the same pushed
+      // page) may still be using it.
       for (const sessionId of ownedBrowserSessionIds) {
-        browserSessionOwner.delete(sessionId);
-        if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
-          browserRenderConn.send(JSON.stringify({ type: 'BROWSER_SESSION_STOP', sessionId } satisfies WsClientMessage));
+        const owners = browserSessionOwners.get(sessionId);
+        if (!owners) continue;
+        owners.delete(ws);
+        if (owners.size === 0) {
+          browserSessionOwners.delete(sessionId);
+          if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
+            browserRenderConn.send(JSON.stringify({ type: 'BROWSER_SESSION_STOP', sessionId } satisfies WsClientMessage));
+          }
         }
       }
       // Publisher gone → drop its cache and tell subscribers the stream stopped.
