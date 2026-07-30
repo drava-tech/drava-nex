@@ -270,17 +270,25 @@ export type WsClientMessage =
   | {
       type: 'BROWSER_CONTROL';
       sessionId: string;
-      action: 'navigate' | 'back' | 'forward' | 'reload' | 'click' | 'scroll' | 'key' | 'type';
+      // 'move': relative trackpad-style cursor motion (dx/dy) — the renderer
+      // tracks an authoritative cursor position per session and updates it by
+      // this delta, rather than the caller knowing an absolute page position.
+      // 'click'/'scroll' omit x/y in trackpad mode too, meaning "at the
+      // session's current tracked cursor" — they still accept explicit x/y for
+      // the existing absolute tap-on-mirror callers.
+      action: 'navigate' | 'back' | 'forward' | 'reload' | 'click' | 'scroll' | 'key' | 'type' | 'move';
       x?: number;
       y?: number;
+      dx?: number;
+      dy?: number;
       deltaY?: number;
       key?: string;
       text?: string;
       url?: string;
     }
   // browser-render (the control connection only) reports session lifecycle and
-  // navigation back to the gateway, which relays them to browserSessionOwner as
-  // BROWSER_SESSION_READY/BROWSER_SESSION_ERROR/BROWSER_URL_CHANGED respectively —
+  // navigation back to the gateway, which relays them to every socket sharing that
+  // sessionId as BROWSER_SESSION_READY/BROWSER_SESSION_ERROR/BROWSER_URL_CHANGED —
   // same inbound-report/outbound-relay split as CAMERA_STATUS → CAMERA_STATUS_UPDATE.
   | { type: 'BROWSER_SESSION_STATUS'; sessionId: string; status: 'ready' | 'error'; message?: string }
   | { type: 'BROWSER_PAGE_NAVIGATED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean };

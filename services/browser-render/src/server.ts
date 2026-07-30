@@ -9,6 +9,17 @@ const BROADCAST_SECRET = process.env["BROADCAST_SECRET"] || "";
 const MAX_SESSIONS = Number(process.env["MAX_SESSIONS"] || 8);
 const HEALTH_PORT = Number(process.env["PORT"] || 8090);
 const REMOTE_DEBUG_PORT = Number(process.env["REMOTE_DEBUG_PORT"] || 9222);
+// CDP's Page.startScreencast (used for every session's live mirror) ignores
+// per-page deviceScaleFactor entirely — its maxWidth/maxHeight cap is applied
+// against the CSS-pixel layout size regardless (confirmed empirically: setting
+// page.setViewport({deviceScaleFactor:2}) makes page.screenshot() correctly
+// output at 2x, but Page.startScreencast frames stay at 1x). The ONLY thing
+// that changes screencast's captured resolution is the browser-launch-level
+// --force-device-scale-factor flag — which is necessarily global (one shared
+// Chromium process serves every session), not something a per-client message
+// can request. 2 covers the common tablet/retina case; a DPR-1 viewer just
+// receives a somewhat larger-than-necessary (but harmless) frame.
+const SCREENCAST_SCALE_FACTOR = Number(process.env["SCREENCAST_SCALE_FACTOR"] || 2);
 
 if (!BROADCAST_SECRET) {
   console.error("[browser-render] BROADCAST_SECRET is not set — the gateway will reject registration. Exiting.");
@@ -31,6 +42,7 @@ async function launchBrowser(): Promise<Browser> {
           "--disable-dev-shm-usage",
           "--disable-gpu",
           "--no-first-run",
+          `--force-device-scale-factor=${SCREENCAST_SCALE_FACTOR}`,
           // Expose Chrome DevTools Protocol so any tab can be opened directly
           // in a real browser: chrome://inspect or http://localhost:REMOTE_DEBUG_PORT/json
           `--remote-debugging-port=${REMOTE_DEBUG_PORT}`,
@@ -266,6 +278,7 @@ async function main(): Promise<void> {
     browser,
     wsGatewayUrl: WS_GATEWAY_URL,
     maxSessions: MAX_SESSIONS,
+    scaleFactor: SCREENCAST_SCALE_FACTOR,
     sendControl,
   });
   connect();

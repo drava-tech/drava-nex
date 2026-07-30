@@ -34,6 +34,7 @@ services:
       - WS_GATEWAY_URL=ws://host.docker.internal:4000/ws
       - BROADCAST_SECRET=${BROADCAST_SECRET}
       - MAX_SESSIONS=8
+      - SCREENCAST_SCALE_FACTOR=3
     expose:
       - "8090"
     healthcheck:

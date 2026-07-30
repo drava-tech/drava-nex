@@ -133,7 +133,7 @@ export function BrowserView() {
   const handleCanvasWheel = useCallback(
     (e: React.WheelEvent<HTMLCanvasElement>) => {
       e.preventDefault();
-      session.scroll(e.deltaY);
+      session.scroll(e.deltaY, e.clientX, e.clientY);
     },
     [session]
   );

@@ -150,6 +150,7 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
         screens={controlScreens}
         onSaveLink={handleSaveLink}
         onClose={onClose}
+        webpage={mediaId ? { mediaId, url } : undefined}
       />
     );
   }

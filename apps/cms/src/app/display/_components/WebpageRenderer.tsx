@@ -24,7 +24,14 @@ const DRAG_THRESHOLD = 6;
  * distinction the admin Browser tool's mouse/wheel handling makes, just over
  * Pointer Events so touch and mouse both work on whatever the screen actually is.
  */
-export function WebpageRenderer({ content }: { content: WebpageContent }) {
+export function WebpageRenderer({
+  content,
+  interactionEnabled = true,
+}: {
+  content: WebpageContent;
+  /** Master interactivity switch (screen.interactionEnabled) — see screen-control-view.tsx. */
+  interactionEnabled?: boolean;
+}) {
   // Render at this screen's own real window size rather than a fixed
   // resolution — Puppeteer lays the page out exactly as wide/tall as the
   // viewport it's told to use, so a hardcoded size (e.g. a blanket 4K) makes
@@ -47,16 +54,27 @@ export function WebpageRenderer({ content }: { content: WebpageContent }) {
 
   if (!viewport) return <div style={{ position: "fixed", inset: 0, backgroundColor: "#000" }} />;
 
-  return <WebpageCanvas content={content} viewport={viewport} />;
+  return <WebpageCanvas content={content} viewport={viewport} interactionEnabled={interactionEnabled} />;
 }
 
 function WebpageCanvas({
   content,
   viewport,
+  interactionEnabled,
 }: {
   content: WebpageContent;
   viewport: { width: number; height: number };
+  interactionEnabled: boolean;
 }) {
+  // NOTE: `interactive: true` below is deliberately NOT wired to the
+  // interactionEnabled prop. useBrowserSession's mount effect is keyed on
+  // [sessionId, opts.interactive] — toggling it after mount would tear down
+  // and reconnect the WS session, and since sessionId is shared across every
+  // screen showing this same pushed asset, that can actually kill and
+  // re-navigate the underlying Puppeteer page if the toggling screen was the
+  // session's last remaining owner, losing scroll position/form state on
+  // every flip. Gating happens below instead, at the actual input handlers —
+  // the session itself (and its screencast) stays alive either way.
   const session = useBrowserSession(content.source, {
     interactive: true,
     sessionId: `webpage:${content.id}`,
@@ -68,6 +86,9 @@ function WebpageCanvas({
     null
   );
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  // Ref so the mount-once wheel listener always reads the latest value.
+  const interactionEnabledRef = useRef(interactionEnabled);
+  interactionEnabledRef.current = interactionEnabled;
 
   // Stable ref so the wheel listener always calls the latest session.scroll
   // without being re-attached every render.
@@ -81,8 +102,11 @@ function WebpageCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const handler = (e: WheelEvent) => {
+      // preventDefault stays unconditional — still must stop the host page's
+      // own scroll even while interaction is disabled.
       e.preventDefault();
-      scrollRef.current(e.deltaY);
+      if (!interactionEnabledRef.current) return;
+      scrollRef.current(e.deltaY, e.clientX, e.clientY);
     };
     canvas.addEventListener("wheel", handler, { passive: false });
     return () => canvas.removeEventListener("wheel", handler);
@@ -95,10 +119,12 @@ function WebpageCanvas({
       <canvas
         ref={canvasRef}
         onPointerDown={(e) => {
+          if (!interactionEnabled) return;
           e.currentTarget.setPointerCapture(e.pointerId);
           pointerRef.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, lastY: e.clientY, dragging: false };
         }}
         onPointerMove={(e) => {
+          if (!interactionEnabled) return;
           const p = pointerRef.current;
           if (!p || p.id !== e.pointerId) return;
           const dy = e.clientY - p.lastY;
@@ -107,10 +133,11 @@ function WebpageCanvas({
           }
           // dy > 0 means finger/cursor moved down → content should scroll up → send positive deltaY
           // ponytail: inverted from native scroll because this is a drag-to-pan gesture
-          if (p.dragging) session.scroll(-dy);
+          if (p.dragging) session.scroll(-dy, e.clientX, e.clientY);
           p.lastY = e.clientY;
         }}
         onPointerUp={(e) => {
+          if (!interactionEnabled) return;
           const p = pointerRef.current;
           if (p && p.id === e.pointerId && !p.dragging) {
             session.click(e.clientX, e.clientY);
@@ -142,12 +169,14 @@ function WebpageCanvas({
         className="pointer-events-none absolute h-px w-px opacity-0"
         aria-hidden="true"
         onKeyDown={(e) => {
+          if (!interactionEnabled) return;
           if (SPECIAL_KEYS.includes(e.key)) {
             e.preventDefault();
             session.sendKey(e.key);
           }
         }}
         onInput={(e) => {
+          if (!interactionEnabled) return;
           const el = e.target as HTMLInputElement;
           if (el.value) {
             session.type(el.value);
