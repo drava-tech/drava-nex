@@ -1,0 +1,22 @@
+{
+  "name": "browser-render",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless-Chromium (Puppeteer) renderer. Connects out to the platform's existing /ws gateway as a control client and, per session, as a live-stream publisher — no HTTP API of its own beyond a health check. See apps/api/src/ws/gateway.ts (BROWSER_* messages) and packages/ui/src/browser-session/use-browser-session.ts.",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file=.env dist/server.js",
+    "dev": "tsx watch --env-file=.env src/server.ts"
+  },
+  "dependencies": {
+    "puppeteer": "^23.9.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.5"
+  }
+}
