@@ -157,7 +157,7 @@ export interface IrAcState {
 
 // --- WebSocket Protocol Types ---
 
-export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience' | 'webpage';
+export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
 
 /** Wire format the publisher EXE pushes for a live stream. */
 export type StreamFormat = 'h264' | 'mjpeg';
@@ -213,17 +213,6 @@ export type WsServerMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER_NACK'; reason: string }
   // Sent only to the registered native audio-bridge socket (apps/api/audio-helper/bridge.mjs).
   | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean }
-  // Headless-Chromium render relay (services/browser-render). ACK/NACK go only to
-  // the registering socket; READY/ERROR/URL_CHANGED are the gateway's relay of the
-  // browser-render-originated BROWSER_SESSION_STATUS/BROWSER_PAGE_NAVIGATED client
-  // messages below, sent only to whichever socket opened that sessionId (see
-  // gateway.ts browserSessionOwner). Frame delivery itself reuses
-  // STREAM_PUBLISH/STREAM_SUBSCRIBE/STREAM_STATUS above unchanged.
-  | { type: 'BROWSER_RENDER_REGISTER_ACK' }
-  | { type: 'BROWSER_RENDER_REGISTER_NACK'; reason: string }
-  | { type: 'BROWSER_SESSION_READY'; sessionId: string }
-  | { type: 'BROWSER_SESSION_ERROR'; sessionId: string; message: string }
-  | { type: 'BROWSER_URL_CHANGED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean }
   // Native screen-agent relay (apps/api/screen-agent/agent.mjs) — one agent
   // registers per screenId (it runs on the Windows PC physically driving that
   // screen's TV). ACK/NACK go only to the registering socket; CURSOR_CONTROL
@@ -232,7 +221,15 @@ export type WsServerMessage =
   // screenId, so it can simulate the real OS-level mouse input.
   | { type: 'SCREEN_AGENT_REGISTER_ACK' }
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
-  | { type: 'CURSOR_CONTROL'; action: 'move' | 'click' | 'scroll'; dx?: number; dy?: number; deltaY?: number };
+  | {
+      type: 'CURSOR_CONTROL';
+      action: 'move' | 'click' | 'scroll';
+      dx?: number;
+      dy?: number;
+      deltaY?: number;
+      /** Which physical button a 'click' simulates — omitted means 'left'. */
+      button?: 'left' | 'right';
+    };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -264,43 +261,6 @@ export type WsClientMessage =
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
   | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus)
-  // Headless-Chromium render relay (services/browser-render registers itself as
-  // the single control connection; a CMS tab or a screen sends START/STOP/CONTROL
-  // for a sessionId it owns). Auth mirrors AUDIO_BRIDGE_REGISTER (BROADCAST_SECRET).
-  | { type: 'BROWSER_RENDER_REGISTER'; secret: string }
-  | {
-      type: 'BROWSER_SESSION_START';
-      sessionId: string;
-      url: string;
-      interactive: boolean;
-      viewport?: { width: number; height: number };
-    }
-  | { type: 'BROWSER_SESSION_STOP'; sessionId: string }
-  | {
-      type: 'BROWSER_CONTROL';
-      sessionId: string;
-      // 'move': relative trackpad-style cursor motion (dx/dy) — the renderer
-      // tracks an authoritative cursor position per session and updates it by
-      // this delta, rather than the caller knowing an absolute page position.
-      // 'click'/'scroll' omit x/y in trackpad mode too, meaning "at the
-      // session's current tracked cursor" — they still accept explicit x/y for
-      // the existing absolute tap-on-mirror callers.
-      action: 'navigate' | 'back' | 'forward' | 'reload' | 'click' | 'scroll' | 'key' | 'type' | 'move';
-      x?: number;
-      y?: number;
-      dx?: number;
-      dy?: number;
-      deltaY?: number;
-      key?: string;
-      text?: string;
-      url?: string;
-    }
-  // browser-render (the control connection only) reports session lifecycle and
-  // navigation back to the gateway, which relays them to every socket sharing that
-  // sessionId as BROWSER_SESSION_READY/BROWSER_SESSION_ERROR/BROWSER_URL_CHANGED —
-  // same inbound-report/outbound-relay split as CAMERA_STATUS → CAMERA_STATUS_UPDATE.
-  | { type: 'BROWSER_SESSION_STATUS'; sessionId: string; status: 'ready' | 'error'; message?: string }
-  | { type: 'BROWSER_PAGE_NAVIGATED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean }
   // Native screen-agent (apps/api/screen-agent/agent.mjs) registers itself for
   // one screenId — it runs on the Windows PC physically driving that screen's
   // TV and simulates real OS-level mouse input there, so remote control works
@@ -311,7 +271,8 @@ export type WsClientMessage =
   | { type: 'SCREEN_AGENT_REGISTER'; screenId: string; secret: string }
   // A CMS control-pad drives the OS cursor on whichever PC is registered for
   // this screenId — relative motion (dx/dy), a click at the current OS cursor
-  // position, or a scroll (deltaY). Dropped silently if no agent is
+  // position (optionally 'right' for a right-click, e.g. a trackpad's right
+  // button), or a scroll (deltaY). Dropped silently if no agent is
   // registered for the screen — trackpad deltas are fire-and-forget.
   | {
       type: 'CURSOR_CONTROL';
@@ -320,6 +281,7 @@ export type WsClientMessage =
       dx?: number;
       dy?: number;
       deltaY?: number;
+      button?: 'left' | 'right';
     };
 
 /**

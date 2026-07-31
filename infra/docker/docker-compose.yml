@@ -127,44 +127,6 @@ services:
     networks:
       - internal
 
-  # ─── Headless-Chromium render relay ─────────────────────────────────────────
-  # Puppeteer + CDP screencast, driving the CMS "Browser" page and the
-  # server-side render of pushed "link" media assets on screens — replaces the
-  # iframe + Frame Unlock extension approach for both. No published port and no
-  # nginx route: it's purely a WS *client* of the API gateway (control + one
-  # STREAM_PUBLISH connection per active session), same as the live-stream
-  # publisher EXE and the audio bridge. shm_size avoids the classic Chromium
-  # /dev/shm crash without sharing the host's IPC namespace.
-  browser-render:
-    build:
-      context: ../../services/browser-render
-      dockerfile: Dockerfile
-    container_name: cms-browser-render
-    restart: unless-stopped
-    shm_size: '1gb'
-    environment:
-      - WS_GATEWAY_URL=ws://api:4000/ws
-      - BROADCAST_SECRET=${BROADCAST_SECRET}
-      - MAX_SESSIONS=8
-      # Chromium launch-level --force-device-scale-factor: the only thing that
-      # actually changes Page.startScreencast's captured resolution (per-page
-      # CDP emulation does not). 3 pushes clarity further than the initial 2x.
-      - SCREENCAST_SCALE_FACTOR=3
-    expose:
-      - "8090" # internal health check only
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8090/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    depends_on:
-      api:
-        condition: service_started
-    networks:
-      - internal
-      - public # outbound internet — it navigates to arbitrary external sites
-
   # ─── Vision Inference (GPU) ─────────────────────────────────────────────────
   # FastAPI + YOLO on CUDA — services/vision/object_detection. Model weights are
   # baked into the image at build time. Start with: pnpm vision-server:up

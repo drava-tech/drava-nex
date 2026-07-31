@@ -18,12 +18,13 @@ interface ScreenTouchpadProps {
 /**
  * A blank touch surface that drives the REAL OS-level mouse cursor on the
  * Windows PC physically showing this screen's TV, via its registered native
- * screen-agent — like a laptop trackpad or a "phone as TV remote" app,
- * deliberately NOT a mirror/preview of the screen. Single-finger drag moves
- * the OS cursor, a tap clicks at that cursor, two fingers scroll. Because
- * it's real OS input, this works identically no matter what's actually on
- * screen (a browser tab, YouTube, anything else) with no app-specific
- * plumbing.
+ * screen-agent — modeled directly on a laptop trackpad: a big drag surface
+ * plus a left/right button bar underneath, deliberately NOT a mirror/preview
+ * of the screen. Single-finger drag moves the OS cursor, a tap (or the Left
+ * button) clicks at that cursor, the Right button right-clicks, two fingers
+ * scroll. Because it's real OS input, this works identically no matter
+ * what's actually on screen (a browser tab, YouTube, anything else) with no
+ * app-specific plumbing.
  */
 export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
   const { agentOnline, moveCursor, click, scroll } = useScreenCursorControl(screenId);
@@ -54,7 +55,11 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
 
       if (pointersRef.current.size >= 2) {
         // Two-finger drag = scroll — drag down pans content down = scroll UP
-        // in wheel terms, hence the negation.
+        // in wheel terms, hence the negation. preventDefault (belt-and-
+        // suspenders alongside touchAction/overscrollBehavior below) stops
+        // this gesture from ALSO scrolling whatever page/dialog the pad
+        // happens to be embedded in.
+        e.preventDefault();
         scroll(-dy);
         return;
       }
@@ -74,7 +79,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
       pointersRef.current.delete(e.pointerId);
       const g = gestureRef.current;
       if (g && g.id === e.pointerId) {
-        if (!g.dragging) click();
+        if (!g.dragging) click("left");
         gestureRef.current = null;
       }
     },
@@ -82,14 +87,14 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col" style={{ touchAction: "none", overscrollBehavior: "contain" }}>
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         className="relative flex flex-1 select-none items-center justify-center bg-zinc-100 dark:bg-zinc-900"
-        style={{ touchAction: "none", cursor: "default" }}
+        style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
       >
         <div className="pointer-events-none flex flex-col items-center gap-2 text-zinc-400 dark:text-zinc-600">
           <MousePointer2 className="h-6 w-6" />
@@ -99,6 +104,24 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
             two fingers to scroll
           </p>
         </div>
+      </div>
+      {/* Laptop-trackpad-style button bar — explicit left/right clicks
+          alongside the pad's own tap-to-left-click gesture above. */}
+      <div className="flex h-14 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
+        <button
+          type="button"
+          onClick={() => click("left")}
+          className="flex-1 select-none text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
+        >
+          Left
+        </button>
+        <button
+          type="button"
+          onClick={() => click("right")}
+          className="flex-1 select-none text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
+        >
+          Right
+        </button>
       </div>
       {agentOnline === false && (
         <p className="px-4 py-2 text-center text-xs text-amber-600 dark:text-amber-400">

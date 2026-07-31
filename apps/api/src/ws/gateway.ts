@@ -63,9 +63,11 @@ const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
 // stopped comes back up still black, not showing its assigned content again.
 const screenBlankedCache = new Map<string, boolean>();
 // Master interactivity switch per screen — same survives-a-reconnect need as
-// screenBlankedCache. Governs whether click/scroll/type reaches the pushed
-// "link" asset's Puppeteer session from ANY renderer of this screen (the
-// physical TV or a CMS mirror/popup) — see WebpageRenderer.
+// screenBlankedCache. Pushed to every renderer of this screen (the physical
+// TV or a CMS mirror/popup) via SCREEN_ENABLE_CONTROLS/SCREEN_DISABLE_CONTROLS
+// — currently unconsumed on the display side (no renderer gates on it since
+// WebpageRenderer/browser-render was removed); kept as a live per-screen flag
+// for a future consumer rather than torn out with that removal.
 const screenInteractionEnabledCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
@@ -95,33 +97,15 @@ const streamCache = new Map<string, StreamCacheEntry>();
 let audioBridge: WebSocket | null = null;
 let audioStatusCache: AudioStatus = { volume: 50, muted: false, device: 'Unknown Device' };
 
-// ─── Headless-Chromium render relay ─────────────────────────────────────────────
-// services/browser-render (Puppeteer + CDP screencast) registers one persistent
-// "control" connection here, same singleton pattern as audioBridge. A CMS tab
-// (interactive Browser page) or a screen (kiosk render of a pushed "link" asset)
-// sends BROWSER_SESSION_START/STOP/CONTROL for a sessionId it owns; those are
-// forwarded verbatim to the control connection. Replies targeted at one session
-// (READY/ERROR/URL_CHANGED) are fanned out to every socket that opened it — a
-// sessionId is derived from the media asset id (see WebpageRenderer), so
-// multiple screens PLUS the CMS Live Control popup can legitimately open the
-// same sessionId at once, sharing one Puppeteer page/screencast. A single-owner
-// map here previously meant the last opener silently stole all future replies
-// and earlier openers hung forever waiting for a READY that would never come.
-// The actual video frames never touch this map — browser-render opens a SEPARATE
-// WS connection per session and STREAM_PUBLISHes on it, reusing the live-stream
-// binary relay above completely unchanged.
-let browserRenderConn: WebSocket | null = null;
-const browserSessionOwners = new Map<string, Set<WebSocket>>();
-
 // ─── Native screen agents ────────────────────────────────────────────────────
 // apps/api/screen-agent/agent.mjs runs on the Windows PC that physically
 // drives one screen's TV (alongside its kiosk Chrome) and registers itself
-// here, keyed by screenId — unlike audioBridge/browserRenderConn there can be
-// many of these, one per screen, since each screen has its own PC. A CMS
-// tablet's CURSOR_CONTROL is forwarded verbatim to whichever agent is
-// registered for that screenId, which then simulates the real OS-level mouse
-// move/click/scroll — no video/screenshot ever flows through this map, only
-// tiny control messages.
+// here, keyed by screenId — unlike audioBridge there can be many of these,
+// one per screen, since each screen has its own PC. A CMS tablet's
+// CURSOR_CONTROL is forwarded verbatim to whichever agent is registered for
+// that screenId, which then simulates the real OS-level mouse move/click/
+// scroll — no video/screenshot ever flows through this map, only tiny
+// control messages.
 const screenAgentRegistry = new Map<string, WebSocket>();
 
 export function sendAudioCommand(
@@ -138,16 +122,6 @@ export function sendAudioCommand(
 
 export function getAudioStatus(): AudioStatus {
   return audioStatusCache;
-}
-
-/** Send a message to every socket that currently has this browser-render sessionId open. */
-function sendToSessionOwners(sessionId: string, msg: WsServerMessage): void {
-  const owners = browserSessionOwners.get(sessionId);
-  if (!owners || owners.size === 0) return;
-  const payload = JSON.stringify(msg);
-  for (const owner of owners) {
-    if (owner.readyState === WebSocket.OPEN) owner.send(payload);
-  }
 }
 
 function broadcastStreamStatus(streamId: string, active: boolean): void {
@@ -504,10 +478,8 @@ export function createGateway(): WebSocketServer {
     let isCmsClient = false;
     let isUeClient = false;
     let isAudioBridge = false;
-    let isBrowserRenderConn = false;
     let isScreenAgent = false;
     let agentScreenId: string | null = null;
-    const ownedBrowserSessionIds = new Set<string>();
     const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
     let publishingStreamId: string | null = null;
@@ -750,27 +722,6 @@ export function createGateway(): WebSocketServer {
           break;
         }
 
-        case 'BROWSER_RENDER_REGISTER': {
-          const expected = process.env['BROADCAST_SECRET'];
-          if (!expected || msg.secret !== expected) {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'BROWSER_RENDER_REGISTER_NACK', reason: 'unauthorized' } satisfies WsServerMessage));
-            }
-            ws.close();
-            break;
-          }
-          // A fresh registration supersedes any stale one (e.g. service restart).
-          if (browserRenderConn && browserRenderConn !== ws && browserRenderConn.readyState === WebSocket.OPEN) {
-            browserRenderConn.close();
-          }
-          isBrowserRenderConn = true;
-          browserRenderConn = ws;
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'BROWSER_RENDER_REGISTER_ACK' } satisfies WsServerMessage));
-          }
-          break;
-        }
-
         case 'SCREEN_AGENT_REGISTER': {
           const expected = process.env['BROADCAST_SECRET'];
           if (!expected || msg.secret !== expected) {
@@ -809,86 +760,13 @@ export function createGateway(): WebSocketServer {
                 dx: msg.dx,
                 dy: msg.dy,
                 deltaY: msg.deltaY,
+                button: msg.button,
               } satisfies WsServerMessage)
             );
           }
           break;
         }
 
-        // A CMS tab (interactive) or a screen (kiosk) asking to open/close/control a
-        // headless-Chromium session. Forwarded verbatim to the single registered
-        // browser-render control connection; the actual video frames arrive
-        // separately via that service's own STREAM_PUBLISH connection, unrelated to
-        // this socket. If no renderer is registered, fail fast rather than hang.
-        // Multiple sockets can share one sessionId (see browserSessionOwners above),
-        // so every START is still forwarded even if the session already exists —
-        // SessionManager.start() on the renderer side dedups that safely and acks
-        // "ready" without spinning up a second page.
-        case 'BROWSER_SESSION_START': {
-          let owners = browserSessionOwners.get(msg.sessionId);
-          if (!owners) {
-            owners = new Set();
-            browserSessionOwners.set(msg.sessionId, owners);
-          }
-          owners.add(ws);
-          ownedBrowserSessionIds.add(msg.sessionId);
-          if (!browserRenderConn || browserRenderConn.readyState !== WebSocket.OPEN) {
-            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: 'Renderer offline' });
-            break;
-          }
-          browserRenderConn.send(JSON.stringify(msg));
-          break;
-        }
-
-        // Only the LAST remaining owner actually tears down the renderer session —
-        // e.g. closing the CMS Live Control popup shouldn't kill playback on the
-        // TV still mirroring the same pushed page.
-        case 'BROWSER_SESSION_STOP': {
-          const owners = browserSessionOwners.get(msg.sessionId);
-          if (owners) {
-            owners.delete(ws);
-            if (owners.size === 0) {
-              browserSessionOwners.delete(msg.sessionId);
-              if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
-                browserRenderConn.send(JSON.stringify(msg));
-              }
-            }
-          }
-          ownedBrowserSessionIds.delete(msg.sessionId);
-          break;
-        }
-
-        case 'BROWSER_CONTROL': {
-          if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
-            browserRenderConn.send(JSON.stringify(msg));
-          }
-          break;
-        }
-
-        // Reports FROM the browser-render control connection about a session —
-        // relayed to every client that has it open (could be several screens
-        // plus a CMS Live Control popup sharing one sessionId).
-        case 'BROWSER_SESSION_STATUS': {
-          if (!isBrowserRenderConn) break; // ignore from any unauthenticated socket
-          if (msg.status === 'ready') {
-            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_READY', sessionId: msg.sessionId });
-          } else {
-            sendToSessionOwners(msg.sessionId, { type: 'BROWSER_SESSION_ERROR', sessionId: msg.sessionId, message: msg.message ?? 'Render error' });
-          }
-          break;
-        }
-
-        case 'BROWSER_PAGE_NAVIGATED': {
-          if (!isBrowserRenderConn) break; // ignore from any unauthenticated socket
-          sendToSessionOwners(msg.sessionId, {
-            type: 'BROWSER_URL_CHANGED',
-            sessionId: msg.sessionId,
-            url: msg.url,
-            canGoBack: msg.canGoBack,
-            canGoForward: msg.canGoForward,
-          });
-          break;
-        }
 
         case 'UE_REGISTER': {
           // Unreal Engine / automation subscribes to the event channel. Auth is an
@@ -1111,31 +989,9 @@ export function createGateway(): WebSocketServer {
         // Leave audioStatusCache as last-known-good rather than resetting to
         // the generic fallback — the CMS shows stale-but-plausible numbers.
       }
-      if (isBrowserRenderConn && browserRenderConn === ws) {
-        browserRenderConn = null;
-        // Sessions it owned die with it (their frame-publish sockets close too,
-        // which already tears them down via the streamPublishers branch below on
-        // those separate connections) — nothing further to clean up here.
-      }
       if (isScreenAgent && agentScreenId && screenAgentRegistry.get(agentScreenId) === ws) {
         screenAgentRegistry.delete(agentScreenId);
         broadcastToCms({ type: 'SCREEN_AGENT_STATUS', screenId: agentScreenId, connected: false });
-      }
-      // This socket had one or more browser-render sessions open (a CMS tab or a
-      // screen) and went away without a clean BROWSER_SESSION_STOP. Only tell the
-      // renderer to free the Puppeteer page once it was the LAST socket sharing
-      // that sessionId — others (e.g. another screen mirroring the same pushed
-      // page) may still be using it.
-      for (const sessionId of ownedBrowserSessionIds) {
-        const owners = browserSessionOwners.get(sessionId);
-        if (!owners) continue;
-        owners.delete(ws);
-        if (owners.size === 0) {
-          browserSessionOwners.delete(sessionId);
-          if (browserRenderConn && browserRenderConn.readyState === WebSocket.OPEN) {
-            browserRenderConn.send(JSON.stringify({ type: 'BROWSER_SESSION_STOP', sessionId } satisfies WsClientMessage));
-          }
-        }
       }
       // Publisher gone → drop its cache and tell subscribers the stream stopped.
       if (publishingStreamId && streamPublishers.get(publishingStreamId) === ws) {

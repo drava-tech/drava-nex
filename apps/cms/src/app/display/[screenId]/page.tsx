@@ -39,7 +39,6 @@ export default async function DisplayPage({ params, searchParams }: PageProps) {
           initialContent={config.content}
           wsUrl={wsUrl}
           preview={preview}
-          initialInteractionEnabled={config.interactionEnabled}
         />
       </Suspense>
     );

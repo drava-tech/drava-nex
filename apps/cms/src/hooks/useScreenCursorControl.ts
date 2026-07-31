@@ -9,7 +9,7 @@ interface UseScreenCursorControlReturn {
    * this screen's native agent (apps/api/screen-agent) is currently connected. */
   agentOnline: boolean | null;
   moveCursor: (dx: number, dy: number) => void;
-  click: () => void;
+  click: (button?: "left" | "right") => void;
   scroll: (deltaY: number) => void;
 }
 
@@ -81,7 +81,7 @@ export function useScreenCursorControl(screenId: string): UseScreenCursorControl
   );
 
   const click = useCallback(
-    () => send({ type: "CURSOR_CONTROL", screenId, action: "click" }),
+    (button?: "left" | "right") => send({ type: "CURSOR_CONTROL", screenId, action: "click", button }),
     [send, screenId]
   );
 

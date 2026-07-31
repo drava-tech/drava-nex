@@ -16,7 +16,7 @@
  */
 
 import { WebSocket } from 'ws';
-import { mouse, Point, screen } from '@nut-tree-fork/nut-js';
+import { mouse, Point, screen, Button } from '@nut-tree-fork/nut-js';
 
 // Instant jumps instead of nut-js's default glide animation — a real
 // trackpad moves the cursor 1:1 with the drag, not on a delay.
@@ -52,7 +52,7 @@ async function handleCursorControl(msg) {
       );
       await mouse.setPosition(next);
     } else if (msg.action === 'click') {
-      await mouse.leftClick();
+      await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {
       const amount = Math.round(Math.abs(msg.deltaY));
       if (amount === 0) return;

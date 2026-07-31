@@ -34,8 +34,6 @@ interface LiveScreenPlayerProps {
   wsUrl: string;
   /** Registers as a preview mirror (CMS embed): excluded from the online count. */
   preview?: boolean;
-  /** Master interactivity switch (screen.interactionEnabled) — see WebpageRenderer. */
-  initialInteractionEnabled?: boolean;
 }
 
 // Sentinel used when screen has no content assigned yet
@@ -63,8 +61,6 @@ function toDisplayContent(ws: WsContent): Content {
       return { id: ws.id, type: "image", source: ws.source };
     case "html":
       return { id: ws.id, type: "html", source: ws.source };
-    case "webpage":
-      return { id: ws.id, type: "webpage", source: ws.source };
     case "stream":
       return { id: ws.id, type: "stream", source: ws.source, muted: ws.muted ?? true };
     case "experience":
@@ -85,11 +81,9 @@ export function LiveScreenPlayer({
   initialContent,
   wsUrl,
   preview = false,
-  initialInteractionEnabled = true,
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
-  const [interactionEnabled, setInteractionEnabled] = useState(initialInteractionEnabled);
 
 
   const handleContentUpdate = useCallback(
@@ -144,13 +138,6 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
       window.dispatchEvent(new CustomEvent("screen-unblank"));
-    } else if (command === "SCREEN_ENABLE_CONTROLS") {
-      // Real state, not a window event — this has to change what's passed
-      // down as a prop (WebpageRenderer's interactionEnabled), not just toggle
-      // a visual overlay the way SCREEN_BLANK does.
-      setInteractionEnabled(true);
-    } else if (command === "SCREEN_DISABLE_CONTROLS") {
-      setInteractionEnabled(false);
     } else if (command === "EXIT_FULLSCREEN" && !preview) {
       // Remote escape hatch (5-tap on a CMS mirror). Ignored by mirrors so the
       // gateway's echo-to-sender doesn't drop the operator's own tab out of
@@ -255,7 +242,6 @@ export function LiveScreenPlayer({
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data.content) queueContent(data.content as WsContent);
-        if (!cancelled && typeof data.interactionEnabled === "boolean") setInteractionEnabled(data.interactionEnabled);
       } catch { /* silent */ }
     })();
     return () => { cancelled = true; };
@@ -270,7 +256,6 @@ export function LiveScreenPlayer({
         if (res.ok) {
           const data = await res.json();
           if (data.content) queueContent(data.content as WsContent);
-          if (typeof data.interactionEnabled === "boolean") setInteractionEnabled(data.interactionEnabled);
         }
       } catch { /* silent */ }
     }, 5_000);
@@ -282,7 +267,7 @@ export function LiveScreenPlayer({
   return (
     <>
       <div key={activeKey} className="screen-content-fade">
-        <ContentRenderer content={displayContent} screenId={screenId} preview={preview} interactionEnabled={interactionEnabled} />
+        <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />

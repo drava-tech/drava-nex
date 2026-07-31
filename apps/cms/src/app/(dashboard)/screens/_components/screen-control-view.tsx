@@ -113,7 +113,7 @@ export function ScreenControlView({
     // should switch into touchpad mode.
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
-      setShowTouchpad(content.type === "webpage" || content.type === "html");
+      setShowTouchpad(content.type === "html");
     },
     onActiveScreensUpdated: (ids) => setOnline(ids.includes(screenId)),
     onCameraStatusUpdated: (status) => {
@@ -233,7 +233,7 @@ export function ScreenControlView({
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative w-full max-w-[1600px] h-full max-h-[36rem] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-[1600px] h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
             <ScreenTouchpad screenId={screenId} />
           </div>
         </div>

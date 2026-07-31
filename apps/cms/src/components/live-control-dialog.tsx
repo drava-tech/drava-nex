@@ -193,7 +193,7 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
           // instead of tapping a mirrored preview of the page.
           activeScreen && (
             <div className="shrink-0 flex items-center justify-center">
-              <div className="relative w-[48rem] max-w-full h-72 rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+              <div className="relative w-[48rem] max-w-full h-[32rem] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
                 <ScreenTouchpad screenId={activeScreen.screenId} />
               </div>
             </div>

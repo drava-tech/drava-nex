@@ -378,20 +378,13 @@ export function mediaAssetToWsContent(
     return { ...base, type: "image", source: asset.url };
   }
 
-  if (asset.type === "link") {
-    // Rendered server-side by services/browser-render (real headless Chromium,
-    // top-level navigation) instead of an iframe — sites that send
-    // X-Frame-Options/CSP frame-ancestors never trigger those checks this way,
-    // and every viewer (the physical screen, a CMS mirror, or another device)
-    // shares the same live session instead of an independent iframe each,
-    // which is what actually lets one of them control what the others see.
-    // Everything else stays in the iframe/mediaEmbedUrl path below: PDFs,
-    // sheets, decks, YouTube and Drive already have purpose-built embeds and
-    // aren't the case that breaks.
-    return { ...base, type: "webpage", source: asset.url };
-  }
-
   if (isMediaType(asset.type)) {
+    // Including "link": a plain pasted page reaches the screen the same way
+    // YouTube/Drive/PDFs/etc. do — a native full-screen iframe. Trade-off: a
+    // site that sends X-Frame-Options/CSP frame-ancestors will show blank
+    // here instead of rendering — accepted in exchange for a native,
+    // seamless load on every other site (see tools/frame-unlock-extension
+    // for the one mitigation available on the kiosk machine itself).
     return { ...base, type: "html", source: mediaEmbedUrl(asset.type, asset.url, { kiosk: true }) };
   }
 
