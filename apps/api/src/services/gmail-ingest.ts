@@ -4,21 +4,25 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { google, type gmail_v1 } from "googleapis";
 import { createMediaAsset, isMessageIngested, markMessageIngested } from "@platform/db";
+import { classifyLink } from "@platform/types";
 import { UPLOAD_DIR, classifyUpload } from "../routes/media.js";
 
 /**
  * Watches hello@thewhitetusker.com (or whichever mailbox GMAIL_IMPERSONATE_USER
- * names) for emails with attachments and turns each supported attachment into
- * a normal media_asset — same allowlist, same UPLOAD_DIR, same createMediaAsset
- * call as a manual upload (see routes/media.ts), so ingested content is
- * indistinguishable from something an admin uploaded by hand.
+ * names) for emails, on demand — see runGmailLoad(). Each supported attachment
+ * (PDF/.pptx, same allowlist as a manual upload) and each recognizable link
+ * found in the email body becomes a media_asset with pendingSave: true — a
+ * temporary review-queue row (see apps/cms .../media/email/page.tsx) rather
+ * than an immediately-permanent one, until an admin explicitly saves it.
  *
  * Read-only (gmail.readonly) — the mailbox itself is never modified. Access
  * control lives entirely in the CMS's own auth on the resulting media_asset
  * row, not in Gmail/Drive sharing settings.
  */
 
-const DEFAULT_POLL_MS = 120_000;
+// A single run is capped so one click on a very busy inbox can't run away —
+// this is well beyond what "last 2 days" should ever actually produce.
+const MAX_MESSAGES_PER_LOAD = 200;
 
 function flattenAttachmentParts(part: gmail_v1.Schema$MessagePart | undefined): gmail_v1.Schema$MessagePart[] {
   if (!part) return [];
@@ -29,6 +33,46 @@ function flattenAttachmentParts(part: gmail_v1.Schema$MessagePart | undefined): 
   };
   walk(part);
   return result;
+}
+
+/** Every body part (no filename) of a given MIME type, recursing into multipart/*. */
+function flattenBodyParts(part: gmail_v1.Schema$MessagePart | undefined, mimeType: string): gmail_v1.Schema$MessagePart[] {
+  if (!part) return [];
+  const result: gmail_v1.Schema$MessagePart[] = [];
+  const walk = (p: gmail_v1.Schema$MessagePart) => {
+    if (!p.filename && p.mimeType === mimeType && p.body?.data) result.push(p);
+    p.parts?.forEach(walk);
+  };
+  walk(part);
+  return result;
+}
+
+const HREF_RE = /href\s*=\s*"(https?:\/\/[^"]+)"/gi;
+const BARE_URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
+
+/** Distinct http(s) URLs found in an email's body — HTML preferred (anchor
+ * targets only, not banner-image src etc.), plain text as a fallback. */
+function extractBodyLinks(payload: gmail_v1.Schema$MessagePart | undefined): string[] {
+  const urls = new Set<string>();
+
+  for (const part of flattenBodyParts(payload, "text/html")) {
+    const html = Buffer.from(part.body!.data!, "base64url").toString("utf-8");
+    for (const match of html.matchAll(HREF_RE)) {
+      const url = match[1];
+      if (url) urls.add(url);
+    }
+  }
+
+  if (urls.size === 0) {
+    for (const part of flattenBodyParts(payload, "text/plain")) {
+      const text = Buffer.from(part.body!.data!, "base64url").toString("utf-8");
+      for (const match of text.matchAll(BARE_URL_RE)) {
+        urls.add(match[0]);
+      }
+    }
+  }
+
+  return Array.from(urls);
 }
 
 function loadServiceAccountCredentials(): { client_email: string; private_key: string } | null {
@@ -44,11 +88,13 @@ function loadServiceAccountCredentials(): { client_email: string; private_key: s
   }
 }
 
-async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise<void> {
+async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise<number> {
   const res = await gmail.users.messages.get({ userId: "me", id: messageId, format: "full" });
   const headers = res.data.payload?.headers ?? [];
   const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value;
   const from = headers.find((h) => h.name?.toLowerCase() === "from")?.value;
+
+  let added = 0;
 
   for (const part of flattenAttachmentParts(res.data.payload)) {
     const attachmentId = part.body?.attachmentId;
@@ -78,26 +124,36 @@ async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise
       source: "gmail",
       emailFrom: from ?? null,
       emailSubject: subject ?? null,
+      pendingSave: true,
     });
+    added++;
   }
 
-  // Mark processed even if nothing matched the allowlist, so we don't rescan
-  // this message's attachments on every future poll.
+  for (const rawUrl of extractBodyLinks(res.data.payload)) {
+    const classified = classifyLink(rawUrl);
+    if (!classified) continue; // not a usable http(s) URL
+
+    await createMediaAsset({
+      type: classified.type,
+      url: classified.url,
+      name: classified.name,
+      source: "gmail",
+      emailFrom: from ?? null,
+      emailSubject: subject ?? null,
+      pendingSave: true,
+    });
+    added++;
+  }
+
+  // Mark processed even if nothing matched, so we don't rescan this message's
+  // attachments/links on a future load.
   await markMessageIngested(messageId);
+  return added;
 }
 
-async function pollInbox(gmail: gmail_v1.Gmail): Promise<void> {
-  const list = await gmail.users.messages.list({ userId: "me", q: "has:attachment", maxResults: 25 });
-  for (const message of list.data.messages ?? []) {
-    if (!message.id) continue;
-    try {
-      if (await isMessageIngested(message.id)) continue;
-      await processMessage(gmail, message.id);
-    } catch (err) {
-      console.error(`[gmail-ingest] failed to process message ${message.id}:`, err);
-    }
-  }
-}
+// ─── Gmail client (built once at boot, reused by every on-demand load) ──────
+
+let gmailClient: gmail_v1.Gmail | null = null;
 
 export async function startGmailIngest(): Promise<void> {
   if (!process.env["GMAIL_INGEST_ENABLED"]) {
@@ -126,14 +182,47 @@ export async function startGmailIngest(): Promise<void> {
     scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
     subject: impersonate,
   });
-  const gmail = google.gmail({ version: "v1", auth });
+  gmailClient = google.gmail({ version: "v1", auth });
 
-  const pollMs = Number(process.env["GMAIL_INGEST_POLL_MS"] ?? DEFAULT_POLL_MS);
+  console.info(`[gmail-ingest] ready — watching ${impersonate} on demand (see "Load" in Email Media)`);
+}
 
-  await pollInbox(gmail).catch((err) => console.error("[gmail-ingest] initial poll failed:", err));
-  setInterval(() => {
-    pollInbox(gmail).catch((err) => console.error("[gmail-ingest] poll failed:", err));
-  }, pollMs);
+/**
+ * On-demand load, triggered by the "Load last 2 days" button (see
+ * apps/api/src/routes/media.ts POST /media/gmail/load). Not a background
+ * poll — nothing happens with the mailbox except when this is called.
+ */
+export async function runGmailLoad(days = 2): Promise<{ added: number }> {
+  if (!gmailClient) {
+    throw new Error("Gmail ingest is not configured (GMAIL_INGEST_ENABLED/GMAIL_IMPERSONATE_USER/service account key)");
+  }
+  const gmail = gmailClient;
 
-  console.info(`[gmail-ingest] watching ${impersonate} for attachments every ${pollMs}ms`);
+  let added = 0;
+  let processedCount = 0;
+  let pageToken: string | undefined;
+
+  do {
+    const list = await gmail.users.messages.list({
+      userId: "me",
+      q: `newer_than:${days}d`,
+      maxResults: 50,
+      pageToken,
+    });
+
+    for (const message of list.data.messages ?? []) {
+      if (!message.id || processedCount >= MAX_MESSAGES_PER_LOAD) break;
+      processedCount++;
+      try {
+        if (await isMessageIngested(message.id)) continue;
+        added += await processMessage(gmail, message.id);
+      } catch (err) {
+        console.error(`[gmail-ingest] failed to process message ${message.id}:`, err);
+      }
+    }
+
+    pageToken = list.data.nextPageToken ?? undefined;
+  } while (pageToken && processedCount < MAX_MESSAGES_PER_LOAD);
+
+  return { added };
 }

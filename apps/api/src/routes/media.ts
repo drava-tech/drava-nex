@@ -3,9 +3,10 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, listPendingMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
+import { runGmailLoad } from "../services/gmail-ingest.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
@@ -114,6 +115,33 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
+  }
+});
+
+// --- Email media (on-demand Gmail load) ---
+
+// POST /api/media/gmail/load — triggered by the "Load last 2 days" button
+// (apps/cms .../media/email/page.tsx). Not a background job: nothing touches
+// the mailbox except when this is called. See services/gmail-ingest.ts.
+mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
+  try {
+    const result = await runGmailLoad(2);
+    return c.json({ success: true, added: result.added });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to load email" }, 503);
+  }
+});
+
+// GET /api/media/gmail/pending — the temporary review queue: gmail-sourced
+// rows created by a load but not yet saved (see pendingSave). Deliberately a
+// separate admin-only endpoint rather than a query param on GET / above,
+// which stays guest-accessible and must never leak unreviewed rows.
+mediaRouter.get("/gmail/pending", requireAdmin, async (c) => {
+  try {
+    const assets = await listPendingMediaAssets("gmail");
+    return c.json({ media: assets.map(toMediaItem) });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to list pending email media" }, 500);
   }
 });
 

@@ -18,6 +18,20 @@ export async function listMediaAssets(filter?: { source?: string }): Promise<Med
     .orderBy(desc(mediaAsset.createdAt));
 }
 
+/**
+ * Pending-review items for one source (e.g. "gmail") — the mirror image of
+ * listMediaAssets' exclusion above. Backs the Email Media page's temporary
+ * review queue: created by an on-demand load, invisible to the main Media
+ * Library until explicitly saved (markMediaSaved) or discarded (softDeleteMediaAsset).
+ */
+export async function listPendingMediaAssets(source: string): Promise<MediaAsset[]> {
+  return db
+    .select()
+    .from(mediaAsset)
+    .where(and(isNull(mediaAsset.deletedAt), eq(mediaAsset.pendingSave, true), eq(mediaAsset.source, source)))
+    .orderBy(desc(mediaAsset.createdAt));
+}
+
 export async function getMediaAsset(id: string): Promise<MediaAsset | null> {
   const [row] = await db
     .select()
