@@ -321,6 +321,41 @@ export async function getProductByDetectionLabel(
   };
 }
 
+/** Batch form of getProductByDetectionLabel — one query for a mat's whole inventory. */
+export async function getProductsByDetectionLabels(
+  detectionLabels: string[]
+): Promise<ProductDetectionLookup[]> {
+  if (detectionLabels.length === 0) return [];
+
+  const rows = await db
+    .select({
+      productId: product.id,
+      name: product.name,
+      detectionLabel: product.detectionLabel,
+      status: product.status,
+    })
+    .from(product)
+    .where(
+      and(
+        inArray(product.detectionLabel, detectionLabels),
+        eq(product.status, "ACTIVE"),
+        isNull(product.deletedAt)
+      )
+    );
+
+  const results: ProductDetectionLookup[] = [];
+  for (const row of rows) {
+    if (!row.detectionLabel) continue;
+    results.push({
+      productId: row.productId,
+      name: row.name,
+      detectionLabel: row.detectionLabel,
+      status: row.status,
+    });
+  }
+  return results;
+}
+
 // ─── Create / update / archive ────────────────────────────────────────────────
 
 export async function createProduct(

@@ -141,6 +141,31 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
   return null;
 }
 
+/**
+ * All screens currently assigned an experience with the given templateKey —
+ * i.e. whichever screen(s) an admin picked via "Push to screen" in the CMS.
+ * Used by live-detection takeover routing (the mat camera's object-recognition
+ * feed) so the destination screen is chosen in the CMS UI rather than fixed to
+ * one screen by a camera-id env mapping.
+ */
+export async function getScreenIdsByTemplateKey(templateKey: string): Promise<string[]> {
+  const rows = await db
+    .select({ screenId: screen.screenId })
+    .from(screen)
+    .innerJoin(
+      experience,
+      and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
+    .where(
+      and(
+        eq(screen.currentContentKind, "experience"),
+        eq(experience.templateKey, templateKey),
+        isNull(screen.deletedAt)
+      )
+    );
+  return rows.map((r) => r.screenId);
+}
+
 export async function screenExists(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({ screenId: screen.screenId })
