@@ -63,6 +63,9 @@ cms_env/
 services/vision/models/**/*.pt
 services/vision/models/**/*.onnx
 services/vision/models/**/*.engine
+services/product-vision/models/**/*.pt
+services/product-vision/models/**/*.onnx
+services/product-vision/models/**/*.engine
 
 # Calibrated mat ROI + any other machine-local runtime data (see mat_roi.py,
 # scripts/calibrate_mat.py) — physical-setup-specific, not portable.
