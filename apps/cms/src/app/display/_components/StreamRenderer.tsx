@@ -3,10 +3,21 @@
 import { useEffect, useRef } from "react";
 import type { StreamContent } from "@/types/display";
 
-export function StreamRenderer({ content }: { content: StreamContent }) {
+export function StreamRenderer({
+  content,
+  preview,
+}: {
+  content: StreamContent;
+  /** True for any CMS-side embed of this screen — audio must only ever come
+   * out of the real TV, so this always wins over the asset's own setting. */
+  preview?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // See VideoRenderer.tsx — never let a remote MUTE/UNMUTE command unmute a
+    // preview, which must always stay silent regardless of the real TV.
+    if (preview) return;
     const handleMuteEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ muted: boolean }>;
       if (videoRef.current) {
@@ -17,7 +28,7 @@ export function StreamRenderer({ content }: { content: StreamContent }) {
     return () => {
       window.removeEventListener("screen-mute", handleMuteEvent);
     };
-  }, []);
+  }, [preview]);
 
   return (
     <video
@@ -26,7 +37,7 @@ export function StreamRenderer({ content }: { content: StreamContent }) {
       src={content.source}
       autoPlay
       playsInline
-      muted={content.muted ?? true}
+      muted={preview || (content.muted ?? true)}
       style={{
         position: "fixed",
         inset: 0,

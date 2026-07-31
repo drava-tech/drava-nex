@@ -5,12 +5,20 @@ import type { VideoContent } from "@/types/display";
 
 interface VideoRendererProps {
   content: VideoContent;
+  /** True for any CMS-side embed of this screen (Screens control page, Live
+   * Control popup, ...) — audio must only ever come out of the real TV, so
+   * this always wins over the asset's own `muted` setting. */
+  preview?: boolean;
 }
 
-export function VideoRenderer({ content }: VideoRendererProps) {
+export function VideoRenderer({ content, preview }: VideoRendererProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // A remote MUTE/UNMUTE command reaches every client of this screen,
+    // including CMS-side mirrors — never let it unmute a preview, which must
+    // always stay silent regardless of what the real TV is doing.
+    if (preview) return;
     const handleMuteEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ muted: boolean }>;
       if (videoRef.current) {
@@ -21,7 +29,7 @@ export function VideoRenderer({ content }: VideoRendererProps) {
     return () => {
       window.removeEventListener("screen-mute", handleMuteEvent);
     };
-  }, []);
+  }, [preview]);
 
   if (!content.source) {
     return (
@@ -36,7 +44,7 @@ export function VideoRenderer({ content }: VideoRendererProps) {
       src={content.source}
       autoPlay
       playsInline
-      muted={content.muted}
+      muted={preview || content.muted}
       loop={content.loop}
       style={{
         position: "fixed",

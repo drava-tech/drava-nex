@@ -25,13 +25,13 @@ export function ContentRenderer({
 }) {
   switch (content.type) {
     case "video":
-      return <VideoRenderer content={content} />;
+      return <VideoRenderer content={content} preview={preview} />;
     case "image":
       return <ImageRenderer content={content} />;
     case "html":
-      return <HtmlRenderer content={content} />;
+      return <HtmlRenderer content={content} preview={preview} />;
     case "stream":
-      return <StreamRenderer content={content} />;
+      return <StreamRenderer content={content} preview={preview} />;
     case "experience": {
       // An experience assigned a code-defined template renders that template
       // full-screen (the authored content). Without a template, fall back to the
