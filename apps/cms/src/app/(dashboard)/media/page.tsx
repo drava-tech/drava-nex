@@ -20,6 +20,8 @@ import {
   Copy,
   Check,
   Loader2,
+  CheckSquare,
+  X,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@platform/ui";
 import { isLinkMediaType, parseYouTubeId } from "@platform/types";
@@ -42,6 +44,7 @@ function TypeIcon({ type, className }: { type: string; className?: string }) {
     type === 'video' ? Video
     : type === 'image' ? ImageIcon
     : type === 'document' ? FileText
+    : type === 'word' ? FileText
     : type === 'sheet' ? FileSpreadsheet
     : type === 'presentation' ? Presentation
     : type === 'youtube' ? Play
@@ -59,6 +62,9 @@ export default function MediaPage() {
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMedia = async () => {
@@ -127,6 +133,48 @@ export default function MediaPage() {
     }
   };
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === filteredItems.length ? new Set() : new Set(filteredItems.map((item) => item.id))
+    );
+  };
+
+  const handleExitSelecting = () => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected item${selectedIds.size === 1 ? "" : "s"}? This can't be undone.`)) {
+      return;
+    }
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const results = await Promise.all(
+        ids.map((id) => fetch(`/api/media?id=${id}`, { method: "DELETE" }).then((res) => ({ id, ok: res.ok })))
+      );
+      const deletedIds = new Set(results.filter((r) => r.ok).map((r) => r.id));
+      setMediaItems((prev) => prev.filter((item) => !deletedIds.has(item.id)));
+      setPreviewItem((current) => (current && deletedIds.has(current.id) ? null : current));
+      setSelectedIds((prev) => new Set(Array.from(prev).filter((id) => !deletedIds.has(id))));
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleCopyLink = (item: MediaItem) => {
     const absoluteUrl = item.url.startsWith("http")
       ? item.url
@@ -142,7 +190,7 @@ export default function MediaPage() {
     if (activeCategory === "all") return matchesSearch;
     if (activeCategory === "images") return item.type === "image" && matchesSearch;
     if (activeCategory === "videos") return item.type === "video" && matchesSearch;
-    if (activeCategory === "documents") return item.type === "document" && matchesSearch;
+    if (activeCategory === "documents") return (item.type === "document" || item.type === "word") && matchesSearch;
     if (activeCategory === "sheets") return item.type === "sheet" && matchesSearch;
     if (activeCategory === "presentations") return item.type === "presentation" && matchesSearch;
     if (activeCategory === "links") return isLinkMediaType(item.type) && matchesSearch;
@@ -157,7 +205,7 @@ export default function MediaPage() {
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept="image/*,video/*,application/pdf,.xlsx,.csv,.pptx"
+        accept="image/*,video/*,application/pdf,.xlsx,.csv,.pptx,.docx"
       />
 
       {/* Top Header Section */}
@@ -178,6 +226,17 @@ export default function MediaPage() {
               className="h-10 pl-9 pr-4 w-full sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm outline-none dark:text-white"
             />
           </div>
+          <button
+            onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
+            className={`h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border text-sm font-medium transition-all active:scale-95 ${
+              selecting
+                ? "border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
+                : "border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+            }`}
+          >
+            <CheckSquare className="h-4 w-4" />
+            {selecting ? "Cancel" : "Select"}
+          </button>
           <button
             onClick={() => setShowLinkDialog(true)}
             className="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-sm font-medium transition-all hover:bg-zinc-100 dark:hover:bg-white/5 active:scale-95"
@@ -230,10 +289,42 @@ export default function MediaPage() {
         {/* Main Content Grid */}
         <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
           {/* Controls Bar */}
-          <div className="flex items-center justify-between mb-6">
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-              Showing {activeCategory === 'all' ? 'All Files' : activeCategory} <span className="text-zinc-400 dark:text-zinc-500">({filteredItems.length})</span>
-            </p>
+          <div className="flex items-center justify-between mb-6 gap-4">
+            {selecting ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                    {selectedIds.size} selected
+                  </p>
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? "Deselect all" : "Select all"}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={selectedIds.size === 0 || bulkDeleting}
+                    className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    {bulkDeleting ? "Deleting…" : `Delete${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
+                  </button>
+                  <button
+                    onClick={handleExitSelecting}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-full text-zinc-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" /> Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                Showing {activeCategory === 'all' ? 'All Files' : activeCategory} <span className="text-zinc-400 dark:text-zinc-500">({filteredItems.length})</span>
+              </p>
+            )}
           </div>
 
           {loading ? (
@@ -262,56 +353,85 @@ export default function MediaPage() {
                   </div>
                 </div>
               )}
-              {filteredItems.map((media) => (
+              {filteredItems.map((media) => {
+                const isSelected = selectedIds.has(media.id);
+                return (
                 <div
                   key={media.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setPreviewItem(media)}
+                  onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setPreviewItem(media);
+                      if (selecting) toggleSelected(media.id);
+                      else setPreviewItem(media);
                     }
                   }}
-                  className="group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className={`group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                    isSelected
+                      ? "border-blue-500 ring-2 ring-blue-500/40"
+                      : "border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20"
+                  }`}
                 >
-                  {/* Dropdown Menu — its own click target, so it doesn't open the preview */}
-                  <div
-                    className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem
-                          className="cursor-pointer gap-2"
-                          onClick={() => handleCopyLink(media)}
-                        >
-                          {copiedId === media.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                          {copiedId === media.id ? "Copied!" : "Copy Link"}
-                        </DropdownMenuItem>
-                        {!isLinkMediaType(media.type) && (
-                          <DropdownMenuItem className="cursor-pointer gap-2" asChild>
-                            <a href={media.url} download={media.name}>
-                              <Download className="w-4 h-4" /> Download
-                            </a>
+                  {selecting ? (
+                    /* Selection checkbox — its own click target so it doesn't
+                       double-toggle via the card's own onClick. */
+                    <div
+                      className="absolute top-3 left-3 z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelected(media.id);
+                      }}
+                    >
+                      <div
+                        className={`flex items-center justify-center w-6 h-6 rounded-md border-2 backdrop-blur-md transition-colors ${
+                          isSelected
+                            ? "bg-blue-600 border-blue-600"
+                            : "bg-black/30 border-white/70 hover:border-white"
+                        }`}
+                      >
+                        {isSelected && <Check className="w-4 h-4 text-white" />}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Dropdown Menu — its own click target, so it doesn't open the preview */
+                    <div
+                      className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center justify-center w-8 h-8 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-colors">
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={() => handleCopyLink(media)}
+                          >
+                            {copiedId === media.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                            {copiedId === media.id ? "Copied!" : "Copy Link"}
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="cursor-pointer gap-2 text-red-600 focus:text-red-600"
-                          onClick={() => handleDelete(media.id)}
-                        >
-                          <Trash2 className="w-4 h-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                          {!isLinkMediaType(media.type) && (
+                            <DropdownMenuItem className="cursor-pointer gap-2" asChild>
+                              <a href={media.url} download={media.name}>
+                                <Download className="w-4 h-4" /> Download
+                              </a>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2 text-red-600 focus:text-red-600"
+                            onClick={() => handleDelete(media.id)}
+                          >
+                            <Trash2 className="w-4 h-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
 
                   {/* Thumbnail Area */}
                   <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800/50 relative">
@@ -334,7 +454,8 @@ export default function MediaPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
