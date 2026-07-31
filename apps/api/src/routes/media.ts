@@ -48,6 +48,12 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
     mimes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     exts: [".pptx"],
   },
+  // Legacy binary .doc is excluded for the same reason — the word viewer
+  // (apps/cms/src/app/display/word) uses mammoth, which only reads .docx.
+  word: {
+    mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    exts: [".docx"],
+  },
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
@@ -93,6 +99,7 @@ function getMimeType(filePath: string): string {
     ".xls": "application/vnd.ms-excel",
     ".csv": "text/csv",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     // 3D template assets (see STATIC_ASSET_DIRS below).
     ".glb": "model/gltf-binary",
     ".gltf": "model/gltf+json",
