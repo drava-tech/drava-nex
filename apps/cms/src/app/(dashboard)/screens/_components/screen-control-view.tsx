@@ -6,7 +6,7 @@ import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { assignExperience, assignMedia, assignDefaultMedia, resetDetection, setScreenBlanked, setScreenInteractionEnabled } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { ScreenMirror } from "./screen-mirror";
-import { WebpageControlPad } from "./webpage-control-pad";
+import { ScreenTouchpad } from "./screen-touchpad";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import type { CameraStatusUpdate, WsContent } from "@platform/types";
 
@@ -18,8 +18,10 @@ interface ScreenControlViewProps {
   defaultMediaName?: string | null;
   initialBlanked?: boolean;
   initialInteractionEnabled?: boolean;
-  /** When the screen's current content is a pushed "link" asset, drives the split display/control-pad layout instead of tap-on-mirror — see LiveControlDialog. */
-  initialWebpage?: { mediaId: string; url: string } | null;
+  /** When the screen's current content is a page/embed (link, YouTube, Drive,
+   * PDF, sheet, deck...), shows the blank OS-cursor touchpad instead of
+   * tap-on-mirror — see LiveControlDialog and ScreenTouchpad. */
+  initialShowTouchpad?: boolean;
 }
 
 /**
@@ -35,7 +37,7 @@ export function ScreenControlView({
   defaultMediaName = null,
   initialBlanked = false,
   initialInteractionEnabled = true,
-  initialWebpage = null,
+  initialShowTouchpad = false,
 }: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
@@ -46,7 +48,7 @@ export function ScreenControlView({
   const [togglingBlank, setTogglingBlank] = useState(false);
   const [interactionEnabled, setInteractionEnabled] = useState(initialInteractionEnabled);
   const [togglingInteraction, setTogglingInteraction] = useState(false);
-  const [webpage, setWebpage] = useState(initialWebpage);
+  const [showTouchpad, setShowTouchpad] = useState(initialShowTouchpad);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: defaultMediaAssetId,
     name: defaultMediaName,
@@ -105,13 +107,13 @@ export function ScreenControlView({
   };
 
   useCmsScreenSync({
-    // Keep the split display/control-pad layout in sync with whatever's
-    // actually assigned now, not just what was live at page load — e.g.
-    // reassigning to a video should drop back to the regular interactive
-    // mirror, and pushing a new link should switch into trackpad mode.
+    // Keep the touchpad in sync with whatever's actually assigned now, not
+    // just what was live at page load — e.g. reassigning to a video should
+    // drop back to the regular interactive mirror, and pushing a new link
+    // should switch into touchpad mode.
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
-      setWebpage(content.type === "webpage" ? { mediaId: content.id, url: content.source } : null);
+      setShowTouchpad(content.type === "webpage" || content.type === "html");
     },
     onActiveScreensUpdated: (ids) => setOnline(ids.includes(screenId)),
     onCameraStatusUpdated: (status) => {
@@ -166,7 +168,7 @@ export function ScreenControlView({
             </span>
           )}
           <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-            {webpage ? "· drag the control pad below to drive the page" : "· touch to explore — mirrored on the TV in realtime"}
+            {showTouchpad ? "· drag the pad below to drive the cursor on the TV" : "· touch to explore — mirrored on the TV in realtime"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -226,20 +228,13 @@ export function ScreenControlView({
         </div>
       </div>
 
-      {webpage ? (
-        // Split layout: "the display" (passive live view, top) + "the control
-        // pad" (blank trackpad, bottom) — see LiveControlDialog for why tap-
-        // on-mirror is replaced here specifically for pushed link content.
-        <div className="flex-1 min-h-0 flex flex-col gap-3">
-          <div className="flex-[3] min-h-0 flex items-center justify-center">
-            <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden">
-              <ScreenMirror screenId={screenId} title={screenName} interactive={false} />
-            </div>
-          </div>
-          <div className="flex-[2] min-h-0 flex items-center justify-center">
-            <div className="relative w-full max-w-[1600px] h-full max-h-64 rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
-              <WebpageControlPad sessionId={`webpage:${webpage.mediaId}`} url={webpage.url} />
-            </div>
+      {showTouchpad ? (
+        // No preview — a blank touchpad that drives the REAL OS cursor on the
+        // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
+        // mirrored preview of the page.
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative w-full max-w-[1600px] h-full max-h-[36rem] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+            <ScreenTouchpad screenId={screenId} />
           </div>
         </div>
       ) : (

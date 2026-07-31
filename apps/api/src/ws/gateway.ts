@@ -113,6 +113,17 @@ let audioStatusCache: AudioStatus = { volume: 50, muted: false, device: 'Unknown
 let browserRenderConn: WebSocket | null = null;
 const browserSessionOwners = new Map<string, Set<WebSocket>>();
 
+// ─── Native screen agents ────────────────────────────────────────────────────
+// apps/api/screen-agent/agent.mjs runs on the Windows PC that physically
+// drives one screen's TV (alongside its kiosk Chrome) and registers itself
+// here, keyed by screenId — unlike audioBridge/browserRenderConn there can be
+// many of these, one per screen, since each screen has its own PC. A CMS
+// tablet's CURSOR_CONTROL is forwarded verbatim to whichever agent is
+// registered for that screenId, which then simulates the real OS-level mouse
+// move/click/scroll — no video/screenshot ever flows through this map, only
+// tiny control messages.
+const screenAgentRegistry = new Map<string, WebSocket>();
+
 export function sendAudioCommand(
   action: 'set-volume' | 'set-mute' | 'toggle-mute',
   value?: number | boolean
@@ -494,6 +505,8 @@ export function createGateway(): WebSocketServer {
     let isUeClient = false;
     let isAudioBridge = false;
     let isBrowserRenderConn = false;
+    let isScreenAgent = false;
+    let agentScreenId: string | null = null;
     const ownedBrowserSessionIds = new Set<string>();
     const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
@@ -693,6 +706,19 @@ export function createGateway(): WebSocketServer {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'AUDIO_STATUS_UPDATE', ...audioStatusCache } satisfies WsCmsMessage));
           }
+          // Send current screen-agent connectivity so a freshly-opened control
+          // page immediately knows which screens already have a live agent.
+          for (const agentScreenIdKey of screenAgentRegistry.keys()) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(
+                JSON.stringify({
+                  type: 'SCREEN_AGENT_STATUS',
+                  screenId: agentScreenIdKey,
+                  connected: true,
+                } satisfies WsCmsMessage)
+              );
+            }
+          }
           break;
         }
 
@@ -741,6 +767,50 @@ export function createGateway(): WebSocketServer {
           browserRenderConn = ws;
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'BROWSER_RENDER_REGISTER_ACK' } satisfies WsServerMessage));
+          }
+          break;
+        }
+
+        case 'SCREEN_AGENT_REGISTER': {
+          const expected = process.env['BROADCAST_SECRET'];
+          if (!expected || msg.secret !== expected) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'SCREEN_AGENT_REGISTER_NACK', reason: 'unauthorized' } satisfies WsServerMessage));
+            }
+            ws.close();
+            break;
+          }
+          // A fresh registration for the same screenId supersedes any stale one
+          // (e.g. agent restart).
+          const existing = screenAgentRegistry.get(msg.screenId);
+          if (existing && existing !== ws && existing.readyState === WebSocket.OPEN) {
+            existing.close();
+          }
+          isScreenAgent = true;
+          agentScreenId = msg.screenId;
+          screenAgentRegistry.set(msg.screenId, ws);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'SCREEN_AGENT_REGISTER_ACK' } satisfies WsServerMessage));
+          }
+          broadcastToCms({ type: 'SCREEN_AGENT_STATUS', screenId: msg.screenId, connected: true });
+          break;
+        }
+
+        // A CMS tablet's touchpad driving the OS cursor on whichever PC is
+        // registered for this screenId — forwarded verbatim to that agent.
+        // No caller waits on an ack, so a missing agent just drops it.
+        case 'CURSOR_CONTROL': {
+          const agent = screenAgentRegistry.get(msg.screenId);
+          if (agent && agent.readyState === WebSocket.OPEN) {
+            agent.send(
+              JSON.stringify({
+                type: 'CURSOR_CONTROL',
+                action: msg.action,
+                dx: msg.dx,
+                dy: msg.dy,
+                deltaY: msg.deltaY,
+              } satisfies WsServerMessage)
+            );
           }
           break;
         }
@@ -1046,6 +1116,10 @@ export function createGateway(): WebSocketServer {
         // Sessions it owned die with it (their frame-publish sockets close too,
         // which already tears them down via the streamPublishers branch below on
         // those separate connections) — nothing further to clean up here.
+      }
+      if (isScreenAgent && agentScreenId && screenAgentRegistry.get(agentScreenId) === ws) {
+        screenAgentRegistry.delete(agentScreenId);
+        broadcastToCms({ type: 'SCREEN_AGENT_STATUS', screenId: agentScreenId, connected: false });
       }
       // This socket had one or more browser-render sessions open (a CMS tab or a
       // screen) and went away without a clean BROWSER_SESSION_STOP. Only tell the

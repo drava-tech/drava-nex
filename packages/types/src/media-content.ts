@@ -34,6 +34,15 @@ export function isMediaType(value: unknown): value is MediaType {
   return typeof value === "string" && (MEDIA_TYPES as readonly string[]).includes(value);
 }
 
+/**
+ * Kinds rendered as a page/embed rather than played natively — everything
+ * `isMediaType` recognises except image/video. Shared "does this asset need
+ * a cursor touchpad instead of tap-on-mirror" check (see ScreenTouchpad).
+ */
+export function isPageMediaType(value: unknown): boolean {
+  return isMediaType(value) && value !== "image" && value !== "video";
+}
+
 /** Kinds added by pasting a URL rather than uploading a file. */
 const LINK_MEDIA_TYPES: readonly string[] = ["youtube", "drive", "link"];
 

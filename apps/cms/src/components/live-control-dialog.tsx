@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
-import { WebpageControlPad } from "@/app/(dashboard)/screens/_components/webpage-control-pad";
+import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
 
 export interface LiveScreen {
   screenId: string;
@@ -27,15 +27,13 @@ interface LiveControlDialogProps {
    */
   onSaveLink?: () => Promise<void>;
   /**
-   * When the pushed content is a "link" media asset, switches from tap-on-
-   * mirror control to a split view: the mirror becomes a passive live view
-   * ("the display") and a blank trackpad ("the control pad") drives the
-   * shared browser-render session by relative motion instead — more accurate
-   * than tapping an exact spot on a shrunk preview. mediaId derives the same
-   * sessionId WebpageRenderer uses (`webpage:${mediaId}`), so this joins the
-   * SAME live session already running on the real screen.
+   * When the pushed content is a page/embed (link, YouTube, Drive, PDF,
+   * sheet, deck...), switches from tap-on-mirror control to a blank OS-cursor
+   * touchpad with no preview — more accurate than tapping an exact spot on a
+   * shrunk mirror, and works uniformly no matter what's actually on screen
+   * since it drives the real cursor on the TV's own PC (see ScreenTouchpad).
    */
-  webpage?: { mediaId: string; url: string };
+  showTouchpad?: boolean;
 }
 
 /**
@@ -45,7 +43,7 @@ interface LiveControlDialogProps {
  * controlling any other screen in the system instantly, not just the ones
  * this content was pushed to.
  */
-export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink, webpage }: LiveControlDialogProps) {
+export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink, showTouchpad }: LiveControlDialogProps) {
   const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
   const activeScreen =
@@ -156,9 +154,9 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
               </button>
             )}
             {/* Fullscreen only makes sense for the tap-on-mirror model — the
-                trackpad control pad needs to stay visible alongside the
-                display, so webpage mode skips this toggle entirely. */}
-            {!webpage && (
+                touchpad has no preview to fullscreen, so it skips this
+                toggle entirely. */}
+            {!showTouchpad && (
               <button
                 onClick={toggleFullscreen}
                 title={isFullscreen ? "Exit full screen" : "Full screen"}
@@ -189,73 +187,70 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
             toolbar (the whiteboard case), it sits BESIDE the mirror instead of
             below it — narrows the mirror a bit, but the toolbar gets a proper
             vertical rail instead of fighting the mirror for vertical space. */}
-        <div className={isFullscreen ? "shrink-0 flex items-center justify-center" : "shrink-0 flex items-center gap-4"}>
-          {/* The modal is now shrink-to-fit (w-auto) on desktop, so the mirror
-              can't be sized via flex-grow/percentage-of-parent — there's no
-              determinate space to grow into, which collapsed it to nothing.
-              It gets a real fixed width instead; aspect-[16/9] derives the
-              height from that, and max-w-full caps it on narrow viewports. */}
-          <div className={isFullscreen ? "" : "flex items-center justify-center"}>
-            <div
-              ref={mirrorFrameRef}
-              className={
-                isFullscreen
-                  ? "fixed inset-0 flex items-center justify-center bg-black"
-                  : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
-              }
-            >
-            {isFullscreen ? (
-              <div
-                className="relative bg-zinc-950"
-                style={{ width: "min(100vw, 177.78vh)", height: "min(100vh, 56.25vw)" }}
-              >
-                {activeScreen && (
-                  <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
-                )}
-                <button
-                  onClick={toggleFullscreen}
-                  title="Exit full screen"
-                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors"
-                >
-                  <Minimize className="h-4 w-4" />
-                </button>
-                {/* No CMS toolbar overlay here on purpose — fullscreen shows only
-                    the mirrored screen itself (which already has its own
-                    on-screen controls, e.g. the whiteboard's draw/undo/exit bar).
-                    Overlaying page/save controls on top of that covered the
-                    actual drawing surface. Exit fullscreen to reach them. */}
+        {showTouchpad ? (
+          // No preview at all — a blank touchpad that drives the REAL OS
+          // cursor on the TV's own PC (see ScreenTouchpad/screen-agent),
+          // instead of tapping a mirrored preview of the page.
+          activeScreen && (
+            <div className="shrink-0 flex items-center justify-center">
+              <div className="relative w-[48rem] max-w-full h-72 rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+                <ScreenTouchpad screenId={activeScreen.screenId} />
               </div>
-            ) : (
-              activeScreen && (
-                <ScreenMirror
-                  screenId={activeScreen.screenId}
-                  title={activeScreen.screenName}
-                  // Passive in webpage mode — "the display" — the control pad
-                  // below is what actually drives the session; tapping the
-                  // mirror itself would fight the pad's own cursor tracking.
-                  interactive={!webpage}
-                />
-              )
-            )}
             </div>
-          </div>
+          )
+        ) : (
+          <div className={isFullscreen ? "shrink-0 flex items-center justify-center" : "shrink-0 flex items-center gap-4"}>
+            {/* The modal is now shrink-to-fit (w-auto) on desktop, so the mirror
+                can't be sized via flex-grow/percentage-of-parent — there's no
+                determinate space to grow into, which collapsed it to nothing.
+                It gets a real fixed width instead; aspect-[16/9] derives the
+                height from that, and max-w-full caps it on narrow viewports. */}
+            <div className={isFullscreen ? "" : "flex items-center justify-center"}>
+              <div
+                ref={mirrorFrameRef}
+                className={
+                  isFullscreen
+                    ? "fixed inset-0 flex items-center justify-center bg-black"
+                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
+                }
+              >
+              {isFullscreen ? (
+                <div
+                  className="relative bg-zinc-950"
+                  style={{ width: "min(100vw, 177.78vh)", height: "min(100vh, 56.25vw)" }}
+                >
+                  {activeScreen && (
+                    <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+                  )}
+                  <button
+                    onClick={toggleFullscreen}
+                    title="Exit full screen"
+                    className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors"
+                  >
+                    <Minimize className="h-4 w-4" />
+                  </button>
+                  {/* No CMS toolbar overlay here on purpose — fullscreen shows only
+                      the mirrored screen itself (which already has its own
+                      on-screen controls, e.g. the whiteboard's draw/undo/exit bar).
+                      Overlaying page/save controls on top of that covered the
+                      actual drawing surface. Exit fullscreen to reach them. */}
+                </div>
+              ) : (
+                activeScreen && (
+                  <ScreenMirror screenId={activeScreen.screenId} title={activeScreen.screenName} interactive />
+                )
+              )}
+              </div>
+            </div>
 
-          {/* Side rail — only when a toolbar was actually given (the whiteboard case). */}
-          {!isFullscreen && toolbar && (
-            <div className="shrink-0 w-44 max-h-full overflow-y-auto">{toolbar}</div>
-          )}
-        </div>
-
-        {/* "The control pad" — a blank trackpad below "the display" above,
-            instead of tapping the mirror directly. Same fixed-width box the
-            mirror uses so the two stay visually aligned. */}
-        {!isFullscreen && webpage && (
-          <div className="mt-3 w-[48rem] max-w-full h-56 rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden mx-auto">
-            <WebpageControlPad sessionId={`webpage:${webpage.mediaId}`} url={webpage.url} />
+            {/* Side rail — only when a toolbar was actually given (the whiteboard case). */}
+            {!isFullscreen && toolbar && (
+              <div className="shrink-0 w-44 max-h-full overflow-y-auto">{toolbar}</div>
+            )}
           </div>
         )}
 
-        {!isFullscreen && !toolbar && !webpage && (
+        {!isFullscreen && !toolbar && !showTouchpad && (
           <p className="mt-3 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
             Touch to explore — mirrored on the TV in realtime
           </p>

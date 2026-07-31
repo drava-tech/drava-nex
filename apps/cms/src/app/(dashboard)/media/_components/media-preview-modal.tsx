@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2, AlertTriangle, RotateCw } from "lucide-react";
-import { mediaEmbedUrl } from "@platform/types";
+import { mediaEmbedUrl, isPageMediaType } from "@platform/types";
 import { useBrowserSession } from "@platform/ui/browser-session";
 import { assignMedia } from "@/actions/screen-actions";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
@@ -57,6 +57,7 @@ export function MediaPreviewModal({
       // Only a not-yet-saved link has anything to save — an ordinary already-
       // listed item (upload, or a link kept earlier) shouldn't show the button.
       onSaveLink={media.pendingSave ? handleSaveLink : undefined}
+      showTouchpad={isPageMediaType(media.type)}
     />
   );
 }

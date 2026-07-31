@@ -37,7 +37,7 @@ export default async function ScreenControlPage({ params }: PageProps) {
   if (!row) notFound();
 
   const [experiences, content] = await Promise.all([getExperiences(), getScreenContent(screenId)]);
-  const initialWebpage = content?.type === "webpage" ? { mediaId: content.id, url: content.source } : null;
+  const initialShowTouchpad = content?.type === "webpage" || content?.type === "html";
 
   return (
     <ScreenControlView
@@ -48,7 +48,7 @@ export default async function ScreenControlPage({ params }: PageProps) {
       defaultMediaName={row.defaultMediaName}
       initialBlanked={row.blanked}
       initialInteractionEnabled={row.interactionEnabled}
-      initialWebpage={initialWebpage}
+      initialShowTouchpad={initialShowTouchpad}
     />
   );
 }

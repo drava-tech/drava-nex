@@ -74,7 +74,7 @@ export function PushPageDialog({ url, onClose }: { url: string; onClose: () => v
       onPush={handlePush}
       onSaveLink={handleSaveLink}
       onClose={onClose}
-      webpage={mediaId ? { mediaId, url } : undefined}
+      showTouchpad={!!mediaId}
     />
   );
 }
