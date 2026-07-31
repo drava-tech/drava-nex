@@ -81,6 +81,17 @@ const poolConfig = {
 
 export const pool = globalThis.pgPool ?? new Pool(poolConfig);
 
+// pg's Pool is an EventEmitter — an idle client that loses its connection
+// (dropped network, DB restart) emits 'error' on the Pool itself. With no
+// listener attached, Node's default EventEmitter behavior is to throw and
+// crash the whole process on the next tick. This is pg's own documented
+// gotcha (https://node-postgres.com/apis/pool#error): always attach a
+// listener, even just to log, so a transient DB blip degrades a query
+// instead of taking down the entire API server.
+pool.on("error", (err) => {
+  console.error("[@platform/db] Unexpected error on idle client:", err);
+});
+
 if (process.env.NODE_ENV !== "production") {
   globalThis.pgPool = pool;
 }

@@ -1,5 +1,5 @@
 {
-  "venvPath": "services/vision/object_detection",
+  "venvPath": "services/vision",
   "venv": ".venv",
   "pythonVersion": "3.11",
   "pythonPlatform": "Windows",
@@ -12,14 +12,11 @@
   "exclude": [
     ".git",
     "**/.venv",
+    "**/.venv-object",
     "**/.venv-test",
     "**/.venv.old",
     "services/vision/data",
     "services/vision/models",
-    "services/vision/object_detection/runs",
-    "services/vision/object_detection/predictions",
-    "services/vision/object_detection/models",
-    "services/vision/object_detection/datasets",
     "node_modules"
   ],
   "typeCheckingMode": "basic",

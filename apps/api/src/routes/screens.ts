@@ -15,7 +15,7 @@ import {
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -50,7 +50,14 @@ screensRouter.get("/:screenId/config", async (c) => {
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
 export async function pushScreenContent(screenId: string) {
-  const content = await getScreenContent(screenId);
+  let content = await getScreenContent(screenId);
+  if (content?.templateKey === "object-recognition") {
+    // The DB row is never the live source of truth for this template (see
+    // packages/ui/src/templates/object-recognition/content.ts) — a screen
+    // freshly assigned this experience should show current reality, not the
+    // stale/default DB snapshot, if a live detection has already happened.
+    content = getLiveObjectRecognitionContent(screenId) ?? content;
+  }
   if (content) {
     broadcast({ screenId, content, source: "cms" });
     broadcastToCms({ type: "SCREEN_UPDATED", screenId, content, source: "cms" });

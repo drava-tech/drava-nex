@@ -1,0 +1,16 @@
+# Object detection (mat product detector) — separate venv/process from
+# requirements.txt (face). ultralytics + torch bundle their own CUDA/cuDNN and
+# would clash with onnxruntime-gpu (face) in one process — see the note in
+# requirements.txt and services/vision/README.md.
+#
+# Install torch/torchvision/torchaudio from the CUDA 12.1 index first:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements-object.txt
+#
+# Versions match the trained model's own training environment
+# (Latticelane_products/lattice_env) so inference behavior is reproduced exactly.
+ultralytics==8.4.105
+opencv-python==5.0.0.93
+numpy==2.4.4
+pyrealsense2==2.58.3.10794
+python-dotenv>=1.0

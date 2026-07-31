@@ -136,7 +136,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
           onPointerMove={handleScrollPointerMove}
           onPointerUp={handleScrollPointerUp}
           onPointerCancel={handleScrollPointerUp}
-          className="relative flex w-14 shrink-0 select-none flex-col items-center justify-between border-l border-zinc-300 bg-zinc-200/60 py-6 dark:border-white/10 dark:bg-zinc-950"
+          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-zinc-300 bg-zinc-200/60 py-6 dark:border-white/10 dark:bg-zinc-950"
           style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
         >
           <ChevronUp className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
