@@ -147,7 +147,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
 
       {/* Laptop-trackpad-style button bar — explicit left/right clicks
           alongside the pad's own tap-to-left-click gesture above. */}
-      <div className="flex h-14 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
+      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
         <button
           type="button"
           onClick={() => click("left")}

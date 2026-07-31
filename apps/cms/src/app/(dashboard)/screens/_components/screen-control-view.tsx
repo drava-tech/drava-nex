@@ -233,7 +233,7 @@ export function ScreenControlView({
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative w-full max-w-[1600px] h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
             <ScreenTouchpad screenId={screenId} />
           </div>
         </div>
