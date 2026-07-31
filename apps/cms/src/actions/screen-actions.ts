@@ -114,6 +114,18 @@ export async function setScreenBlanked(screenId: string, blanked: boolean) {
   revalidatePath("/");
 }
 
+/** Enable/disable interactivity (click/scroll/type) everywhere this screen is rendered. */
+export async function setScreenInteractionEnabled(screenId: string, enabled: boolean) {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/interaction`, {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}
+
 export async function resetDetection(screenId: string) {
   await requireAdmin();
   const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/reset-detection`, {

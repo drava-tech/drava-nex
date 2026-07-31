@@ -1,6 +1,20 @@
 import '@platform/ui/globals.css';
 import React from 'react';
+import type { Viewport } from 'next';
 import { ThemeProvider } from '../components/theme-provider';
+
+// Pinned so a touch device (the remote-control tablet, notably) can't pinch-
+// or double-tap-zoom the page — without this, a two-finger gesture on the
+// screen touchpad is ambiguous between "scroll the remote screen" and
+// "zoom this page" in many mobile browsers, regardless of the pad's own
+// touch-action CSS (which only governs that one element, not page-level zoom
+// chrome). See ScreenTouchpad.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({
   children,

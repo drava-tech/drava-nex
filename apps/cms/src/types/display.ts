@@ -15,7 +15,7 @@ export interface ScreensConfig {
 
 // ─── Content ─────────────────────────────────────────────────────────────────
 
-export type ContentType = "video" | "image" | "html" | "stream" | "experience" | "webpage";
+export type ContentType = "video" | "image" | "html" | "stream" | "experience";
 
 export interface BaseContent {
   id: string;
@@ -45,13 +45,6 @@ export interface StreamContent extends BaseContent {
   muted?: boolean;
 }
 
-/** A "link" media asset, rendered server-side by services/browser-render instead
- * of an iframe (see packages/types/src/media-content.ts mediaAssetToWsContent). */
-export interface WebpageContent extends BaseContent {
-  type: "webpage";
-  source: string;
-}
-
 export interface ExperienceContent extends BaseContent {
   type: "experience";
   title?: string;
@@ -66,7 +59,6 @@ export type Content =
   | ImageContent
   | HtmlContent
   | StreamContent
-  | WebpageContent
   | ExperienceContent;
 
 export interface ContentsConfig {
@@ -78,4 +70,5 @@ export interface ContentsConfig {
 export interface DisplayConfig {
   screen: Screen;
   content: Content;
+  interactionEnabled: boolean;
 }

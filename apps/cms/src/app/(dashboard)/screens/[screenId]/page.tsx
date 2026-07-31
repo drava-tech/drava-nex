@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { db, screen, mediaAsset, eq, and, isNull } from "@platform/db";
+import { db, screen, mediaAsset, eq, and, isNull, getScreenContent } from "@platform/db";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getExperiences } from "@/actions/project-actions";
 import { ScreenControlView } from "@/app/(dashboard)/screens/_components/screen-control-view";
@@ -24,6 +24,7 @@ export default async function ScreenControlPage({ params }: PageProps) {
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: mediaAsset.name,
       blanked: screen.blanked,
+      interactionEnabled: screen.interactionEnabled,
     })
     .from(screen)
     .leftJoin(
@@ -35,7 +36,8 @@ export default async function ScreenControlPage({ params }: PageProps) {
 
   if (!row) notFound();
 
-  const experiences = await getExperiences();
+  const [experiences, content] = await Promise.all([getExperiences(), getScreenContent(screenId)]);
+  const initialShowTouchpad = content?.type === "html";
 
   return (
     <ScreenControlView
@@ -45,6 +47,8 @@ export default async function ScreenControlPage({ params }: PageProps) {
       defaultMediaAssetId={row.defaultMediaAssetId}
       defaultMediaName={row.defaultMediaName}
       initialBlanked={row.blanked}
+      initialInteractionEnabled={row.interactionEnabled}
+      initialShowTouchpad={initialShowTouchpad}
     />
   );
 }

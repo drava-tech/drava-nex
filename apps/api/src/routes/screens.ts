@@ -8,12 +8,14 @@ import {
   setScreenMedia,
   setScreenDefaultMedia,
   setScreenBlanked,
+  setScreenInteractionEnabled,
+  getScreenInteractionEnabled,
   getScreenContent,
   screenExists,
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, getConnectedScreenIds, resetScreenTakeover } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -38,9 +40,12 @@ screensRouter.get("/active", (c) => {
 // GET /api/screens/:screenId/config — DB-authoritative content (sync on connect/reload)
 screensRouter.get("/:screenId/config", async (c) => {
   const screenId = param(c, "screenId");
-  const content = await getScreenContent(screenId);
-  if (!content) return c.json({ content: null }, 404);
-  return c.json({ screenId, content });
+  const [content, interactionEnabled] = await Promise.all([
+    getScreenContent(screenId),
+    getScreenInteractionEnabled(screenId),
+  ]);
+  if (!content) return c.json({ content: null, interactionEnabled }, 404);
+  return c.json({ screenId, content, interactionEnabled });
 });
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
@@ -94,6 +99,10 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenExperience(screenId, body.experienceId);
+  // An explicit assignment always wins over a stale product-detection
+  // takeover — otherwise a takeover armed before this call keeps that old
+  // camera state relevant to a screen the admin just repointed elsewhere.
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -111,6 +120,7 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenMedia(screenId, body.mediaAssetId);
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -129,6 +139,7 @@ screensRouter.post("/:id/default-media", requireGuestOrAdmin, async (c) => {
     return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
   }
   await setScreenDefaultMedia(screenId, body.mediaAssetId);
+  clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -149,6 +160,23 @@ screensRouter.post("/:id/blank", requireGuestOrAdmin, async (c) => {
   await setScreenBlanked(screenId, body.blanked);
   setScreenBlankState(screenId, body.blanked);
   return ok(c, { screenId, blanked: body.blanked });
+});
+
+const interactionSchema = z.object({ enabled: z.boolean() });
+
+// POST /api/screens/:id/interaction — enable/disable click/scroll/type
+// everywhere this screen is rendered (its own TV AND any CMS mirror/popup).
+screensRouter.post("/:id/interaction", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = interactionSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  await setScreenInteractionEnabled(screenId, body.enabled);
+  setScreenInteractionState(screenId, body.enabled);
+  return ok(c, { screenId, interactionEnabled: body.enabled });
 });
 
 const commandSchema = z.object({ command: z.string().min(1), value: z.unknown().optional() });

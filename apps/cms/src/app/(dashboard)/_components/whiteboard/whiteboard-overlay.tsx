@@ -26,7 +26,7 @@ import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
 import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
 import { MediaPreviewModal, type MediaItem } from "@/app/(dashboard)/media/_components/media-preview-modal";
-import { LiveControlDialog } from "@/app/(dashboard)/experiences/_components/live-control-dialog";
+import { LiveControlDialog } from "@/components/live-control-dialog";
 import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
 import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
 import {

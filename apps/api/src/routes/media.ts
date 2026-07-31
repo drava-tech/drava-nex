@@ -3,9 +3,10 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, listPendingMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
+import { runGmailLoad } from "../services/gmail-ingest.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
@@ -74,6 +75,7 @@ function toMediaItem(a: MediaAsset) {
   return {
     id: a.id, name: a.name, type: a.type, url: a.url, size, date,
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
+    pendingSave: a.pendingSave,
   };
 }
 
@@ -116,11 +118,40 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   }
 });
 
+// --- Email media (on-demand Gmail load) ---
+
+// POST /api/media/gmail/load — triggered by the "Load last 2 days" button
+// (apps/cms .../media/email/page.tsx). Not a background job: nothing touches
+// the mailbox except when this is called. See services/gmail-ingest.ts.
+mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
+  try {
+    const result = await runGmailLoad(2);
+    return c.json({ success: true, added: result.added });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to load email" }, 503);
+  }
+});
+
+// GET /api/media/gmail/pending — the temporary review queue: gmail-sourced
+// rows created by a load but not yet saved (see pendingSave). Deliberately a
+// separate admin-only endpoint rather than a query param on GET / above,
+// which stays guest-accessible and must never leak unreviewed rows.
+mediaRouter.get("/gmail/pending", requireAdmin, async (c) => {
+  try {
+    const assets = await listPendingMediaAssets("gmail");
+    return c.json({ media: assets.map(toMediaItem) });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to list pending email media" }, 500);
+  }
+});
+
 // --- Link assets ---
 
 // POST /api/media/link — register a pasted URL (YouTube, Drive, or any
 // embeddable page) as a media asset. Same row shape as an upload, just with an
 // absolute url and no file on disk, so screens/preview/push all work unchanged.
+// pendingSave: true (used by the Browser tool's ad-hoc push) hides the row
+// from the Media Library listing until explicitly saved via POST /:id/save.
 mediaRouter.post("/link", requireAdmin, async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
@@ -132,6 +163,7 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
 
     const customName = typeof body?.name === "string" ? body.name.trim() : "";
     const name = (customName || classified.name).slice(0, 200);
+    const pendingSave = body?.pendingSave === true;
 
     const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
 
@@ -139,12 +171,28 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       type: classified.type,
       url: classified.url,
       name,
+      pendingSave,
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
     return c.json({ success: true, media: toMediaItem(asset) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to add link" }, 500);
+  }
+});
+
+// POST /api/media/:id/save — confirms an ad-hoc pushed link is worth keeping,
+// making it show up in the Media Library from now on.
+mediaRouter.post("/:id/save", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    if (!id) return c.json({ error: "Missing id" }, 400);
+    const asset = await getMediaAsset(id);
+    if (!asset) return c.json({ error: "Media item not found" }, 404);
+    await markMediaSaved(id);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to save media" }, 500);
   }
 });
 

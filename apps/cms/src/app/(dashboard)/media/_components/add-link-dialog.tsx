@@ -17,11 +17,16 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Add any link to the library — a YouTube or Vimeo video, a Drive doc, a direct
- * image/video/PDF URL, or a plain web page. Nothing is turned away: whatever
- * isn't a recognised kind is stored as a web page and framed. Link assets are
- * ordinary media rows with an absolute url and no file on disk, so preview,
- * push and screen playback all work exactly as they do for uploads.
+ * Add any link — a YouTube or Vimeo video, a Drive doc, a direct image/video/PDF
+ * URL, or a plain web page. Nothing is turned away: whatever isn't a recognised
+ * kind is stored as a web page and framed. Link assets are ordinary media rows
+ * with an absolute url and no file on disk, so preview, push and screen
+ * playback all work exactly as they do for uploads.
+ *
+ * Registered pending-save (same as the Browser tool's ad-hoc push): the caller
+ * opens the resulting item's preview/push popup immediately rather than adding
+ * a tile to the grid, and it stays out of the Media Library listing unless
+ * explicitly kept via "Save link" in that popup.
  */
 export function AddLinkDialog({
   onClose,
@@ -57,7 +62,7 @@ export function AddLinkDialog({
       const res = await fetch("/api/media/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), name: name.trim() || undefined }),
+        body: JSON.stringify({ url: url.trim(), name: name.trim() || undefined, pendingSave: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error ?? "Failed to add link");
@@ -183,7 +188,7 @@ export function AddLinkDialog({
             className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-blue-600 px-5 text-sm font-medium text-white transition-all hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add to library
+            Add link
           </button>
         </div>
       </form>

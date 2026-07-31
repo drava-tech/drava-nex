@@ -157,7 +157,7 @@ export interface IrAcState {
 
 // --- WebSocket Protocol Types ---
 
-export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience' | 'webpage';
+export type WsContentType = 'video' | 'image' | 'html' | 'stream' | 'experience';
 
 /** Wire format the publisher EXE pushes for a live stream. */
 export type StreamFormat = 'h264' | 'mjpeg';
@@ -213,17 +213,23 @@ export type WsServerMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER_NACK'; reason: string }
   // Sent only to the registered native audio-bridge socket (apps/api/audio-helper/bridge.mjs).
   | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean }
-  // Headless-Chromium render relay (services/browser-render). ACK/NACK go only to
-  // the registering socket; READY/ERROR/URL_CHANGED are the gateway's relay of the
-  // browser-render-originated BROWSER_SESSION_STATUS/BROWSER_PAGE_NAVIGATED client
-  // messages below, sent only to whichever socket opened that sessionId (see
-  // gateway.ts browserSessionOwner). Frame delivery itself reuses
-  // STREAM_PUBLISH/STREAM_SUBSCRIBE/STREAM_STATUS above unchanged.
-  | { type: 'BROWSER_RENDER_REGISTER_ACK' }
-  | { type: 'BROWSER_RENDER_REGISTER_NACK'; reason: string }
-  | { type: 'BROWSER_SESSION_READY'; sessionId: string }
-  | { type: 'BROWSER_SESSION_ERROR'; sessionId: string; message: string }
-  | { type: 'BROWSER_URL_CHANGED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean };
+  // Native screen-agent relay (apps/api/screen-agent/agent.mjs) — one agent
+  // registers per screenId (it runs on the Windows PC physically driving that
+  // screen's TV). ACK/NACK go only to the registering socket; CURSOR_CONTROL
+  // here is the gateway's relay of a CMS tablet's CURSOR_CONTROL client
+  // message (below), sent only to whichever agent is registered for that
+  // screenId, so it can simulate the real OS-level mouse input.
+  | { type: 'SCREEN_AGENT_REGISTER_ACK' }
+  | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
+  | {
+      type: 'CURSOR_CONTROL';
+      action: 'move' | 'click' | 'scroll';
+      dx?: number;
+      dy?: number;
+      deltaY?: number;
+      /** Which physical button a 'click' simulates — omitted means 'left'. */
+      button?: 'left' | 'right';
+    };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -255,35 +261,28 @@ export type WsClientMessage =
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
   | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus)
-  // Headless-Chromium render relay (services/browser-render registers itself as
-  // the single control connection; a CMS tab or a screen sends START/STOP/CONTROL
-  // for a sessionId it owns). Auth mirrors AUDIO_BRIDGE_REGISTER (BROADCAST_SECRET).
-  | { type: 'BROWSER_RENDER_REGISTER'; secret: string }
+  // Native screen-agent (apps/api/screen-agent/agent.mjs) registers itself for
+  // one screenId — it runs on the Windows PC physically driving that screen's
+  // TV and simulates real OS-level mouse input there, so remote control works
+  // for whatever's actually on screen (a browser tab, YouTube, anything else)
+  // with no app-specific plumbing. Auth mirrors AUDIO_BRIDGE_REGISTER
+  // (BROADCAST_SECRET), but keyed per-screenId rather than a single global
+  // connection, since each screen has its own PC.
+  | { type: 'SCREEN_AGENT_REGISTER'; screenId: string; secret: string }
+  // A CMS control-pad drives the OS cursor on whichever PC is registered for
+  // this screenId — relative motion (dx/dy), a click at the current OS cursor
+  // position (optionally 'right' for a right-click, e.g. a trackpad's right
+  // button), or a scroll (deltaY). Dropped silently if no agent is
+  // registered for the screen — trackpad deltas are fire-and-forget.
   | {
-      type: 'BROWSER_SESSION_START';
-      sessionId: string;
-      url: string;
-      interactive: boolean;
-      viewport?: { width: number; height: number };
-    }
-  | { type: 'BROWSER_SESSION_STOP'; sessionId: string }
-  | {
-      type: 'BROWSER_CONTROL';
-      sessionId: string;
-      action: 'navigate' | 'back' | 'forward' | 'reload' | 'click' | 'scroll' | 'key' | 'type';
-      x?: number;
-      y?: number;
+      type: 'CURSOR_CONTROL';
+      screenId: string;
+      action: 'move' | 'click' | 'scroll';
+      dx?: number;
+      dy?: number;
       deltaY?: number;
-      key?: string;
-      text?: string;
-      url?: string;
-    }
-  // browser-render (the control connection only) reports session lifecycle and
-  // navigation back to the gateway, which relays them to browserSessionOwner as
-  // BROWSER_SESSION_READY/BROWSER_SESSION_ERROR/BROWSER_URL_CHANGED respectively —
-  // same inbound-report/outbound-relay split as CAMERA_STATUS → CAMERA_STATUS_UPDATE.
-  | { type: 'BROWSER_SESSION_STATUS'; sessionId: string; status: 'ready' | 'error'; message?: string }
-  | { type: 'BROWSER_PAGE_NAVIGATED'; sessionId: string; url: string; canGoBack: boolean; canGoForward: boolean };
+      button?: 'left' | 'right';
+    };
 
 /**
  * Events the gateway pushes to subscribed Unreal Engine / automation clients
@@ -321,7 +320,12 @@ export type WsCmsMessage =
   // An IR device changed — a CMS command was applied (state echoed back), or the
   // IR ingest observed the CrabController bridge going online/offline (status).
   // Drives the live Climate panel + Remotes overlay in Environment Control.
-  | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string };
+  | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string }
+  // A screen's native screen-agent (apps/api/screen-agent) connected or
+  // disconnected — drives the "Agent not connected" hint on the tablet
+  // touchpad (see useScreenCursorControl). Broadcast on register/disconnect,
+  // and replayed for every currently-connected screenId on CMS_REGISTER.
+  | { type: 'SCREEN_AGENT_STATUS'; screenId: string; connected: boolean };
 
 export interface BroadcastRequest {
   screenId: string;
