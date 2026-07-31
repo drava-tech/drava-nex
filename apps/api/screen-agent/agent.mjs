@@ -40,6 +40,24 @@ if (!SCREEN_ID) {
 
 // ─── OS-level cursor control (nut-js) ───────────────────────────────────────
 
+/**
+ * A net-zero-displacement nudge — move the real cursor by (+1,+1) then
+ * immediately back by (-1,-1). Forces at least one genuine OS-level
+ * mouse-move event through the input stack as soon as the agent comes
+ * online, which is the standard fix for a cursor Windows/Chrome hasn't
+ * (re)drawn yet without a fresh real input event. Harmless no-op if the
+ * cursor was already visible.
+ */
+async function jiggleCursor() {
+  try {
+    const pos = await mouse.getPosition();
+    await mouse.setPosition(new Point(pos.x + 1, pos.y + 1));
+    await mouse.setPosition(pos);
+  } catch (err) {
+    console.error('[agent] Cursor jiggle failed:', err);
+  }
+}
+
 async function handleCursorControl(msg) {
   try {
     if (msg.action === 'move' && typeof msg.dx === 'number' && typeof msg.dy === 'number') {
@@ -92,6 +110,7 @@ function connect() {
     if (msg.type === 'SCREEN_AGENT_REGISTER_ACK') {
       console.info(`[agent] Registered as the screen-agent for "${SCREEN_ID}".`);
       reconnectDelay = 3000;
+      jiggleCursor();
     } else if (msg.type === 'SCREEN_AGENT_REGISTER_NACK') {
       console.error(
         `[agent] Registration rejected: ${msg.reason}. Check BROADCAST_SECRET matches the API's. ` +
