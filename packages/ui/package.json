@@ -33,6 +33,10 @@
       "import": "./dist/templates/object-recognition/index.js",
       "types": "./dist/templates/object-recognition/index.d.ts"
     },
+    "./templates/gallery": {
+      "import": "./src/templates/gallery/index.ts",
+      "types": "./src/templates/gallery/index.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {

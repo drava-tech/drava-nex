@@ -5,6 +5,7 @@ import {
   FlightSimulationRenderer,
   readFlightSimulationContent,
 } from "@platform/ui/templates/flight-simulation";
+import { GalleryRenderer, readGalleryContent } from "@platform/ui/templates/gallery";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -63,6 +64,10 @@ export function ContentRenderer({
         // The scene fills the screen itself (camera-fitted, resolution
         // independent) — no ScreenStage, which would letterbox and rescale it.
         return <FlightSimulationRenderer content={flight} />;
+      }
+      if (content.templateKey === "gallery") {
+        const gallery = readGalleryContent(content.templateContent);
+        return <GalleryRenderer content={gallery ?? undefined} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

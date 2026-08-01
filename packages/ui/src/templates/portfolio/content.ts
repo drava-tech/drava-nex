@@ -6,13 +6,81 @@
  * One drill-in section of a vertical: a button on the vertical page leading to
  * either an image slideshow or a videos grid (chosen per button in the editor).
  */
+/** What a section button opens once the split-view slider commits. */
+export type PortfolioSectionType = "images" | "videos" | "gallery";
+
 export interface PortfolioSection {
   name: string;
   /** What this button opens. Missing (older rows) → "images". */
-  type?: "images" | "videos";
+  type?: PortfolioSectionType;
   images: string[];
   /** Video URLs for the "videos" grid. */
   videos?: string[];
+  // ─── "gallery" type only ──────────────────────────────────────────────────
+  // The text block beside the photos. The photos themselves are the first
+  // GALLERY_PHOTO_COUNT entries of `images`, so a section already filled in as a
+  // slideshow can be switched to "gallery" without re-picking anything.
+  /** Large heading. Falls back to `name` when unset. */
+  title?: string;
+  /** Bold line under the title. */
+  subtitle?: string;
+  description?: string;
+}
+
+/** The gallery layout is designed around exactly four photos — one feature, three below. */
+export const GALLERY_PHOTO_COUNT = 4;
+
+/**
+ * Styling for every "gallery" section, held once on the content rather than
+ * per-section: new gallery sections are new copy and new photos, never a new
+ * design. Mirrors how overview.* holds one set of values for all three cards.
+ */
+export interface PortfolioGalleryStyle {
+  titleFontSize?: number;
+  subtitleFontSize?: number;
+  descriptionFontSize?: number;
+  gap?: number;
+  /** Outer margin around the layout — deliberately larger than `gap`. */
+  padding?: number;
+  backgroundColor?: string;
+  textColor?: string;
+  /** Share of the width an expanded photo takes, in percent. */
+  expandedPct?: number;
+  /** Blur applied to the un-expanded remainder. */
+  blurPx?: number;
+}
+
+export const DEFAULT_GALLERY_TITLE_FONT_SIZE = 64;
+export const DEFAULT_GALLERY_SUBTITLE_FONT_SIZE = 24;
+export const DEFAULT_GALLERY_DESCRIPTION_FONT_SIZE = 20;
+export const DEFAULT_GALLERY_GAP = 26;
+export const DEFAULT_GALLERY_PADDING = 78;
+export const DEFAULT_GALLERY_BACKGROUND_COLOR = "#e8e8f7";
+export const DEFAULT_GALLERY_TEXT_COLOR = "#111114";
+export const DEFAULT_GALLERY_EXPANDED_PCT = 70;
+export const DEFAULT_GALLERY_BLUR_PX = 12;
+
+/** Bounds shared by the editor's controls and the view's clamping. */
+export const GALLERY_EXPANDED_PCT_MIN = 40;
+export const GALLERY_EXPANDED_PCT_MAX = 90;
+export const GALLERY_BLUR_PX_MIN = 0;
+export const GALLERY_BLUR_PX_MAX = 40;
+
+export const DEFAULT_PORTFOLIO_GALLERY_STYLE: Required<PortfolioGalleryStyle> = {
+  titleFontSize: DEFAULT_GALLERY_TITLE_FONT_SIZE,
+  subtitleFontSize: DEFAULT_GALLERY_SUBTITLE_FONT_SIZE,
+  descriptionFontSize: DEFAULT_GALLERY_DESCRIPTION_FONT_SIZE,
+  gap: DEFAULT_GALLERY_GAP,
+  padding: DEFAULT_GALLERY_PADDING,
+  backgroundColor: DEFAULT_GALLERY_BACKGROUND_COLOR,
+  textColor: DEFAULT_GALLERY_TEXT_COLOR,
+  expandedPct: DEFAULT_GALLERY_EXPANDED_PCT,
+  blurPx: DEFAULT_GALLERY_BLUR_PX,
+};
+
+export function clampGalleryValue(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }
 
 export interface OverviewCard {
@@ -41,6 +109,8 @@ export interface PortfolioViewState {
 }
 
 export interface PortfolioContent {
+  /** One set of style values for every "gallery" section — see the type above. */
+  gallery?: PortfolioGalleryStyle;
   overview: {
     cards: OverviewCard[];
     /** Style values (px) — one set shared by all 3 cards. */
@@ -116,11 +186,19 @@ export function normalizeSections(sections?: PortfolioSection[]): PortfolioSecti
     );
   return DEFAULT_SECTIONS.map((def, i) => {
     const s = sections?.[i];
+    const name = (s?.name ?? "").trim() || def.name;
+    const type: PortfolioSectionType =
+      s?.type === "videos" ? "videos" : s?.type === "gallery" ? "gallery" : "images";
     return {
-      name: (s?.name ?? "").trim() || def.name,
-      type: s?.type === "videos" ? ("videos" as const) : ("images" as const),
+      name,
+      type,
       images: cleanUrls(s?.images),
       videos: cleanUrls(s?.videos),
+      // Carried through for every type, not just "gallery", so switching a
+      // section back and forth doesn't quietly discard its copy.
+      ...(typeof s?.title === "string" ? { title: s.title } : {}),
+      ...(typeof s?.subtitle === "string" ? { subtitle: s.subtitle } : {}),
+      ...(typeof s?.description === "string" ? { description: s.description } : {}),
     };
   });
 }
