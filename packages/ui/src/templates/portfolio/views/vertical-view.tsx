@@ -1,7 +1,13 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { normalizeSections, type OverviewCard, type PortfolioGalleryStyle } from "../content";
+import {
+  normalizeSections,
+  newPortfolioProject,
+  type OverviewCard,
+  type PortfolioGalleryStyle,
+} from "../content";
+import type { GalleryLink } from "../../gallery/gallery-view";
 import { SlideshowPanel } from "../components/slideshow-panel";
 import { FilmsPanel } from "../components/films-panel";
 import { GallerySectionView } from "./gallery-section-view";
@@ -20,13 +26,19 @@ import { GallerySectionView } from "./gallery-section-view";
 export function VerticalView({
   card,
   activeSectionIndex,
+  activeProjectIndex = 0,
   galleryStyle,
+  links,
   onBack,
 }: {
   card: OverviewCard;
   activeSectionIndex: number;
+  /** Which company's project a gallery section is showing. */
+  activeProjectIndex?: number;
   /** Shared by every gallery section — see PortfolioContent.gallery. */
   galleryStyle?: PortfolioGalleryStyle;
+  /** Cross-category jumps for the showing company, computed by PortfolioApp. */
+  links?: GalleryLink[];
   onBack: () => void;
 }) {
   const sections = normalizeSections(card.sections);
@@ -34,7 +46,20 @@ export function VerticalView({
   const section = sections[active]!;
 
   if (section.type === "gallery") {
-    return <GallerySectionView section={section} style={galleryStyle} onBack={onBack} />;
+    const projects = section.projects ?? [];
+    // An out-of-range index — a link followed after the target was deleted, or
+    // WS state that outlived a content edit — falls back to the first project
+    // rather than blanking the page, matching how `active` clamps above.
+    const project = projects[activeProjectIndex] ?? projects[0] ?? newPortfolioProject();
+    return (
+      <GallerySectionView
+        section={section}
+        project={project}
+        style={galleryStyle}
+        links={links}
+        onBack={onBack}
+      />
+    );
   }
 
   return (
