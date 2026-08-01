@@ -1,26 +1,28 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { GalleryView } from "../../gallery/gallery-view";
+import { GalleryView, type GalleryLink } from "../../gallery/gallery-view";
 import type { GalleryContent } from "../../gallery/content";
 import {
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
   GALLERY_PHOTO_COUNT,
   type PortfolioGalleryStyle,
+  type PortfolioProject,
   type PortfolioSection,
 } from "../content";
 
 /**
  * A section whose type is "gallery" — what the split-view slider commits into
- * instead of a slideshow: the section's text beside its first four photos, where
+ * instead of a slideshow: one company's text beside its first four photos, where
  * tapping a photo expands it over most of the screen and blurs the rest.
  *
  * The layout and interaction are the Gallery template's, reused wholesale rather
  * than reimplemented — one expand/blur behaviour, one place to change it. This
- * only adapts a portfolio section into the shape that component reads.
+ * only adapts a portfolio project into the shape that component reads.
  *
- * Photos come from the section's existing `images`, so a section already filled
- * in as a slideshow shows something the moment its type is switched.
+ * Copy and photos come from the `project`, which for a category authored before
+ * companies existed is the section's own flat fields, migrated by
+ * normalizeSections — so those pages look exactly as they did.
  */
 /** Back button geometry, shared with the text clearance below. */
 const BACK_TOP = 36;
@@ -31,11 +33,17 @@ const BACK_GAP = 20;
 
 export function GallerySectionView({
   section,
+  project,
   style,
+  links,
   onBack,
 }: {
   section: PortfolioSection;
+  /** The company whose work is showing — one entry of `section.projects`. */
+  project: PortfolioProject;
   style?: PortfolioGalleryStyle;
+  /** The other categories holding work for this company. Empty = untagged. */
+  links?: GalleryLink[];
   onBack: () => void;
 }) {
   const s = { ...DEFAULT_PORTFOLIO_GALLERY_STYLE, ...(style ?? {}) };
@@ -59,18 +67,20 @@ export function GallerySectionView({
     pages: [
       {
         name: section.name,
-        title: (section.title ?? "").trim() || section.name,
-        ...(section.subtitle ? { subtitle: section.subtitle } : {}),
-        ...(section.description ? { description: section.description } : {}),
+        // Falls back to the category name, so a project with photos but no
+        // copy yet still shows a heading rather than an empty corner.
+        title: (project.title ?? "").trim() || section.name,
+        ...(project.subtitle ? { subtitle: project.subtitle } : {}),
+        ...(project.description ? { description: project.description } : {}),
         // GalleryView pads/truncates to exactly four slots itself.
-        photos: (section.images ?? []).slice(0, GALLERY_PHOTO_COUNT).map((url) => ({ url })),
+        photos: (project.images ?? []).slice(0, GALLERY_PHOTO_COUNT).map((url) => ({ url })),
       },
     ],
   };
 
   return (
     <div className="w-full h-full relative" style={{ overflow: "hidden" }}>
-      <GalleryView content={content} pageIndex={0} topInset={textTopInset} />
+      <GalleryView content={content} pageIndex={0} topInset={textTopInset} links={links} />
 
       {/* Back button floats over the layout, matching VerticalView's placement
           so the two section types feel like the same page. */}

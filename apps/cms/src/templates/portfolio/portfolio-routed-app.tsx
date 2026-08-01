@@ -6,6 +6,7 @@ import {
   PortfolioApp,
   cardSlugs,
   sectionSlugs,
+  projectSlugs,
   normalizeSections,
   DEFAULT_PORTFOLIO_CONTENT,
   SPLIT_VIEW_SEGMENT,
@@ -50,6 +51,9 @@ export function PortfolioRoutedApp({
       return;
     }
     let href = baseHref;
+    // Built up before the query string is appended, so the company segment
+    // can't land after `?from=split` and turn into part of the query.
+    let query = "";
     if (v.cardIndex !== null) {
       const card = cards[v.cardIndex];
       if (card) {
@@ -57,12 +61,20 @@ export function PortfolioRoutedApp({
         if (v.splitView) {
           href += `/${SPLIT_VIEW_SEGMENT}`;
         } else if (v.sectionIndex !== null) {
-          href += `/${sectionSlugs(normalizeSections(card.sections))[v.sectionIndex]}`;
-          if (v.cameFromSplit) href += "?from=split";
+          const sections = normalizeSections(card.sections);
+          href += `/${sectionSlugs(sections)[v.sectionIndex]}`;
+          // Project 0 is the default, so it stays out of the URL — the links
+          // pre-dating companies keep the exact addresses they had.
+          const projects = sections[v.sectionIndex]?.projects ?? [];
+          if (v.projectIndex) {
+            const slug = projectSlugs(projects)[v.projectIndex];
+            if (slug) href += `/${slug}`;
+          }
+          if (v.cameFromSplit) query = "?from=split";
         }
       }
     }
-    router.push(href);
+    router.push(href + query);
   };
 
   return <PortfolioApp content={content} view={effectiveView} onNavigate={navigate} />;

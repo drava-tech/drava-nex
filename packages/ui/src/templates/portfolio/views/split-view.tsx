@@ -2,7 +2,7 @@
 
 import { ChevronLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { normalizeSections, type OverviewCard } from "../content";
+import { normalizeSections, sectionCoverImage, type OverviewCard } from "../content";
 
 /** Once the divider pushes a panel past this share of the width, that panel's
  * "open slideshow" gesture commits. Also the resting bound of the drag — the
@@ -361,7 +361,7 @@ export function SplitView({
         onClick={(e) => advanceTo(0, e)}
         style={{ ...panelBase, clipPath: "inset(0 calc(100% - var(--split)) 0 0)" }}
       >
-        <Panel imageUrl={left.images[0]} />
+        <Panel imageUrl={sectionCoverImage(left)} />
         {/* Gradient scrim so label text reads over any image */}
         <div
           style={{
@@ -376,7 +376,7 @@ export function SplitView({
 
       {/* ── Right panel — same fixed/clipped approach, mirrored ── */}
       <div onClick={(e) => advanceTo(1, e)} style={{ ...panelBase, clipPath: "inset(0 0 0 var(--split))" }}>
-        <Panel imageUrl={right.images[0]} />
+        <Panel imageUrl={sectionCoverImage(right)} />
         <div
           style={{
             position: "absolute",

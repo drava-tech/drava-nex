@@ -239,6 +239,7 @@ export function PortfolioEditorWorkspace({
               <SectionFields
                 card={cards[editorView.cardIndex]!}
                 cardIndex={editorView.cardIndex}
+                allCards={cards}
                 disabled={isPending}
                 onSectionChange={onSectionChange}
               />

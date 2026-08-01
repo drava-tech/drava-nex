@@ -55,10 +55,17 @@ const railFor = (expandedIndex: number) =>
  * caller. Expansion, by contrast, is deliberately local state: a transient way
  * to look closer, so it shouldn't survive a reload or reach the URL.
  */
+/** A jump to somewhere else this page's subject appears — see `links` below. */
+export interface GalleryLink {
+  label: string;
+  onSelect: () => void;
+}
+
 export function GalleryView({
   content,
   pageIndex = 0,
   topInset = 0,
+  links,
 }: {
   content?: GalleryContent;
   pageIndex?: number;
@@ -68,6 +75,16 @@ export function GalleryView({
    * would otherwise land on the title.
    */
   topInset?: number;
+  /**
+   * Optional row of buttons under the text block. The portfolio fills this with
+   * the other categories holding work for the same company, so a visitor can
+   * cross to them without backing out to the overview and drilling in again.
+   *
+   * Optional, and nothing renders when it's empty — which is what keeps the
+   * standalone Gallery template (no companies, no categories) exactly as it was.
+   * What a link means is the caller's business, same as `pageIndex`.
+   */
+  links?: GalleryLink[];
 }) {
   const c = { ...DEFAULT_GALLERY_CONTENT, ...(content ?? {}) };
   const pages = normalizePages(c);
@@ -102,6 +119,9 @@ export function GalleryView({
   const titleSize = c.titleFontSize ?? DEFAULT_TITLE_FONT_SIZE;
   const subtitleSize = c.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE;
   const descriptionSize = c.descriptionFontSize ?? DEFAULT_DESCRIPTION_FONT_SIZE;
+  // Derived from the description rather than fixed, so the row keeps its place
+  // in the hierarchy when the editor's font-size controls are moved.
+  const linkSize = Math.round(descriptionSize * 0.8);
   const isOpen = expanded !== null;
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
 
@@ -225,11 +245,62 @@ export function GalleryView({
                   fontWeight: 400,
                   lineHeight: 1.5,
                   opacity: 0.85,
+                  // Allowed to shrink so a long paragraph clips itself rather
+                  // than shoving the link row out of the bottom of the cell.
+                  minHeight: 0,
                   overflow: "hidden",
                 }}
               >
                 {page.description}
               </p>
+            ) : null}
+
+            {links && links.length > 0 ? (
+              <div
+                style={{
+                  // Pinned to the foot of the cell rather than trailing the
+                  // paragraph, so the row lands in the same place on every page
+                  // regardless of how much copy sits above it.
+                  marginTop: "auto",
+                  paddingTop: gap,
+                  flexShrink: 0,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: Math.round(gap * 0.4),
+                }}
+              >
+                {links.map((link, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={link.onSelect}
+                    style={{
+                      appearance: "none",
+                      margin: 0,
+                      padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
+                      borderRadius: 999,
+                      // currentColor, not a fixed shade: the background and text
+                      // colour are both editable, and anything hardcoded here
+                      // would disappear against one of the two.
+                      border: "1px solid currentColor",
+                      backgroundColor: "transparent",
+                      color: "inherit",
+                      fontFamily: "inherit",
+                      fontSize: linkSize,
+                      fontWeight: 700,
+                      letterSpacing: "0.04em",
+                      lineHeight: 1,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                      // Secondary to the copy above it — same way the
+                      // description sits at 0.85 under the title.
+                      opacity: 0.75,
+                    }}
+                  >
+                    {link.label}
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
 

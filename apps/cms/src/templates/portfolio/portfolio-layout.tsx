@@ -6,6 +6,7 @@ import {
   readPortfolioContent,
   cardSlugs,
   sectionSlugs,
+  projectSlugs,
   normalizeSections,
   DEFAULT_PORTFOLIO_CONTENT,
   SPLIT_VIEW_SEGMENT,
@@ -16,12 +17,14 @@ import { PortfolioRoutedApp } from "./portfolio-routed-app";
 
 /**
  * Resolves the URL sub-path to a portfolio view:
- *   []                                    → overview
- *   [<vertical-slug>]                     → that vertical's page (2 section buttons)
- *   [<vertical-slug>, <section-slug>]     → that section's slideshow
- *   [<vertical-slug>, SPLIT_VIEW_SEGMENT] → that vertical's split-panel view
+ *   []                                              → overview
+ *   [<vertical>]                                    → that vertical's page (2 section buttons)
+ *   [<vertical>, <section>]                         → that section's slideshow
+ *   [<vertical>, <section>, <company>]              → that company's project in a gallery section
+ *   [<vertical>, SPLIT_VIEW_SEGMENT]                → that vertical's split-panel view
  * Unknown slugs degrade gracefully (bad vertical → overview, bad section →
- * vertical page) so stale links after a title rename don't 404.
+ * vertical page, bad company → the section's first project) so stale links
+ * after a rename don't 404.
  */
 function resolveView(content: PortfolioContent, subpath: string[]): PortfolioViewState {
   const cards = content.overview.cards;
@@ -35,7 +38,12 @@ function resolveView(content: PortfolioContent, subpath: string[]): PortfolioVie
   }
   const sections = normalizeSections(cards[cardIndex]?.sections);
   const sectionIndex = seg1 ? sectionSlugs(sections).indexOf(seg1) : -1;
-  return { cardIndex, sectionIndex: sectionIndex >= 0 ? sectionIndex : null };
+  if (sectionIndex < 0) return { cardIndex, sectionIndex: null };
+
+  const seg2 = subpath[2] ?? "";
+  const projects = sections[sectionIndex]?.projects ?? [];
+  const projectIndex = seg2 ? projectSlugs(projects).indexOf(seg2) : -1;
+  return { cardIndex, sectionIndex, projectIndex: projectIndex >= 0 ? projectIndex : null };
 }
 
 /**
