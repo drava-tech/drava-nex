@@ -24,7 +24,7 @@ apps/cms  (Admin Dashboard)
   │                                                                     │
 apps/api  (REST + WebSocket gateway + MQTT)                            │
   │  Source of truth lives in Postgres; broadcasts CONTENT_UPDATE ─────┘
-  ▼                                                                     
+  ▼
 ```
 
 ---
@@ -32,7 +32,8 @@ apps/api  (REST + WebSocket gateway + MQTT)                            │
 ## Packages Each App Imports
 
 | App | Imports From |
-|---|---|
+| --- | ------------ |
+
 | `apps/api` | `@platform/types` `@platform/db` `@platform/iot` |
 | `apps/cms` | `@platform/types` `@platform/db` `@platform/ui` |
 

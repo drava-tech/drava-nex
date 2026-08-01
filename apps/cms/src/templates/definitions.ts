@@ -11,11 +11,14 @@ import { WelcomeLayout } from "./welcome/welcome-layout";
 import { WelcomeEditorWorkspace } from "./welcome/editor-workspace";
 import { FlightSimulationLayout } from "./flight-simulation/flight-simulation-layout";
 import { FlightSimulationEditorWorkspace } from "./flight-simulation/editor-workspace";
+import { GalleryLayout } from "./gallery/gallery-layout";
+import { GalleryEditorWorkspace } from "./gallery/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
 import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
 import { DEFAULT_FLIGHT_SIMULATION_CONTENT } from "@platform/ui/templates/flight-simulation";
+import { DEFAULT_GALLERY_CONTENT } from "@platform/ui/templates/gallery";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -70,6 +73,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: FlightSimulationLayout,
     defaultContent: DEFAULT_FLIGHT_SIMULATION_CONTENT,
     Workspace: FlightSimulationEditorWorkspace,
+  },
+  gallery: {
+    key: "gallery",
+    label: TEMPLATE_LABELS.gallery,
+    Layout: GalleryLayout,
+    defaultContent: DEFAULT_GALLERY_CONTENT,
+    Workspace: GalleryEditorWorkspace,
   },
 };
 

@@ -19,6 +19,7 @@ export const TEMPLATE_KEYS = [
   "product-showcase",
   "welcome",
   "flight-simulation",
+  "gallery",
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {

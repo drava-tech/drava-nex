@@ -249,6 +249,7 @@ export function SectionFields({
                   [
                     { type: "images", label: "Image slideshow" },
                     { type: "videos", label: "Videos grid" },
+                    { type: "gallery", label: "Gallery" },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -268,8 +269,56 @@ export function SectionFields({
               </div>
             </div>
 
+            {/* Gallery copy — the text block beside the photos. Only shown for
+                the gallery type; the value is kept when switching away, so
+                flipping type back and forth doesn't lose what was written. */}
+            {section.type === "gallery" && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className={LABEL}>Title</label>
+                  <input
+                    className={FIELD}
+                    value={card.sections?.[si]?.title ?? ""}
+                    disabled={disabled}
+                    placeholder={section.name}
+                    onChange={(e) => onSectionChange(cardIndex, si, { title: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className={LABEL}>Subtitle</label>
+                  <input
+                    className={FIELD}
+                    value={card.sections?.[si]?.subtitle ?? ""}
+                    disabled={disabled}
+                    placeholder="Corporate Films"
+                    onChange={(e) => onSectionChange(cardIndex, si, { subtitle: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className={LABEL}>Description</label>
+                  <textarea
+                    className={`${FIELD} min-h-[88px] resize-y`}
+                    value={card.sections?.[si]?.description ?? ""}
+                    disabled={disabled}
+                    onChange={(e) => onSectionChange(cardIndex, si, { description: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
             <div className="flex flex-col gap-1.5">
-              <label className={LABEL}>{key === "videos" ? "Videos" : "Slideshow images"}</label>
+              <label className={LABEL}>
+                {key === "videos"
+                  ? "Videos"
+                  : section.type === "gallery"
+                    ? "Gallery photos (first 4 used)"
+                    : "Slideshow images"}
+              </label>
+              {section.type === "gallery" && (
+                <p className="text-[11px] leading-relaxed text-zinc-400">
+                  The first image is the large feature photo; the next three sit in the row below.
+                </p>
+              )}
 
               {urls.map((url, ii) => (
                 <div

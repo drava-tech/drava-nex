@@ -1,29 +1,41 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { normalizeSections, type OverviewCard } from "../content";
+import { normalizeSections, type OverviewCard, type PortfolioGalleryStyle } from "../content";
 import { SlideshowPanel } from "../components/slideshow-panel";
 import { FilmsPanel } from "../components/films-panel";
+import { GallerySectionView } from "./gallery-section-view";
 
 /**
  * Vertical page — shown at `/<vertical-slug>[/<section-slug>]`: the active
- * section's content (image slideshow or videos grid) fills the whole screen;
- * the back button and title float on top under a gradient scrim. First
- * section is active by default.
+ * section's content fills the whole screen; the back button and title float on
+ * top under a gradient scrim. First section is active by default.
  * Authored in real 1920×1080 px (inside ScreenStage).
+ *
+ * "gallery" sections render their own full-bleed layout (text beside four
+ * expandable photos) and bring their own back button, so they return early
+ * rather than sit under the scrim — that header is built for a dark slideshow
+ * and would be invisible over the gallery's light background.
  */
 export function VerticalView({
   card,
   activeSectionIndex,
+  galleryStyle,
   onBack,
 }: {
   card: OverviewCard;
   activeSectionIndex: number;
+  /** Shared by every gallery section — see PortfolioContent.gallery. */
+  galleryStyle?: PortfolioGalleryStyle;
   onBack: () => void;
 }) {
   const sections = normalizeSections(card.sections);
   const active = Math.min(Math.max(activeSectionIndex, 0), sections.length - 1);
   const section = sections[active]!;
+
+  if (section.type === "gallery") {
+    return <GallerySectionView section={section} style={galleryStyle} onBack={onBack} />;
+  }
 
   return (
     <div className="w-full h-full relative" style={{ background: "#141414", overflow: "hidden" }}>

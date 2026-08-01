@@ -9,6 +9,7 @@ import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
 import { readProductShowcaseContent } from "@platform/ui/templates/product-showcase";
 import { readWelcomeContent } from "@platform/ui/templates/welcome";
 import { readFlightSimulationContent } from "@platform/ui/templates/flight-simulation";
+import { readGalleryContent } from "@platform/ui/templates/gallery";
 
 /**
  * Per-template reader for the experience's saved content slice. Table-driven so
@@ -25,6 +26,7 @@ const CONTENT_READERS: Record<
   "product-showcase": readProductShowcaseContent,
   welcome: readWelcomeContent,
   "flight-simulation": readFlightSimulationContent,
+  gallery: readGalleryContent,
 };
 
 interface EditPageProps {

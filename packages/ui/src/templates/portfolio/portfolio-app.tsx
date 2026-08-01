@@ -56,6 +56,7 @@ export function PortfolioApp({
     <VerticalView
       card={card}
       activeSectionIndex={view.sectionIndex ?? 0}
+      galleryStyle={content?.gallery}
       onBack={() =>
         onNavigate(
           view.cameFromSplit
