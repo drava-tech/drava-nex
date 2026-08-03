@@ -57,10 +57,23 @@ export interface PortfolioProject {
   description?: string;
   /** First GALLERY_PHOTO_COUNT are the gallery photos. */
   images: string[];
+  /**
+   * Optional film for this company. Set = the gallery page grows a "Film"
+   * button that plays it in a popup; unset = no button at all, which is why
+   * this is the only thing that decides whether one appears.
+   */
+  videoUrl?: string;
 }
 
 /** The gallery layout is designed around exactly four photos — one feature, three below. */
 export const GALLERY_PHOTO_COUNT = 4;
+
+/**
+ * Label on the button a project's film gets. Fixed rather than authored — it
+ * names a medium, not the content — and shared so the editor can promise
+ * exactly what the screen will show.
+ */
+export const GALLERY_FILM_LABEL = "Film";
 
 /**
  * Styling for every "gallery" section, held once on the content rather than
@@ -294,6 +307,9 @@ export function normalizeProjects(
     ...(typeof p?.subtitle === "string" ? { subtitle: p.subtitle } : {}),
     ...(typeof p?.description === "string" ? { description: p.description } : {}),
     images: cleanUrls(p?.images),
+    // Dropped when blank rather than kept as "", so "has a film" is a single
+    // truthiness test everywhere downstream.
+    ...(typeof p?.videoUrl === "string" && p.videoUrl ? { videoUrl: p.videoUrl } : {}),
   }));
 }
 

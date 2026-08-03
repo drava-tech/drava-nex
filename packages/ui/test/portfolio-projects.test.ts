@@ -104,6 +104,40 @@ describe("normalizeSections — project migration", () => {
   });
 });
 
+describe("normalizeProjects — the film", () => {
+  const projectsOf = (projects: unknown) =>
+    normalizeSections([
+      section({ name: "Brand Films", type: "gallery", projects: projects as never }),
+    ])[0]!.projects!;
+
+  it("keeps a film that was set", () => {
+    expect(projectsOf([{ company: "Acme", images: [], videoUrl: "/film.mp4" }])[0]!.videoUrl).toBe(
+      "/film.mp4"
+    );
+  });
+
+  it("drops a blank one rather than storing an empty string", () => {
+    // The Film button appears on truthiness alone, so "" must not survive as a
+    // present-but-empty key — that's what "Remove" writes in the editor.
+    expect(projectsOf([{ company: "Acme", images: [], videoUrl: "" }])[0]).not.toHaveProperty(
+      "videoUrl"
+    );
+  });
+
+  it("drops a non-string one", () => {
+    expect(projectsOf([{ company: "Acme", images: [], videoUrl: 42 }])[0]).not.toHaveProperty(
+      "videoUrl"
+    );
+  });
+
+  it("gives a migrated pre-companies gallery no film", () => {
+    const [s] = normalizeSections([
+      section({ name: "Brand Films", type: "gallery", title: "T", images: ["/1.png"] }),
+    ]);
+    expect(s!.projects![0]).not.toHaveProperty("videoUrl");
+  });
+});
+
 describe("companyLinks", () => {
   it("finds the same company in every other gallery category", () => {
     const links = companyLinks(cards(), { cardIndex: 0, sectionIndex: 0, projectIndex: 0 });

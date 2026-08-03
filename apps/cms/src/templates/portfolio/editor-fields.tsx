@@ -7,6 +7,7 @@ import {
   normalizeSections,
   newPortfolioProject,
   companyLinks,
+  GALLERY_FILM_LABEL,
   GALLERY_PHOTO_COUNT,
   type OverviewCard,
   type PortfolioProject,
@@ -415,6 +416,7 @@ function ProjectsEditor({
   onChange: (projects: PortfolioProject[]) => void;
 }) {
   const [picker, setPicker] = useState<number | null>(null);
+  const [videoPicker, setVideoPicker] = useState<number | null>(null);
 
   const patch = (pi: number, p: Partial<PortfolioProject>) =>
     onChange(projects.map((proj, i) => (i === pi ? { ...proj, ...p } : proj)));
@@ -543,6 +545,54 @@ function ProjectsEditor({
               />
             </div>
 
+            {/* Optional — and the button on screen appears only because this is
+                set, so the copy says as much rather than leaving the author to
+                discover it by previewing. */}
+            <div className="flex flex-col gap-1.5">
+              <label className={LABEL}>Film (optional)</label>
+              {project.videoUrl ? (
+                <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-black group">
+                  <video
+                    src={project.videoUrl}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setVideoPicker(pi)}
+                      className="px-3 py-1.5 rounded-lg bg-white text-zinc-900 text-xs font-semibold disabled:opacity-50"
+                    >
+                      Change
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => patch(pi, { videoUrl: "" })}
+                      className="px-3 py-1.5 rounded-lg bg-zinc-900/80 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setVideoPicker(pi)}
+                  className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                >
+                  ▶ Select video from media
+                </button>
+              )}
+              <p className="text-[11px] leading-relaxed text-zinc-400">
+                Adds a “{GALLERY_FILM_LABEL}” button to this page. With no film, no button.
+              </p>
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label className={LABEL}>Photos (first {GALLERY_PHOTO_COUNT} used)</label>
               <p className="text-[11px] leading-relaxed text-zinc-400">
@@ -628,6 +678,16 @@ function ProjectsEditor({
           if (picker !== null) {
             patch(picker, { images: [...(projects[picker]?.images ?? []), url] });
           }
+        }}
+      />
+
+      {/* Single, not multi: a page has one film. */}
+      <MediaPicker
+        open={videoPicker !== null}
+        onClose={() => setVideoPicker(null)}
+        accept="video"
+        onSelect={(url) => {
+          if (videoPicker !== null) patch(videoPicker, { videoUrl: url });
         }}
       />
     </div>
