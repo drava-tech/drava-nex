@@ -87,3 +87,7 @@ services/vision/models/**/w600k_r50.onnx
 
 # NOT ignored (committed): .py sources, requirements.txt, Dockerfile,
 # README.md, .env.example, data.yaml, .gitkeep placeholder files
+
+# Local staging/backup copy of services/vision (model weights, .env, mat data) —
+# not under services/, so the rules above don't reach it; ignore wholesale.
+/gitignored-object-detection/
