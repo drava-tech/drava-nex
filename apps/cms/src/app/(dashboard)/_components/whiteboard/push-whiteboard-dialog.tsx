@@ -32,6 +32,18 @@ export function PushWhiteboardDialog({ previewDataUrl, onClose, onSelect, onSkip
   const [screens, setScreens] = useState<ScreenRow[]>([]);
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
+  /** Flashes the grid when Push is clicked with nothing picked yet — cleared as soon as a screen is picked. */
+  const [needsSelection, setNeedsSelection] = useState(false);
+
+  const handlePush = () => {
+    const screen = screens.find((s) => s.screenId === selectedScreenId);
+    if (!screen) {
+      setNeedsSelection(true);
+      return;
+    }
+    onSelect(screen.screenId, screen.screenName, activeScreenIds.has(screen.screenId));
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -95,15 +107,27 @@ export function PushWhiteboardDialog({ previewDataUrl, onClose, onSelect, onSkip
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl transition-shadow ${
+                needsSelection ? "ring-2 ring-red-500 ring-offset-2 ring-offset-white dark:ring-offset-zinc-950" : ""
+              }`}
+            >
               {screens.map((screen) => {
                 const isOnline = activeScreenIds.has(screen.screenId);
+                const isSelected = screen.screenId === selectedScreenId;
                 return (
                   <button
                     key={screen.screenId}
                     type="button"
-                    onClick={() => onSelect(screen.screenId, screen.screenName, isOnline)}
-                    className="relative flex flex-col items-start rounded-2xl border p-4 text-left transition-all duration-200 border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
+                    onClick={() => {
+                      setSelectedScreenId(screen.screenId);
+                      setNeedsSelection(false);
+                    }}
+                    className={`relative flex flex-col items-start rounded-2xl border p-4 text-left transition-all duration-200 ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-500/10"
+                        : "border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
+                    }`}
                   >
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <span
@@ -126,16 +150,28 @@ export function PushWhiteboardDialog({ previewDataUrl, onClose, onSelect, onSkip
               })}
             </div>
           )}
+          {needsSelection && (
+            <p className="mt-2 text-xs font-semibold text-red-500">Select a screen to push to</p>
+          )}
         </div>
 
-        {onSkip && (
-          <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900 flex justify-end">
+        {screens.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-900 flex items-center justify-end gap-2">
+            {onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="px-4 py-2 rounded-xl text-xs font-bold tracking-wider uppercase text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              >
+                Draw without pushing
+              </button>
+            )}
             <button
               type="button"
-              onClick={onSkip}
-              className="px-4 py-2 rounded-xl text-xs font-bold tracking-wider uppercase text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              onClick={handlePush}
+              className="px-5 py-2 rounded-xl text-xs font-bold tracking-wider uppercase bg-zinc-900 text-zinc-100 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white transition-colors"
             >
-              Draw without pushing
+              Push
             </button>
           </div>
         )}

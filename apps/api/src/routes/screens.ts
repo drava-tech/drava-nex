@@ -6,6 +6,8 @@ import {
   deleteScreen,
   setScreenExperience,
   setScreenMedia,
+  setScreenMediaQueue,
+  advanceScreenQueue,
   setScreenDefaultMedia,
   setScreenBlanked,
   setScreenInteractionEnabled,
@@ -130,6 +132,47 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   clearTakeoverFlag(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
+});
+
+const assignMediaQueueSchema = z.object({
+  mediaAssetIds: z.array(z.string().min(1)).min(1),
+  startIndex: z.number().int().min(0).optional(),
+});
+
+// POST /api/screens/:id/media-queue — start (or replace) an ordered
+// multi-item queue: currentMediaAssetId becomes the item at startIndex, same
+// broadcast path as /media — the display side never knows a queue is involved.
+screensRouter.post("/:id/media-queue", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = assignMediaQueueSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  await setScreenMediaQueue(screenId, body.mediaAssetIds, body.startIndex ?? 0);
+  clearTakeoverFlag(screenId);
+  const content = await pushScreenContent(screenId);
+  return ok(c, { screenId, content });
+});
+
+const queueNavigateSchema = z.object({ direction: z.enum(["next", "prev"]) });
+
+// POST /api/screens/:id/queue/navigate — step the active queue one item,
+// clamped at the ends, and broadcast the new current item.
+screensRouter.post("/:id/queue/navigate", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = queueNavigateSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  const result = await advanceScreenQueue(screenId, body.direction);
+  if (!result) return fail(c, "NOT_FOUND", "This screen has no active queue.", 404);
+  clearTakeoverFlag(screenId);
+  const content = await pushScreenContent(screenId);
+  return ok(c, { screenId, content, queueIndex: result.index, queueLength: result.length });
 });
 
 const assignDefaultMediaSchema = z.object({ mediaAssetId: z.string().min(1).nullable() });

@@ -77,7 +77,7 @@ const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: strin
  * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
  * a menu with "Draw" (pick a screen, then control it exactly like an
  * experience — via the same LiveControlDialog + ScreenMirror everything else
- * uses) and "Add Link" (push an existing Media Library item to a screen).
+ * uses) and "Add Link" (paste a browser URL to add as a media item).
  *
  * Strokes are kept as objects and replayed rather than being flattened into
  * pixels — that's what makes undo and window resizing work at all.
@@ -144,7 +144,7 @@ export function WhiteboardOverlay() {
         setShowPushDialog(true);
       },
     },
-    { id: "link", label: "Add Link", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
+    { id: "link", label: "Browse URL", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
   ];
 
   // --- Canvas ---------------------------------------------------------------

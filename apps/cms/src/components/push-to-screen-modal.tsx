@@ -43,6 +43,20 @@ interface PushToScreenModalProps {
    * touchpad (see LiveControlDialog for why). Omit for any other content type.
    */
   showTouchpad?: boolean;
+  /** Set to push an ordered multi-item queue instead of a single piece of content. */
+  queue?: QueuePushConfig;
+}
+
+export interface QueuePushConfig {
+  /** Full ordered media-asset id list — handed to LiveControlDialog so it can
+   * show/advance "N of M" for the queue. */
+  mediaAssetIds: string[];
+  /** Which item onPush actually lands on — must match what the caller's
+   * onPush (assignMediaQueue) itself passes as startIndex. Defaults to 0. */
+  startIndex?: number;
+  /** Step the queue forward/back one item on the given (already-pushed)
+   * screen. Returns the new 0-based index — DB stays authoritative. */
+  onNavigate: (screenId: string, direction: "next" | "prev") => Promise<number>;
 }
 
 /** Label for whatever a screen is currently showing, so admins know what they'd overwrite. */
@@ -72,6 +86,7 @@ export function PushToScreenModal({
   isAlreadyShowing,
   onSaveLink,
   showTouchpad,
+  queue,
 }: PushToScreenModalProps) {
   const [screens, setScreens] = useState<ScreenRow[]>([]);
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
@@ -79,6 +94,8 @@ export function PushToScreenModal({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Highlights the screen list as soon as the modal opens (and again if Push is clicked with nothing picked) — cleared as soon as a screen is picked. */
+  const [needsSelection, setNeedsSelection] = useState(true);
   const [controlScreens, setControlScreens] = useState<LiveScreen[] | null>(null);
   const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
 
@@ -112,7 +129,9 @@ export function PushToScreenModal({
         setScreens(screenRows);
         setActiveScreenIds(new Set(activeIds));
         if (isAlreadyShowing) {
-          setSelectedIds(screenRows.filter((s) => isAlreadyShowing(s)).map((s) => s.screenId));
+          const preSelected = screenRows.filter((s) => isAlreadyShowing(s)).map((s) => s.screenId);
+          setSelectedIds(preSelected);
+          if (preSelected.length > 0) setNeedsSelection(false);
         }
       } catch {
         if (!cancelled) setError("Could not load the screen list");
@@ -129,13 +148,21 @@ export function PushToScreenModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleScreen = (screenId: string) =>
-    setSelectedIds((prev) =>
-      prev.includes(screenId) ? prev.filter((id) => id !== screenId) : [...prev, screenId]
-    );
+  const toggleScreen = (screenId: string) => {
+    setNeedsSelection(false);
+    setSelectedIds((prev) => {
+      // Queue mode only supports one target screen — there's no UI here for
+      // showing N independent "N of M" indicators across multiple screens.
+      if (queue) return prev[0] === screenId ? [] : [screenId];
+      return prev.includes(screenId) ? prev.filter((id) => id !== screenId) : [...prev, screenId];
+    });
+  };
 
   const handlePush = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0) {
+      setNeedsSelection(true);
+      return;
+    }
     setPushing(true);
     setError(null);
     try {
@@ -175,6 +202,11 @@ export function PushToScreenModal({
         onSaveLink={onSaveLink}
         onClose={onClose}
         showTouchpad={showTouchpad}
+        queueMediaIds={queue?.mediaAssetIds}
+        initialQueueIndex={queue?.startIndex ?? 0}
+        onNavigateQueue={
+          queue ? (direction) => queue.onNavigate(controlScreens[0]!.screenId, direction) : undefined
+        }
       />
     );
   }
@@ -256,7 +288,11 @@ export function PushToScreenModal({
               ) : screens.length === 0 ? (
                 <p className="px-2 py-8 text-center text-sm text-zinc-400">No screens registered yet</p>
               ) : (
-                <div className="space-y-1">
+                <div
+                  className={`space-y-1 rounded-lg transition-shadow ${
+                    needsSelection ? "ring-2 ring-red-500 ring-offset-2 ring-offset-white dark:ring-offset-[#0f0f0f]" : ""
+                  }`}
+                >
                   {screens.map((screen) => {
                     const isSelected = selectedIds.includes(screen.screenId);
                     const isOnline = activeScreenIds.has(screen.screenId);
@@ -290,6 +326,9 @@ export function PushToScreenModal({
                   })}
                 </div>
               )}
+              {needsSelection && !loadingScreens && screens.length > 0 && (
+                <p className="px-2 pt-2 text-xs font-semibold text-red-500">Select a screen to push to</p>
+              )}
             </div>
 
             {error && (
@@ -302,7 +341,7 @@ export function PushToScreenModal({
             <div className="flex flex-col gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
               <button
                 onClick={handlePush}
-                disabled={selectedIds.length === 0 || pushing || screens.length === 0}
+                disabled={pushing || screens.length === 0}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {pushing ? (

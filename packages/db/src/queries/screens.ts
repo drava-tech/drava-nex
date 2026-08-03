@@ -204,6 +204,8 @@ export async function setScreenExperience(
       currentContentKind: experienceId ? "experience" : null,
       currentExperienceId: experienceId,
       currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
@@ -220,9 +222,70 @@ export async function setScreenMedia(
       currentContentKind: mediaAssetId ? "media" : null,
       currentMediaAssetId: mediaAssetId,
       currentExperienceId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Start (or replace) an ordered multi-item queue on a screen: sets
+ * currentMediaAssetId to the item at startIndex (clamped into range) and
+ * records the full ordered list + index so advanceScreenQueue can step
+ * through it later. Same "single current media asset" shape as
+ * setScreenMedia — getScreenContent needs no changes to resolve it.
+ */
+export async function setScreenMediaQueue(
+  screenId: string,
+  mediaAssetIds: string[],
+  startIndex = 0
+): Promise<void> {
+  if (mediaAssetIds.length === 0) {
+    throw new Error("setScreenMediaQueue requires at least one media asset id");
+  }
+  const clampedIndex = Math.min(Math.max(startIndex, 0), mediaAssetIds.length - 1);
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: "media",
+      currentMediaAssetId: mediaAssetIds[clampedIndex],
+      currentExperienceId: null,
+      currentQueueMediaIds: mediaAssetIds,
+      currentQueueIndex: clampedIndex,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Step a screen's active queue forward/back one item (clamped at the ends —
+ * not wrap-around), updating currentMediaAssetId to match. Returns null if the
+ * screen has no active queue (queue columns null/empty).
+ */
+export async function advanceScreenQueue(
+  screenId: string,
+  direction: "next" | "prev"
+): Promise<{ index: number; length: number; mediaAssetId: string } | null> {
+  const [row] = await db
+    .select({ queueIds: screen.currentQueueMediaIds, queueIndex: screen.currentQueueIndex })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+
+  if (!row?.queueIds || row.queueIds.length === 0 || row.queueIndex === null) return null;
+
+  const lastIndex = row.queueIds.length - 1;
+  const nextIndex =
+    direction === "next" ? Math.min(row.queueIndex + 1, lastIndex) : Math.max(row.queueIndex - 1, 0);
+  const mediaAssetId = row.queueIds[nextIndex]!;
+
+  await db
+    .update(screen)
+    .set({ currentQueueIndex: nextIndex, currentMediaAssetId: mediaAssetId, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+
+  return { index: nextIndex, length: row.queueIds.length, mediaAssetId };
 }
 
 /**

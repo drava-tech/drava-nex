@@ -14,7 +14,7 @@ export default async function ScreensPage() {
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
 
   return (
-    <div className="flex flex-col p-6 md:p-8 bg-zinc-100 dark:bg-black h-[calc(100vh-5rem)] min-h-0 overflow-hidden">
+    <div className="flex flex-col bg-zinc-100 dark:bg-black h-[calc(100vh-5rem)] min-h-0 overflow-hidden">
       <ScreensController
         initialScreens={screens}
         isAdmin={isAdmin}

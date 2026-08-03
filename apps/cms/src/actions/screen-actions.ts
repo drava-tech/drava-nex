@@ -90,6 +90,41 @@ export async function assignMedia(screenId: string, mediaAssetId: string | null)
   revalidatePath("/");
 }
 
+/**
+ * Push an ordered list of media assets to a screen as a queue — the screen's
+ * current item becomes the one at startIndex (default 0). The full list is
+ * recorded server-side so advanceScreenQueue (Next/Prev) can step through it
+ * later, surviving CMS reloads and staying in sync across multiple open
+ * control panels.
+ */
+export async function assignMediaQueue(screenId: string, mediaAssetIds: string[], startIndex = 0) {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media-queue`, {
+    method: "POST",
+    body: JSON.stringify({ mediaAssetIds, startIndex }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}
+
+/**
+ * Step a screen's active queue forward/back one item. Returns the new 0-based
+ * index — the DB stays authoritative; this is only handed back to the caller
+ * (LiveControlDialog) to update its local "N of M" display.
+ */
+export async function advanceScreenQueue(screenId: string, direction: "next" | "prev"): Promise<number> {
+  await requireGuestOrAdmin();
+  const res = await apiFetch<{ queueIndex: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/queue/navigate`,
+    { method: "POST", body: JSON.stringify({ direction }) }
+  );
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+  return res.data.queueIndex;
+}
+
 /** Set (or clear with null) a screen's default/fallback video, shown when nothing else is assigned. */
 export async function assignDefaultMedia(screenId: string, mediaAssetId: string | null) {
   await requireGuestOrAdmin();

@@ -226,7 +226,7 @@ export function ScreensController({
               <p className="text-xs text-zinc-400">Add your first screen to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
               {screens.map((screen) => {
                 const hasLiveUpdate = Boolean(liveUpdates[screen.id]);
                 const isAssigned = Boolean(screen.contentLabel);

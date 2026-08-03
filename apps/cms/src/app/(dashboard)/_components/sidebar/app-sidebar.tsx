@@ -44,12 +44,6 @@ const ALL_NAV = [
     roles: ["ADMIN"] as string[],
     guestModeVisible: true,
   },
-  // {
-  //   title: "Experience 2",
-  //   url: "/experiences2",
-  //   icon: Sparkles,
-  //   roles: ["ADMIN"] as string[]
-  // },
   {
     title: "Products",
     url: "/products",

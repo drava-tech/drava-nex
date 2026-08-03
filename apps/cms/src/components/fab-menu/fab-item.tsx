@@ -5,7 +5,7 @@ import { motion, type Variants } from "framer-motion";
 import { cn } from "@platform/ui";
 import type { FabMenuItem } from "./types";
 
-export const FAB_ITEM_SIZE = 44;
+export const FAB_ITEM_SIZE = 36;
 
 export const fabItemVariants: Variants = {
   closed: (labelSide: "left" | "right") => ({
@@ -46,16 +46,19 @@ export const FabItem = forwardRef<HTMLButtonElement, FabItemProps>(function FabI
     <motion.div
       custom={labelSide}
       variants={fabItemVariants}
+      onClick={() => !item.disabled && onActivate(item)}
       className={cn(
         "pointer-events-auto absolute flex items-center gap-3",
-        labelSide === "left" ? "right-0 flex-row" : "left-0 flex-row-reverse"
+        labelSide === "left" ? "right-0 flex-row" : "left-0 flex-row-reverse",
+        item.disabled ? "cursor-not-allowed" : "cursor-pointer"
       )}
       style={{ width: "max-content", ...style }}
     >
       <span
+        aria-hidden="true"
         className={cn(
-          "select-none whitespace-nowrap rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-semibold text-popover-foreground shadow-md",
-          item.disabled && "opacity-50"
+          "select-none whitespace-nowrap rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-semibold text-popover-foreground shadow-md transition-colors",
+          item.disabled ? "opacity-50" : "hover:bg-accent hover:text-accent-foreground"
         )}
       >
         {item.label}
@@ -68,7 +71,10 @@ export const FabItem = forwardRef<HTMLButtonElement, FabItemProps>(function FabI
         aria-label={item.label}
         tabIndex={tabIndex}
         disabled={item.disabled}
-        onClick={() => onActivate(item)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onActivate(item);
+        }}
         onKeyDown={onKeyDown}
         className={cn(
           "flex shrink-0 items-center justify-center rounded-full border border-border bg-card text-card-foreground shadow-lg transition-colors",
@@ -79,7 +85,7 @@ export const FabItem = forwardRef<HTMLButtonElement, FabItemProps>(function FabI
         )}
         style={{ width: FAB_ITEM_SIZE, height: FAB_ITEM_SIZE }}
       >
-        <span className="flex items-center justify-center [&_svg]:h-5 [&_svg]:w-5">{item.icon}</span>
+        <span className="flex items-center justify-center [&_svg]:h-4 [&_svg]:w-4">{item.icon}</span>
       </button>
     </motion.div>
   );
