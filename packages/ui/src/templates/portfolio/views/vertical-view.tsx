@@ -29,6 +29,7 @@ export function VerticalView({
   activeProjectIndex = 0,
   galleryStyle,
   links,
+  onOpenProject,
   onBack,
 }: {
   card: OverviewCard;
@@ -39,6 +40,8 @@ export function VerticalView({
   galleryStyle?: PortfolioGalleryStyle;
   /** Cross-category jumps for the showing company, computed by PortfolioApp. */
   links?: GalleryLink[];
+  /** Moves to another company in the SAME category, staying on this layout. */
+  onOpenProject?: (projectIndex: number) => void;
   onBack: () => void;
 }) {
   const sections = normalizeSections(card.sections);
@@ -57,6 +60,17 @@ export function VerticalView({
         project={project}
         style={galleryStyle}
         links={links}
+        pager={
+          onOpenProject
+            ? {
+                // Clamped to what's really there, so the dots can't outlive a
+                // company being deleted while the page is open.
+                index: Math.min(activeProjectIndex, projects.length - 1),
+                count: projects.length,
+                onSelect: onOpenProject,
+              }
+            : undefined
+        }
         onBack={onBack}
       />
     );

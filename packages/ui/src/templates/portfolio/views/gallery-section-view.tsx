@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { GalleryView, type GalleryLink } from "../../gallery/gallery-view";
+import { GalleryView, type GalleryLink, type GalleryPager } from "../../gallery/gallery-view";
 import type { GalleryContent } from "../../gallery/content";
 import {
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
@@ -36,6 +36,7 @@ export function GallerySectionView({
   project,
   style,
   links,
+  pager,
   onBack,
 }: {
   section: PortfolioSection;
@@ -44,6 +45,8 @@ export function GallerySectionView({
   style?: PortfolioGalleryStyle;
   /** The other categories holding work for this company. Empty = untagged. */
   links?: GalleryLink[];
+  /** Steps to the other companies in this same category. */
+  pager?: GalleryPager;
   onBack: () => void;
 }) {
   const s = { ...DEFAULT_PORTFOLIO_GALLERY_STYLE, ...(style ?? {}) };
@@ -80,7 +83,13 @@ export function GallerySectionView({
 
   return (
     <div className="w-full h-full relative" style={{ overflow: "hidden" }}>
-      <GalleryView content={content} pageIndex={0} topInset={textTopInset} links={links} />
+      <GalleryView
+        content={content}
+        pageIndex={0}
+        topInset={textTopInset}
+        links={links}
+        pager={pager}
+      />
 
       {/* Back button floats over the layout, matching VerticalView's placement
           so the two section types feel like the same page. */}
