@@ -1,4 +1,5 @@
 .env
+*.log
 .venv/
 # Object detection (mat product detector) installs its own venv — never
 # shared with the face pipeline's (separate CUDA/cuDNN stacks), see README.md.
