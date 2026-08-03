@@ -81,6 +81,17 @@ export function PortfolioApp({
       activeProjectIndex={projectIndex}
       galleryStyle={content?.gallery}
       links={links}
+      // Same navigation as a cross-category link, only staying put — which is
+      // why it goes through onNavigate too and lands in the URL and on any
+      // mirrored screen, rather than being local state inside the layout.
+      onOpenProject={(pi) =>
+        onNavigate({
+          cardIndex,
+          sectionIndex,
+          projectIndex: pi,
+          cameFromSplit: view.cameFromSplit,
+        })
+      }
       onBack={() =>
         onNavigate(
           view.cameFromSplit
