@@ -271,7 +271,9 @@ export function LiveScreenPlayer({
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />
-      <FiveTapCorner onTrigger={handleFiveTaps} />
+      {/* Only the html renderer puts content in a cross-origin iframe, where a
+          document listener would never see the taps. */}
+      <FiveTapCorner onTrigger={handleFiveTaps} overlay={displayContent.type === "html"} />
       {runServer && debugMode && (
         <DetectionDebugOverlay
           stream={serverDetection.stream}
