@@ -114,6 +114,10 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
     } else if (command === "SET_PORTFOLIO_VIDEO") {
       window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+    } else if (command === "SET_GALLERY_VIEW") {
+      // Which gallery photo is expanded — a tap on a control tablet has to open
+      // the same photo on the wall.
+      window.dispatchEvent(new CustomEvent("gallery-set-view", { detail: value }));
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {
