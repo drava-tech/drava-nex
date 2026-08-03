@@ -9,6 +9,10 @@ const DRAG_THRESHOLD = 6;
 /** Cursor moves faster than raw finger travel, so a small pad can still reach
  * the whole screen without repeated strokes — same idea as OS trackpad acceleration. */
 const CURSOR_GAIN = 1.6;
+/** Scroll had no gain at all (1px drag = 1 wheel "click" via the agent's
+ * mouse.scrollUp/scrollDown) — raw 1:1 felt sluggish, and small sub-1px
+ * per-event deltas were silently rounded to 0 and dropped entirely. */
+const SCROLL_GAIN = 4;
 
 interface ScreenTouchpadProps {
   /** The screen whose physical PC this pad drives — see useScreenCursorControl. */
@@ -97,7 +101,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
       const dy = e.clientY - g.lastY;
       g.lastY = e.clientY;
       // Drag down pans content down = scroll UP in wheel terms, hence the negation.
-      scroll(-dy);
+      scroll(-dy * SCROLL_GAIN);
     },
     [scroll]
   );

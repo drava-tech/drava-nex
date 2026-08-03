@@ -67,27 +67,23 @@ export function WelcomeRenderer({
   const typedSubtitle = useTypewriter(subtitle ?? "", subtitleDelay);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Unmuted autoplay is blocked by default outside kiosk mode (real kiosk TVs
-  // launch with --autoplay-policy=no-user-gesture-required, per
-  // .doc/device-setup.md, so they never hit this). Without this fallback the
-  // video branch below has nothing else to show, so a blocked autoplay reads
-  // as "Welcome isn't playing" — every other template always renders
-  // something regardless of one asset's state, this was the one exception.
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  // Browsers only ever guarantee autoplay when the element starts muted
+  // (unmuted autoplay is blocked without a qualifying user gesture, and that
+  // gesture isn't reliably available on a kiosk/TV display) — see
+  // VideoRenderer.tsx, which uses the same muted-autoplay contract for every
+  // other video on a screen. Starting muted (rather than attempting unmuted
+  // playback and falling back to a blocked "tap to play" state) is what
+  // actually makes autoplay work unconditionally; sound is then a deliberate
+  // opt-in via the unmute control below, not a precondition for playback.
+  const [muted, setMuted] = useState(true);
 
-  useEffect(() => {
-    if (!videoUrl) return;
-    setAutoplayBlocked(false);
-    const video = videoRef.current;
-    if (!video) return;
-    video.play().catch(() => setAutoplayBlocked(true));
-  }, [videoUrl]);
-
-  const handleTapToPlay = () => {
-    videoRef.current
-      ?.play()
-      .then(() => setAutoplayBlocked(false))
-      .catch(() => setAutoplayBlocked(true));
+  const handleUnmute = () => {
+    setMuted(false);
+    // A muted-autoplaying video can visually stall right when unmuted on some
+    // browsers/TV webviews — nudge it to keep playing under the same click
+    // that just granted the gesture, same as VideoRenderer's assumption that
+    // play() succeeds once there's real user interaction behind it.
+    videoRef.current?.play().catch(() => {});
   };
 
   useEffect(() => {
@@ -155,53 +151,43 @@ export function WelcomeRenderer({
     return (
       <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#000", position: "relative" }}>
         <video
+          key={videoUrl}
           ref={videoRef}
           src={videoUrl}
+          autoPlay
+          muted={muted}
+          loop
           playsInline
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-        {autoplayBlocked && (
+        {muted && (
           <button
-            onClick={handleTapToPlay}
+            onClick={handleUnmute}
             style={{
               position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
+              right: "3vw",
+              bottom: "3vh",
+              width: "3.4vw",
+              height: "3.4vw",
+              minWidth: "44px",
+              minHeight: "44px",
+              borderRadius: "50%",
+              background: "rgba(0,0,0,0.45)",
+              border: "1px solid rgba(255,255,255,0.4)",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.35)",
-              border: "none",
-              cursor: "pointer",
               padding: 0,
             }}
-            aria-label="Play video"
+            aria-label="Turn on sound"
+            title="Turn on sound"
           >
-            <span
-              style={{
-                width: "6vw",
-                height: "6vw",
-                minWidth: "56px",
-                minHeight: "56px",
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.9)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span
-                style={{
-                  marginLeft: "0.35em",
-                  width: 0,
-                  height: 0,
-                  borderTop: "1.4em solid transparent",
-                  borderBottom: "1.4em solid transparent",
-                  borderLeft: "2.2em solid #111",
-                }}
-              />
-            </span>
+            <svg width="45%" height="45%" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <path d="M11 5 6 9H2v6h4l5 4V5Z" fill="#fff" stroke="none" />
+              <line x1="23" y1="9" x2="17" y2="15" strokeLinecap="round" />
+              <line x1="17" y1="9" x2="23" y2="15" strokeLinecap="round" />
+            </svg>
           </button>
         )}
       </div>
