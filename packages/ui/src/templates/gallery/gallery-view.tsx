@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   DEFAULT_GALLERY_CONTENT,
@@ -29,6 +29,25 @@ const FAST = "420ms cubic-bezier(0.22, 0.61, 0.36, 1)";
 /** The slots beside an expanded photo: every other photo, in its natural order. */
 const railFor = (expandedIndex: number) =>
   Array.from({ length: PHOTO_COUNT }, (_, i) => i).filter((i) => i !== expandedIndex);
+
+/**
+ * Which photo is open, and how the rail is arranged — the whole of what a tap
+ * on a photo changes, sent as one value so a swap can't land half-applied.
+ */
+interface GalleryExpansion {
+  expanded: number | null;
+  railOrder: number[];
+}
+
+/**
+ * Relayed by the player shell to every client of a screen, so opening a photo
+ * on a control tablet opens it on the wall as well. A plain string like the
+ * portfolio's own SET_PORTFOLIO_VIEW / SET_PORTFOLIO_VIDEO — SCREEN_COMMAND
+ * carries an open `command`, so the gateway needs no say in it.
+ */
+const EXPANSION_COMMAND = "SET_GALLERY_VIEW";
+/** The window event the shell turns an inbound EXPANSION_COMMAND into. */
+const EXPANSION_EVENT = "gallery-set-view";
 
 /**
  * The Gallery template: a text block and four photos.
@@ -145,23 +164,55 @@ export function GalleryView({
   const isOpen = expanded !== null;
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
 
-  /** Tap on a grid photo: open it, the rest fall into the rail in order. */
-  const expand = (index: number) => {
-    setExpanded(index);
-    setRailOrder(railFor(index));
+  /**
+   * Every change to what's open goes through here, and every one a person made
+   * is broadcast — a photo opened on a control tablet has to open on the wall
+   * too, which local state alone could never do.
+   *
+   * `emit: false` is for APPLYING an inbound command: the gateway echoes to the
+   * sender, so re-broadcasting what we just applied would loop. Absolute values
+   * rather than deltas, so an echo that does arrive is a no-op. Same discipline
+   * as PortfolioLiveApp and the overview's video popup.
+   */
+  const applyExpansion = (next: GalleryExpansion, opts?: { emit?: boolean }) => {
+    setExpanded(next.expanded);
+    setRailOrder(next.railOrder);
+    if (opts?.emit && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("screen-control", {
+          detail: { command: EXPANSION_COMMAND, value: next },
+        })
+      );
+    }
   };
+
+  useEffect(() => {
+    const onSetExpansion = (e: Event) => {
+      const detail = (e as CustomEvent<Partial<GalleryExpansion>>).detail;
+      setExpanded(detail?.expanded ?? null);
+      if (Array.isArray(detail?.railOrder)) setRailOrder(detail.railOrder);
+    };
+    window.addEventListener(EXPANSION_EVENT, onSetExpansion);
+    return () => window.removeEventListener(EXPANSION_EVENT, onSetExpansion);
+  }, []);
+
+  /** Tap on a grid photo: open it, the rest fall into the rail in order. */
+  const expand = (index: number) =>
+    applyExpansion({ expanded: index, railOrder: railFor(index) }, { emit: true });
 
   /** Tap on a rail photo: it and the expanded one trade places. */
   const swap = (slot: number) => {
     const incoming = railOrder[slot];
     if (incoming === undefined || expanded === null) return;
-    setExpanded(incoming);
-    setRailOrder(railOrder.map((i, k) => (k === slot ? expanded : i)));
+    applyExpansion(
+      { expanded: incoming, railOrder: railOrder.map((i, k) => (k === slot ? expanded : i)) },
+      { emit: true }
+    );
   };
 
   // Deliberately leaves `railOrder` alone: the rail fades out still holding the
   // three photos that were in it, instead of a fourth popping in mid-fade.
-  const collapse = () => setExpanded(null);
+  const collapse = () => applyExpansion({ expanded: null, railOrder }, { emit: true });
 
   const heading = (railMode: boolean) => (
     <>
