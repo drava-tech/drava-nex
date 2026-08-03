@@ -172,11 +172,15 @@
     @apply border-border outline-ring/50;
   }
   html {
-    /* Reserve the scrollbar's width permanently so pages that don't need a
-       scrollbar don't get ~15-17px wider than pages that do — without this,
-       the whole layout shifts horizontally when navigating between them. */
-    scrollbar-gutter: stable;
-    /* Belt-and-suspenders alongside body's overflow-x: hidden below — don't
+    /* No scrollbar-gutter reservation: the dashboard shell
+       (DashboardLayoutClient) bounds <main> to the viewport and owns a
+       single internally-scrolling region per page now, so the document
+       itself never scrolls there anymore — reserving gutter space for a
+       document-level scrollbar that can no longer appear just parks
+       ~15-17px of permanently dead space to the right of every page's own
+       real scrollbar, which is what actually looked like "the scrollbar
+       sits a little to the left instead of against the edge".
+       Belt-and-suspenders alongside body's overflow-x: hidden below — don't
        rely on the browser propagating body's value up to the viewport. */
     overflow-x: hidden;
   }
