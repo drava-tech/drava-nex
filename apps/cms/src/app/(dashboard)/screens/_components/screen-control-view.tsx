@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Wifi, WifiOff, Layers, RotateCcw, Ban, Play, Lock, Unlock } from "lucide-react";
-import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { assignExperience, assignMedia, assignDefaultMedia, resetDetection, setScreenBlanked, setScreenInteractionEnabled } from "@/actions/screen-actions";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, Lock, Unlock } from "lucide-react";
+import { useScreenControls } from "@/hooks/useScreenControls";
+import { assignExperience, assignMedia, assignDefaultMedia } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
+import { CameraStatusBadge } from "@/components/camera-status-badge";
 import { ScreenMirror } from "./screen-mirror";
 import { ScreenTouchpad } from "./screen-touchpad";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
-import type { CameraStatusUpdate, WsContent } from "@platform/types";
+import type { WsContent } from "@platform/types";
 
 interface ScreenControlViewProps {
   screenId: string;
@@ -40,85 +41,30 @@ export function ScreenControlView({
   initialShowTouchpad = false,
 }: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const [online, setOnline] = useState(false);
-  const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
-  const [resetting, setResetting] = useState(false);
-  const [resettingToIdle, setResettingToIdle] = useState(false);
-  const [blanked, setBlanked] = useState(initialBlanked);
-  const [togglingBlank, setTogglingBlank] = useState(false);
-  const [interactionEnabled, setInteractionEnabled] = useState(initialInteractionEnabled);
-  const [togglingInteraction, setTogglingInteraction] = useState(false);
-  const [showTouchpad, setShowTouchpad] = useState(initialShowTouchpad);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: defaultMediaAssetId,
     name: defaultMediaName,
   });
 
-  const handleResetDetection = async () => {
-    setResetting(true);
-    try {
-      await resetDetection(screenId);
-    } catch (err) {
-      console.error("Failed to reset detection:", err);
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  // Clears the current assignment so the screen falls back to its default/idle
-  // media — same effect as "nothing assigned yet".
-  const handleResetToIdle = async () => {
-    setResettingToIdle(true);
-    try {
-      await assignMedia(screenId, null);
-    } catch (err) {
-      console.error("Failed to reset to idle:", err);
-    } finally {
-      setResettingToIdle(false);
-    }
-  };
-
-  const handleToggleBlank = async () => {
-    const next = !blanked;
-    setTogglingBlank(true);
-    setBlanked(next);
-    try {
-      await setScreenBlanked(screenId, next);
-    } catch (err) {
-      console.error("Failed to toggle screen blank state:", err);
-      setBlanked(!next);
-    } finally {
-      setTogglingBlank(false);
-    }
-  };
-
-  const handleToggleInteraction = async () => {
-    const next = !interactionEnabled;
-    setTogglingInteraction(true);
-    setInteractionEnabled(next);
-    try {
-      await setScreenInteractionEnabled(screenId, next);
-    } catch (err) {
-      console.error("Failed to toggle screen interaction state:", err);
-      setInteractionEnabled(!next);
-    } finally {
-      setTogglingInteraction(false);
-    }
-  };
-
-  useCmsScreenSync({
-    // Keep the touchpad in sync with whatever's actually assigned now, not
-    // just what was live at page load — e.g. reassigning to a video should
-    // drop back to the regular interactive mirror, and pushing a new link
-    // should switch into touchpad mode.
-    onScreenUpdated: (updatedScreenId, content) => {
-      if (updatedScreenId !== screenId) return;
-      setShowTouchpad(content.type === "html");
-    },
-    onActiveScreensUpdated: (ids) => setOnline(ids.includes(screenId)),
-    onCameraStatusUpdated: (status) => {
-      if (status.screenId === screenId) setCameraStatus(status);
-    },
+  const {
+    online,
+    cameraStatus,
+    showTouchpad,
+    blanked,
+    togglingBlank,
+    toggleBlank: handleToggleBlank,
+    interactionEnabled,
+    togglingInteraction,
+    toggleInteraction: handleToggleInteraction,
+    resetting,
+    resetDetection: handleResetDetection,
+    resettingToIdle,
+    resetToIdle: handleResetToIdle,
+  } = useScreenControls({
+    screenId,
+    initialBlanked,
+    initialInteractionEnabled,
+    initialShowTouchpad,
   });
 
   const handleAssign = async (content: WsContent) => {
@@ -257,34 +203,5 @@ export function ScreenControlView({
         />
       )}
     </div>
-  );
-}
-
-const CAMERA_COPY: Record<CameraStatusUpdate["status"], string> = {
-  online: "Camera connected",
-  waiting: "Waiting for product",
-  detecting: "Product triggered",
-  camera_unavailable: "Camera not connected",
-  service_offline: "Camera service offline",
-};
-
-function CameraStatusBadge({ status }: { status: CameraStatusUpdate }) {
-  const bad = status.status === "camera_unavailable" || status.status === "service_offline";
-  const detecting = status.status === "detecting";
-
-  return (
-    <span
-      className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-        bad
-          ? "bg-red-500/10 text-red-600 dark:text-red-400"
-          : detecting
-            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-            : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-      }`}
-      title={status.message}
-    >
-      <Camera className="h-3 w-3" />
-      {CAMERA_COPY[status.status]}
-    </span>
   );
 }

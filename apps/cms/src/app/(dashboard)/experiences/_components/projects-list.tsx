@@ -44,7 +44,6 @@ import {
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { EditExperienceModal } from "./edit-experience-modal";
-import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
@@ -107,8 +106,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
-  const [showControlDialog, setShowControlDialog] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
@@ -180,10 +177,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       const dy = e.clientY - pressStart.current.y;
       if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
     }
-    // Tap always opens the preview + screens + push modal first (even when
-    // already live) — "Control" from the long-press menu remains the direct
-    // shortcut straight into LiveControlDialog.
-    if (proj.templateKey) setShowPreviewModal(true);
+    // Tap opens the experience's detail/hub page (status, live screens,
+    // quick actions) — "Control"/"Push to screen" from the long-press menu
+    // remain the direct shortcuts straight into those flows.
+    router.push(`/experiences/${proj.id}`);
   };
 
   const handlePressCancel = () => {
@@ -203,12 +200,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   );
   const isLive = assignedScreens.length > 0;
   const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
-  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
-  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
-    screenId: s.screenId,
-    screenName: s.screenName,
-    isOnline: activeScreenIds.has(s.screenId),
-  }));
 
   return (
     <>
@@ -294,7 +285,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
               {isLive && (
                 <DropdownMenuItem
                   className="cursor-pointer gap-2 py-1"
-                  onSelect={() => setShowControlDialog(true)}
+                  onSelect={() => {
+                    const target = assignedScreens.find((s) => activeScreenIds.has(s.screenId)) ?? assignedScreens[0];
+                    if (target) router.push(`/experiences/${proj.id}/live/${target.screenId}`);
+                  }}
                 >
                   <Radio className="h-4 w-4" /> Control{isOnline ? " (live)" : " (offline)"}
                 </DropdownMenuItem>
@@ -429,18 +423,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         </span>
       </div>
     </div>
-    {showControlDialog && (
-      <LiveControlDialog
-        experienceName={proj.name}
-        screens={assignedScreens.map((s) => ({
-          screenId: s.screenId,
-          screenName: s.screenName,
-          isOnline: activeScreenIds.has(s.screenId),
-        }))}
-        allScreens={allScreensForControl}
-        onClose={() => setShowControlDialog(false)}
-      />
-    )}
     {/* Long-press "Push to screen" — same shared popup as the tap preview
         below, just without a preview pane. */}
     {showPushDialog && (
@@ -454,30 +436,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       />
     )}
     {/* Tap = preview + push combined. */}
-    {showPreviewModal && (
-      <PushToScreenModal
-        contentName={proj.name}
-        preview={
-          proj.templateKey ? (
-            <iframe
-              key={proj.slug}
-              src={`/preview/experiences/${proj.slug}`}
-              title={proj.name}
-              className="h-full w-full border-0 bg-black"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-              allow="autoplay; encrypted-media; fullscreen"
-            />
-          ) : (
-            <p className="px-8 text-center text-sm text-white/50">No template assigned to this experience.</p>
-          )
-        }
-        onPush={(screenId) => assignExperience(screenId, proj.id)}
-        isAlreadyShowing={(s) =>
-          s.currentContentKind === "experience" && s.currentExperienceId === proj.id
-        }
-        onClose={() => setShowPreviewModal(false)}
-      />
-    )}
     {showEditModal && (
       <EditExperienceModal
         experience={{

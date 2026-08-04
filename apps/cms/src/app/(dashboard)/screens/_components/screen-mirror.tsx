@@ -43,8 +43,9 @@ export function ScreenMirror({
         <iframe
           src={src}
           title={title ?? `Screen ${screenId}`}
+          scrolling="no"
           className="absolute inset-0 w-full h-full border-0"
-          style={{ pointerEvents: interactive ? "auto" : "none" }}
+          style={{ pointerEvents: interactive ? "auto" : "none", overflow: "hidden" }}
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
