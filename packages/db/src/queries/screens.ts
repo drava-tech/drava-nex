@@ -206,6 +206,10 @@ export async function setScreenExperience(
       currentMediaAssetId: null,
       currentQueueMediaIds: null,
       currentQueueIndex: null,
+      // A fresh assignment should actually play, not stay behind the black
+      // overlay from a previous "Stop" — see setScreenBlankState call in the
+      // API route for the live (already-connected) side of this.
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
@@ -224,6 +228,7 @@ export async function setScreenMedia(
       currentExperienceId: null,
       currentQueueMediaIds: null,
       currentQueueIndex: null,
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
@@ -253,6 +258,7 @@ export async function setScreenMediaQueue(
       currentExperienceId: null,
       currentQueueMediaIds: mediaAssetIds,
       currentQueueIndex: clampedIndex,
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));

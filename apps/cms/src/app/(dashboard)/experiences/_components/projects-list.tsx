@@ -47,7 +47,7 @@ import { EditExperienceModal } from "./edit-experience-modal";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
-import { assignExperience } from "@/actions/screen-actions";
+import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
 
@@ -178,7 +178,7 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
     }
     // Tap opens the experience's detail/hub page (status, live screens,
-    // quick actions) — "Control"/"Push to screen" from the long-press menu
+    // quick actions) — "Push to screen"/"Control" from the long-press menu
     // remain the direct shortcuts straight into those flows.
     router.push(`/experiences/${proj.id}`);
   };
@@ -433,9 +433,16 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
           s.currentContentKind === "experience" && s.currentExperienceId === proj.id
         }
         onClose={() => setShowPushDialog(false)}
+        onControl={(s) => {
+          setShowPushDialog(false);
+          router.push(`/experiences/${proj.id}/live/${s.screenId}`);
+        }}
+        onRemove={async (s) => {
+          await assignMedia(s.screenId, null);
+          router.refresh();
+        }}
       />
     )}
-    {/* Tap = preview + push combined. */}
     {showEditModal && (
       <EditExperienceModal
         experience={{

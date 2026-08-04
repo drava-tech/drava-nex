@@ -112,6 +112,10 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   // takeover — otherwise a takeover armed before this call keeps that old
   // camera state relevant to a screen the admin just repointed elsewhere.
   clearTakeoverFlag(screenId);
+  // A fresh assignment should actually play, not stay behind a previous
+  // "Stop" — updates the live (already-connected) screen immediately, on
+  // top of the DB write above which covers a later reconnect.
+  setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -130,6 +134,7 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   }
   await setScreenMedia(screenId, body.mediaAssetId);
   clearTakeoverFlag(screenId);
+  setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -152,6 +157,7 @@ screensRouter.post("/:id/media-queue", requireGuestOrAdmin, async (c) => {
   }
   await setScreenMediaQueue(screenId, body.mediaAssetIds, body.startIndex ?? 0);
   clearTakeoverFlag(screenId);
+  setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Eye, MonitorPlay, Radio, Trash2, Tags, Wifi, WifiOff } from "lucide-react";
+import { Pencil, Eye, MonitorPlay, Radio, Trash2, Tags, Wifi, WifiOff, X, Loader2 } from "lucide-react";
 import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, cn } from "@platform/ui";
 import { EditExperienceModal } from "@/app/(dashboard)/experiences/_components/edit-experience-modal";
 import { PushToScreenModal } from "@/components/push-to-screen-modal";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
-import { assignExperience } from "@/actions/screen-actions";
+import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { deleteProject } from "@/actions/project-actions";
 import { TEMPLATE_LABELS, isTemplateKey } from "@/lib/templates";
 
@@ -37,6 +37,7 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPushModal, setShowPushModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [removingScreenId, setRemovingScreenId] = useState<string | null>(null);
 
   const hasTemplate = Boolean(experience.templateKey);
   const isLive = liveScreens.length > 0;
@@ -62,6 +63,18 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
       console.error("Failed to delete experience:", err);
       alert("An error occurred while deleting the experience.");
       setDeleting(false);
+    }
+  };
+
+  const handleRemoveFromScreen = async (screenId: string) => {
+    setRemovingScreenId(screenId);
+    try {
+      await assignMedia(screenId, null);
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to remove experience from screen:", err);
+      alert("Failed to remove experience from screen.");
+      setRemovingScreenId(null);
     }
   };
 
@@ -160,29 +173,72 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
                 gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
               }}
             >
-              {liveScreens.map((s) => (
-                <button
-                  key={s.screenId}
-                  onClick={() => router.push(`/experiences/${experience.id}/live/${s.screenId}`)}
-                  className="group flex min-h-0 flex-col overflow-hidden rounded-xl border border-border text-left transition-colors hover:border-primary"
-                >
-                  <div className="relative min-h-0 flex-1 bg-zinc-950">
-                    <ScreenMirror screenId={s.screenId} title={s.screenName} />
+              {liveScreens.map((s) => {
+                const isRemoving = removingScreenId === s.screenId;
+                const goToControl = () => router.push(`/experiences/${experience.id}/live/${s.screenId}`);
+                const confirmRemove = () => {
+                  if (!confirm(`Do you really want to remove content from ${s.screenName}?`)) return;
+                  handleRemoveFromScreen(s.screenId);
+                };
+                return (
+                  // Whole tile is clickable → Control. Cancel is the one
+                  // exception, stopping propagation so it doesn't also fire it.
+                  <div
+                    key={s.screenId}
+                    onClick={goToControl}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") goToControl();
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="Control"
+                    className="group flex min-h-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-border transition-colors hover:border-primary"
+                  >
+                    <div className="relative min-h-0 flex-1 bg-zinc-950">
+                      <ScreenMirror screenId={s.screenId} title={s.screenName} />
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2 p-2.5">
+                      <span
+                        className={cn(
+                          "flex shrink-0 items-center",
+                          s.isOnline ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                        )}
+                      >
+                        {s.isOnline ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.screenName}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Control ${s.screenName}`}
+                          title="Control"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToControl();
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                          <Radio className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove from ${s.screenName}`}
+                          title="Remove from this screen"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            confirmRemove();
+                          }}
+                          disabled={isRemoving}
+                          className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+                        >
+                          {isRemoving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center justify-between gap-2 p-2.5">
-                    <span className="truncate text-sm font-medium">{s.screenName}</span>
-                    <span
-                      className={cn(
-                        "flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
-                        s.isOnline ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
-                      )}
-                    >
-                      {s.isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                      {s.isOnline ? "Online" : "Offline"}
-                    </span>
-                  </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -211,6 +267,22 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
           isAlreadyShowing={(s) => s.currentContentKind === "experience" && s.currentExperienceId === experience.id}
           onClose={() => {
             setShowPushModal(false);
+            router.refresh();
+          }}
+          // This page is already a dedicated per-experience workspace, so
+          // pushing here goes straight into the full live control page
+          // instead of the LiveControlDialog popup other entry points use.
+          onPushed={(pushed) => {
+            setShowPushModal(false);
+            const target = pushed.find((s) => s.isOnline) ?? pushed[0];
+            if (target) router.push(`/experiences/${experience.id}/live/${target.screenId}`);
+          }}
+          onControl={(s) => {
+            setShowPushModal(false);
+            router.push(`/experiences/${experience.id}/live/${s.screenId}`);
+          }}
+          onRemove={async (s) => {
+            await assignMedia(s.screenId, null);
             router.refresh();
           }}
         />

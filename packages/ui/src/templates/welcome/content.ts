@@ -1,7 +1,7 @@
 // Content shape for the Welcome template. Stored on the experience as
 // experience.templateContent.welcome. A full-screen greeting with an
-// optional looping video, shown when a human is detected while the
-// default/idle video is playing (see door-screen-trigger.ts).
+// optional video (plays once, holds on its last frame), shown when a human
+// is detected while the default/idle video is playing (see door-screen-trigger.ts).
 
 export interface WelcomeContent {
   title: string;

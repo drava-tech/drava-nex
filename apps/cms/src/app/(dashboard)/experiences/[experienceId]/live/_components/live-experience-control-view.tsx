@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   WifiOff,
   Layers,
@@ -61,6 +62,7 @@ export function LiveExperienceControlView({
   initialQueueIndex = 0,
   liveScreens,
 }: LiveExperienceControlViewProps) {
+  const router = useRouter();
   const [showPicker, setShowPicker] = useState(false);
   const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -107,7 +109,7 @@ export function LiveExperienceControlView({
     resetting,
     resetDetection,
     resettingToIdle,
-    resetToIdle,
+    resetToIdle: resetToIdleAction,
     queueIndex,
     navigatingQueue,
     navigateQueue,
@@ -126,9 +128,19 @@ export function LiveExperienceControlView({
     setShowPicker(false);
     if (content.type === "video" || content.type === "image") {
       await assignMedia(deviceId, content.id);
+      // No experience applies anymore — this page can't represent that state.
+      router.push(`/screens/${deviceId}`);
     } else {
       await assignExperience(deviceId, content.id);
+      // content.id is the newly assigned experience's id — keep the URL in
+      // sync with what's actually live instead of pointing at the old one.
+      router.push(`/experiences/${content.id}/live/${deviceId}`);
     }
+  };
+
+  const handleResetToIdle = async () => {
+    await resetToIdleAction();
+    router.push(`/screens/${deviceId}`);
   };
 
   useEffect(() => {
@@ -151,9 +163,8 @@ export function LiveExperienceControlView({
       <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-black/40 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-              online ? "bg-green-500/10 text-green-400" : "bg-zinc-500/10 text-zinc-500"
-            }`}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${online ? "bg-green-500/10 text-green-400" : "bg-zinc-500/10 text-zinc-500"
+              }`}
           >
             {online ? (
               <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
@@ -200,11 +211,10 @@ export function LiveExperienceControlView({
             className={
               isFullscreen
                 ? "fixed inset-0 z-50 flex items-center justify-center bg-black"
-                : `relative w-full max-w-[1600px] aspect-[16/9] max-h-full overflow-hidden rounded-2xl border-[6px] shadow-2xl transition-[opacity,filter] ${
-                    online
-                      ? "border-zinc-800 shadow-[0_0_60px_-15px_rgba(34,197,94,0.35)]"
-                      : "border-zinc-800/60 opacity-75 grayscale-[0.35]"
-                  }`
+                : `relative w-full max-w-[1600px] aspect-[16/9] max-h-full overflow-hidden rounded-2xl border-[6px] shadow-2xl transition-[opacity,filter] ${online
+                  ? "border-zinc-800 shadow-[0_0_60px_-15px_rgba(34,197,94,0.35)]"
+                  : "border-zinc-800/60 opacity-75 grayscale-[0.35]"
+                }`
             }
           >
             {isFullscreen ? (
@@ -255,7 +265,7 @@ export function LiveExperienceControlView({
             <DockButton
               icon={<RotateCcw className="h-5 w-5" />}
               label={resettingToIdle ? "Resetting…" : "Reset to idle"}
-              onClick={resetToIdle}
+              onClick={handleResetToIdle}
               disabled={resettingToIdle}
             />
           </div>

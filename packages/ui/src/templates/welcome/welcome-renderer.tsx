@@ -47,7 +47,8 @@ function useTypewriter(text: string, startDelayMs: number): { shown: string; don
 }
 
 /** Full-screen greeting: headline + tagline over a dark gradient, with an
- * optional looping video beneath it. Title/subtitle type out letter by
+ * optional video beneath it that plays once and holds on its last frame
+ * (no loop) once triggered. Title/subtitle type out letter by
  * letter rather than appearing all at once. `speak` (opt-in, off by default)
  * reads the text aloud via the browser's speech synthesis — callers must
  * gate this to the real TV only, never a CMS preview/mirror. */
@@ -156,7 +157,6 @@ export function WelcomeRenderer({
           src={videoUrl}
           autoPlay
           muted={muted}
-          loop
           playsInline
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
