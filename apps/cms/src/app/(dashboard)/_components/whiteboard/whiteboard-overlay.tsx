@@ -25,7 +25,6 @@ import {
 import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
 import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
-import { MediaPreviewModal, type MediaItem } from "@/app/(dashboard)/media/_components/media-preview-modal";
 import { LiveControlDialog } from "@/components/live-control-dialog";
 import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
 import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
@@ -86,7 +85,6 @@ export function WhiteboardOverlay() {
   const { requestedDocumentId, clearRequestedDocument } = useWhiteboardEditor();
   const [open, setOpen] = useState(false);
   const [showAddLink, setShowAddLink] = useState(false);
-  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
@@ -673,17 +671,7 @@ export function WhiteboardOverlay() {
         />
       )}
 
-      {showAddLink && (
-        <AddLinkDialog
-          onClose={() => setShowAddLink(false)}
-          onAdded={(media) => {
-            setShowAddLink(false);
-            setPreviewItem(media);
-          }}
-        />
-      )}
-
-      {previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
+      {showAddLink && <AddLinkDialog onClose={() => setShowAddLink(false)} />}
 
       {/* Speed-dial FAB — Draw opens the board above, Add Link opens the add-link dialog */}
       {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}

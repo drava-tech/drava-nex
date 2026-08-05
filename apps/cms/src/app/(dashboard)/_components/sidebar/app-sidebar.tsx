@@ -16,6 +16,7 @@ import {
   ScanFace,
   PenTool,
   Settings2,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -73,6 +74,13 @@ const ALL_NAV = [
     title: "Screens",
     url: "/screens",
     icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Browser",
+    url: "/browser",
+    icon: Globe,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },

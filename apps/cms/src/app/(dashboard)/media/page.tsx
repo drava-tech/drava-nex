@@ -21,12 +21,13 @@ import {
   Check,
   Loader2,
   CheckSquare,
+  MonitorPlay,
   X,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@platform/ui";
 import { isLinkMediaType, parseYouTubeId } from "@platform/types";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
-import { AddLinkDialog } from "./_components/add-link-dialog";
+import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
 
 const CATEGORIES = [
   { id: 'all', label: 'All Media', icon: Folder },
@@ -61,10 +62,10 @@ export default function MediaPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [queueItems, setQueueItems] = useState<MediaItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMedia = async () => {
@@ -175,6 +176,15 @@ export default function MediaPage() {
     }
   };
 
+  // Selection order (Set insertion order) IS the queue order — the first
+  // item clicked plays first. Same rule as Email Media's push.
+  const handlePushSelected = () => {
+    const ordered = Array.from(selectedIds)
+      .map((id) => mediaItems.find((item) => item.id === id))
+      .filter((item): item is MediaItem => Boolean(item));
+    if (ordered.length > 0) setQueueItems(ordered);
+  };
+
   const handleCopyLink = (item: MediaItem) => {
     const absoluteUrl = item.url.startsWith("http")
       ? item.url
@@ -238,13 +248,6 @@ export default function MediaPage() {
             {selecting ? "Cancel" : "Select"}
           </button>
           <button
-            onClick={() => setShowLinkDialog(true)}
-            className="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 text-sm font-medium transition-all hover:bg-zinc-100 dark:hover:bg-white/5 active:scale-95"
-          >
-            <Link2 className="h-4 w-4" />
-            Add Link
-          </button>
-          <button
             onClick={handleUploadClick}
             disabled={uploading}
             className="h-10 px-5 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -304,6 +307,14 @@ export default function MediaPage() {
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePushSelected}
+                    disabled={selectedIds.size === 0}
+                    className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <MonitorPlay className="h-3.5 w-3.5" />
+                    {selectedIds.size ? `Push selected (${selectedIds.size})` : "Push selected"}
+                  </button>
                   <button
                     onClick={handleBulkDelete}
                     disabled={selectedIds.size === 0 || bulkDeleting}
@@ -465,17 +476,8 @@ export default function MediaPage() {
         <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />
       )}
 
-      {showLinkDialog && (
-        <AddLinkDialog
-          onClose={() => setShowLinkDialog(false)}
-          // Pending-save (same as a Browser-tool push) — open its preview/push
-          // popup right away instead of adding a tile to the grid; it only
-          // shows up in the library if explicitly kept via "Save link" there.
-          onAdded={(media) => {
-            setShowLinkDialog(false);
-            setPreviewItem(media);
-          }}
-        />
+      {queueItems && (
+        <MediaQueuePushModal items={queueItems} onClose={() => setQueueItems(null)} />
       )}
     </div>
   );

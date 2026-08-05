@@ -1,18 +1,21 @@
 "use client";
 
 import { Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { assignMediaQueue, advanceScreenQueue } from "@/actions/screen-actions";
 import { PushToScreenModal } from "@/components/push-to-screen-modal";
 import type { MediaItem } from "./media-preview-modal";
 
 /**
- * Push an ordered set of media items to ONE screen as a queue, then Next/Prev
- * through them from the same LiveControlDialog session that opens right after
- * the push (see PushToScreenModal's `queue` prop). Restricted to a single
- * screen — a queue needs a live "N of M" indicator, and there's no UI here for
- * N independent indicators across multiple screens.
+ * Push an ordered set of media items to ONE screen as a queue, then go
+ * straight to /media/live/[deviceId] — the routed queue-aware live control
+ * (Next/Prev, and mirror/touchpad that switches per item, e.g. an image
+ * followed by a PDF). Restricted to a single screen — a queue needs a live
+ * "N of M" indicator, and there's no UI here for N independent indicators
+ * across multiple screens.
  */
 export function MediaQueuePushModal({ items, onClose }: { items: MediaItem[]; onClose: () => void }) {
+  const router = useRouter();
   const mediaAssetIds = items.map((item) => item.id);
 
   return (
@@ -23,6 +26,12 @@ export function MediaQueuePushModal({ items, onClose }: { items: MediaItem[]; on
       subtitle={`Plays in the order selected · ${items.length} item${items.length === 1 ? "" : "s"}`}
       onPush={(screenId) => assignMediaQueue(screenId, mediaAssetIds, 0)}
       queue={{ mediaAssetIds, startIndex: 0, onNavigate: advanceScreenQueue }}
+      onPushed={(pushed) => {
+        // Queue mode always resolves to exactly one target screen.
+        const target = pushed[0];
+        onClose();
+        if (target) router.push(`/media/live/${target.screenId}`);
+      }}
     />
   );
 }

@@ -61,6 +61,46 @@ export async function listScreens(): Promise<{
 }
 
 /**
+ * Single-screen row for a live-control page (/screens/:screenId,
+ * /media/live/:deviceId) — everything those pages need beyond
+ * getScreenContent: display name, blank/interaction state, the default-media
+ * badge, and (when present) the active queue position. Same defaultMedia
+ * alias-join as listScreens, just scoped to one screen instead of all of them.
+ */
+export async function getScreenLiveRow(screenId: string): Promise<
+  | {
+      screenName: string;
+      blanked: boolean;
+      interactionEnabled: boolean;
+      defaultMediaAssetId: string | null;
+      defaultMediaName: string | null;
+      currentQueueMediaIds: string[] | null;
+      currentQueueIndex: number | null;
+    }
+  | undefined
+> {
+  const defaultMedia = alias(mediaAsset, "default_media");
+  const [row] = await db
+    .select({
+      screenName: screen.screenName,
+      blanked: screen.blanked,
+      interactionEnabled: screen.interactionEnabled,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      defaultMediaName: defaultMedia.name,
+      currentQueueMediaIds: screen.currentQueueMediaIds,
+      currentQueueIndex: screen.currentQueueIndex,
+    })
+    .from(screen)
+    .leftJoin(
+      defaultMedia,
+      and(eq(screen.defaultMediaAssetId, defaultMedia.id), isNull(defaultMedia.deletedAt))
+    )
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row;
+}
+
+/**
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
  * assigned (or the referenced content was deleted). Resolves by the screen's
  * content kind: a media asset → a video/image, an experience → its template.

@@ -81,7 +81,7 @@ export interface QueuePushConfig {
 }
 
 /** Label for whatever a screen is currently showing, so admins know what they'd overwrite. */
-function currentLabel(screen: ScreenRow): string {
+export function currentLabel(screen: ScreenRow): string {
   if (screen.currentContentKind === "experience" && screen.experienceName) {
     return screen.experienceName;
   }
