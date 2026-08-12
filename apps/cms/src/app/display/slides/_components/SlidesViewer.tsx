@@ -34,9 +34,6 @@ import "@fontsource/gelasio/700.css";
 import "@fontsource/gelasio/400-italic.css";
 import "@fontsource/gelasio/700-italic.css";
 
-/** How long each slide holds when running unattended on a screen. */
-const KIOSK_SLIDE_MS = 10_000;
-
 /** Recognized Office typeface name (lowercased) → bundled substitute stack. */
 const FONT_SUBSTITUTES: Record<string, string> = {
   calibri: "Carlito, sans-serif",
@@ -233,7 +230,6 @@ function resolveSource(raw: string | null): string | null {
 export function SlidesViewer() {
   const params = useSearchParams();
   const src = params.get("src");
-  const kiosk = params.get("kiosk") === "1";
 
   const hostRef = useRef<HTMLDivElement>(null);
   // The parsed file is kept so a resize can re-render without re-downloading.
@@ -354,7 +350,11 @@ export function SlidesViewer() {
       clearTimeout(timer);
       timer = setTimeout(() => {
         const buffer = bufferRef.current;
-        if (buffer) void render(buffer, previewerRef.current?.currentIndex ?? 0);
+        if (buffer) {
+          render(buffer, previewerRef.current?.currentIndex ?? 0).catch((err) => {
+            setError(err instanceof Error ? err.message : "Could not read this presentation");
+          });
+        }
       }, 200);
     });
     observer.observe(host);
@@ -365,16 +365,9 @@ export function SlidesViewer() {
     };
   }, [render]);
 
-  // Unattended playback on a screen.
+  // Arrow-key navigation — harmless with no keyboard attached on a real
+  // screen, and keeps behavior identical to the CMS preview.
   useEffect(() => {
-    if (!kiosk || slideCount < 2) return;
-    const timer = setInterval(() => goTo((previewerRef.current?.currentIndex ?? 0) + 1), KIOSK_SLIDE_MS);
-    return () => clearInterval(timer);
-  }, [kiosk, slideCount, goTo]);
-
-  // Arrow-key navigation for the human-facing preview.
-  useEffect(() => {
-    if (kiosk) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") {
         goTo((previewerRef.current?.currentIndex ?? 0) + 1);
@@ -384,16 +377,16 @@ export function SlidesViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [kiosk, goTo]);
+  }, [goTo]);
 
-  const showControls = !kiosk && slideCount > 1 && !loading && !error;
+  const showControls = slideCount > 1 && !loading && !error;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#0a0a0a] text-zinc-100">
+    <div className="fixed inset-0 bg-[#0a0a0a] text-zinc-100">
       {/*
         The library draws its own next/prev buttons and pagination in "slide"
-        mode. They're hidden here in favour of the controls below, which match
-        the rest of the display surfaces.
+        mode. They're hidden here in favour of the overlay controls below,
+        which match the rest of the display surfaces.
       */}
       <style>{`
         .pptx-preview-wrapper-next,
@@ -402,14 +395,16 @@ export function SlidesViewer() {
         .pptx-preview-wrapper { background: transparent !important; }
       `}</style>
 
-      <div ref={hostRef} className="min-h-0 flex-1 overflow-hidden" />
+      {/* Full-bleed now that controls float over the slide instead of
+          sharing a flex row with it — the deck gets the entire viewport. */}
+      <div ref={hostRef} className="absolute inset-0 overflow-hidden" />
 
       {loading && <Centered>Loading presentation…</Centered>}
       {error && <Centered tone="error">{error}</Centered>}
       {!loading && !error && slideCount === 0 && <Centered>This presentation has no slides</Centered>}
 
       {showControls && (
-        <div className="flex shrink-0 items-center justify-center gap-4 border-t border-white/10 px-4 py-3">
+        <div className="absolute bottom-4 left-4 flex items-center gap-3 rounded-full border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-sm">
           <button
             onClick={() => goTo(current - 1)}
             aria-label="Previous slide"

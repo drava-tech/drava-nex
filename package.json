@@ -38,5 +38,10 @@
   "devDependencies": {
     "turbo": "^2.9.15",
     "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "pptx-preview@1.0.7": "patches/pptx-preview@1.0.7.patch"
+    }
   }
 }

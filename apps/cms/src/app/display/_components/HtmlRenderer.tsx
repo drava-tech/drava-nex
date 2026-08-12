@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { SLIDES_VIEWER_PATH } from "@platform/types";
 import type { HtmlContent } from "@/types/display";
 
 /**
@@ -37,6 +38,15 @@ export function HtmlRenderer({
   // mediaEmbedUrl() builds one (`<url ending in .pdf>#view=FitH` etc.).
   const isRawPdf = /\.pdf(#|\?|$)/i.test(content.source);
 
+  // SlidesViewer has no internal scrollbar — it's a ResizeObserver-driven
+  // exact-fit renderer, unlike Sheet/Word/PDF below which genuinely scroll —
+  // so it must NOT get the +20px overhang: an iframe's CSS width is that
+  // document's own viewport width, so the extra 20px gets scaled into the
+  // deck itself and then cropped off the right edge by this page's own
+  // `overflow:hidden` ([screenId]/page.tsx), instead of hiding a scrollbar
+  // that was never going to appear.
+  const isSlides = content.source.startsWith(SLIDES_VIEWER_PATH);
+
   // The display page pins `touch-action: none` on html/body so signage can't be
   // panned or pinch-zoomed by a passer-by. Touch-action is intersected down the
   // ancestor chain and that chain crosses into the frame, so leaving it set
@@ -70,8 +80,9 @@ export function HtmlRenderer({
         // shows up as a bare strip (the iframe's background) on the right
         // edge. Overhanging the extra width pushes that scrollbar off-screen,
         // where the display page's own `overflow:hidden` (see html/body style
-        // in [screenId]/page.tsx) clips it away.
-        width: "calc(100vw + 20px)",
+        // in [screenId]/page.tsx) clips it away. Skipped for slides — see
+        // `isSlides` above.
+        width: isSlides ? "100vw" : "calc(100vw + 20px)",
         height: "100vh",
         border: "none",
         backgroundColor: "#000",

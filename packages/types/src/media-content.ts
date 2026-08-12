@@ -323,9 +323,9 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
 
     case "presentation":
       // Same reasoning as "sheet" above — our own client-side renderer rather
-      // than a hosted Office viewer. On a screen there's nobody to click
-      // through the deck, so kiosk mode hides the controls and auto-advances.
-      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}${kiosk ? "&kiosk=1" : ""}`;
+      // than a hosted Office viewer. Navigation is always manual (prev/next
+      // overlay + arrow keys), so there's no kiosk variant to opt into here.
+      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 
     case "word":
       // Same reasoning again — converted to HTML in-browser (mammoth) rather

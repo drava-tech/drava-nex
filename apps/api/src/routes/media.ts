@@ -113,7 +113,7 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets. ?source=gmail filters to just the
+// GET /api/media — list all media assets. ?source=email filters to just the
 // email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
@@ -145,7 +145,7 @@ mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
 // guest-accessible.
 mediaRouter.get("/gmail/list", requireAdmin, async (c) => {
   try {
-    const assets = await listMediaAssetsBySource("gmail");
+    const assets = await listMediaAssetsBySource("email");
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list email media" }, 500);
@@ -179,6 +179,7 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       url: classified.url,
       name,
       pendingSave,
+      source: "link",
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
@@ -260,6 +261,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
       url: `/media/${storedName}`,
       name: displayName,
       sizeBytes: file.size,
+      source: "upload",
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 

@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  pptx-preview@1.0.7:
+    hash: ccmil4hwrthyvvg4sit7l2biya
+    path: patches/pptx-preview@1.0.7.patch
+
 importers:
 
   .:
@@ -140,7 +145,7 @@ importers:
         version: 8.21.0
       pptx-preview:
         specifier: ^1.0.7
-        version: 1.0.7
+        version: 1.0.7(patch_hash=ccmil4hwrthyvvg4sit7l2biya)
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -5396,7 +5401,7 @@ snapshots:
     dependencies:
       xtend: 4.0.2
 
-  pptx-preview@1.0.7:
+  pptx-preview@1.0.7(patch_hash=ccmil4hwrthyvvg4sit7l2biya):
     dependencies:
       echarts: 5.6.0
       jszip: 3.10.1

@@ -19,7 +19,7 @@ export async function listMediaAssets(filter?: { source?: string }): Promise<Med
 }
 
 /**
- * All non-deleted media assets from one source (e.g. "gmail"), newest first —
+ * All non-deleted media assets from one source (e.g. "email"), newest first —
  * backs the Email Media page, which is just a source-filtered view of the
  * same permanent rows listMediaAssets() surfaces everywhere else (Gmail
  * ingestion stores directly as pendingSave: false, so there's no separate
