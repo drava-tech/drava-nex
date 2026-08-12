@@ -82,6 +82,42 @@ export const uptimeSeries: { day: string; value: number }[] = [
   { day: "Sun", value: 88 },
 ];
 
+// --- Visitor flow (hourly footfall, today) ---------------------------------
+
+export const visitorFlow: { label: string; value: number }[] = [
+  { label: "09:30", value: 14 },
+  { label: "10:30", value: 20 },
+  { label: "11:30", value: 27 },
+  { label: "12:30", value: 23 },
+  { label: "13:30", value: 41 },
+  { label: "14:30", value: 33 },
+  { label: "15:30", value: 47 },
+  { label: "16:30", value: 36 },
+  { label: "17:30", value: 82 },
+];
+
+// --- AI recognition confidence ---------------------------------------------
+
+export const recognitionMetrics: { label: string; value: number }[] = [
+  { label: "Face Detection", value: 98.7 },
+  { label: "Emotion Sensing", value: 94.2 },
+  { label: "Crowd Density", value: 99.1 },
+];
+
+// --- Live displays ---------------------------------------------------------
+
+export const displays: {
+  name: string;
+  content: string;
+  live: boolean;
+  time: string;
+}[] = [
+  { name: '85"', content: "Presentation", live: true, time: "01:30" },
+  { name: '24"', content: "Immersive Home", live: true, time: "00:42" },
+  { name: "Outdoor", content: "WT Logo reveal", live: true, time: "02:15" },
+  { name: "Lobby", content: "standby mode", live: false, time: "04:12" },
+];
+
 // --- Content mix (donut) ---------------------------------------------------
 
 export const contentMix: { label: string; value: number; colorVar: string }[] = [

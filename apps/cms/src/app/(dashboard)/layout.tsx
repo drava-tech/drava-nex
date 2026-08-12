@@ -19,8 +19,16 @@ export default function DashboardLayout({
 }) {
   return (
     <WhiteboardEditorProvider>
-      <SidebarProvider>
-        <AppSidebar />
+      <SidebarProvider
+        className="bg-[#010108] font-['Satoshi',sans-serif]"
+        style={
+          {
+            "--sidebar-width": "22.125rem",
+            "--sidebar-width-icon": "5.5rem",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="floating" />
         <SidebarInset>
           <header className="flex h-auto shrink-0 items-center gap-2 border-b p-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
             <SidebarTrigger className="-ml-1 h-5 w-5 [&>svg]:size-4" />

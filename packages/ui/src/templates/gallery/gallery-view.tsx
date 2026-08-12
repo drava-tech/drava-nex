@@ -498,11 +498,6 @@ export function GalleryView({
 }
 
 /**
- * One tappable photo — a cell of the collapsed grid, or a slot of the open
- * rail. Same element either way, so both react to a tap identically; only what
- * the tap means differs, which is the caller's `onSelect`.
- */
-/**
  * Prev / dots / next for the sibling pages, sitting in the text column.
  *
  * Deliberately the Portfolio slideshow's vocabulary — chevrons either side,
@@ -588,6 +583,11 @@ function PagerControl({
   );
 }
 
+/**
+ * One tappable photo — a cell of the collapsed grid, or a slot of the open
+ * rail. Same element either way, so both react to a tap identically; only what
+ * the tap means differs, which is the caller's `onSelect`.
+ */
 function PhotoCell({
   photo,
   index,
@@ -637,7 +637,18 @@ function PhotoCell({
           src={url}
           alt=""
           draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          // Pointer-transparent so the button is always what a tap lands on,
+          // never the picture inside it. An <img> is a target browsers like to
+          // attach their own behaviour to — drag, long-press menu, hover
+          // toolbars — any of which can take the tap and leave the photo simply
+          // not opening. SlideshowPanel's slides are inert for the same reason.
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            pointerEvents: "none",
+          }}
         />
       ) : (
         <span

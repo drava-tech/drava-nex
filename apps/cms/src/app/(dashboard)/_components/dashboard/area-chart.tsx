@@ -1,29 +1,32 @@
 "use client";
 
 import React, { useId, useState } from "react";
-import { uptimeSeries } from "@/app/(dashboard)/_data/dashboard-demo";
 
 const WIDTH = 640;
-const HEIGHT = 220;
-const PAD_X = 16;
-const PAD_TOP = 16;
-const PAD_BOTTOM = 28;
+const HEIGHT = 240;
+const PAD_X = 6;
+const PAD_TOP = 12;
+const PAD_BOTTOM = 26;
 
-export function UptimeAreaChart() {
+interface AreaChartProps {
+  data: { label: string; value: number }[];
+  /** Suffix shown in the hover tooltip, e.g. "visitors". */
+  unit?: string;
+}
+
+export function AreaChart({ data, unit = "" }: AreaChartProps) {
   const gradientId = useId();
   const [hover, setHover] = useState<number | null>(null);
 
-  const max = 100;
-  const min = 60; // tighten the band so variation is visible
+  const max = Math.max(...data.map((d) => d.value)) * 1.1;
   const innerW = WIDTH - PAD_X * 2;
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
-  const points = uptimeSeries.map((d, i) => {
-    const x = PAD_X + (innerW * i) / (uptimeSeries.length - 1);
-    const y =
-      PAD_TOP + innerH - ((d.value - min) / (max - min)) * innerH;
-    return { ...d, x, y };
-  });
+  const points = data.map((d, i) => ({
+    ...d,
+    x: PAD_X + (innerW * i) / (data.length - 1),
+    y: PAD_TOP + innerH - (d.value / max) * innerH,
+  }));
 
   const first = points[0]!;
   const last = points[points.length - 1]!;
@@ -46,69 +49,49 @@ export function UptimeAreaChart() {
         className="w-full"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Screen uptime over the last 7 days"
+        aria-label={`Chart, ${data.length} points from ${first.label} to ${last.label}`}
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
+            <stop offset="0%" stopColor="#7b5bff" stopOpacity="0.95" />
+            <stop offset="70%" stopColor="#4b32a8" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#2a1d5e" stopOpacity="0.25" />
           </linearGradient>
         </defs>
-
-        {/* horizontal grid lines */}
-        {[0, 0.5, 1].map((t) => {
-          const y = PAD_TOP + innerH * t;
-          return (
-            <line
-              key={t}
-              x1={PAD_X}
-              x2={WIDTH - PAD_X}
-              y1={y}
-              y2={y}
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-            />
-          );
-        })}
 
         <path d={areaPath} fill={`url(#${gradientId})`} />
         <path
           d={linePath}
           fill="none"
-          stroke="var(--chart-1)"
-          strokeWidth={2.5}
+          stroke="#b9a4ff"
+          strokeWidth={1.5}
           strokeLinejoin="round"
           strokeLinecap="round"
-          style={{ filter: "drop-shadow(0 0 6px var(--chart-1))" }}
         />
 
-        {/* active marker */}
         {active && (
           <>
             <line
               x1={active.x}
               x2={active.x}
               y1={PAD_TOP}
-              y2={PAD_TOP + innerH}
-              stroke="rgba(255,255,255,0.12)"
+              y2={baseline}
+              stroke="rgba(255,255,255,0.18)"
               strokeWidth={1}
             />
             <circle
               cx={active.x}
               cy={active.y}
               r={4}
-              fill="var(--chart-1)"
-              stroke="#05070d"
+              fill="#c9b8ff"
+              stroke="#0d0a1f"
               strokeWidth={2}
-              style={{ filter: "drop-shadow(0 0 8px var(--chart-1))" }}
             />
           </>
         )}
 
-        {/* hover hit areas + x labels */}
         {points.map((p, i) => (
-          <g key={p.day}>
+          <g key={p.label}>
             <rect
               x={p.x - innerW / (points.length * 2)}
               y={0}
@@ -120,11 +103,11 @@ export function UptimeAreaChart() {
             />
             <text
               x={p.x}
-              y={HEIGHT - 8}
+              y={HEIGHT - 6}
               textAnchor="middle"
-              className="fill-slate-400 text-[11px]"
+              className="fill-[#8f89a6] text-[11px]"
             >
-              {p.day}
+              {p.label}
             </text>
           </g>
         ))}
@@ -132,14 +115,14 @@ export function UptimeAreaChart() {
 
       {active && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-white/10 bg-[#0b0f1a]/90 px-2 py-1 text-xs shadow-lg backdrop-blur-sm"
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-[#6d5bc4]/50 bg-[#0d0a1f]/95 px-2 py-1 text-xs shadow-lg"
           style={{
             left: `${(active.x / WIDTH) * 100}%`,
             top: `${(active.y / HEIGHT) * 100}%`,
           }}
         >
-          <span className="font-medium text-white">{active.value}%</span>{" "}
-          <span className="text-slate-400">online</span>
+          <span className="font-medium text-white">{active.value}</span>{" "}
+          <span className="text-[#8f89a6]">{unit}</span>
         </div>
       )}
     </div>
