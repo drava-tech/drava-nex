@@ -44,7 +44,7 @@ export default async function ExperiencePage({ params }: PageProps) {
     .map((s) => ({ screenId: s.screenId, screenName: s.screenName, isOnline: activeScreenIds.includes(s.screenId) }));
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 gap-4 overflow-hidden p-4 md:p-6">
+    <div className="flex flex-1 flex-col min-h-0 gap-4 overflow-hidden p-4">
       <ExperienceDetailView
         experience={{
           id: row.id,

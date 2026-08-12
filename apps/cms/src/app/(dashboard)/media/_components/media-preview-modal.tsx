@@ -13,7 +13,15 @@ export interface MediaItem {
   type: string;
   url: string;
   size: string;
+  /** Locale-formatted for display (e.g. "Aug 12, 2026") — see `createdAt`
+   * below for a comparable value. */
   date: string;
+  /** Raw ISO timestamp — for date-range filtering, which can't reliably
+   * parse the locale-formatted `date` string above. */
+  createdAt?: string;
+  /** Where this asset came from — 'upload' | 'email' | 'link'. See
+   * packages/db/src/schema/media.ts. */
+  source?: string | null;
   /** True for a not-yet-kept link (Add Link) — hidden from the Media Library
    * listing until explicitly saved. Only present on items just created via
    * that flow; ordinary already-listed items omit it (falsy). */

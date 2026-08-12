@@ -14,10 +14,10 @@ interface EmailMediaItem extends MediaItem {
 function TypeIcon({ type, className }: { type: string; className?: string }) {
   const Icon =
     type === "video" ? Video
-    : type === "image" ? ImageIcon
-    : type === "sheet" ? FileSpreadsheet
-    : type === "presentation" ? Presentation
-    : FileText;
+      : type === "image" ? ImageIcon
+        : type === "sheet" ? FileSpreadsheet
+          : type === "presentation" ? Presentation
+            : FileText;
   return <Icon className={className} />;
 }
 
@@ -105,23 +105,22 @@ export default function EmailMediaPage() {
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-[#0a0a0a] min-h-[calc(100vh-4rem)]">
-      <div className="flex flex-col gap-3 p-6 lg:px-8 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a] sticky top-0 z-20">
+      <div className="flex flex-col gap-3 p-4 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a] sticky top-0 z-20">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Email Media</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {/* <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Load the last 2 days of email attachments and links — they're saved straight to the Media Library, filtered here to just what came from email.
-            </p>
+            </p> */}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                selecting
-                  ? "border border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
-                  : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
-              }`}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${selecting
+                ? "border border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
+                : "border border-zinc-200 text-zinc-700 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+                }`}
             >
               <CheckSquare className="h-3.5 w-3.5" />
               {selecting ? "Cancel" : "Select"}
@@ -143,7 +142,7 @@ export default function EmailMediaPage() {
       </div>
 
       {selecting && (
-        <div className="flex items-center justify-between gap-4 px-6 lg:px-8 py-3 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a]">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a]">
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{selectedIds.size} selected</p>
             <button
@@ -172,7 +171,7 @@ export default function EmailMediaPage() {
         </div>
       )}
 
-      <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
+      <div className="flex-1 p-4 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-24 text-zinc-400">Loading…</div>
         ) : items.length === 0 ? (
@@ -187,77 +186,75 @@ export default function EmailMediaPage() {
               const isSelected = selectedIds.has(media.id);
               const selectionOrder = Array.from(selectedIds).indexOf(media.id) + 1;
               return (
-              <div
-                key={media.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    if (selecting) toggleSelected(media.id);
-                    else setPreviewItem(media);
-                  }
-                }}
-                className={`group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  isSelected
+                <div
+                  key={media.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (selecting) toggleSelected(media.id);
+                      else setPreviewItem(media);
+                    }
+                  }}
+                  className={`group relative flex flex-col bg-white dark:bg-[#111] rounded-2xl border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isSelected
                     ? "border-blue-500 ring-2 ring-blue-500/40"
                     : "border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20"
-                }`}
-              >
-                <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800/50 relative flex items-center justify-center">
-                  {media.type === "image" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={media.url} alt={media.name} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <TypeIcon type={media.type} className="w-16 h-16 text-zinc-300 dark:text-zinc-600" />
-                  )}
-                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md text-white text-[10px] font-medium tracking-wide uppercase">
-                    <Mail className="w-3 h-3" />
-                    {media.type}
-                  </div>
-                  {selecting ? (
-                    /* Selection badge — its own click target so it doesn't
-                       double-toggle via the card's own onClick. Shows queue
-                       order (selection order) once picked. */
-                    <div
-                      className="absolute top-3 left-3 z-10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSelected(media.id);
-                      }}
-                    >
+                    }`}
+                >
+                  <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-zinc-100 dark:bg-zinc-800/50 relative flex items-center justify-center">
+                    {media.type === "image" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={media.url} alt={media.name} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <TypeIcon type={media.type} className="w-16 h-16 text-zinc-300 dark:text-zinc-600" />
+                    )}
+                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md text-white text-[10px] font-medium tracking-wide uppercase">
+                      <Mail className="w-3 h-3" />
+                      {media.type}
+                    </div>
+                    {selecting ? (
+                      /* Selection badge — its own click target so it doesn't
+                         double-toggle via the card's own onClick. Shows queue
+                         order (selection order) once picked. */
                       <div
-                        className={`flex items-center justify-center min-w-6 h-6 px-1 rounded-md border-2 backdrop-blur-md transition-colors text-xs font-bold ${
-                          isSelected
+                        className="absolute top-3 left-3 z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelected(media.id);
+                        }}
+                      >
+                        <div
+                          className={`flex items-center justify-center min-w-6 h-6 px-1 rounded-md border-2 backdrop-blur-md transition-colors text-xs font-bold ${isSelected
                             ? "bg-blue-600 border-blue-600 text-white"
                             : "bg-black/30 border-white/70 hover:border-white text-transparent"
-                        }`}
-                      >
-                        {isSelected ? selectionOrder : <Check className="w-4 h-4" />}
+                            }`}
+                        >
+                          {isSelected ? selectionOrder : <Check className="w-4 h-4" />}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </div>
+                    ) : null}
+                  </div>
 
-                <div className="p-4 flex flex-col gap-1">
-                  <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate" title={media.name}>
-                    {media.name}
-                  </h4>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate" title={media.emailFrom ?? undefined}>
-                    From {senderLabel(media.emailFrom)}
-                  </p>
-                  {media.emailSubject && (
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate" title={media.emailSubject}>
-                      &ldquo;{media.emailSubject}&rdquo;
+                  <div className="p-4 flex flex-col gap-1">
+                    <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate" title={media.name}>
+                      {media.name}
+                    </h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate" title={media.emailFrom ?? undefined}>
+                      From {senderLabel(media.emailFrom)}
                     </p>
-                  )}
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{media.size}</p>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500">{media.date}</p>
+                    {media.emailSubject && (
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate" title={media.emailSubject}>
+                        &ldquo;{media.emailSubject}&rdquo;
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{media.size}</p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">{media.date}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
               );
             })}
           </div>

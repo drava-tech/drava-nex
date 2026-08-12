@@ -110,7 +110,7 @@ export function VisitorsClient({
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-4rem)]">
-      <div className="flex flex-col gap-2 border-b bg-background p-6 sticky top-0 z-20">
+      <div className="flex flex-col gap-2 border-b bg-background p-4 sticky top-0 z-20">
         <div>
           <h1 className="text-2xl font-bold">Visitors</h1>
           <p className="text-sm text-muted-foreground">
@@ -120,7 +120,7 @@ export function VisitorsClient({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();

@@ -42,7 +42,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
             <p className="text-xs text-zinc-400 dark:text-zinc-600">No saved whiteboards yet.</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-900 overflow-hidden">
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-900 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>

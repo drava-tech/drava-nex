@@ -205,7 +205,7 @@ export function ScreensController({
       )}
 
       <div className="flex-1 w-full h-full flex flex-col select-none min-h-0 overflow-y-auto py-2">
-        <div className="w-full max-w-full mx-auto px-4 md:px-8">
+        <div className="w-full max-w-full mx-auto px-4">
           {/* Add screen row — admin only */}
           {isAdmin && (
             <div className="flex justify-end mb-6">

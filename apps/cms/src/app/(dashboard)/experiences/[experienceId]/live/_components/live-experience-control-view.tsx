@@ -160,7 +160,7 @@ export function LiveExperienceControlView({
   return (
     <div className="dark relative flex-1 flex flex-col min-h-0 overflow-hidden bg-zinc-950">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-black/40 px-4 py-3 backdrop-blur-xl md:px-6">
+      <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-black/40 px-4 py-3 backdrop-blur-xl">
         <div className="flex min-w-0 items-center gap-3">
           <span
             className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${online ? "bg-green-500/10 text-green-400" : "bg-zinc-500/10 text-zinc-500"
@@ -195,7 +195,7 @@ export function LiveExperienceControlView({
       </div>
 
       {/* Mirror stage */}
-      <div ref={stageRef} className="relative flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4 md:p-8">
+      <div ref={stageRef} className="relative flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
         {showTouchpad ? (
           <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-zinc-800 shadow-2xl">
             <ScreenTouchpad screenId={deviceId} />

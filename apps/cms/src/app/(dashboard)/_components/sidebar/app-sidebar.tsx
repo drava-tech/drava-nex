@@ -16,7 +16,7 @@ import {
   ScanFace,
   PenTool,
   Settings2,
-  Globe,
+  // Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,18 +51,6 @@ const ALL_NAV = [
     icon: Package,
     roles: ["ADMIN"] as string[],
   },
-  // {
-  //   title: "Environment 4",
-  //   url: "/environment4",
-  //   icon: Cpu,
-  //   roles: ["ADMIN"] as string[],
-  // },
-  // {
-  //   title: "Environment 6",
-  //   url: "/environment6",
-  //   icon: Cpu,
-  //   roles: ["ADMIN"] as string[],
-  // },
   {
     title: "Environment",
     url: "/environment",
@@ -77,13 +65,13 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
-  {
-    title: "Browser",
-    url: "/browser",
-    icon: Globe,
-    roles: ["ADMIN", "GUEST"] as string[],
-    guestModeVisible: true,
-  },
+  // {
+  //   title: "Browser",
+  //   url: "/browser",
+  //   icon: Globe,
+  //   roles: ["ADMIN", "GUEST"] as string[],
+  //   guestModeVisible: true,
+  // },
   {
     title: "Whiteboards",
     url: "/whiteboards",

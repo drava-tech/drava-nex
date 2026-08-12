@@ -80,6 +80,10 @@ function toMediaItem(a: MediaAsset) {
   });
   return {
     id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    // Raw ISO timestamp alongside the display-formatted `date` above — the
+    // CMS's date-range filter needs a real comparable value, not a
+    // locale-formatted string.
+    createdAt: new Date(a.createdAt).toISOString(),
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
     pendingSave: a.pendingSave,
   };
@@ -276,7 +280,11 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     return c.json({
       success: true,
-      media: { id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, date, selected: false },
+      media: {
+        id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, date,
+        createdAt: new Date(asset.createdAt).toISOString(),
+        source: asset.source, selected: false,
+      },
     });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Upload failed" }, 500);

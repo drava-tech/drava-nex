@@ -85,7 +85,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
   };
 
   return (
-    <div className="flex flex-1 min-h-0 gap-4 overflow-hidden bg-zinc-100 p-4 dark:bg-black md:p-6">
+    <div className="flex flex-1 min-h-0 gap-4 overflow-hidden bg-zinc-100 p-4 dark:bg-black">
       {/* Left column — link fields + screen picker */}
       <div className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-[#0f0f0f]">
         <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Browser</h1>
