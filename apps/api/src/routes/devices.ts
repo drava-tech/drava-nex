@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { listDevices, getDevice, upsertDevice, setDeviceState, type Device } from "@platform/db";
-import { requireApiClient } from "../middleware/auth.js";
+import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { getDeviceDriver, getIrDriver } from "../services/devices.js";
-import { broadcastToCms, broadcastToUe } from "../ws/gateway.js";
+import { broadcastToCms } from "../ws/gateway.js";
 
 export const devicesRouter = new Hono();
 
@@ -26,12 +26,6 @@ async function applyLightState(device: Device, state: LightStateInput) {
   await getDeviceDriver(device).setLightState(device, state);
   const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...state });
   broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  broadcastToUe({
-    type: "LIGHT_STATE_CHANGED",
-    deviceId: device.deviceId,
-    state: updated.state,
-    timestamp: Date.now(),
-  });
   return updated;
 }
 
@@ -79,13 +73,13 @@ const upsertSchema = z.object({
 
 // --- Reads ---
 
-// GET /api/devices — list registered devices (read scope or admin session)
-devicesRouter.get("/", requireApiClient(["devices:read"]), async (c) => {
+// GET /api/devices — list registered devices
+devicesRouter.get("/", requireAdmin, async (c) => {
   return ok(c, await listDevices());
 });
 
 // GET /api/devices/:id/status
-devicesRouter.get("/:id/status", requireApiClient(["devices:read"]), async (c) => {
+devicesRouter.get("/:id/status", requireAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
   return ok(c, {
@@ -100,8 +94,8 @@ devicesRouter.get("/:id/status", requireApiClient(["devices:read"]), async (c) =
 
 // --- Create ---
 
-// POST /api/devices — register/upsert a device (write scope or admin)
-devicesRouter.post("/", requireApiClient(["devices:write"]), async (c) => {
+// POST /api/devices — register/upsert a device
+devicesRouter.post("/", requireAdmin, async (c) => {
   let body;
   try {
     body = upsertSchema.parse(await c.req.json());
@@ -115,7 +109,7 @@ devicesRouter.post("/", requireApiClient(["devices:write"]), async (c) => {
 // --- Nested: actions ---
 
 // POST /api/devices/lights/:id/state — { on, brightness?, color? }
-devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), async (c) => {
+devicesRouter.post("/lights/:id/state", requireAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -132,7 +126,7 @@ devicesRouter.post("/lights/:id/state", requireApiClient(["devices:write"]), asy
 
 // POST /api/devices/lights/:id/identify — briefly flash the light so it can be
 // visually identified (see DeviceDriver.identify, e.g. CasambiDeviceDriver).
-devicesRouter.post("/lights/:id/identify", requireApiClient(["devices:write"]), async (c) => {
+devicesRouter.post("/lights/:id/identify", requireAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -145,7 +139,7 @@ devicesRouter.post("/lights/:id/identify", requireApiClient(["devices:write"]), 
 
 // POST /api/devices/scenes — capture every real light's CURRENT state (read
 // from the DB, not the caller's belief of it) into a new named mode/preset.
-devicesRouter.post("/scenes", requireApiClient(["devices:write"]), async (c) => {
+devicesRouter.post("/scenes", requireAdmin, async (c) => {
   let body: z.infer<typeof createModeSchema>;
   try {
     body = createModeSchema.parse(await c.req.json());
@@ -177,7 +171,7 @@ devicesRouter.post("/scenes", requireApiClient(["devices:write"]), async (c) => 
 });
 
 // POST /api/devices/scenes/:id/trigger — apply every target's saved state.
-devicesRouter.post("/scenes/:id/trigger", requireApiClient(["devices:write"]), async (c) => {
+devicesRouter.post("/scenes/:id/trigger", requireAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -192,19 +186,13 @@ devicesRouter.post("/scenes/:id/trigger", requireApiClient(["devices:write"]), a
     await getDeviceDriver(device).triggerScene(device);
   }
 
-  broadcastToUe({
-    type: "DEVICE_STATUS_CHANGED",
-    deviceId: device.deviceId,
-    status: "scene_triggered",
-    timestamp: Date.now(),
-  });
   return ok(c, { triggered: true });
 });
 
 // POST /api/devices/ir/:id/command — { command, params? }
 // Sends one IR command (AC verb or codebook key) to the CrabController bridge
-// over MQTT, persists the AC's derived state, and echoes to CMS/UE.
-devicesRouter.post("/ir/:id/command", requireApiClient(["devices:write"]), async (c) => {
+// over MQTT, persists the AC's derived state, and echoes to CMS.
+devicesRouter.post("/ir/:id/command", requireAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -227,11 +215,5 @@ devicesRouter.post("/ir/:id/command", requireApiClient(["devices:write"]), async
   const updated = await setDeviceState(device.id, nextState);
 
   broadcastToCms({ type: "IR_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  broadcastToUe({
-    type: "DEVICE_STATUS_CHANGED",
-    deviceId: device.deviceId,
-    status: `ir:${body.command}`,
-    timestamp: Date.now(),
-  });
   return ok(c, updated);
 });

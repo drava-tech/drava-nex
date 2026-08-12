@@ -13,9 +13,10 @@ ONE camera and dynamically switches which pipeline holds it:
   - OBJECT whenever the CMS's "Object Recognition" experience
     (templateKey == "object-recognition") is live on any screen.
 
-Trigger source: the API's WS gateway broadcasts SCREEN_CONTENT_CHANGED to any
-client registered via UE_REGISTER with an `events:subscribe`-scoped API key
-(apps/api/src/ws/gateway.ts). This module subscribes to that feed and reacts.
+Trigger source: this module polls the public, unauthenticated
+`/api/screens` + `/api/screens/:id/config` endpoints every `_POLL_SECONDS`
+to see which screens (if any) currently show the "Object Recognition"
+experience — no push subscription, no API key.
 
 Run via `python -m vision.coordinator` from services/ (same cwd requirement
 as `python -m vision` — see __main__.py). supervisor.py is untouched and
@@ -33,12 +34,10 @@ import subprocess
 import threading
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Optional
 
-import websocket  # websocket-client package
 from dotenv import load_dotenv
 
 from .config import load_config
@@ -55,7 +54,6 @@ _POLL_SECONDS = 3.0
 _BACKOFF_START = 1.0
 _BACKOFF_MAX = 60.0
 _GRACEFUL_STOP_TIMEOUT = 5.0
-_WS_RECONNECT_SECONDS = 5
 
 _WORKER_MODULES = {
     "PEOPLE": "vision.workers.people",
@@ -75,13 +73,6 @@ def _default_python(venv_name: str) -> str:
     return str(_VISION_DIR / venv_name / "Scripts" / "python.exe")
 
 
-def _ws_url(api_url: str, api_key: str) -> str:
-    parts = urllib.parse.urlsplit(api_url)
-    scheme = "wss" if parts.scheme == "https" else "ws"
-    query = urllib.parse.urlencode({"apiKey": api_key})
-    return urllib.parse.urlunsplit((scheme, parts.netloc, "/ws/", query, ""))
-
-
 def _http_get_json(url: str, timeout: float = 5.0) -> Optional[dict]:
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
@@ -99,14 +90,6 @@ class Coordinator:
         self._rs_width = cfg.realsense_width
         self._rs_height = cfg.realsense_height
         self._rs_fps = cfg.realsense_fps
-
-        self._api_key = os.environ.get("VISION_WS_API_KEY", "")
-        if not self._api_key:
-            raise SystemExit(
-                "[coordinator] VISION_WS_API_KEY is not set. Create an "
-                "events:subscribe-scoped API key via the CMS admin UI "
-                "(Settings > API Keys) and paste it into services/vision/.env."
-            )
 
         self._camera_id = {
             "PEOPLE": os.environ.get("VISION_COORDINATOR_CAMERA_ID", "cam-entrance"),
@@ -129,69 +112,12 @@ class Coordinator:
 
         self._lock = threading.Lock()
         self._object_active_screens: set[str] = set()
-        self._needs_resync = False
         self._current_mode: Optional[str] = None
         self._proc: Optional[subprocess.Popen] = None
         self._backoff = _BACKOFF_START
         self._stopping = False
-        self._ws: Optional[websocket.WebSocketApp] = None
-        self._ws_thread: Optional[threading.Thread] = None
 
-    # ─── WS subscription ────────────────────────────────────────────────────
-
-    def start_ws(self) -> None:
-        url = _ws_url(self._api_url, self._api_key)
-
-        def on_open(ws):
-            log.info("[coordinator] WS connected — registering")
-            ws.send(json.dumps({"type": "UE_REGISTER", "apiKey": self._api_key}))
-            with self._lock:
-                self._needs_resync = True
-
-        def on_message(_ws, message):
-            try:
-                msg = json.loads(message)
-            except json.JSONDecodeError:
-                return
-            msg_type = msg.get("type")
-            if msg_type == "UE_REGISTER_ACK":
-                log.info("[coordinator] WS registration acknowledged")
-            elif msg_type == "UE_REGISTER_NACK":
-                log.error(
-                    "[coordinator] WS registration rejected (%s) — check "
-                    "VISION_WS_API_KEY has the events:subscribe scope",
-                    msg.get("reason"),
-                )
-            elif msg_type == "SCREEN_CONTENT_CHANGED":
-                screen_id = msg.get("screenId")
-                template_key = (msg.get("content") or {}).get("templateKey")
-                if not screen_id:
-                    return
-                with self._lock:
-                    if template_key == OBJECT_RECOGNITION_TEMPLATE_KEY:
-                        self._object_active_screens.add(screen_id)
-                    else:
-                        self._object_active_screens.discard(screen_id)
-
-        def on_error(_ws, error):
-            log.warning("[coordinator] WS error: %s", error)
-
-        def on_close(_ws, status_code, _msg):
-            log.warning("[coordinator] WS disconnected (%s) — will reconnect", status_code)
-
-        self._ws = websocket.WebSocketApp(
-            url, on_open=on_open, on_message=on_message,
-            on_error=on_error, on_close=on_close,
-        )
-        self._ws_thread = threading.Thread(
-            target=self._ws.run_forever,
-            kwargs={"reconnect": _WS_RECONNECT_SECONDS},
-            name="vision-coordinator-ws",
-            daemon=True,
-        )
-        self._ws_thread.start()
-
-    # ─── REST snapshot (initial state + post-reconnect resync) ─────────────
+    # ─── REST snapshot (only trigger source — see module docstring) ─────────
 
     def _fetch_snapshot(self) -> None:
         try:
@@ -291,7 +217,6 @@ class Coordinator:
     # ─── Main loop ───────────────────────────────────────────────────────────
 
     def run(self) -> None:
-        self.start_ws()
         self._fetch_snapshot()
         self._apply_desired_mode()
 
@@ -305,18 +230,12 @@ class Coordinator:
         try:
             while not self._stopping:
                 time.sleep(_POLL_SECONDS)
-                with self._lock:
-                    needs_resync = self._needs_resync
-                    self._needs_resync = False
-                if needs_resync:
-                    self._fetch_snapshot()
+                self._fetch_snapshot()
                 self._check_crash()
                 self._apply_desired_mode()
         finally:
             if self._proc is not None:
                 self._graceful_stop(self._proc)
-            if self._ws is not None:
-                self._ws.close()
             log.info("[coordinator] stopped.")
 
 

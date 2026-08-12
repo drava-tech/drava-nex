@@ -1,9 +1,6 @@
 // ─── Auth Tables (Better Auth) ────────────────────────────────────────────────
 export { user, session, account, verification, userRoleEnum } from "./auth.js";
 
-// ─── API Keys (machine clients: Unreal Engine, IoT) ───────────────────────────
-export { apiKey } from "./api-keys.js";
-
 // ─── Devices (lights, scenes, speakers — Unreal Engine / IoT control) ─────────
 export { device } from "./devices.js";
 
@@ -47,7 +44,6 @@ export {
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 export type { User, NewUser, Session, Account } from "./auth.js";
-export type { ApiKey, NewApiKey } from "./api-keys.js";
 export type { Device, NewDevice } from "./devices.js";
 export type { Experience, NewExperience } from "./projects.js";
 export type { WhiteboardDocument, NewWhiteboardDocument } from "./whiteboards.js";

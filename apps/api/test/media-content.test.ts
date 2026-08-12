@@ -32,17 +32,15 @@ describe("presentation media type", () => {
     expect(classified?.name).toBe("Google Slides");
   });
 
-  it("embeds through the local viewer, adding kiosk only for screens", () => {
+  it("embeds through the local viewer — navigation is always manual, no kiosk variant", () => {
     const url = "/media/deck.pptx";
     const encoded = encodeURIComponent(url);
 
     expect(mediaEmbedUrl("presentation", url)).toBe(`${SLIDES_VIEWER_PATH}?src=${encoded}`);
-    expect(mediaEmbedUrl("presentation", url, { kiosk: true })).toBe(
-      `${SLIDES_VIEWER_PATH}?src=${encoded}&kiosk=1`
-    );
+    expect(mediaEmbedUrl("presentation", url, { kiosk: true })).toBe(`${SLIDES_VIEWER_PATH}?src=${encoded}`);
   });
 
-  it("reaches a screen as html pointed at the kiosk viewer", () => {
+  it("reaches a screen as html pointed at the slides viewer", () => {
     const content = mediaAssetToWsContent({
       id: "m1",
       type: "presentation",
@@ -52,7 +50,7 @@ describe("presentation media type", () => {
 
     expect(content.type).toBe("html");
     expect(content.source).toContain(SLIDES_VIEWER_PATH);
-    expect(content.source).toContain("kiosk=1");
+    expect(content.source).not.toContain("kiosk");
   });
 });
 

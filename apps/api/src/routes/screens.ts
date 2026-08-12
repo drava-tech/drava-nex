@@ -15,7 +15,7 @@ import {
   getScreenContent,
   screenExists,
 } from "@platform/db";
-import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
+import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent } from "../ws/gateway.js";
 
@@ -237,11 +237,10 @@ screensRouter.post("/:id/interaction", requireGuestOrAdmin, async (c) => {
 
 const commandSchema = z.object({ command: z.string().min(1), value: z.unknown().optional() });
 
-// POST /api/screens/:id/command — remote command. CMS humans (guest/admin) OR a
-// machine client (Unreal Engine) with the "screens:command" scope.
+// POST /api/screens/:id/command — remote command (CMS humans, guest or admin).
 screensRouter.post(
   "/:id/command",
-  requireApiClient(["screens:command"], { allowGuest: true }),
+  requireGuestOrAdmin,
   async (c) => {
     const screenId = param(c, "id");
     let body;

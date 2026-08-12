@@ -8,8 +8,6 @@ import {
   setScreenWhiteboardState,
   getScreenBlanked,
   getScreenInteractionEnabled,
-  verifyApiKey,
-  scopeSatisfies,
 } from '@platform/db';
 import {
   isWhiteboardCommand,
@@ -29,7 +27,6 @@ import type {
   WsServerMessage,
   WsClientMessage,
   WsCmsMessage,
-  WsUeEvent,
   WsContent,
   BroadcastRequest,
   StreamFormat,
@@ -45,8 +42,6 @@ import { resolveMatInventory } from '../services/inventory.js';
 const screenRegistry = new Map<string, Set<WebSocket>>();
 // CMS browser clients (all admin tabs)
 const cmsRegistry = new Set<WebSocket>();
-// Unreal Engine / automation clients subscribed to the platform event channel.
-const ueRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
 // Last in-template view state per screen (absolute "SET_*" interaction), so a
@@ -209,9 +204,6 @@ export function broadcast(req: BroadcastRequest): number {
   };
   const frame = JSON.stringify(msg);
 
-  // Mirror to the UE/automation event channel (no-op if no subscribers).
-  emitScreenContentChanged(req.screenId, req.content);
-
   const sockets = screenRegistry.get(req.screenId);
   if (!sockets) return 0;
   let count = 0;
@@ -231,20 +223,6 @@ export function broadcastToCms(msg: WsCmsMessage): void {
       ws.send(frame);
     }
   }
-}
-
-/** Push a platform event to every subscribed Unreal Engine / automation client. */
-export function broadcastToUe(event: WsUeEvent): void {
-  if (ueRegistry.size === 0) return;
-  const frame = JSON.stringify(event);
-  for (const ws of ueRegistry) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
-  }
-}
-
-/** Notify UE subscribers that a screen's content changed (mirrors CONTENT_UPDATE). */
-function emitScreenContentChanged(screenId: string, content: WsContent): void {
-  broadcastToUe({ type: 'SCREEN_CONTENT_CHANGED', screenId, content, timestamp: Date.now() });
 }
 
 function sendCameraStatusToScreen(screenId: string, status: CameraStatusUpdate): void {
@@ -346,14 +324,13 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
       }
 
       broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
-      emitScreenContentChanged(screenId, content);
     }
     return true;
   }
   return false;
 }
 
-/** Push a CONTENT_UPDATE to a screen's live sockets + notify CMS/UE watchers. */
+/** Push a CONTENT_UPDATE to a screen's live sockets + notify CMS watchers. */
 function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
   contentCache.set(screenId, content);
   viewStateCache.delete(screenId);
@@ -368,7 +345,6 @@ function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
   }
 
   broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
-  emitScreenContentChanged(screenId, content);
 }
 
 /**
@@ -429,14 +405,6 @@ export async function applyProductDetection(input: {
   screenTakeover.set(screenId, input.label);
 
   pushContentUpdateToScreen(screenId, content);
-  broadcastToUe({
-    type: 'PRODUCT_DETECTED',
-    cameraId: input.cameraId,
-    label: input.label,
-    confidence: input.confidence,
-    productId: res.productId,
-    timestamp: Date.now(),
-  });
 
   return { applied: true, screenId, productId: res.productId };
 }
@@ -529,10 +497,6 @@ export async function applyMatInventoryUpdate(cameraId: string, rawItems: unknow
     pushContentUpdateToScreen(screenId, content);
     broadcastToCms({ type: 'INVENTORY_UPDATE', cameraId, screenId, items: resolution.items, timestamp: Date.now() });
   }
-
-  if (resolution.items.length > 0) {
-    broadcastToUe({ type: 'INVENTORY_UPDATE', cameraId, items: resolution.items, timestamp: Date.now() });
-  }
 }
 
 /**
@@ -584,11 +548,9 @@ export function createGateway(): WebSocketServer {
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     let registeredScreenId: string | null = null;
     let isCmsClient = false;
-    let isUeClient = false;
     let isAudioBridge = false;
     let isScreenAgent = false;
     let agentScreenId: string | null = null;
-    const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
     let publishingStreamId: string | null = null;
     const subscribedStreamIds = new Set<string>();
@@ -884,42 +846,11 @@ export function createGateway(): WebSocketServer {
         }
 
 
-        case 'UE_REGISTER': {
-          // Unreal Engine / automation subscribes to the event channel. Auth is an
-          // API key with the "events:subscribe" scope, sent in the message or as a
-          // `?apiKey=` query param on the WS URL.
-          const keyFromUrl = (() => {
-            try {
-              return new URL(reqUrl, 'http://localhost').searchParams.get('apiKey') ?? undefined;
-            } catch {
-              return undefined;
-            }
-          })();
-          const rawKey = msg.apiKey ?? keyFromUrl;
-          void (async () => {
-            const key = rawKey ? await verifyApiKey(rawKey) : null;
-            if (!key || !scopeSatisfies(key.scopes, 'events:subscribe')) {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'UE_REGISTER_NACK', reason: 'unauthorized' } satisfies WsUeEvent));
-              }
-              return;
-            }
-            isUeClient = true;
-            ueRegistry.add(ws);
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'UE_REGISTER_ACK' } satisfies WsUeEvent));
-            }
-          })();
-          break;
-        }
-
         case 'CONTENT_CHANGE_REQUEST': {
           const { screenId, content } = msg;
           contentCache.set(screenId, content);
           // New content resets the in-template view — drop any stale view state.
           viewStateCache.delete(screenId);
-          // Mirror to UE/automation subscribers.
-          emitScreenContentChanged(screenId, content);
 
           // Confirm to the requesting screen immediately
           const update: WsServerMessage = {
@@ -1096,9 +1027,6 @@ export function createGateway(): WebSocketServer {
       }
       if (isCmsClient) {
         cmsRegistry.delete(ws);
-      }
-      if (isUeClient) {
-        ueRegistry.delete(ws);
       }
       if (isAudioBridge && audioBridge === ws) {
         audioBridge = null;
