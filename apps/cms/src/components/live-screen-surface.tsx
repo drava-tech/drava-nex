@@ -106,19 +106,25 @@ export function LiveScreenSurface({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
+    // h-full, not flex-1 — the parent scroll region (dashboard-layout-client's
+    // overflow-y-auto div) is a plain block container, not a flex container,
+    // so flex-1 here has nothing to grow against and this would otherwise
+    // shrink to its content height. The screen mirror below masks that (it
+    // sizes itself from aspect-[16/9], independent of ancestor height), but
+    // the touchpad has no aspect ratio and needs a real height chain to fill
+    // the screen instead of collapsing to just its own button bar.
+    <div className="flex h-full min-h-0 flex-col p-4 md:p-6 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Action bar */}
       <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <span
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-              online
-                ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                : "bg-zinc-500/10 text-zinc-500"
-            }`}
+            className={`flex items-center gap-1.5 px-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${online
+              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+              : "bg-zinc-500/10 text-zinc-500"
+              }`}
           >
-            {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-            {online ? "Online" : "Offline"}
+            {online ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-3 w-3" />}
+            {/* {online ? "Online" : "Offline"} */}
           </span>
           <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">
             {screenName}
@@ -155,9 +161,11 @@ export function LiveScreenSurface({
               </button>
             </div>
           )}
-          <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
+
+          {/* <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
             {showTouchpad ? "· drag the pad below to drive the cursor on the TV" : "· touch to explore — mirrored on the TV in realtime"}
-          </span>
+          </span> */}
+          {/* // for testing */}
         </div>
         <div className="flex items-center gap-2">
           {SCREEN_TO_CAMERA[screenId] && (
@@ -181,11 +189,10 @@ export function LiveScreenSurface({
             onClick={toggleBlank}
             disabled={togglingBlank}
             title={blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
-              blanked
-                ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
-                : "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${blanked
+              ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
+              : "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+              }`}
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
@@ -198,11 +205,10 @@ export function LiveScreenSurface({
                 ? "Disable controls — nobody can click/scroll/type into this screen"
                 : "Enable controls — allow touch/click/scroll/type on this screen"
             }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
-              interactionEnabled
-                ? "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
-                : "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${interactionEnabled
+              ? "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+              : "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+              }`}
           >
             {interactionEnabled ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
             {togglingInteraction ? "..." : interactionEnabled ? "Controls On" : "Controls Off"}

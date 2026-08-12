@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Pencil,
   Eraser,
@@ -24,7 +25,6 @@ import {
 } from "lucide-react";
 import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
-import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
 import { LiveControlDialog } from "@/components/live-control-dialog";
 import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
 import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
@@ -76,15 +76,16 @@ const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: strin
  * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
  * a menu with "Draw" (pick a screen, then control it exactly like an
  * experience — via the same LiveControlDialog + ScreenMirror everything else
- * uses) and "Add Link" (paste a browser URL to add as a media item).
+ * uses) and "Browse URL" (navigates to the routed /browser tool — paste a
+ * link, pick screens, send).
  *
  * Strokes are kept as objects and replayed rather than being flattened into
  * pixels — that's what makes undo and window resizing work at all.
  */
 export function WhiteboardOverlay() {
+  const router = useRouter();
   const { requestedDocumentId, clearRequestedDocument } = useWhiteboardEditor();
   const [open, setOpen] = useState(false);
-  const [showAddLink, setShowAddLink] = useState(false);
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
@@ -142,7 +143,7 @@ export function WhiteboardOverlay() {
         setShowPushDialog(true);
       },
     },
-    { id: "link", label: "Browse URL", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
+    { id: "link", label: "Browse URL", icon: <LinkIcon />, onClick: () => router.push("/browser") },
   ];
 
   // --- Canvas ---------------------------------------------------------------
@@ -671,9 +672,7 @@ export function WhiteboardOverlay() {
         />
       )}
 
-      {showAddLink && <AddLinkDialog onClose={() => setShowAddLink(false)} />}
-
-      {/* Speed-dial FAB — Draw opens the board above, Add Link opens the add-link dialog */}
+      {/* Speed-dial FAB — Draw opens the board above, Browse URL navigates to /browser */}
       {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}
     </>
   );

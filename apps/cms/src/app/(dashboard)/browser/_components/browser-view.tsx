@@ -19,9 +19,10 @@ interface BrowserViewProps {
 }
 
 /**
- * The routed "Browser" flow: paste a link, pick screens, send — replacing
- * the popup-stacked AddLinkDialog -> PushToScreenModal -> LiveControlDialog
- * chain used elsewhere in the CMS. Left column stays mounted across
+ * The routed "Browser" flow: paste a link, pick screens, send — replaced
+ * the old popup-stacked AddLinkDialog -> PushToScreenModal -> LiveControlDialog
+ * chain (the whiteboard FAB's "Browse URL" item now navigates here too,
+ * the last caller of that popup). Left column stays mounted across
  * /browser and /browser/live/[deviceId] so another link can be queued up
  * without leaving the page; only the right pane (and the URL) changes.
  */
