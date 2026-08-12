@@ -1,6 +1,6 @@
 import { listDevices, setDeviceState, type Device } from "@platform/db";
 import type { MQTTDeviceManager } from "@platform/iot";
-import { broadcastToCms, broadcastToUe } from "../ws/gateway.js";
+import { broadcastToCms } from "../ws/gateway.js";
 
 /**
  * Subscribes to the Casambi gateway's per-device "values" topic so the CMS
@@ -79,12 +79,6 @@ async function handleValuesMessage(topic: string, payload: Buffer): Promise<void
   try {
     const updated = await setDeviceState(device.id, state);
     broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-    broadcastToUe({
-      type: "LIGHT_STATE_CHANGED",
-      deviceId: device.deviceId,
-      state: updated.state,
-      timestamp: Date.now(),
-    });
   } catch (err) {
     console.error(`[casambi] failed to persist live state for ${device.deviceId}:`, err);
   }

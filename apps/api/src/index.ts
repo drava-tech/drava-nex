@@ -10,7 +10,6 @@ import { db, sql } from '@platform/db';
 import { productsRouter } from './routes/products.js';
 import { mediaRouter, uploadRouter, mediaStreamRouter, mediaFilesRouter } from './routes/media.js';
 import { setupRouter } from './routes/setup.js';
-import { apiKeysRouter } from './routes/api-keys.js';
 import { devicesRouter } from './routes/devices.js';
 import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
 import { startCasambiIngest } from './services/casambi-ingest.js';
@@ -44,7 +43,7 @@ const corsOrigins = process.env['CORS_ORIGIN']
 app.use('*', cors({
   origin: corsOrigins,
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'x-broadcast-secret', 'x-api-key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-broadcast-secret'],
   credentials: true,
 }));
 
@@ -100,7 +99,6 @@ app.route('/api/auth/setup', setupRouter);
 // defined inside each router; this file only composes them. Mounts are listed in
 // a stable order: identity first, then resource routers alphabetically.
 app.route('/api/me', meRouter);
-app.route('/api/api-keys', apiKeysRouter);
 app.route('/api/devices', devicesRouter);
 app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);

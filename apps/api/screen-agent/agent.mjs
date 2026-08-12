@@ -64,11 +64,20 @@ async function handleCursorControl(msg) {
       const pos = await mouse.getPosition();
       const width = await screen.width();
       const height = await screen.height();
+      // msg.dx/dy arrive as floats (client-side CURSOR_GAIN scaling) — round
+      // to an exact integer pixel target rather than handing nut-js/Windows a
+      // fractional position and hoping it truncates sensibly every time.
       const next = new Point(
-        Math.min(Math.max(pos.x + msg.dx, 0), width - 1),
-        Math.min(Math.max(pos.y + msg.dy, 0), height - 1)
+        Math.round(Math.min(Math.max(pos.x + msg.dx, 0), width - 1)),
+        Math.round(Math.min(Math.max(pos.y + msg.dy, 0), height - 1))
       );
       await mouse.setPosition(next);
+      // Diagnostic: confirms move commands are actually arriving and
+      // landing on sane, changing coordinates — check this log during a
+      // drag if the cursor still isn't visible on the TV despite clicks/
+      // scroll working, to tell a functional bug from a pure OS/Chrome
+      // cursor-rendering visibility issue.
+      console.debug(`[agent] move -> (${next.x}, ${next.y})`);
     } else if (msg.action === 'click') {
       await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {

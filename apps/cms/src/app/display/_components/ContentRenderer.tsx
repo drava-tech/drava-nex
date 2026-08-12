@@ -13,6 +13,7 @@ import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
 import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
+import { ObjectRecognitionRenderer } from "./ObjectRecognitionRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
 export function ContentRenderer({
@@ -26,13 +27,13 @@ export function ContentRenderer({
 }) {
   switch (content.type) {
     case "video":
-      return <VideoRenderer content={content} />;
+      return <VideoRenderer content={content} preview={preview} />;
     case "image":
       return <ImageRenderer content={content} />;
     case "html":
-      return <HtmlRenderer content={content} />;
+      return <HtmlRenderer content={content} preview={preview} />;
     case "stream":
-      return <StreamRenderer content={content} />;
+      return <StreamRenderer content={content} preview={preview} />;
     case "experience": {
       // An experience assigned a code-defined template renders that template
       // full-screen (the authored content). Without a template, fall back to the
@@ -50,6 +51,9 @@ export function ContentRenderer({
       }
       if (content.templateKey === "product-showcase") {
         return <ProductShowcaseRenderer content={content} preview={preview} />;
+      }
+      if (content.templateKey === "object-recognition") {
+        return <ObjectRecognitionRenderer content={content} preview={preview} />;
       }
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);

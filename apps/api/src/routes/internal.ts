@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { applyProductDetection, broadcastToCms, clearProductDetection } from "../ws/gateway.js";
+import {
+  applyMatInventoryUpdate,
+  applyProductDetection,
+  broadcastToCms,
+  clearProductDetection,
+} from "../ws/gateway.js";
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
@@ -13,15 +18,13 @@ import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
  * Visitors list updates live. PERSON_PRESENT is identity-agnostic (fired
  * straight off raw detection) and is what drives the welcome-screen trigger.
  * CAMERA_SNAPSHOT feeds the CMS camera debug preview (see vision-snapshot.ts).
- *
- * PRODUCT_DETECTED / PRODUCT_LOST are a secondary entry point for the SAME
- * takeover behavior the browser detection loop drives over the screen
- * WebSocket. Object detection's production path is the browser →
- * /vision/ws inference server (services/vision/object_detection), so nothing in
- * this repo posts these today; they are handled rather than stubbed so a
- * headless emitter (vision/events.py emit_product) can never silently no-op.
- * Both delegate to gateway.applyProductDetection / clearProductDetection, which
- * own the single implementation — no duplicated product lookup here.
+ * PRODUCT_DETECTED / PRODUCT_LOST are the single-item counterpart driven by
+ * the browser detection loop over the screen WebSocket; handled here too
+ * (delegating to gateway.applyProductDetection / clearProductDetection) so a
+ * headless emitter (vision/events.py's emit_product/emit_product_lost) works
+ * as well. INVENTORY_UPDATE is the multi-item counterpart used by
+ * services/vision's dedicated-camera OBJECT worker (full current mat
+ * contents, not a single best guess) — see gateway.applyMatInventoryUpdate.
  */
 export const internalRouter = new Hono();
 
@@ -104,6 +107,12 @@ internalRouter.post("/vision-event", async (c) => {
       });
       return ok(c, { ok: true, cleared });
     }
+
+    case "INVENTORY_UPDATE":
+      // Full current mat contents from services/vision's dedicated-camera
+      // OBJECT worker.
+      await applyMatInventoryUpdate(String(body["cameraId"] ?? ""), body["items"]);
+      return ok(c, { ok: true });
 
     default:
       return fail(c, "UNKNOWN_TYPE", `Unknown event type: ${String(body?.["type"])}`, 422);

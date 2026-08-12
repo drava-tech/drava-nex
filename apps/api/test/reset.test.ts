@@ -31,9 +31,6 @@ vi.mock("../src/middleware/auth.js", () => ({
   requireGuestOrAdmin: vi.fn().mockImplementation(async (c, next) => {
     await next();
   }),
-  requireApiClient: vi.fn().mockImplementation(() => async (c, next) => {
-    await next();
-  }),
 }));
 vi.mock("../src/ws/gateway.js", () => ({
   resetScreenTakeover,

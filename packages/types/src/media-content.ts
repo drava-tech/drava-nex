@@ -23,6 +23,7 @@ export const MEDIA_TYPES = [
   "document", // PDF
   "sheet", // .xlsx / .csv spreadsheet
   "presentation", // .pptx slide deck
+  "word", // .docx document
   "youtube",
   "drive", // Google Drive file, Docs, Sheets or Slides
   "link", // any other embeddable web page
@@ -55,6 +56,9 @@ export const SHEET_VIEWER_PATH = "/display/sheet";
 
 /** Path of the CMS-hosted slide-deck viewer (see apps/cms/src/app/display/slides). */
 export const SLIDES_VIEWER_PATH = "/display/slides";
+
+/** Path of the CMS-hosted Word-document viewer (see apps/cms/src/app/display/word). */
+export const WORD_VIEWER_PATH = "/display/word";
 
 function safeUrl(raw: string): URL | null {
   try {
@@ -125,6 +129,9 @@ const EXT_MEDIA_TYPES: Record<string, MediaType> = {
   pdf: "document",
   xlsx: "sheet", csv: "sheet",
   pptx: "presentation",
+  // Legacy binary .doc is intentionally excluded — mammoth (see
+  // apps/cms/src/app/display/word) only reads the Open XML .docx format.
+  docx: "word",
 };
 
 /** Extract a video id from any of the URL shapes YouTube hands out. */
@@ -316,9 +323,15 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
 
     case "presentation":
       // Same reasoning as "sheet" above — our own client-side renderer rather
-      // than a hosted Office viewer. On a screen there's nobody to click
-      // through the deck, so kiosk mode hides the controls and auto-advances.
-      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}${kiosk ? "&kiosk=1" : ""}`;
+      // than a hosted Office viewer. Navigation is always manual (prev/next
+      // overlay + arrow keys), so there's no kiosk variant to opt into here.
+      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
+
+    case "word":
+      // Same reasoning again — converted to HTML in-browser (mammoth) rather
+      // than a hosted Office viewer, which would need the file reachable from
+      // the public internet.
+      return `${WORD_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 
     case "youtube": {
       const id = parseYouTubeId(url);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, AlertTriangle, RotateCw } from "lucide-react";
 import { mediaEmbedUrl, isPageMediaType } from "@platform/types";
 import { assignMedia } from "@/actions/screen-actions";
@@ -34,6 +35,9 @@ export function MediaPreviewModal({
   media: MediaItem;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const showTouchpad = isPageMediaType(media.type);
+
   const handleSaveLink = async () => {
     const res = await fetch(`/api/media/${media.id}/save`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
@@ -56,7 +60,20 @@ export function MediaPreviewModal({
       // Only a not-yet-saved link has anything to save — an ordinary already-
       // listed item (upload, or a link kept earlier) shouldn't show the button.
       onSaveLink={media.pendingSave ? handleSaveLink : undefined}
-      showTouchpad={isPageMediaType(media.type)}
+      showTouchpad={showTouchpad}
+      // Page-type content (link/YouTube/Drive/PDF/sheet/deck) hands off to the
+      // routed touchpad at /browser/live/[deviceId] instead of swapping in
+      // the in-popup LiveControlDialog — one touchpad surface, not two. Other
+      // content (images/videos) keeps the default swap-to-mirror behavior.
+      onPushed={
+        showTouchpad
+          ? (pushed) => {
+              const target = pushed.find((s) => s.isOnline) ?? pushed[0];
+              onClose();
+              if (target) router.push(`/browser/live/${target.screenId}`);
+            }
+          : undefined
+      }
     />
   );
 }

@@ -61,6 +61,46 @@ export async function listScreens(): Promise<{
 }
 
 /**
+ * Single-screen row for a live-control page (/screens/:screenId,
+ * /media/live/:deviceId) — everything those pages need beyond
+ * getScreenContent: display name, blank/interaction state, the default-media
+ * badge, and (when present) the active queue position. Same defaultMedia
+ * alias-join as listScreens, just scoped to one screen instead of all of them.
+ */
+export async function getScreenLiveRow(screenId: string): Promise<
+  | {
+      screenName: string;
+      blanked: boolean;
+      interactionEnabled: boolean;
+      defaultMediaAssetId: string | null;
+      defaultMediaName: string | null;
+      currentQueueMediaIds: string[] | null;
+      currentQueueIndex: number | null;
+    }
+  | undefined
+> {
+  const defaultMedia = alias(mediaAsset, "default_media");
+  const [row] = await db
+    .select({
+      screenName: screen.screenName,
+      blanked: screen.blanked,
+      interactionEnabled: screen.interactionEnabled,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      defaultMediaName: defaultMedia.name,
+      currentQueueMediaIds: screen.currentQueueMediaIds,
+      currentQueueIndex: screen.currentQueueIndex,
+    })
+    .from(screen)
+    .leftJoin(
+      defaultMedia,
+      and(eq(screen.defaultMediaAssetId, defaultMedia.id), isNull(defaultMedia.deletedAt))
+    )
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row;
+}
+
+/**
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
  * assigned (or the referenced content was deleted). Resolves by the screen's
  * content kind: a media asset → a video/image, an experience → its template.
@@ -141,6 +181,31 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
   return null;
 }
 
+/**
+ * All screens currently assigned an experience with the given templateKey —
+ * i.e. whichever screen(s) an admin picked via "Push to screen" in the CMS.
+ * Used by live-detection takeover routing (the mat camera's object-recognition
+ * feed) so the destination screen is chosen in the CMS UI rather than fixed to
+ * one screen by a camera-id env mapping.
+ */
+export async function getScreenIdsByTemplateKey(templateKey: string): Promise<string[]> {
+  const rows = await db
+    .select({ screenId: screen.screenId })
+    .from(screen)
+    .innerJoin(
+      experience,
+      and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
+    .where(
+      and(
+        eq(screen.currentContentKind, "experience"),
+        eq(experience.templateKey, templateKey),
+        isNull(screen.deletedAt)
+      )
+    );
+  return rows.map((r) => r.screenId);
+}
+
 export async function screenExists(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({ screenId: screen.screenId })
@@ -179,6 +244,12 @@ export async function setScreenExperience(
       currentContentKind: experienceId ? "experience" : null,
       currentExperienceId: experienceId,
       currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      // A fresh assignment should actually play, not stay behind the black
+      // overlay from a previous "Stop" — see setScreenBlankState call in the
+      // API route for the live (already-connected) side of this.
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
@@ -195,9 +266,72 @@ export async function setScreenMedia(
       currentContentKind: mediaAssetId ? "media" : null,
       currentMediaAssetId: mediaAssetId,
       currentExperienceId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Start (or replace) an ordered multi-item queue on a screen: sets
+ * currentMediaAssetId to the item at startIndex (clamped into range) and
+ * records the full ordered list + index so advanceScreenQueue can step
+ * through it later. Same "single current media asset" shape as
+ * setScreenMedia — getScreenContent needs no changes to resolve it.
+ */
+export async function setScreenMediaQueue(
+  screenId: string,
+  mediaAssetIds: string[],
+  startIndex = 0
+): Promise<void> {
+  if (mediaAssetIds.length === 0) {
+    throw new Error("setScreenMediaQueue requires at least one media asset id");
+  }
+  const clampedIndex = Math.min(Math.max(startIndex, 0), mediaAssetIds.length - 1);
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: "media",
+      currentMediaAssetId: mediaAssetIds[clampedIndex],
+      currentExperienceId: null,
+      currentQueueMediaIds: mediaAssetIds,
+      currentQueueIndex: clampedIndex,
+      blanked: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
+/**
+ * Step a screen's active queue forward/back one item (clamped at the ends —
+ * not wrap-around), updating currentMediaAssetId to match. Returns null if the
+ * screen has no active queue (queue columns null/empty).
+ */
+export async function advanceScreenQueue(
+  screenId: string,
+  direction: "next" | "prev"
+): Promise<{ index: number; length: number; mediaAssetId: string } | null> {
+  const [row] = await db
+    .select({ queueIds: screen.currentQueueMediaIds, queueIndex: screen.currentQueueIndex })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+
+  if (!row?.queueIds || row.queueIds.length === 0 || row.queueIndex === null) return null;
+
+  const lastIndex = row.queueIds.length - 1;
+  const nextIndex =
+    direction === "next" ? Math.min(row.queueIndex + 1, lastIndex) : Math.max(row.queueIndex - 1, 0);
+  const mediaAssetId = row.queueIds[nextIndex]!;
+
+  await db
+    .update(screen)
+    .set({ currentQueueIndex: nextIndex, currentMediaAssetId: mediaAssetId, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+
+  return { index: nextIndex, length: row.queueIds.length, mediaAssetId };
 }
 
 /**

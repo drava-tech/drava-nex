@@ -9,6 +9,10 @@ const DRAG_THRESHOLD = 6;
 /** Cursor moves faster than raw finger travel, so a small pad can still reach
  * the whole screen without repeated strokes — same idea as OS trackpad acceleration. */
 const CURSOR_GAIN = 1.6;
+/** Scroll had no gain at all (1px drag = 1 wheel "click" via the agent's
+ * mouse.scrollUp/scrollDown) — raw 1:1 felt sluggish, and small sub-1px
+ * per-event deltas were silently rounded to 0 and dropped entirely. */
+const SCROLL_GAIN = 4;
 
 interface ScreenTouchpadProps {
   /** The screen whose physical PC this pad drives — see useScreenCursorControl. */
@@ -97,7 +101,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
       const dy = e.clientY - g.lastY;
       g.lastY = e.clientY;
       // Drag down pans content down = scroll UP in wheel terms, hence the negation.
-      scroll(-dy);
+      scroll(-dy * SCROLL_GAIN);
     },
     [scroll]
   );
@@ -136,18 +140,18 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
           onPointerMove={handleScrollPointerMove}
           onPointerUp={handleScrollPointerUp}
           onPointerCancel={handleScrollPointerUp}
-          className="relative flex w-14 shrink-0 select-none flex-col items-center justify-center gap-2 border-l border-zinc-300 bg-zinc-200/60 dark:border-white/10 dark:bg-zinc-950"
+          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-zinc-300 bg-zinc-200/60 py-6 dark:border-white/10 dark:bg-zinc-950"
           style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
         >
           <ChevronUp className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
-          <div className="h-10 w-px bg-zinc-300 dark:bg-white/10" />
+          <div className="w-px flex-1 bg-zinc-300 dark:bg-white/10" />
           <ChevronDown className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
         </div>
       </div>
 
       {/* Laptop-trackpad-style button bar — explicit left/right clicks
           alongside the pad's own tap-to-left-click gesture above. */}
-      <div className="flex h-14 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
+      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
         <button
           type="button"
           onClick={() => click("left")}

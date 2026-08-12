@@ -44,11 +44,10 @@ import {
 import { CreateProjectModal } from "./create-project-modal";
 import { EditExperienceModal } from "./edit-experience-modal";
 import { PageHeader, HEADER_BUTTON } from "@/app/(dashboard)/_components/page-header";
-import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
-import { assignExperience } from "@/actions/screen-actions";
+import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
 
@@ -90,8 +89,6 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
   const router = useRouter();
   const [, startAssign] = React.useTransition();
   const [showPushDialog, setShowPushDialog] = useState(false);
-  const [showControlDialog, setShowControlDialog] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
@@ -117,12 +114,6 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
   );
   const isLive = assignedScreens.length > 0;
   const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
-  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
-  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
-    screenId: s.screenId,
-    screenName: s.screenName,
-    isOnline: activeScreenIds.has(s.screenId),
-  }));
 
   const templateLabel = proj.templateKey
     ? TEMPLATE_LABELS[proj.templateKey as keyof typeof TEMPLATE_LABELS] ?? proj.templateKey
@@ -136,15 +127,16 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
         {...(dragEnabled ? { ...attributes, ...listeners } : {})}
         className={cn("group flex flex-col gap-3 select-none", CARD, dragEnabled && "cursor-grab active:cursor-grabbing")}
       >
-        {/* Preview — click opens the preview + push-to-screen modal. */}
+        {/* Click opens the experience's detail/hub page (status, live screens,
+            quick actions); the ⋮ menu keeps the direct shortcuts. */}
         <div
-          role={proj.templateKey ? "button" : undefined}
-          tabIndex={proj.templateKey ? 0 : undefined}
-          onClick={() => proj.templateKey && setShowPreviewModal(true)}
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push(`/experiences/${proj.id}`)}
           onKeyDown={(e) => {
-            if (proj.templateKey && (e.key === "Enter" || e.key === " ")) {
+            if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setShowPreviewModal(true);
+              router.push(`/experiences/${proj.id}`);
             }
           }}
           className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-[#6d5bc4]/35 bg-[radial-gradient(120%_90%_at_50%_0%,rgba(96,68,200,.28),transparent_60%),linear-gradient(180deg,#14102c_0%,#0b0819_100%)]"
@@ -225,7 +217,11 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
                 {isLive && (
                   <DropdownMenuItem
                     className="cursor-pointer gap-2 py-1"
-                    onSelect={() => setShowControlDialog(true)}
+                    onSelect={() => {
+                      const target =
+                        assignedScreens.find((s) => activeScreenIds.has(s.screenId)) ?? assignedScreens[0];
+                      if (target) router.push(`/experiences/${proj.id}/live/${target.screenId}`);
+                    }}
                   >
                     <Radio className="h-4 w-4" /> Control{isOnline ? " (live)" : " (offline)"}
                   </DropdownMenuItem>
@@ -310,18 +306,6 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
         </div>
       </div>
 
-      {showControlDialog && (
-        <LiveControlDialog
-          experienceName={proj.name}
-          screens={assignedScreens.map((s) => ({
-            screenId: s.screenId,
-            screenName: s.screenName,
-            isOnline: activeScreenIds.has(s.screenId),
-          }))}
-          allScreens={allScreensForControl}
-          onClose={() => setShowControlDialog(false)}
-        />
-      )}
       {showPushDialog && (
         <PushToScreenModal
           contentName={proj.name}
@@ -330,31 +314,14 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
             s.currentContentKind === "experience" && s.currentExperienceId === proj.id
           }
           onClose={() => setShowPushDialog(false)}
-        />
-      )}
-      {/* Card click = preview + push combined. */}
-      {showPreviewModal && (
-        <PushToScreenModal
-          contentName={proj.name}
-          preview={
-            proj.templateKey ? (
-              <iframe
-                key={proj.slug}
-                src={`/preview/experiences/${proj.slug}`}
-                title={proj.name}
-                className="h-full w-full border-0 bg-black"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-                allow="autoplay; encrypted-media; fullscreen"
-              />
-            ) : (
-              <p className="px-8 text-center text-sm text-white/50">No template assigned to this experience.</p>
-            )
-          }
-          onPush={(screenId) => assignExperience(screenId, proj.id)}
-          isAlreadyShowing={(s) =>
-            s.currentContentKind === "experience" && s.currentExperienceId === proj.id
-          }
-          onClose={() => setShowPreviewModal(false)}
+          onControl={(s) => {
+            setShowPushDialog(false);
+            router.push(`/experiences/${proj.id}/live/${s.screenId}`);
+          }}
+          onRemove={async (s) => {
+            await assignMedia(s.screenId, null);
+            router.refresh();
+          }}
         />
       )}
       {showEditModal && (

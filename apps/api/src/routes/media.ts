@@ -3,7 +3,7 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, listPendingMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, listMediaAssetsBySource, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
@@ -47,6 +47,12 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
   presentation: {
     mimes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     exts: [".pptx"],
+  },
+  // Legacy binary .doc is excluded for the same reason — the word viewer
+  // (apps/cms/src/app/display/word) uses mammoth, which only reads .docx.
+  word: {
+    mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    exts: [".docx"],
   },
 };
 
@@ -93,6 +99,7 @@ function getMimeType(filePath: string): string {
     ".xls": "application/vnd.ms-excel",
     ".csv": "text/csv",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     // 3D template assets (see STATIC_ASSET_DIRS below).
     ".glb": "model/gltf-binary",
     ".gltf": "model/gltf+json",
@@ -106,7 +113,7 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets. ?source=gmail filters to just the
+// GET /api/media — list all media assets. ?source=email filters to just the
 // email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
@@ -132,16 +139,16 @@ mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
   }
 });
 
-// GET /api/media/gmail/pending — the temporary review queue: gmail-sourced
-// rows created by a load but not yet saved (see pendingSave). Deliberately a
-// separate admin-only endpoint rather than a query param on GET / above,
-// which stays guest-accessible and must never leak unreviewed rows.
-mediaRouter.get("/gmail/pending", requireAdmin, async (c) => {
+// GET /api/media/gmail/list — all gmail-sourced media (permanent as soon as
+// ingested, same as any other library asset). Deliberately a separate
+// admin-only endpoint rather than a query param on GET / above, which stays
+// guest-accessible.
+mediaRouter.get("/gmail/list", requireAdmin, async (c) => {
   try {
-    const assets = await listPendingMediaAssets("gmail");
+    const assets = await listMediaAssetsBySource("email");
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to list pending email media" }, 500);
+    return c.json({ error: err.message ?? "Failed to list email media" }, 500);
   }
 });
 
@@ -172,6 +179,7 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       url: classified.url,
       name,
       pendingSave,
+      source: "link",
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
@@ -253,6 +261,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
       url: `/media/${storedName}`,
       name: displayName,
       sizeBytes: file.size,
+      source: "upload",
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 

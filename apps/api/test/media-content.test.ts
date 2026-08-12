@@ -7,6 +7,7 @@ import {
   mediaAssetToWsContent,
   normalizeUrl,
   SLIDES_VIEWER_PATH,
+  WORD_VIEWER_PATH,
 } from "@platform/types";
 
 describe("presentation media type", () => {
@@ -31,17 +32,15 @@ describe("presentation media type", () => {
     expect(classified?.name).toBe("Google Slides");
   });
 
-  it("embeds through the local viewer, adding kiosk only for screens", () => {
+  it("embeds through the local viewer — navigation is always manual, no kiosk variant", () => {
     const url = "/media/deck.pptx";
     const encoded = encodeURIComponent(url);
 
     expect(mediaEmbedUrl("presentation", url)).toBe(`${SLIDES_VIEWER_PATH}?src=${encoded}`);
-    expect(mediaEmbedUrl("presentation", url, { kiosk: true })).toBe(
-      `${SLIDES_VIEWER_PATH}?src=${encoded}&kiosk=1`
-    );
+    expect(mediaEmbedUrl("presentation", url, { kiosk: true })).toBe(`${SLIDES_VIEWER_PATH}?src=${encoded}`);
   });
 
-  it("reaches a screen as html pointed at the kiosk viewer", () => {
+  it("reaches a screen as html pointed at the slides viewer", () => {
     const content = mediaAssetToWsContent({
       id: "m1",
       type: "presentation",
@@ -51,7 +50,41 @@ describe("presentation media type", () => {
 
     expect(content.type).toBe("html");
     expect(content.source).toContain(SLIDES_VIEWER_PATH);
-    expect(content.source).toContain("kiosk=1");
+    expect(content.source).not.toContain("kiosk");
+  });
+});
+
+describe("word media type", () => {
+  it("is a recognised media type, and not a link kind", () => {
+    expect(isMediaType("word")).toBe(true);
+    expect(isLinkMediaType("word")).toBe(false);
+  });
+
+  it("classifies a direct .docx link as a word document", () => {
+    const classified = classifyLink("https://example.com/reports/q3-review.docx");
+    expect(classified).toEqual({
+      type: "word",
+      url: "https://example.com/reports/q3-review.docx",
+      name: "q3-review.docx",
+    });
+  });
+
+  it("embeds through the local mammoth-backed viewer", () => {
+    const url = "/media/report.docx";
+    const encoded = encodeURIComponent(url);
+    expect(mediaEmbedUrl("word", url)).toBe(`${WORD_VIEWER_PATH}?src=${encoded}`);
+  });
+
+  it("reaches a screen as html pointed at the viewer", () => {
+    const content = mediaAssetToWsContent({
+      id: "m2",
+      type: "word",
+      url: "/media/report.docx",
+      name: "Report",
+    });
+
+    expect(content.type).toBe("html");
+    expect(content.source).toContain(WORD_VIEWER_PATH);
   });
 });
 

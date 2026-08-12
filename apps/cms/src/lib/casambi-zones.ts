@@ -10,7 +10,7 @@
  * left out of this zone map.
  */
 export const ZONE_DEVICES: Record<string, { uuid: string; deviceId: string }> = {
-  "8 feet Niche Light": { uuid: "c023207e-bbd7-4e79-884b-039b015a0e93", deviceId: "casambi-light-2" },
+  "Niche Light": { uuid: "c023207e-bbd7-4e79-884b-039b015a0e93", deviceId: "casambi-light-2" },
   "Ledge Light": { uuid: "f94beac1-d846-4e77-8787-d0aad1d181af", deviceId: "casambi-light-3" },
 };
 

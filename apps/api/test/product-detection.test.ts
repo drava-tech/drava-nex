@@ -18,8 +18,6 @@ vi.mock("@platform/db", () => ({
   getProductByDetectionLabel,
   getScreenContent,
   setScreenExperience: vi.fn(),
-  verifyApiKey: vi.fn(),
-  scopeSatisfies: vi.fn(),
 }));
 
 // camera-01 → main-screen, camera-02 → screen-2, camera-99 → unmapped.

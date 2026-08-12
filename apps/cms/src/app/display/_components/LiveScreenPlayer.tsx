@@ -85,6 +85,21 @@ export function LiveScreenPlayer({
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
 
+  // "Stop" must actually stop everything (video/audio/animations), not just
+  // hide it behind BlackoutOverlay's black div — a hidden-but-still-mounted
+  // <video> keeps playing its sound underneath. Unmounting ContentRenderer
+  // is the one thing that reliably stops every content type's playback.
+  const [blanked, setBlanked] = useState(false);
+  useEffect(() => {
+    const onBlank = () => setBlanked(true);
+    const onUnblank = () => setBlanked(false);
+    window.addEventListener("screen-blank", onBlank);
+    window.addEventListener("screen-unblank", onUnblank);
+    return () => {
+      window.removeEventListener("screen-blank", onBlank);
+      window.removeEventListener("screen-unblank", onUnblank);
+    };
+  }, []);
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -271,7 +286,7 @@ export function LiveScreenPlayer({
   return (
     <>
       <div key={activeKey} className="screen-content-fade">
-        <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+        {!blanked && <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />}
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />

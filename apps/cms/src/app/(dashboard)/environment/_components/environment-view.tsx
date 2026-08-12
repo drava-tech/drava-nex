@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@platform/ui";
-import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
+// import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
@@ -93,7 +93,7 @@ export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("climate");
   const [isClient, setIsClient] = useState(false);
   const [showColourPanel, setShowColourPanel] = useState(false);
-  const [show3D, setShow3D] = useState(false);
+  // const [show3D, setShow3D] = useState(false);
   const [showRemotes, setShowRemotes] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
 
@@ -711,7 +711,7 @@ export function EnvironmentView() {
   return (
     <div className="w-full h-full flex flex-col gap-6 overflow-hidden font-sans text-foreground pb-2">
 
-      <div className="flex justify-between items-center shrink-0 pt-2 pb-0">
+      {/* <div className="flex justify-between items-center shrink-0 pt-2 pb-0">
         <div>
           <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
           <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
@@ -726,7 +726,7 @@ export function EnvironmentView() {
             3D
           </Button>
         </div>
-      </div>
+      </div> */}
 
       <div
         className="flex-1 w-full grid gap-6 min-h-0"
@@ -875,7 +875,7 @@ export function EnvironmentView() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {show3D && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
@@ -897,7 +897,7 @@ export function EnvironmentView() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
     </div>
   );
 }

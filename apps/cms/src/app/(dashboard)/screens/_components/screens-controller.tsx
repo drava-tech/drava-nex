@@ -226,7 +226,7 @@ export function ScreensController({
               <p className="text-xs text-zinc-400">Add your first screen to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
               {screens.map((screen) => {
                 const hasLiveUpdate = Boolean(liveUpdates[screen.id]);
                 const isAssigned = Boolean(screen.contentLabel);
@@ -241,42 +241,31 @@ export function ScreensController({
                         : "border-zinc-200 dark:border-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-800"
                       }`}
                   >
-                    {/* Header */}
-                    <div className="flex w-full items-start justify-between">
-                      <div className="flex flex-col items-center flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" : "bg-zinc-400"}`} />
-                          <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase">
-                            {isOnline ? "Online" : "Offline"}
+                    {/* Header — name, online indicator, and copy all inline on the
+                        left; delete pushed to the far right. */}
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${isOnline ? "bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" : "bg-zinc-400"}`} />
+                        <h3 className="truncate text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
+                          {screen.name}
+                        </h3>
+                        {hasLiveUpdate && (
+                          <span title="Updated from screen" className="shrink-0">
+                            <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
-                            {screen.name}
-                          </h3>
-                          {hasLiveUpdate && (
-                            <span title="Updated from screen">
-                              <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
-                            </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => copyScreenUrl(screen.id)}
+                          title="Copy display URL"
+                          className="shrink-0 rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200"
+                        >
+                          {copiedId === screen.id ? (
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
                           )}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
-                            {screen.id}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyScreenUrl(screen.id)}
-                            title="Copy display URL"
-                            className="p-0.5 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                          >
-                            {copiedId === screen.id ? (
-                              <Check className="h-3 w-3 text-green-500" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
+                        </button>
                       </div>
                       {isAdmin && (
                         <button

@@ -6,6 +6,8 @@ import {
   deleteScreen,
   setScreenExperience,
   setScreenMedia,
+  setScreenMediaQueue,
+  advanceScreenQueue,
   setScreenDefaultMedia,
   setScreenBlanked,
   setScreenInteractionEnabled,
@@ -13,9 +15,9 @@ import {
   getScreenContent,
   screenExists,
 } from "@platform/db";
-import { requireAdmin, requireGuestOrAdmin, requireApiClient } from "../middleware/auth.js";
+import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -50,7 +52,14 @@ screensRouter.get("/:screenId/config", async (c) => {
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
 export async function pushScreenContent(screenId: string) {
-  const content = await getScreenContent(screenId);
+  let content = await getScreenContent(screenId);
+  if (content?.templateKey === "object-recognition") {
+    // The DB row is never the live source of truth for this template (see
+    // packages/ui/src/templates/object-recognition/content.ts) — a screen
+    // freshly assigned this experience should show current reality, not the
+    // stale/default DB snapshot, if a live detection has already happened.
+    content = getLiveObjectRecognitionContent(screenId) ?? content;
+  }
   if (content) {
     broadcast({ screenId, content, source: "cms" });
     broadcastToCms({ type: "SCREEN_UPDATED", screenId, content, source: "cms" });
@@ -103,6 +112,10 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   // takeover — otherwise a takeover armed before this call keeps that old
   // camera state relevant to a screen the admin just repointed elsewhere.
   clearTakeoverFlag(screenId);
+  // A fresh assignment should actually play, not stay behind a previous
+  // "Stop" — updates the live (already-connected) screen immediately, on
+  // top of the DB write above which covers a later reconnect.
+  setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -121,8 +134,51 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   }
   await setScreenMedia(screenId, body.mediaAssetId);
   clearTakeoverFlag(screenId);
+  setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
+});
+
+const assignMediaQueueSchema = z.object({
+  mediaAssetIds: z.array(z.string().min(1)).min(1),
+  startIndex: z.number().int().min(0).optional(),
+});
+
+// POST /api/screens/:id/media-queue — start (or replace) an ordered
+// multi-item queue: currentMediaAssetId becomes the item at startIndex, same
+// broadcast path as /media — the display side never knows a queue is involved.
+screensRouter.post("/:id/media-queue", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = assignMediaQueueSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  await setScreenMediaQueue(screenId, body.mediaAssetIds, body.startIndex ?? 0);
+  clearTakeoverFlag(screenId);
+  setScreenBlankState(screenId, false);
+  const content = await pushScreenContent(screenId);
+  return ok(c, { screenId, content });
+});
+
+const queueNavigateSchema = z.object({ direction: z.enum(["next", "prev"]) });
+
+// POST /api/screens/:id/queue/navigate — step the active queue one item,
+// clamped at the ends, and broadcast the new current item.
+screensRouter.post("/:id/queue/navigate", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = queueNavigateSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  const result = await advanceScreenQueue(screenId, body.direction);
+  if (!result) return fail(c, "NOT_FOUND", "This screen has no active queue.", 404);
+  clearTakeoverFlag(screenId);
+  const content = await pushScreenContent(screenId);
+  return ok(c, { screenId, content, queueIndex: result.index, queueLength: result.length });
 });
 
 const assignDefaultMediaSchema = z.object({ mediaAssetId: z.string().min(1).nullable() });
@@ -181,11 +237,10 @@ screensRouter.post("/:id/interaction", requireGuestOrAdmin, async (c) => {
 
 const commandSchema = z.object({ command: z.string().min(1), value: z.unknown().optional() });
 
-// POST /api/screens/:id/command — remote command. CMS humans (guest/admin) OR a
-// machine client (Unreal Engine) with the "screens:command" scope.
+// POST /api/screens/:id/command — remote command (CMS humans, guest or admin).
 screensRouter.post(
   "/:id/command",
-  requireApiClient(["screens:command"], { allowGuest: true }),
+  requireGuestOrAdmin,
   async (c) => {
     const screenId = param(c, "id");
     let body;

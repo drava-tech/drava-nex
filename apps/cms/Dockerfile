@@ -8,6 +8,7 @@ WORKDIR /app
 
 # Copy workspace manifests first — Docker caches this layer until a package.json changes
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY patches/                    ./patches/
 COPY packages/config/            ./packages/config/
 COPY apps/cms/package.json       ./apps/cms/
 COPY packages/db/package.json    ./packages/db/

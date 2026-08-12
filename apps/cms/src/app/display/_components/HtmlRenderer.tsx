@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { SLIDES_VIEWER_PATH } from "@platform/types";
 import type { HtmlContent } from "@/types/display";
 
 /**
@@ -10,13 +11,25 @@ import type { HtmlContent } from "@/types/display";
  *
  * The `allow` list matters: a cross-origin embed only gets autoplay if the
  * parent page delegates it, and without that a kiosk YouTube embed just sits on
- * its first frame.
+ * its first frame. `preview` deliberately withholds that delegation — audio
+ * must only ever come out of the real TV, never a CMS-side mirror — which
+ * blocks audible autoplay for any provider uniformly (muted/silent autoplay,
+ * i.e. the visual motion, is still allowed either way).
  *
  * The sandbox grants what an interactive page needs (forms, modals, downloads),
  * because a touch screen showing a web page has to be usable — the same set the
  * CMS preview grants, so what was approved there behaves identically here.
  */
-export function HtmlRenderer({ content }: { content: HtmlContent }) {
+export function HtmlRenderer({
+  content,
+  preview,
+}: {
+  content: HtmlContent;
+  /** True for any CMS-side embed of this screen — never delegate the
+   * autoplay permission here, so an embedded YouTube/Vimeo/SoundCloud/etc.
+   * player can't produce sound in the CMS, only on the real TV. */
+  preview?: boolean;
+}) {
   // Chromium's built-in PDF viewer is a privileged extension that refuses to
   // run inside a sandboxed iframe at all — it shows a hard "This page has
   // been blocked" screen instead of the document. `source` is the only thing
@@ -24,6 +37,15 @@ export function HtmlRenderer({ content }: { content: HtmlContent }) {
   // content model), so detect a raw PDF by its URL shape, matching how
   // mediaEmbedUrl() builds one (`<url ending in .pdf>#view=FitH` etc.).
   const isRawPdf = /\.pdf(#|\?|$)/i.test(content.source);
+
+  // SlidesViewer has no internal scrollbar — it's a ResizeObserver-driven
+  // exact-fit renderer, unlike Sheet/Word/PDF below which genuinely scroll —
+  // so it must NOT get the +20px overhang: an iframe's CSS width is that
+  // document's own viewport width, so the extra 20px gets scaled into the
+  // deck itself and then cropped off the right edge by this page's own
+  // `overflow:hidden` ([screenId]/page.tsx), instead of hiding a scrollbar
+  // that was never going to appear.
+  const isSlides = content.source.startsWith(SLIDES_VIEWER_PATH);
 
   // The display page pins `touch-action: none` on html/body so signage can't be
   // panned or pinch-zoomed by a passer-by. Touch-action is intersected down the
@@ -51,8 +73,16 @@ export function HtmlRenderer({ content }: { content: HtmlContent }) {
       src={content.source}
       style={{
         position: "fixed",
-        inset: 0,
-        width: "100vw",
+        top: 0,
+        left: 0,
+        // A few px wider than the viewport: many pushed pages are taller than
+        // one screen and grow their own native scrollbar, which otherwise
+        // shows up as a bare strip (the iframe's background) on the right
+        // edge. Overhanging the extra width pushes that scrollbar off-screen,
+        // where the display page's own `overflow:hidden` (see html/body style
+        // in [screenId]/page.tsx) clips it away. Skipped for slides — see
+        // `isSlides` above.
+        width: isSlides ? "100vw" : "calc(100vw + 20px)",
         height: "100vh",
         border: "none",
         backgroundColor: "#000",
@@ -62,7 +92,7 @@ export function HtmlRenderer({ content }: { content: HtmlContent }) {
       {...(!isRawPdf && {
         sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation",
       })}
-      allow="autoplay; encrypted-media; fullscreen; clipboard-write"
+      allow={preview ? "encrypted-media; fullscreen; clipboard-write" : "autoplay; encrypted-media; fullscreen; clipboard-write"}
     />
   );
 }

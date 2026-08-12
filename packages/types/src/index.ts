@@ -18,6 +18,7 @@ export const TEMPLATE_KEYS = [
   "live-stream",
   "product-showcase",
   "welcome",
+  "object-recognition",
   "flight-simulation",
   "gallery",
 ] as const;
@@ -248,16 +249,12 @@ export type WsClientMessage =
   | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
   | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
   | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string; confidence?: number; label?: string }
-  // Unreal Engine / external automation subscribes to the event channel. Auth is
-  // an API key, sent here or as a `?apiKey=` query param on the WS URL.
-  | { type: 'UE_REGISTER'; apiKey?: string }
   // Camera detection events
   | import('./products.js').ProductDetectedEvent
   | import('./products.js').ProductLostEvent
   // Native audio bridge (apps/api/audio-helper/bridge.mjs) registers itself.
   // Auth is a shared secret (BROADCAST_SECRET), matching the internal.ts
-  // machine-to-machine trust pattern — not the API-key/scope system (that's
-  // for third-party UE automation; this is a single first-party helper).
+  // machine-to-machine trust pattern.
   | { type: 'AUDIO_BRIDGE_REGISTER'; secret: string }
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
@@ -285,19 +282,6 @@ export type WsClientMessage =
       button?: 'left' | 'right';
     };
 
-/**
- * Events the gateway pushes to subscribed Unreal Engine / automation clients
- * (see WsClientMessage 'UE_REGISTER'). A superset is intentional: UE can ignore
- * event types it doesn't care about.
- */
-export type WsUeEvent =
-  | { type: 'UE_REGISTER_ACK' }
-  | { type: 'UE_REGISTER_NACK'; reason: string }
-  | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
-  | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
-  | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
-  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number };
-
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
   | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
@@ -307,6 +291,10 @@ export type WsCmsMessage =
   // internal event relay (POST /api/internal/vision-event). `name` may be ""
   // (the CMS already has it from the initial GET /api/visitors load).
   | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
+  // Full current mat contents, resolved to catalogue products. Emitted by
+  // services/vision's OBJECT worker via the internal event relay (POST
+  // /api/internal/vision-event) — drives live admin-facing mat-contents views.
+  | { type: 'INVENTORY_UPDATE'; cameraId: string; screenId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number }
   // Door lock state changed (manual toggle via the CMS) — drives the live
   // Door Lock panel. Emitted directly from apps/api/src/routes/door-events.ts.
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }

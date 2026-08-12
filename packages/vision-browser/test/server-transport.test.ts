@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ServerDetectionClient, type ServerDetectionResponse } from "../src/server-transport.js";
 
 /**
- * Wire contract with services/vision/object_detection/server/ws.py:
+ * Wire contract with services/product-vision/src/server/ws.py:
  *   client → server  [type:1B = 0x01][frameId:8B uint64 LE][JPEG bytes]
  *   server → client  JSON `ready` | `detections` | `error`
  *

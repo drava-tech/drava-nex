@@ -7,7 +7,8 @@ import { SlidesViewer } from "./_components/SlidesViewer";
  * than through a hosted Office/Google viewer, which would need the file to be
  * reachable from the public internet — a signage server on a LAN isn't.
  *
- * With `&kiosk=1` the controls are hidden and the deck advances on its own.
+ * Navigation is manual only (prev/next overlay + arrow keys) — the deck never
+ * advances on its own.
  */
 export default function SlidesPage() {
   return (

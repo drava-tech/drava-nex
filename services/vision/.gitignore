@@ -1,8 +1,11 @@
 .env
+*.log
 .venv/
-# Object detection installs its own venvs (server deps and the GPU-free test
-# deps) — never shared with the face pipeline's, see object_detection/README.md.
+# Object detection (mat product detector) installs its own venv — never
+# shared with the face pipeline's (separate CUDA/cuDNN stacks), see README.md.
 .venv-test/
+.venv-object/
+cms_env/
 __pycache__/
 *.pyc
 data/
