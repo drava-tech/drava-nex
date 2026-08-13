@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   DEFAULT_GALLERY_CONTENT,
@@ -25,6 +25,36 @@ import {
 const TRANSITION = "560ms cubic-bezier(0.22, 0.61, 0.36, 1)";
 /** The rearrange is slightly quicker than the width slide so it lands first. */
 const FAST = "420ms cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+/**
+ * Type taken from the site's own heading and body setup rather than fixed px,
+ * so the template matches it at whatever width it is rendered:
+ *
+ *   heading      text-3xl sm:text-2xl md:text-[32px] lg:text-[2.5rem]
+ *                font-extralight tracking-tight scale-x-110 origin-left
+ *                leading-none max-w-[90%]
+ *   description  text-xs xl:text-sm leading-[1.2] opacity-90
+ *
+ * `cqi` is the text column's own inline size, so both scale with the column
+ * instead of with a number someone typed. The figures are those rem sizes as a
+ * share of that column at the authored 1920 layout, where it measures ~570px:
+ * 40/570 ≈ 7%, 14/570 ≈ 2.45%. The clamp bounds are the reference's own — its
+ * smallest step at one end, the size it settles on from lg up at the other.
+ */
+const TITLE_SIZE = "clamp(1.5rem, 7cqi, 2.5rem)";
+const TITLE_WEIGHT = 200;
+const TITLE_TRACKING = "-0.025em";
+/** leading-none / leading-[1.2] — the line spacing has to match exactly. */
+const TITLE_LEADING = 1;
+const DESCRIPTION_LEADING = 1.2;
+/** The description's half of the same rule, in JS — see useFitFontSize. */
+const DESCRIPTION_CQI = 0.0245;
+const DESCRIPTION_MIN_PX = 12; // text-xs
+const DESCRIPTION_MAX_PX = 14; // text-sm
+
+/** Measuring has to happen before the browser paints; on the server there is no
+ *  layout to measure and useLayoutEffect would warn. */
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** The slots beside an expanded photo: every other photo, in its natural order. */
 const railFor = (expandedIndex: number) =>
@@ -164,6 +194,30 @@ export function GalleryView({
   const isOpen = expanded !== null;
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
 
+  // The editor's px controls stay meaningful as a multiplier on the reference
+  // size — nudging the type up or down — rather than as an absolute that
+  // ignores how much room the column actually has.
+  const titleScale = titleSize / DEFAULT_TITLE_FONT_SIZE;
+  const descriptionScale = descriptionSize / DEFAULT_DESCRIPTION_FONT_SIZE;
+
+  // Sized off the column, then shrunk further if the copy still doesn't fit the
+  // room the heading leaves.
+  const [descriptionRef, fittedDescriptionSize] = useFitFontSize(descriptionScale, [
+    page.description,
+    page.title,
+    page.subtitle,
+    descriptionSize,
+    titleSize,
+    subtitleSize,
+    gap,
+    padding,
+    topInset,
+    showPager,
+    pager?.count,
+    showLinks,
+    links?.length,
+  ]);
+
   /**
    * Every change to what's open goes through here, and every one a person made
    * is broadcast — a photo opened on a control tablet has to open on the wall
@@ -221,10 +275,15 @@ export function GalleryView({
           margin: 0,
           // The rail is narrow — step the title down so it still fits on a
           // line or two instead of wrapping into a wall of text.
-          fontSize: railMode ? Math.round(titleSize * 0.62) : titleSize,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1.05,
+          fontSize: `calc(${TITLE_SIZE} * ${(railMode ? 0.62 : 1) * titleScale})`,
+          fontWeight: TITLE_WEIGHT,
+          letterSpacing: TITLE_TRACKING,
+          lineHeight: TITLE_LEADING,
+          // scale-x-110 origin-left, over max-w-[90%] — the widening is part of
+          // the face, not a size, so it survives every step of the clamp.
+          maxWidth: "90%",
+          transform: "scaleX(1.1)",
+          transformOrigin: "left",
           transition: `font-size ${FAST}`,
         }}
       >
@@ -286,7 +345,12 @@ export function GalleryView({
             // shared vertical line is what makes the layout read as a grid.
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gridTemplateRows: "56fr 44fr",
+            // The nav row is `auto` — it takes only the height it needs, and
+            // the photos split whatever is left in the same 56/44 ratio as
+            // before. Spanning all three columns rather than sitting under the
+            // text keeps every photo's bottom edge on one line; a column-1-only
+            // row would leave photos 2 and 3 hanging past photo 1.
+            gridTemplateRows: showPager || showLinks ? "56fr 44fr auto" : "56fr 44fr",
             gap,
             opacity: isOpen ? 0 : 1,
             // Leaves quickly so the grid isn't seen squashing into the rail.
@@ -305,19 +369,26 @@ export function GalleryView({
               justifyContent: "flex-start",
               overflow: "hidden",
               paddingTop: topInset,
+              // What `cqi` in TITLE_SIZE resolves against: this column, not the
+              // viewport. Safe here because the column's width comes from the
+              // grid track, never from what's inside it.
+              containerType: "inline-size",
             }}
           >
             {heading(false)}
             {page.description ? (
               <p
+                ref={descriptionRef}
                 style={{
                   margin: `${gap}px 0 0`,
-                  fontSize: descriptionSize,
+                  fontSize: fittedDescriptionSize,
                   fontWeight: 400,
-                  lineHeight: 1.5,
-                  opacity: 0.85,
-                  // Allowed to shrink so a long paragraph clips itself rather
-                  // than shoving the link row out of the bottom of the cell.
+                  lineHeight: DESCRIPTION_LEADING,
+                  opacity: 0.9,
+                  // Takes the whole of the cell the heading doesn't want, which
+                  // is what useFitFontSize measures against. Still clips, but
+                  // only once the type has shrunk as far as it is allowed to.
+                  flex: "1 1 0",
                   minHeight: 0,
                   overflow: "hidden",
                 }}
@@ -325,69 +396,73 @@ export function GalleryView({
                 {page.description}
               </p>
             ) : null}
-
-            {showPager || showLinks ? (
-              <div
-                style={{
-                  // Both rows pinned to the foot of the cell rather than
-                  // trailing the paragraph, so they land in the same place on
-                  // every page regardless of how much copy sits above them.
-                  marginTop: "auto",
-                  paddingTop: gap,
-                  flexShrink: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: Math.round(gap * 0.5),
-                }}
-              >
-                {showPager ? (
-                  <PagerControl pager={pager!} size={linkSize} gap={Math.round(gap * 0.4)} />
-                ) : null}
-
-                {showLinks ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: Math.round(gap * 0.4),
-                    }}
-                  >
-                    {links!.map((link, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={link.onSelect}
-                        style={{
-                          appearance: "none",
-                          margin: 0,
-                          padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
-                          borderRadius: 999,
-                          // currentColor, not a fixed shade: the background and
-                          // text colour are both editable, and anything
-                          // hardcoded would disappear against one of the two.
-                          border: "1px solid currentColor",
-                          backgroundColor: "transparent",
-                          color: "inherit",
-                          fontFamily: "inherit",
-                          fontSize: linkSize,
-                          fontWeight: 700,
-                          letterSpacing: "0.04em",
-                          lineHeight: 1,
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                          // Secondary to the copy above it — same way the
-                          // description sits at 0.85 under the title.
-                          opacity: 0.75,
-                        }}
-                      >
-                        {link.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
+
+          {showPager || showLinks ? (
+            <div
+              style={{
+                // Its own row at the foot of the layout, under the photos —
+                // not trailing the paragraph — so it lands in the same place on
+                // every page regardless of how much copy sits above it.
+                gridColumn: "1 / 4",
+                gridRow: "3 / 4",
+                minWidth: 0,
+                paddingTop: Math.round(gap * 0.5),
+                display: "flex",
+                flexDirection: "column",
+                gap: Math.round(gap * 0.5),
+                // Centred across the full width rather than tucked under the
+                // text column, so it reads as the layout's own footer.
+                alignItems: "center",
+              }}
+            >
+              {showPager ? (
+                <PagerControl pager={pager!} size={linkSize} gap={Math.round(gap * 0.4)} />
+              ) : null}
+
+              {showLinks ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: Math.round(gap * 0.4),
+                  }}
+                >
+                  {links!.map((link, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={link.onSelect}
+                      style={{
+                        appearance: "none",
+                        margin: 0,
+                        padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
+                        borderRadius: 999,
+                        // currentColor, not a fixed shade: the background and
+                        // text colour are both editable, and anything
+                        // hardcoded would disappear against one of the two.
+                        border: "1px solid currentColor",
+                        backgroundColor: "transparent",
+                        color: "inherit",
+                        fontFamily: "inherit",
+                        fontSize: linkSize,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        lineHeight: 1,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        // Secondary to the copy above it — same way the
+                        // description sits at 0.85 under the title.
+                        opacity: 0.75,
+                      }}
+                    >
+                      {link.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <PhotoCell
             photo={photos[0]}
@@ -425,7 +500,16 @@ export function GalleryView({
             pointerEvents: isOpen ? "auto" : "none",
           }}
         >
-          <div style={{ flexShrink: 0, overflow: "hidden", paddingTop: topInset }}>
+          {/* Its own container, or `cqi` here would fall back to the viewport —
+              the rail is a sibling of the grid, not a child of its text cell. */}
+          <div
+            style={{
+              flexShrink: 0,
+              overflow: "hidden",
+              paddingTop: topInset,
+              containerType: "inline-size",
+            }}
+          >
             {heading(true)}
           </div>
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap }}>
@@ -495,6 +579,82 @@ export function GalleryView({
       </div>
     </div>
   );
+}
+
+/**
+ * The largest font size at which the text still fits its box, never above `max`.
+ *
+ * The description's slot is whatever height the title, the subtitle, the pager
+ * and the link row leave behind — it changes page to page — so one authored
+ * size either clips the copy or strands empty space under it. CSS has no "fit
+ * this paragraph in that space", so measure it.
+ *
+ * A binary search rather than scaling by the overflow ratio: line wrapping
+ * makes height a staircase, not a line, so a proportional guess overshoots.
+ * Roughly five reflows of one small paragraph, and only when the copy or the
+ * type scale actually changes.
+ *
+ * The authored size stays the ceiling. The editor's control still means what it
+ * says — it just stops being a promise the layout can't keep.
+ */
+function useFitFontSize(scale: number, deps: unknown[]) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [size, setSize] = useState(DESCRIPTION_MAX_PX);
+
+  useIsoLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // clamp(0.75rem, 2.45cqi, 0.875rem) worked out here rather than in CSS: the
+    // search below has to own font-size to probe with, and a CSS rule and an
+    // imperative override on the same property fight each other. Same formula,
+    // same result, measured off the column the paragraph actually got.
+    const max = Math.round(
+      clamp(el.clientWidth * DESCRIPTION_CQI, DESCRIPTION_MIN_PX, DESCRIPTION_MAX_PX) * scale
+    );
+    // Below this it stops being readable across a room, and clipping is the
+    // better failure — the same trade the reference makes by not going under
+    // text-xs at all.
+    const min = Math.max(9, Math.round(max * 0.6));
+    const best = largestFitting(min, max, (px) => {
+      el.style.fontSize = `${px}px`;
+      // The box is flex-sized to the space left over, and clips; overflowing it
+      // is exactly what "too big" means here.
+      return el.scrollHeight <= el.clientHeight;
+    });
+    // Left applied rather than cleared, so nothing paints at the probe size
+    // between here and the re-render that makes it React's value again.
+    el.style.fontSize = `${best}px`;
+    setSize(best);
+    // Deliberately the content and type scale only, NOT `expanded`: opening a
+    // photo animates this column's width over half a second, and a re-fit
+    // during that would size the paragraph against a box it is only passing
+    // through. The description is hidden while a photo is open anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return [ref, size] as const;
+}
+
+/**
+ * Biggest whole px in [min, max] for which `fits` holds, falling back to `min`
+ * when nothing does. `fits` is assumed monotone — true up to some size, false
+ * above it — which is what makes a measured probe cheap enough to run on a
+ * paragraph. Separated from the DOM so the search itself can be checked.
+ */
+export function largestFitting(min: number, max: number, fits: (px: number) => boolean): number {
+  let lo = min;
+  let hi = max;
+  let best = min;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (fits(mid)) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
 }
 
 /**
