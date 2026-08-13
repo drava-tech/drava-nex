@@ -21,21 +21,9 @@ export function DashboardLayoutClient({
   isAdmin: boolean;
   initialTriggerArmed: boolean;
 }) {
-  // The dark shell and the wider rail belong to the redesigned sidebar, which
-  // survives the dashboard revert. The editor provider does not: origin/master
-  // deleted lib/whiteboard-editor-context.tsx and moved that state into
-  // WhiteboardOverlay itself.
   return (
-    <SidebarProvider
-      className="bg-[#010108] font-['Satoshi',sans-serif]"
-      style={
-        {
-          "--sidebar-width": "22.125rem",
-          "--sidebar-width-icon": "5.5rem",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="floating" />
+    <SidebarProvider>
+      <AppSidebar />
       {/* Bounded to the viewport + overflow-hidden so this is the ONE
           scrolling boundary for the whole dashboard — without this, `<main>`
           has no defined height and just grows with its content, so the

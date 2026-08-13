@@ -44,7 +44,7 @@ export default async function ProjectsPage() {
   }));
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#050310] p-6 font-['Satoshi',sans-serif]">
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <ProjectsList
         projects={projects}
         isAdmin={isAdmin}
