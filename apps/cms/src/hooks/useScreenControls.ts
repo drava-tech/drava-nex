@@ -6,7 +6,6 @@ import {
   assignMedia,
   resetDetection as resetDetectionAction,
   setScreenBlanked,
-  setScreenInteractionEnabled,
   advanceScreenQueue,
 } from "@/actions/screen-actions";
 import type { CameraStatusUpdate } from "@platform/types";
@@ -14,7 +13,6 @@ import type { CameraStatusUpdate } from "@platform/types";
 interface UseScreenControlsOptions {
   screenId: string;
   initialBlanked?: boolean;
-  initialInteractionEnabled?: boolean;
   initialShowTouchpad?: boolean;
   /**
    * Ordered media-asset id list this screen was pushed as part of — enables
@@ -27,8 +25,8 @@ interface UseScreenControlsOptions {
 }
 
 /**
- * Shared live-control state for one screen — blank/resume, interaction lock,
- * reset-detection, reset-to-idle, and (optionally) queue position — backed by
+ * Shared live-control state for one screen — blank/resume, reset-detection,
+ * reset-to-idle, and (optionally) queue position — backed by
  * a single useCmsScreenSync subscription. Extracted out of ScreenControlView
  * so the /screens/:screenId page and the /experiences/.../live/:deviceId page
  * run off one implementation instead of two copies of the same optimistic
@@ -37,7 +35,6 @@ interface UseScreenControlsOptions {
 export function useScreenControls({
   screenId,
   initialBlanked = false,
-  initialInteractionEnabled = true,
   initialShowTouchpad = false,
   queueMediaIds,
   initialQueueIndex = 0,
@@ -50,8 +47,6 @@ export function useScreenControls({
   const [resettingToIdle, setResettingToIdle] = useState(false);
   const [blanked, setBlanked] = useState(initialBlanked);
   const [togglingBlank, setTogglingBlank] = useState(false);
-  const [interactionEnabled, setInteractionEnabled] = useState(initialInteractionEnabled);
-  const [togglingInteraction, setTogglingInteraction] = useState(false);
 
   const [queueIndex, setQueueIndex] = useState(initialQueueIndex);
   const [navigatingQueue, setNavigatingQueue] = useState(false);
@@ -116,20 +111,6 @@ export function useScreenControls({
     }
   };
 
-  const toggleInteraction = async () => {
-    const next = !interactionEnabled;
-    setTogglingInteraction(true);
-    setInteractionEnabled(next);
-    try {
-      await setScreenInteractionEnabled(screenId, next);
-    } catch (err) {
-      console.error("Failed to toggle screen interaction state:", err);
-      setInteractionEnabled(!next);
-    } finally {
-      setTogglingInteraction(false);
-    }
-  };
-
   const navigateQueue = async (direction: "next" | "prev") => {
     if (navigatingQueue) return;
     setNavigatingQueue(true);
@@ -150,9 +131,6 @@ export function useScreenControls({
     blanked,
     togglingBlank,
     toggleBlank,
-    interactionEnabled,
-    togglingInteraction,
-    toggleInteraction,
     resetting,
     resetDetection,
     resettingToIdle,

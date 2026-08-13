@@ -28,7 +28,6 @@ export default async function ScreenControlPage({ params }: PageProps) {
       screenId={screenId}
       screenName={row.screenName}
       initialBlanked={row.blanked}
-      initialInteractionEnabled={row.interactionEnabled}
       initialShowTouchpad={content?.type === "html"}
       changeContent={{
         experiences,

@@ -32,7 +32,6 @@ export default async function LiveExperienceControlPage({ params }: PageProps) {
     .select({
       screenName: screen.screenName,
       blanked: screen.blanked,
-      interactionEnabled: screen.interactionEnabled,
       currentQueueMediaIds: screen.currentQueueMediaIds,
       currentQueueIndex: screen.currentQueueIndex,
     })
@@ -72,7 +71,6 @@ export default async function LiveExperienceControlPage({ params }: PageProps) {
       screenName={screenRow.screenName}
       experiences={experiences}
       initialBlanked={screenRow.blanked}
-      initialInteractionEnabled={screenRow.interactionEnabled}
       initialShowTouchpad={content?.type === "html"}
       initialQueueMediaIds={screenRow.currentQueueMediaIds ?? undefined}
       initialQueueIndex={screenRow.currentQueueIndex ?? undefined}

@@ -62,13 +62,6 @@ export const screen = pgTable(
     // (not just an in-memory WS relay) so a screen that reconnects mid-stop
     // (power cycle, network blip, API restart) comes back up still black.
     blanked: boolean("blanked").notNull().default(false),
-    // Master interactivity switch, pushed live via SCREEN_ENABLE_CONTROLS/
-    // SCREEN_DISABLE_CONTROLS (see gateway.ts's screenInteractionEnabledCache).
-    // Currently unconsumed on the display side — its only renderer
-    // (WebpageRenderer/browser-render) was removed — kept as a live per-screen
-    // flag for a future consumer. Independent of `blanked`: content stays
-    // visible when this is false, it just can't be clicked/scrolled/typed into.
-    interactionEnabled: boolean("interaction_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

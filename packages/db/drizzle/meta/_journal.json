@@ -183,6 +183,13 @@
       "when": 1784020305836,
       "tag": "0025_drop_api_key",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784020305837,
+      "tag": "0026_drop_screen_interaction_enabled",
+      "breakpoints": true
     }
   ]
 }

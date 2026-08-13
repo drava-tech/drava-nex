@@ -8,8 +8,6 @@ import {
   RotateCcw,
   Ban,
   Play,
-  Lock,
-  Unlock,
   ChevronLeft,
   ChevronRight,
   Maximize,
@@ -33,7 +31,6 @@ interface LiveExperienceControlViewProps {
   screenName: string;
   experiences: { id: string; title: string }[];
   initialBlanked?: boolean;
-  initialInteractionEnabled?: boolean;
   initialShowTouchpad?: boolean;
   initialQueueMediaIds?: string[];
   initialQueueIndex?: number;
@@ -56,7 +53,6 @@ export function LiveExperienceControlView({
   screenName,
   experiences,
   initialBlanked = false,
-  initialInteractionEnabled = true,
   initialShowTouchpad = false,
   initialQueueMediaIds,
   initialQueueIndex = 0,
@@ -103,9 +99,6 @@ export function LiveExperienceControlView({
     blanked,
     togglingBlank,
     toggleBlank,
-    interactionEnabled,
-    togglingInteraction,
-    toggleInteraction,
     resetting,
     resetDetection,
     resettingToIdle,
@@ -116,7 +109,6 @@ export function LiveExperienceControlView({
   } = useScreenControls({
     screenId: deviceId,
     initialBlanked,
-    initialInteractionEnabled,
     initialShowTouchpad,
     queueMediaIds: initialQueueMediaIds,
     initialQueueIndex,
@@ -311,13 +303,6 @@ export function LiveExperienceControlView({
 
           {/* Right cluster */}
           <div className="flex items-center gap-1">
-            <DockButton
-              icon={interactionEnabled ? <Unlock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
-              label={togglingInteraction ? "…" : interactionEnabled ? "Controls on" : "Controls off"}
-              onClick={toggleInteraction}
-              disabled={togglingInteraction}
-              tone={interactionEnabled ? "default" : "warning"}
-            />
             <DockButton
               icon={togglingBlank ? <Loader2 className="h-5 w-5 animate-spin" /> : blanked ? <Play className="h-5 w-5" /> : <Ban className="h-5 w-5" />}
               label={togglingBlank ? "…" : blanked ? "Resume" : "Blank"}

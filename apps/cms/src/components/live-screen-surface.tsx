@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, Lock, Unlock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { assignExperience, assignMedia, assignDefaultMedia } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
@@ -15,7 +15,6 @@ interface LiveScreenSurfaceProps {
   screenId: string;
   screenName: string;
   initialBlanked?: boolean;
-  initialInteractionEnabled?: boolean;
   /** When the screen's current content is a page/embed (link, YouTube, Drive,
    * PDF, sheet, deck...), shows the blank OS-cursor touchpad instead of
    * tap-on-mirror — see LiveControlDialog and ScreenTouchpad. */
@@ -46,7 +45,6 @@ export function LiveScreenSurface({
   screenId,
   screenName,
   initialBlanked = false,
-  initialInteractionEnabled = true,
   initialShowTouchpad = false,
   queueMediaIds,
   initialQueueIndex = 0,
@@ -65,9 +63,6 @@ export function LiveScreenSurface({
     blanked,
     togglingBlank,
     toggleBlank,
-    interactionEnabled,
-    togglingInteraction,
-    toggleInteraction,
     resetting,
     resetDetection,
     resettingToIdle,
@@ -78,7 +73,6 @@ export function LiveScreenSurface({
   } = useScreenControls({
     screenId,
     initialBlanked,
-    initialInteractionEnabled,
     initialShowTouchpad,
     queueMediaIds,
     initialQueueIndex,
@@ -196,22 +190,6 @@ export function LiveScreenSurface({
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
-          </button>
-          <button
-            onClick={toggleInteraction}
-            disabled={togglingInteraction}
-            title={
-              interactionEnabled
-                ? "Disable controls — nobody can click/scroll/type into this screen"
-                : "Enable controls — allow touch/click/scroll/type on this screen"
-            }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${interactionEnabled
-              ? "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
-              : "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
-              }`}
-          >
-            {interactionEnabled ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-            {togglingInteraction ? "..." : interactionEnabled ? "Controls On" : "Controls Off"}
           </button>
           {changeContent && (
             <button

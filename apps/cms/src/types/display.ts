@@ -70,5 +70,4 @@ export interface ContentsConfig {
 export interface DisplayConfig {
   screen: Screen;
   content: Content;
-  interactionEnabled: boolean;
 }

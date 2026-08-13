@@ -29,7 +29,6 @@ export default async function MediaLivePage({ params }: PageProps) {
       screenId={deviceId}
       screenName={row.screenName}
       initialBlanked={row.blanked}
-      initialInteractionEnabled={row.interactionEnabled}
       initialShowTouchpad={content?.type === "html"}
       queueMediaIds={row.currentQueueMediaIds ?? undefined}
       initialQueueIndex={row.currentQueueIndex ?? undefined}

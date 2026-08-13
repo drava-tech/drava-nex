@@ -7,7 +7,6 @@ import {
   getScreenWhiteboardState,
   setScreenWhiteboardState,
   getScreenBlanked,
-  getScreenInteractionEnabled,
 } from '@platform/db';
 import {
   isWhiteboardCommand,
@@ -70,13 +69,6 @@ const screenWhiteboardDocument = new Map<string, string>();
 // is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
 // stopped comes back up still black, not showing its assigned content again.
 const screenBlankedCache = new Map<string, boolean>();
-// Master interactivity switch per screen — same survives-a-reconnect need as
-// screenBlankedCache. Pushed to every renderer of this screen (the physical
-// TV or a CMS mirror/popup) via SCREEN_ENABLE_CONTROLS/SCREEN_DISABLE_CONTROLS
-// — currently unconsumed on the display side (no renderer gates on it since
-// WebpageRenderer/browser-render was removed); kept as a live per-screen flag
-// for a future consumer rather than torn out with that removal.
-const screenInteractionEnabledCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
 // Tracks the current mat-inventory takeover per screen (screenId -> detectionLabel -> count),
@@ -184,12 +176,6 @@ export function sendCommandToScreen(screenId: string, command: string, value?: a
 export function setScreenBlankState(screenId: string, blanked: boolean): void {
   screenBlankedCache.set(screenId, blanked);
   sendCommandToScreen(screenId, blanked ? 'SCREEN_BLANK' : 'SCREEN_UNBLANK');
-}
-
-/** Enable/disable interactivity for a screen everywhere it's rendered, live. */
-export function setScreenInteractionState(screenId: string, enabled: boolean): void {
-  screenInteractionEnabledCache.set(screenId, enabled);
-  sendCommandToScreen(screenId, enabled ? 'SCREEN_ENABLE_CONTROLS' : 'SCREEN_DISABLE_CONTROLS');
 }
 
 /** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen right now. */
@@ -718,36 +704,12 @@ export function createGateway(): WebSocketServer {
               .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
           };
 
-          // If controls were disabled for this screen, replay that for the
-          // newly (re)connected client too — same reconnect-resilience need as
-          // blanked. Only the disabled case needs an explicit push (default is
-          // enabled, so a never-toggled screen sends nothing).
-          const replayInteractionState = () => {
-            const cachedEnabled = screenInteractionEnabledCache.get(sid);
-            if (cachedEnabled !== undefined) {
-              if (cachedEnabled === false && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
-              }
-              return;
-            }
-            // Not in memory (e.g. right after an API restart) — fall back to DB.
-            void getScreenInteractionEnabled(sid)
-              .then((enabled) => {
-                screenInteractionEnabledCache.set(sid, enabled);
-                if (!enabled && ws.readyState === WebSocket.OPEN) {
-                  ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
-                }
-              })
-              .catch((err) => console.error('[gateway] Interaction-state lookup failed for', sid, err));
-          };
-
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
             replayViewState();
             replayWhiteboardState();
             replayBlankState();
-            replayInteractionState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
@@ -768,7 +730,6 @@ export function createGateway(): WebSocketServer {
               }
               replayWhiteboardState();
               replayBlankState();
-              replayInteractionState();
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;

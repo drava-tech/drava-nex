@@ -71,7 +71,6 @@ export async function getScreenLiveRow(screenId: string): Promise<
   | {
       screenName: string;
       blanked: boolean;
-      interactionEnabled: boolean;
       defaultMediaAssetId: string | null;
       defaultMediaName: string | null;
       currentQueueMediaIds: string[] | null;
@@ -84,7 +83,6 @@ export async function getScreenLiveRow(screenId: string): Promise<
     .select({
       screenName: screen.screenName,
       blanked: screen.blanked,
-      interactionEnabled: screen.interactionEnabled,
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
       currentQueueMediaIds: screen.currentQueueMediaIds,
@@ -397,23 +395,6 @@ export async function getScreenBlanked(screenId: string): Promise<boolean> {
     .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
     .limit(1);
   return row?.blanked ?? false;
-}
-
-/** Enable/disable click/scroll/type everywhere this screen renders — see `screen.interactionEnabled`. */
-export async function setScreenInteractionEnabled(screenId: string, enabled: boolean): Promise<void> {
-  await db
-    .update(screen)
-    .set({ interactionEnabled: enabled, updatedAt: new Date() })
-    .where(eq(screen.screenId, screenId));
-}
-
-export async function getScreenInteractionEnabled(screenId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ interactionEnabled: screen.interactionEnabled })
-    .from(screen)
-    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
-    .limit(1);
-  return row?.interactionEnabled ?? true;
 }
 
 /**
