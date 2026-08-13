@@ -158,7 +158,12 @@ export function LiveExperienceControlView({
   };
 
   return (
-    <div className="dark relative flex-1 flex flex-col min-h-0 overflow-hidden bg-zinc-950">
+    // h-full, not flex-1 — the parent scroll region (dashboard-layout-client's
+    // overflow-y-auto div) is a plain block container, not a flex container,
+    // so flex-1 here has nothing to grow against and this collapses to
+    // content height, squishing the touchpad into a thin strip. Same fix as
+    // live-screen-surface.tsx.
+    <div className="dark relative h-full flex flex-col min-h-0 overflow-hidden bg-zinc-950">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-black/40 px-4 py-3 backdrop-blur-xl">
         <div className="flex min-w-0 items-center gap-3">

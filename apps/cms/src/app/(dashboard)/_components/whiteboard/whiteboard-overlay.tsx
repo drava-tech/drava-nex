@@ -26,7 +26,7 @@ import {
 import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
 import { LiveControlDialog } from "@/components/live-control-dialog";
-import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
+import { PushToScreenModal } from "@/components/push-to-screen-modal";
 import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
 import {
   applyStrokeStyle,
@@ -54,7 +54,6 @@ import {
 } from "@/lib/whiteboard-protocol";
 import { applyWhiteboardCommand } from "@/lib/whiteboard-sync";
 import { WhiteboardScreenBridge } from "./whiteboard-screen-bridge";
-import { PushWhiteboardDialog } from "./push-whiteboard-dialog";
 
 type Surface = "light" | "dark" | "clear";
 
@@ -72,19 +71,40 @@ const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: strin
   { id: "clear", label: "Annotate the page", icon: Eye, className: "bg-transparent" },
 ];
 
+interface WhiteboardOverlayProps {
+  /**
+   * "overlay" (default): the always-mounted, full-screen popup opened by the
+   * "+" FAB from anywhere in the dashboard — covers the sidebar too.
+   * "embedded": rendered by /whiteboards/[id]/page.tsx as normal page
+   * content instead — no FAB, no popup, the sidebar stays visible because
+   * this is just what's inside the page's own content area. Both variants
+   * are the same component (not a fork) so drawing/push/save behavior can't
+   * drift between them; only sizing and chrome (FAB, close button) differ.
+   */
+  variant?: "overlay" | "embedded";
+  /** embedded only — which saved document to load on mount. */
+  initialDocumentId?: string;
+}
+
 /**
- * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
- * a menu with "Draw" (pick a screen, then control it exactly like an
- * experience — via the same LiveControlDialog + ScreenMirror everything else
- * uses) and "Browse URL" (navigates to the routed /browser tool — paste a
- * link, pick screens, send).
+ * Floating whiteboard + speed dial (variant="overlay"), or an embedded,
+ * sidebar-visible editor for one specific saved document
+ * (variant="embedded", see /whiteboards/[id]/page.tsx). A "+" FAB in the
+ * bottom-right corner opens a menu with "Draw" (pick a screen, then control
+ * it exactly like an experience — via the same LiveControlDialog +
+ * ScreenMirror everything else uses) and "Browse URL" (navigates to the
+ * routed /browser tool — paste a link, pick screens, send); the embedded
+ * variant skips the FAB entirely — it's already a page, not a launcher.
  *
  * Strokes are kept as objects and replayed rather than being flattened into
- * pixels — that's what makes undo and window resizing work at all.
+ * pixels — that's what makes undo and resizing work at all. Canvas sizing
+ * is measured off canvasContainerRef via ResizeObserver rather than
+ * window.innerWidth/innerHeight, so the same drawing math is correct
+ * whether that container is the full viewport (overlay) or just the page's
+ * content area next to the sidebar (embedded).
  */
-export function WhiteboardOverlay() {
+export function WhiteboardOverlay({ variant = "overlay", initialDocumentId }: WhiteboardOverlayProps) {
   const router = useRouter();
-  const { requestedDocumentId, clearRequestedDocument } = useWhiteboardEditor();
   const [open, setOpen] = useState(false);
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
@@ -114,6 +134,13 @@ export function WhiteboardOverlay() {
 
   const boardRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
+  // The canvases' sizing reference — the full viewport for "overlay", just
+  // this component's own box for "embedded". A ref, not state: read
+  // synchronously from pointer handlers that fire far more often than this
+  // component re-renders, always the latest measured size without needing
+  // to be in any callback's dependency array.
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const dimensionsRef = useRef({ width: 0, height: 0 });
   const strokesRef = useRef<Stroke[]>([]);
   /** The operator's own in-progress stroke (painted incrementally as they draw). */
   const currentRef = useRef<Stroke | null>(null);
@@ -159,8 +186,7 @@ export function WhiteboardOverlay() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = dimensionsRef.current;
     for (const stroke of strokesRef.current) drawWhiteboardStroke(ctx, stroke, w, h);
     if (remoteCurrentRef.current) drawWhiteboardStroke(ctx, remoteCurrentRef.current, w, h);
     // Our own in-progress stroke isn't in strokesRef yet — repaint it too so a
@@ -195,36 +221,54 @@ export function WhiteboardOverlay() {
     loadPageIntoActive(0);
   };
 
-  /** Size both layers to the viewport in device pixels, then replay the strokes. */
+  // Whether the local drawing canvas (as opposed to the live LiveControlDialog
+  // panel, or nothing) is the thing on screen right now. "overlay" keeps its
+  // FAB-driven open/close toggle; "embedded" has no such toggle — it's just
+  // the page, showing the canvas whenever there isn't an active live push.
+  const showCanvas = variant === "embedded" ? !pushTarget : open;
+
+  /** Size both layers to canvasContainerRef's current box in device pixels, then replay the strokes. */
   const resizeCanvases = useCallback(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    dimensionsRef.current = { width, height };
     const dpr = window.devicePixelRatio || 1;
     for (const canvas of [boardRef.current, previewRef.current]) {
       if (!canvas) continue;
-      canvas.width = Math.floor(window.innerWidth * dpr);
-      canvas.height = Math.floor(window.innerHeight * dpr);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       canvas.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     redraw();
   }, [redraw]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!showCanvas) return;
+    const container = canvasContainerRef.current;
+    if (!container) return;
     resizeCanvases();
-    window.addEventListener("resize", resizeCanvases);
-    return () => window.removeEventListener("resize", resizeCanvases);
-  }, [open, resizeCanvases]);
+    // ResizeObserver, not a window resize listener — "embedded" can change
+    // size without the window itself resizing (e.g. the sidebar collapsing),
+    // and this covers "overlay" (container === the full viewport) just as well.
+    const ro = new ResizeObserver(() => resizeCanvases());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [showCanvas, resizeCanvases]);
 
-  // Escape closes the board, but only once it's finished a stroke.
+  // Escape closes the board, but only once it's finished a stroke. Overlay only
+  // — "embedded" has nothing modal to dismiss with Escape, it's just the page.
   useEffect(() => {
-    if (!open) return;
+    if (variant !== "overlay" || !open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !currentRef.current) setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [variant, open]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point =>
     normalizedPointFromClient(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
@@ -246,7 +290,8 @@ export function WhiteboardOverlay() {
     // rubber-banded on the preview layer until released.
     if (tool === "pen" || tool === "eraser") {
       const { board } = contexts();
-      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
+      const { width: w, height: h } = dimensionsRef.current;
+      if (board) drawWhiteboardStroke(board, stroke, w, h);
     }
 
     if (pushTarget) {
@@ -264,6 +309,7 @@ export function WhiteboardOverlay() {
     if (!stroke) return;
     const point = pointFromEvent(e);
     const { board, preview } = contexts();
+    const { width: w, height: h } = dimensionsRef.current;
 
     if (stroke.tool === "pen" || stroke.tool === "eraser") {
       const previous = stroke.points[stroke.points.length - 1];
@@ -272,8 +318,8 @@ export function WhiteboardOverlay() {
         board.save();
         applyStrokeStyle(board, stroke);
         board.beginPath();
-        board.moveTo(previous.x * window.innerWidth, previous.y * window.innerHeight);
-        board.lineTo(point.x * window.innerWidth, point.y * window.innerHeight);
+        board.moveTo(previous.x * w, previous.y * h);
+        board.lineTo(point.x * w, point.y * h);
         board.stroke();
         board.restore();
       }
@@ -285,8 +331,8 @@ export function WhiteboardOverlay() {
     stroke.points[1] = point;
     if (preview) {
       // In CSS pixels — the context carries a devicePixelRatio transform.
-      preview.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      drawWhiteboardStroke(preview, stroke, window.innerWidth, window.innerHeight);
+      preview.clearRect(0, 0, w, h);
+      drawWhiteboardStroke(preview, stroke, w, h);
     }
     if (pushTarget) send(WHITEBOARD_STROKE_POINT, { point });
   };
@@ -298,9 +344,10 @@ export function WhiteboardOverlay() {
     e.currentTarget.releasePointerCapture(e.pointerId);
 
     const { board, preview } = contexts();
+    const { width: w, height: h } = dimensionsRef.current;
     if (stroke.tool !== "pen" && stroke.tool !== "eraser") {
-      preview?.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
+      preview?.clearRect(0, 0, w, h);
+      if (board) drawWhiteboardStroke(board, stroke, w, h);
     }
 
     strokesRef.current.push(stroke);
@@ -384,30 +431,28 @@ export function WhiteboardOverlay() {
     }
   };
 
-  // Opening a saved whiteboard from the /whiteboards list (see WhiteboardEditorProvider).
+  /** Check a saved document out of the DB and into the editor. */
+  const loadDocument = useCallback(
+    async (id: string) => {
+      const doc = await getWhiteboardDocument(id);
+      if (!doc) return;
+      const pages = doc.pages as unknown as WhiteboardPageData[];
+      pagesRef.current = pages.length > 0 ? pages : [{ surface: "light", strokes: [] }];
+      setDocumentId(doc.id);
+      setDocumentName(doc.name);
+      setPageIndex(0);
+      loadPageIntoActive(0);
+    },
+    [loadPageIntoActive]
+  );
+
+  // Embedded only — /whiteboards/[id]/page.tsx passes the routed id, loaded
+  // once on mount. (Overlay never lands here with a document to load — the
+  // whiteboards list now routes straight to /whiteboards/<id> instead.)
   useEffect(() => {
-    if (!requestedDocumentId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const doc = await getWhiteboardDocument(requestedDocumentId);
-        if (!cancelled && doc) {
-          const pages = doc.pages as unknown as WhiteboardPageData[];
-          pagesRef.current = pages.length > 0 ? pages : [{ surface: "light", strokes: [] }];
-          setDocumentId(doc.id);
-          setDocumentName(doc.name);
-          setPageIndex(0);
-          loadPageIntoActive(0);
-          setOpen(true);
-        }
-      } finally {
-        clearRequestedDocument();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [requestedDocumentId, clearRequestedDocument, loadPageIntoActive]);
+    if (variant !== "embedded" || !initialDocumentId) return;
+    loadDocument(initialDocumentId);
+  }, [variant, initialDocumentId, loadDocument]);
 
   // --- Live push to a screen -------------------------------------------------
 
@@ -451,6 +496,23 @@ export function WhiteboardOverlay() {
     setShowPushDialog(false);
     setOpen(false);
     setPushTarget({ screenId, screenName, isOnline });
+
+    // Give the live session a real, bookmarkable/refresh-safe /whiteboards/<id>
+    // URL. Auto-saves as "Untitled Whiteboard" first if this board was never
+    // explicitly saved — same as clicking Save would, just without the name
+    // prompt — so pushing always ends up with a real id. Fired after the live
+    // session already started above; a slow save shouldn't delay going live.
+    if (documentId === null) {
+      syncActivePageIntoPages();
+      createWhiteboard(documentName, pagesRef.current)
+        .then((id) => {
+          setDocumentId(id);
+          router.push(`/whiteboards/${id}`);
+        })
+        .catch((err) => console.error("Failed to auto-save whiteboard before going live:", err));
+    } else {
+      router.push(`/whiteboards/${documentId}`);
+    }
   };
 
   const handleSkipPush = () => {
@@ -467,9 +529,14 @@ export function WhiteboardOverlay() {
 
   return (
     <>
-      {/* Drawing surface — local-only sketch (no screen picked, or "Draw without pushing") */}
-      {open && (
-        <div className="fixed inset-0 z-[60]">
+      {/* Drawing surface — local-only sketch (no screen picked, or "Draw without pushing").
+          "overlay" covers the whole viewport including the sidebar; "embedded"
+          is just this page's own content box, sidebar left visible. */}
+      {showCanvas && (
+        <div
+          ref={canvasContainerRef}
+          className={variant === "overlay" ? "fixed inset-0 z-[60]" : "relative h-[calc(100vh-5rem)] w-full overflow-hidden"}
+        >
           <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
           <canvas ref={boardRef} className="absolute inset-0" />
           <canvas
@@ -542,10 +609,14 @@ export function WhiteboardOverlay() {
                   >
                     <Cast className="h-4 w-4" />
                   </ToolbarButton>
-                  <Divider />
-                  <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
-                    <X className="h-4 w-4" />
-                  </ToolbarButton>
+                  {variant === "overlay" && (
+                    <>
+                      <Divider />
+                      <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
+                        <X className="h-4 w-4" />
+                      </ToolbarButton>
+                    </>
+                  )}
                 </>
               }
             />
@@ -610,11 +681,30 @@ export function WhiteboardOverlay() {
       )}
 
       {showPushDialog && (
-        <PushWhiteboardDialog
-          previewDataUrl={previewDataUrl}
+        <PushToScreenModal
+          contentName={previewDataUrl ? "Live Whiteboard" : "New Whiteboard"}
+          subtitle={
+            previewDataUrl
+              ? "Keeps updating live as you keep drawing"
+              : "Pick a screen to replicate your drawing to, live"
+          }
+          preview={
+            previewDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewDataUrl} alt="Whiteboard preview" className="max-h-full max-w-full object-contain" />
+            ) : undefined
+          }
           onClose={() => setShowPushDialog(false)}
-          onSelect={handleSelectPushTarget}
+          // No content to persist upfront — WhiteboardScreenBridge starts the
+          // live session itself (WHITEBOARD_START) once pushTarget is set and
+          // its WS connection comes up. See handleBridgeStatusChange.
+          onPush={async () => {}}
+          onPushed={(pushed) => {
+            const target = pushed[0];
+            if (target) handleSelectPushTarget(target.screenId, target.screenName, target.isOnline);
+          }}
           onSkip={handleSkipPush}
+          skipLabel="Draw without pushing"
         />
       )}
 
@@ -672,8 +762,11 @@ export function WhiteboardOverlay() {
         />
       )}
 
-      {/* Speed-dial FAB — Draw opens the board above, Browse URL navigates to /browser */}
-      {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}
+      {/* Speed-dial FAB — Draw opens the board above, Browse URL navigates to /browser.
+          Overlay only — "embedded" is already the whiteboard, no launcher needed. */}
+      {variant === "overlay" && !open && (
+        <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />
+      )}
     </>
   );
 }

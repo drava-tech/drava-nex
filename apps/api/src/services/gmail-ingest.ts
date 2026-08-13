@@ -4,16 +4,22 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { google, type gmail_v1 } from "googleapis";
 import { createMediaAsset, isMessageIngested, markMessageIngested } from "@platform/db";
-import { classifyLink } from "@platform/types";
 import { UPLOAD_DIR, classifyUpload } from "../routes/media.js";
 
 /**
  * Watches hello@thewhitetusker.com (or whichever mailbox GMAIL_IMPERSONATE_USER
  * names) for emails, on demand — see runGmailLoad(). Each supported attachment
- * (PDF/.pptx, same allowlist as a manual upload) and each recognizable link
- * found in the email body becomes a media_asset with pendingSave: false —
- * immediately a first-class Media Library asset (assignable/playable right
- * away), not a temporary row waiting on a separate "keep" step.
+ * (PDF/.pptx, same allowlist as a manual upload) becomes a media_asset with
+ * pendingSave: false — immediately a first-class Media Library asset
+ * (assignable/playable right away), not a temporary row waiting on a
+ * separate "keep" step.
+ *
+ * Deliberately attachments-only — links found in an email's HTML body are
+ * NOT ingested. An earlier version pulled every `<a href>` in the body,
+ * which in practice meant every unsubscribe link, click-tracking redirect,
+ * account/settings link, and legal/support footer link in an email also
+ * became a "webpage" media asset — a handful of real attachments buried
+ * under dozens of incidental links nobody meant to push to a screen.
  *
  * Read-only (gmail.readonly) — the mailbox itself is never modified. Access
  * control lives entirely in the CMS's own auth on the resulting media_asset
@@ -33,46 +39,6 @@ function flattenAttachmentParts(part: gmail_v1.Schema$MessagePart | undefined): 
   };
   walk(part);
   return result;
-}
-
-/** Every body part (no filename) of a given MIME type, recursing into multipart/*. */
-function flattenBodyParts(part: gmail_v1.Schema$MessagePart | undefined, mimeType: string): gmail_v1.Schema$MessagePart[] {
-  if (!part) return [];
-  const result: gmail_v1.Schema$MessagePart[] = [];
-  const walk = (p: gmail_v1.Schema$MessagePart) => {
-    if (!p.filename && p.mimeType === mimeType && p.body?.data) result.push(p);
-    p.parts?.forEach(walk);
-  };
-  walk(part);
-  return result;
-}
-
-const HREF_RE = /href\s*=\s*"(https?:\/\/[^"]+)"/gi;
-const BARE_URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
-
-/** Distinct http(s) URLs found in an email's body — HTML preferred (anchor
- * targets only, not banner-image src etc.), plain text as a fallback. */
-function extractBodyLinks(payload: gmail_v1.Schema$MessagePart | undefined): string[] {
-  const urls = new Set<string>();
-
-  for (const part of flattenBodyParts(payload, "text/html")) {
-    const html = Buffer.from(part.body!.data!, "base64url").toString("utf-8");
-    for (const match of html.matchAll(HREF_RE)) {
-      const url = match[1];
-      if (url) urls.add(url);
-    }
-  }
-
-  if (urls.size === 0) {
-    for (const part of flattenBodyParts(payload, "text/plain")) {
-      const text = Buffer.from(part.body!.data!, "base64url").toString("utf-8");
-      for (const match of text.matchAll(BARE_URL_RE)) {
-        urls.add(match[0]);
-      }
-    }
-  }
-
-  return Array.from(urls);
 }
 
 function loadServiceAccountCredentials(): { client_email: string; private_key: string } | null {
@@ -129,24 +95,8 @@ async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise
     added++;
   }
 
-  for (const rawUrl of extractBodyLinks(res.data.payload)) {
-    const classified = classifyLink(rawUrl);
-    if (!classified) continue; // not a usable http(s) URL
-
-    await createMediaAsset({
-      type: classified.type,
-      url: classified.url,
-      name: classified.name,
-      source: "email",
-      emailFrom: from ?? null,
-      emailSubject: subject ?? null,
-      pendingSave: false,
-    });
-    added++;
-  }
-
   // Mark processed even if nothing matched, so we don't rescan this message's
-  // attachments/links on a future load.
+  // attachments on a future load.
   await markMessageIngested(messageId);
   return added;
 }

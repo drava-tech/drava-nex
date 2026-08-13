@@ -85,7 +85,12 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
   };
 
   return (
-    <div className="flex flex-1 min-h-0 gap-4 overflow-hidden bg-zinc-100 p-4 dark:bg-black">
+    // h-full, not flex-1 — the parent scroll region (dashboard-layout-client's
+    // overflow-y-auto div) is a plain block container, not a flex container,
+    // so flex-1 here has nothing to grow against and this collapses to
+    // content height, squishing the touchpad into a thin strip. Same fix as
+    // live-screen-surface.tsx.
+    <div className="flex h-full min-h-0 gap-4 overflow-hidden bg-zinc-100 p-4 dark:bg-black">
       {/* Left column — link fields + screen picker */}
       <div className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-[#0f0f0f]">
         <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Browser</h1>
