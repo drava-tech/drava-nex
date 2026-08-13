@@ -409,10 +409,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
         )}
       >
         <span
-          className="block h-[0.5em] overflow-hidden text-6xl font-black leading-none tracking-tighter text-white tabular-nums md:text-7xl"
+          className="block h-[0.6em] overflow-hidden text-6xl font-black leading-none tracking-tighter text-white tabular-nums md:text-7xl"
           aria-hidden
         >
-          {/* Top-aligned so only the lower half of each digit is clipped away */}
+          {/* Top-aligned so it's only the lower 40% of each digit that's cut */}
           <span className="block">{num}</span>
         </span>
         <span
