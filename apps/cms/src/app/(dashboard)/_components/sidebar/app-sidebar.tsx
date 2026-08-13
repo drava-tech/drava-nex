@@ -17,10 +17,12 @@ import {
   Settings2,
   // Globe,
 } from "lucide-react";
+import Image from "next/image";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarHeader,
   SidebarRail,
   SidebarGroup,
   SidebarMenu,
@@ -138,6 +140,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className="h-20 items-center justify-center px-4 py-3 group-data-[collapsible=icon]:hidden">
+        <div className="relative aspect-[2386/859] w-35">
+          <Image src="/Logo.png" alt="Logo" fill className="object-contain" priority sizes="80px" />
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         {isPending ? (
           <SidebarGroup>

@@ -34,6 +34,14 @@ export function DashboardBreadcrumb() {
   segments.forEach((segment, index) => {
     const href = "/" + segments.slice(0, index + 1).join("/");
 
+    // Whiteboards' live push route (/whiteboards/<id>/live/<deviceId>) is
+    // the same board, just currently pushed to a screen — keep the trail
+    // identical to /whiteboards/<id> instead of tacking on raw
+    // "Live"/<deviceId> segments.
+    if (segments[0] === "whiteboards" && segments[2] === "live" && index >= 2) {
+      return;
+    }
+
     if (segment === "projects") {
       breadcrumbs.push({ label: "Experiences", href });
       return;

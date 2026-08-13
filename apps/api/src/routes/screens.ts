@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { IDLE_WS_CONTENT } from "@platform/types";
 import {
   listScreens,
   createScreen,
@@ -17,7 +18,7 @@ import {
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, setScreenInteractionState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent, setScreenWhiteboardDocument, getActiveWhiteboardDocuments, stopScreenWhiteboard } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -34,9 +35,12 @@ screensRouter.get("/", async (c) => {
   return c.json({ screens: await listScreens() });
 });
 
-// GET /api/screens/active — currently-connected screen ids
+// GET /api/screens/active — currently-connected screen ids, plus which
+// screens have a saved whiteboard being live-pushed to them right now (see
+// setScreenWhiteboardDocument) so the /screens list's "Control" button can
+// redirect straight into that same live session.
 screensRouter.get("/active", (c) => {
-  return c.json({ activeScreenIds: getConnectedScreenIds() });
+  return c.json({ activeScreenIds: getConnectedScreenIds(), activeWhiteboards: getActiveWhiteboardDocuments() });
 });
 
 // GET /api/screens/:screenId/config — DB-authoritative content (sync on connect/reload)
@@ -60,10 +64,12 @@ export async function pushScreenContent(screenId: string) {
     // stale/default DB snapshot, if a live detection has already happened.
     content = getLiveObjectRecognitionContent(screenId) ?? content;
   }
-  if (content) {
-    broadcast({ screenId, content, source: "cms" });
-    broadcastToCms({ type: "SCREEN_UPDATED", screenId, content, source: "cms" });
-  }
+  // Nothing assigned (and no default media) — still broadcast so an
+  // already-connected screen actually drops to the idle logo live, instead of
+  // silently keeping whatever it was last showing until its next reconnect.
+  const outgoing = content ?? IDLE_WS_CONTENT;
+  broadcast({ screenId, content: outgoing, source: "cms" });
+  broadcastToCms({ type: "SCREEN_UPDATED", screenId, content: outgoing, source: "cms" });
   return content ?? null;
 }
 
@@ -135,6 +141,11 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   await setScreenMedia(screenId, body.mediaAssetId);
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
+  // Reset to idle (null) is meant as a full clean reset — stop a lingering
+  // whiteboard overlay too, or it stays layered on top of the idle screen.
+  // A normal media assignment leaves it running (annotate-over-content stays
+  // intentional there).
+  if (body.mediaAssetId === null) stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -233,6 +244,25 @@ screensRouter.post("/:id/interaction", requireGuestOrAdmin, async (c) => {
   await setScreenInteractionEnabled(screenId, body.enabled);
   setScreenInteractionState(screenId, body.enabled);
   return ok(c, { screenId, interactionEnabled: body.enabled });
+});
+
+const whiteboardSessionSchema = z.object({ documentId: z.string().min(1).nullable() });
+
+// POST /api/screens/:id/whiteboard-session — record (or clear, with null)
+// which saved whiteboard a CMS operator is live-pushing to this screen.
+// In-memory only (see getActiveWhiteboardDocuments) — called by
+// /whiteboards/[id]/live/[deviceId] on start/stop, read by the /screens
+// list's "Control" button to redirect back into the same live session.
+screensRouter.post("/:id/whiteboard-session", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "id");
+  let body;
+  try {
+    body = whiteboardSessionSchema.parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+  setScreenWhiteboardDocument(screenId, body.documentId);
+  return ok(c, { screenId, documentId: body.documentId });
 });
 
 const commandSchema = z.object({ command: z.string().min(1), value: z.unknown().optional() });

@@ -177,6 +177,13 @@ export interface WsContent {
   templateContent?: Record<string, unknown>;
 }
 
+/** Sentinel content for a screen with nothing assigned (and no default media) — renders the idle logo screen instead of playing anything. */
+export const IDLE_WS_CONTENT: WsContent = {
+  id: "__idle__",
+  type: "image",
+  source: "",
+};
+
 export interface AudioStatus {
   volume: number;
   muted: boolean;

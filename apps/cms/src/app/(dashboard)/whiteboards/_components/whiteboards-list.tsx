@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { PenTool, Trash2, Loader2 } from "lucide-react";
+import { PenTool, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@platform/ui";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
@@ -16,9 +16,11 @@ interface WhiteboardListItem {
 export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<WhiteboardListItem | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = (id: string) => {
+    setConfirmTarget(null);
     setDeletingId(id);
     startTransition(async () => {
       await deleteWhiteboard(id);
@@ -82,7 +84,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
                     <TableCell className="text-right">
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => setConfirmTarget(item)}
                         disabled={isPending && deletingId === item.id}
                         aria-label={`Delete ${item.name}`}
                         className="inline-flex p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
@@ -101,6 +103,50 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
           </div>
         )}
       </div>
+
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setConfirmTarget(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f0f0f]"
+          >
+            <div className="flex items-start gap-3 p-5">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  Delete &quot;{confirmTarget.name}&quot;?
+                </h2>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  This can&apos;t be undone — all {confirmTarget.pageCount} page
+                  {confirmTarget.pageCount === 1 ? "" : "s"} will be permanently removed.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => setConfirmTarget(null)}
+                className="h-9 rounded-full px-4 text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(confirmTarget.id)}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-red-600 px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

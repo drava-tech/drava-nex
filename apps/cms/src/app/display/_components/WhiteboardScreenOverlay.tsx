@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Circle, Eraser, Minus, Pencil, Square, Trash2, Undo2, X } from "lucide-react";
+import { Circle, Eraser, Eye, Minus, Moon, Palette, Pencil, Square, Sun, Trash2, Undo2, X } from "lucide-react";
 import { cn } from "@platform/ui";
 import {
   drawWhiteboardStroke,
   normalizedPointFromClient,
   whiteboardSurfaceClassName,
+  WHITEBOARD_COLORS,
   WHITEBOARD_WIDTHS,
   type WhiteboardPoint,
   type WhiteboardStroke,
+  type WhiteboardSurface,
   type WhiteboardTool,
 } from "@/lib/whiteboard-canvas";
 import {
@@ -31,6 +33,13 @@ const TOOLS: { id: WhiteboardTool; label: string; icon: typeof Pencil }[] = [
   { id: "line", label: "Line", icon: Minus },
   { id: "rect", label: "Rectangle", icon: Square },
   { id: "circle", label: "Ellipse", icon: Circle },
+];
+
+/** Same three surfaces, same order, as the CMS toolbar's SURFACES. */
+const SURFACES: { id: WhiteboardSurface; label: string; icon: typeof Sun }[] = [
+  { id: "light", label: "White board", icon: Sun },
+  { id: "dark", label: "Dark board", icon: Moon },
+  { id: "clear", label: "Annotate the page", icon: Eye },
 ];
 
 /** Default style for strokes drawn by touching the TV directly, until the CMS toolbar (WHITEBOARD_SET_STYLE) says otherwise. */
@@ -67,6 +76,7 @@ export function WhiteboardScreenOverlay({ sendInteraction }: WhiteboardScreenOve
   const [localTool, setLocalTool] = useState<WhiteboardTool>(DEFAULT_STYLE.tool);
   const [localColor, setLocalColor] = useState(DEFAULT_STYLE.color);
   const [localWidth, setLocalWidth] = useState(DEFAULT_STYLE.width);
+  const [showColors, setShowColors] = useState(false);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -218,7 +228,16 @@ export function WhiteboardScreenOverlay({ sendInteraction }: WhiteboardScreenOve
 
   const selectColor = (c: string) => {
     setLocalColor(c);
+    setShowColors(false);
     if (localTool === "eraser") setLocalTool("pen");
+  };
+
+  const handleLocalSurfaceToggle = () => {
+    const index = SURFACES.findIndex((s) => s.id === surface);
+    const next = SURFACES[(index + 1) % SURFACES.length]!.id;
+    stateRef.current = { ...stateRef.current, surface: next };
+    setSurface(next);
+    send(WHITEBOARD_SURFACE, { surface: next });
   };
 
   const handleLocalUndo = () => {
@@ -267,18 +286,48 @@ export function WhiteboardScreenOverlay({ sendInteraction }: WhiteboardScreenOve
 
           <span className="mx-1 h-8 w-px shrink-0 bg-white/15" />
 
-          <label
-            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 ring-white/20 hover:scale-110 transition-transform"
-            style={{ backgroundColor: localColor }}
-            title="Colour"
-          >
-            <input
-              type="color"
-              value={localColor}
-              onChange={(e) => selectColor(e.target.value)}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            />
-          </label>
+          {/* Same swatch popup as the CMS toolbar, not a bare native colour
+              input — same WHITEBOARD_COLORS palette either side. */}
+          <div className="relative">
+            <TvToolbarButton label="Colour" active={showColors} onClick={() => setShowColors((v) => !v)}>
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <Palette className="h-5 w-5" />
+                <span
+                  className="absolute -bottom-1.5 h-1 w-5 rounded-full ring-1 ring-white/30"
+                  style={{ backgroundColor: localColor }}
+                />
+              </span>
+            </TvToolbarButton>
+
+            {showColors && (
+              <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/10 bg-black/80 p-2 shadow-xl backdrop-blur-xl">
+                {WHITEBOARD_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => selectColor(c)}
+                    aria-label={`Colour ${c}`}
+                    className={cn(
+                      "h-7 w-7 shrink-0 rounded-full ring-1 ring-white/20 transition-transform hover:scale-110",
+                      localColor === c && "ring-2 ring-blue-500 ring-offset-2 ring-offset-black"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+                <label
+                  className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 ring-white/20"
+                  style={{ background: "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)" }}
+                  title="Custom colour"
+                >
+                  <input
+                    type="color"
+                    value={localColor}
+                    onChange={(e) => selectColor(e.target.value)}
+                    className="h-0 w-0 opacity-0"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
 
           <span className="mx-1 h-8 w-px shrink-0 bg-white/15" />
 
@@ -289,6 +338,16 @@ export function WhiteboardScreenOverlay({ sendInteraction }: WhiteboardScreenOve
           ))}
 
           <span className="mx-1 h-8 w-px shrink-0 bg-white/15" />
+
+          <TvToolbarButton
+            label={`Board: ${SURFACES.find((s) => s.id === surface)?.label ?? "White board"}`}
+            onClick={handleLocalSurfaceToggle}
+          >
+            {(() => {
+              const ActiveIcon = SURFACES.find((s) => s.id === surface)?.icon ?? Sun;
+              return <ActiveIcon className="h-5 w-5" />;
+            })()}
+          </TvToolbarButton>
 
           <TvToolbarButton label="Undo" onClick={handleLocalUndo} disabled={strokeCount === 0}>
             <Undo2 className="h-5 w-5" />

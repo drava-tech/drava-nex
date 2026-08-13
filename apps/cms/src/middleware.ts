@@ -22,7 +22,10 @@ export function middleware(request: NextRequest) {
     // assets 307 to /login and templates render empty.
     pathname.startsWith("/media/") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    // Logo shown on the unauthenticated /display kiosk idle screen — must be
+    // public for the same reason /media/ is (see comment above).
+    pathname === "/Logo.png"
   ) {
     return NextResponse.next();
   }

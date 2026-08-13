@@ -13,15 +13,17 @@ export function IdleDisplay({ screenId }: IdleDisplayProps) {
         width: "100vw",
         height: "100vh",
         backgroundColor: "#000",
-        gap: "12px",
+        gap: "24px",
       }}
     >
-      <span
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/Logo.png"
+        alt="Logo"
         style={{
-          display: "block",
-          width: "32px",
-          height: "1px",
-          backgroundColor: "rgba(255,255,255,0.15)",
+          maxWidth: "30vw",
+          maxHeight: "30vh",
+          objectFit: "contain",
         }}
       />
       <p

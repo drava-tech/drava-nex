@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
@@ -15,6 +16,7 @@ import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
 import { BlackoutOverlay } from "./BlackoutOverlay";
 import { FiveTapCorner } from "./FiveTapCorner";
+import { IdleDisplay } from "./IdleDisplay";
 import {
   WHITEBOARD_START,
   WHITEBOARD_STOP,
@@ -35,15 +37,6 @@ interface LiveScreenPlayerProps {
   /** Registers as a preview mirror (CMS embed): excluded from the online count. */
   preview?: boolean;
 }
-
-// Sentinel used when screen has no content assigned yet
-const IDLE_WS_CONTENT: WsContent = {
-  id: "__idle__",
-  type: "video",
-  source: "/media/4k_render_intro_animation_0003.mp4",
-  loop: true,
-  muted: true,
-};
 
 function toWsContent(c: Content): WsContent {
   const base = { id: c.id, type: c.type as WsContent["type"], source: (c as { source?: string }).source ?? "" };
@@ -286,7 +279,13 @@ export function LiveScreenPlayer({
   return (
     <>
       <div key={activeKey} className="screen-content-fade">
-        {!blanked && <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />}
+        {!blanked && (
+          activeContent.id === "__idle__" ? (
+            <IdleDisplay screenId={screenId} />
+          ) : (
+            <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+          )
+        )}
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />

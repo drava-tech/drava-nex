@@ -37,6 +37,8 @@ interface ScreensControllerProps {
   isAdmin: boolean;
   experiences: { id: string; title: string }[];
   initialActiveScreenIds?: string[];
+  /** screenId -> whiteboard_document id, for screens currently live-pushing a saved whiteboard. */
+  activeWhiteboards?: Record<string, string>;
 }
 
 /** Derive the controller's display content from a screen row's content reference. */
@@ -69,6 +71,7 @@ export function ScreensController({
   isAdmin,
   experiences,
   initialActiveScreenIds = [],
+  activeWhiteboards = {},
 }: ScreensControllerProps) {
   const router = useRouter();
 
@@ -120,8 +123,18 @@ export function ScreensController({
     setTimeout(() => setCopiedId((current) => (current === screenId ? null : current)), 2000);
   };
 
-  // Open the full-page control view for a screen (Dashboard / Screens / <id>).
-  const openControl = (screenId: string) => router.push(`/screens/${encodeURIComponent(screenId)}`);
+  // Open the full-page control view for a screen — its own live whiteboard
+  // session (Dashboard / Whiteboards / <id> / Live / <id>) if one is
+  // currently being pushed there, otherwise the generic per-screen control
+  // view (Dashboard / Screens / <id>).
+  const openControl = (screenId: string) => {
+    const whiteboardId = activeWhiteboards[screenId];
+    if (whiteboardId) {
+      router.push(`/whiteboards/${encodeURIComponent(whiteboardId)}/live/${encodeURIComponent(screenId)}`);
+    } else {
+      router.push(`/screens/${encodeURIComponent(screenId)}`);
+    }
+  };
   const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
 

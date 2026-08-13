@@ -74,6 +74,36 @@ export async function getActiveScreens(): Promise<string[]> {
   return [];
 }
 
+/** screenId -> whiteboard_document id, for every screen a saved whiteboard is
+ * currently being live-pushed to — lets the /screens list's "Control" button
+ * redirect straight into that same live session (/whiteboards/<id>/live/<screenId>)
+ * instead of the generic per-screen control page. */
+export async function getActiveWhiteboardSessions(): Promise<Record<string, string>> {
+  await requireGuestOrAdmin();
+  const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
+
+  try {
+    const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      return data.activeWhiteboards ?? {};
+    }
+  } catch (err) {
+    console.error("[remote] getActiveWhiteboardSessions failed", err);
+  }
+  return {};
+}
+
+/** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen. */
+export async function setScreenWhiteboardSession(screenId: string, documentId: string | null): Promise<void> {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/whiteboard-session`, {
+    method: "POST",
+    body: JSON.stringify({ documentId }),
+  });
+  if (!res.ok) console.error("[remote] setScreenWhiteboardSession failed", res.error);
+}
+
 /**
  * Assign a media-library asset to a screen (points the screen straight at the
  * asset), or clear the current assignment with null so it falls back to the

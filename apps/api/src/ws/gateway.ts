@@ -55,6 +55,16 @@ const viewStateCache = new Map<string, { command: string; value?: unknown }>();
 // socket disconnects — surviving that is the whole point (a TV refresh
 // closes its one socket right before/as it reconnects).
 const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
+// screenId -> the saved whiteboard_document id a CMS operator is currently
+// live-pushing there (see /whiteboards/[id]/live/[deviceId]). Lets another
+// CMS tab's "Control" button (the /screens list) jump straight back into
+// that same live session instead of the generic screen-control page. Set
+// explicitly by that route (not derived from whiteboardStateCache above,
+// which has no concept of a saved document id) and cleared on stop.
+// In-memory only, same trade-off as screenTakeover below — an API restart
+// drops it, so Control just falls back to the generic page until the
+// operator reopens/re-pushes the board.
+const screenWhiteboardDocument = new Map<string, string>();
 // Full-black overlay per screen, set by an admin "Stop" action. Same
 // survives-a-reconnect requirement as whiteboardStateCache: presence/value here
 // is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
@@ -180,6 +190,34 @@ export function setScreenBlankState(screenId: string, blanked: boolean): void {
 export function setScreenInteractionState(screenId: string, enabled: boolean): void {
   screenInteractionEnabledCache.set(screenId, enabled);
   sendCommandToScreen(screenId, enabled ? 'SCREEN_ENABLE_CONTROLS' : 'SCREEN_DISABLE_CONTROLS');
+}
+
+/** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen right now. */
+export function setScreenWhiteboardDocument(screenId: string, documentId: string | null): void {
+  if (documentId) screenWhiteboardDocument.set(screenId, documentId);
+  else screenWhiteboardDocument.delete(screenId);
+}
+
+/** screenId -> whiteboard_document id, for every screen currently live-pushing one. */
+export function getActiveWhiteboardDocuments(): Record<string, string> {
+  return Object.fromEntries(screenWhiteboardDocument);
+}
+
+/**
+ * Fully stop a screen's whiteboard overlay — live command, in-memory cache,
+ * and DB persistence, so it neither lingers on top of freshly-assigned
+ * content right now nor gets resumed on the TV's next reconnect. Used by
+ * "reset to idle" (see /api/screens/:id/media), which is meant as a full
+ * clean reset — unlike a normal content (re)assignment, which deliberately
+ * leaves an in-progress whiteboard annotation running on top of it.
+ */
+export function stopScreenWhiteboard(screenId: string): void {
+  whiteboardStateCache.delete(screenId);
+  screenWhiteboardDocument.delete(screenId);
+  sendCommandToScreen(screenId, WHITEBOARD_STOP);
+  setScreenWhiteboardState(screenId, null).catch((err) =>
+    console.error('[gateway] Failed to clear whiteboard state for', screenId, err)
+  );
 }
 
 export function broadcastActiveScreensToCms() {
