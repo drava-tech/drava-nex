@@ -113,7 +113,7 @@ export function LiveScreenSurface({
     // sizes itself from aspect-[16/9], independent of ancestor height), but
     // the touchpad has no aspect ratio and needs a real height chain to fill
     // the screen instead of collapsing to just its own button bar.
-    <div className="flex h-full min-h-0 flex-col p-4 md:p-6 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col p-4 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Action bar */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">

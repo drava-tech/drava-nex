@@ -11,9 +11,9 @@ interface PageProps {
 
 /**
  * Routed live control for a media queue (or single item) just pushed from
- * the Media Library / Email Media multi-select (see MediaQueuePushModal) —
- * Next/Prev through the queue, with the control surface (mirror vs
- * touchpad) switching per item as you step through it.
+ * the Media Library multi-select (see MediaQueuePushModal) — Next/Prev
+ * through the queue, with the control surface (mirror vs touchpad)
+ * switching per item as you step through it.
  */
 export default async function MediaLivePage({ params }: PageProps) {
   await requireGuestOrAdmin();

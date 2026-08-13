@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const types = await getExperienceTypes();
 
   return (
-    <div className="flex flex-col gap-8 p-6">
+    <div className="flex flex-col gap-8 p-4">
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-sm text-muted-foreground">

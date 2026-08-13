@@ -20,7 +20,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
   if (!res.ok) {
     if (res.status === 404) notFound();
     return (
-      <div className="p-6">
+      <div className="p-4">
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           Couldn&apos;t load product: {res.error.message}
         </p>
@@ -31,7 +31,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
   const initialTab = VALID_TABS.includes(tab as Tab) ? (tab as Tab) : "details";
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <ProductEditor product={res.data} initialTab={initialTab} />
     </div>
   );

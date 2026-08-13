@@ -37,7 +37,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const data = res.ok ? res.data : { items: [], total: 0, page, pageSize };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       {!res.ok && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           Couldn&apos;t load products: {res.error.message}

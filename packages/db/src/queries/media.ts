@@ -18,21 +18,6 @@ export async function listMediaAssets(filter?: { source?: string }): Promise<Med
     .orderBy(desc(mediaAsset.createdAt));
 }
 
-/**
- * All non-deleted media assets from one source (e.g. "email"), newest first —
- * backs the Email Media page, which is just a source-filtered view of the
- * same permanent rows listMediaAssets() surfaces everywhere else (Gmail
- * ingestion stores directly as pendingSave: false, so there's no separate
- * pending/review state to filter on here).
- */
-export async function listMediaAssetsBySource(source: string): Promise<MediaAsset[]> {
-  return db
-    .select()
-    .from(mediaAsset)
-    .where(and(isNull(mediaAsset.deletedAt), eq(mediaAsset.source, source)))
-    .orderBy(desc(mediaAsset.createdAt));
-}
-
 export async function getMediaAsset(id: string): Promise<MediaAsset | null> {
   const [row] = await db
     .select()

@@ -66,6 +66,15 @@ interface PushToScreenModalProps {
    * list so the row drops back to its normal (not-already-showing) state.
    */
   onRemove?: (screen: ScreenRow) => Promise<void>;
+  /**
+   * Renders an extra footer button (left of Push) for bypassing screen
+   * selection entirely — e.g. the whiteboard's "Draw without pushing" (start
+   * a local-only sketch instead of picking a screen). Omit for callers that
+   * always require a screen.
+   */
+  onSkip?: () => void;
+  /** Label for the onSkip button. Defaults to "Skip". */
+  skipLabel?: string;
 }
 
 export interface QueuePushConfig {
@@ -111,6 +120,8 @@ export function PushToScreenModal({
   onPushed,
   onControl,
   onRemove,
+  onSkip,
+  skipLabel = "Skip",
 }: PushToScreenModalProps) {
   const [screens, setScreens] = useState<ScreenRow[]>([]);
   const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
@@ -429,6 +440,15 @@ export function PushToScreenModal({
             )}
 
             <div className="flex flex-col gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
+              {onSkip && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  className="inline-flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  {skipLabel}
+                </button>
+              )}
               <button
                 onClick={handlePush}
                 disabled={pushing || screens.length === 0 || removingScreenId !== null}

@@ -3,7 +3,7 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, listMediaAssetsBySource, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
@@ -80,6 +80,10 @@ function toMediaItem(a: MediaAsset) {
   });
   return {
     id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    // Raw ISO timestamp alongside the display-formatted `date` above — the
+    // CMS's date-range filter needs a real comparable value, not a
+    // locale-formatted string.
+    createdAt: new Date(a.createdAt).toISOString(),
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
     pendingSave: a.pendingSave,
   };
@@ -127,28 +131,15 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
 
 // --- Email media (on-demand Gmail load) ---
 
-// POST /api/media/gmail/load — triggered by the "Load last 2 days" button
-// (apps/cms .../media/email/page.tsx). Not a background job: nothing touches
-// the mailbox except when this is called. See services/gmail-ingest.ts.
+// POST /api/media/gmail/load — triggered by the "Load Email" button on the
+// Media Library page. Not a background job: nothing touches the mailbox
+// except when this is called. See services/gmail-ingest.ts.
 mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
   try {
     const result = await runGmailLoad(2);
     return c.json({ success: true, added: result.added });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to load email" }, 503);
-  }
-});
-
-// GET /api/media/gmail/list — all gmail-sourced media (permanent as soon as
-// ingested, same as any other library asset). Deliberately a separate
-// admin-only endpoint rather than a query param on GET / above, which stays
-// guest-accessible.
-mediaRouter.get("/gmail/list", requireAdmin, async (c) => {
-  try {
-    const assets = await listMediaAssetsBySource("email");
-    return c.json({ media: assets.map(toMediaItem) });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to list email media" }, 500);
   }
 });
 
@@ -276,7 +267,11 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     return c.json({
       success: true,
-      media: { id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, date, selected: false },
+      media: {
+        id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, date,
+        createdAt: new Date(asset.createdAt).toISOString(),
+        source: asset.source, selected: false,
+      },
     });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Upload failed" }, 500);

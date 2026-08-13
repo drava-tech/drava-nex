@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { PenTool, Trash2, Loader2 } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@platform/ui";
-import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
 interface WhiteboardListItem {
@@ -14,7 +14,7 @@ interface WhiteboardListItem {
 }
 
 export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
-  const { openWhiteboardDocument } = useWhiteboardEditor();
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -42,7 +42,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
             <p className="text-xs text-zinc-400 dark:text-zinc-600">No saved whiteboards yet.</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-900 overflow-hidden">
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-900 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -58,7 +58,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
                     <TableCell>
                       <button
                         type="button"
-                        onClick={() => openWhiteboardDocument(item.id)}
+                        onClick={() => router.push(`/whiteboards/${item.id}`)}
                         className="flex items-center gap-3 text-left"
                       >
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-500">

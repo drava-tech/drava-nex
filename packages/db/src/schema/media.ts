@@ -32,7 +32,7 @@ export const mediaAsset = pgTable(
     }),
     // Where this asset came from: 'upload' (POST /api/upload), 'link' (a
     // pasted URL via POST /api/media/link), or 'email' (auto-ingested from a
-    // Gmail attachment or body link — see apps/api/src/services/gmail-ingest.ts).
+    // Gmail attachment — see apps/api/src/services/gmail-ingest.ts).
     // Free text like `type` above, so new sources don't need an enum migration.
     source: text("source"),
     // Populated only for source = 'email' — the originating email's sender

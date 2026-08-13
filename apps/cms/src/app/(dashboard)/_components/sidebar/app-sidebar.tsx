@@ -7,10 +7,8 @@ import {
   ChevronUp,
   Cpu,
   Film,
-  Globe,
   LayoutDashboard,
   LogOut,
-  Mail,
   Monitor,
   Package,
   PenTool,
@@ -80,13 +78,8 @@ const ALL_NAV: NavigationItem[] = [
     roles: ["ADMIN", "GUEST"],
     guestModeVisible: true,
   },
-  {
-    title: "Browser",
-    url: "/browser",
-    icon: Globe,
-    roles: ["ADMIN", "GUEST"],
-    guestModeVisible: true,
-  },
+  // Browser is deliberately absent from the nav (origin/master) — the page
+  // itself still exists and is reachable directly.
   {
     title: "Whiteboards",
     url: "/whiteboards",
@@ -111,12 +104,6 @@ const ALL_NAV: NavigationItem[] = [
     icon: Film,
     roles: ["ADMIN"],
     guestModeVisible: true,
-  },
-  {
-    title: "Email Media",
-    url: "/media/email",
-    icon: Mail,
-    roles: ["ADMIN"],
   },
   {
     title: "Settings",
