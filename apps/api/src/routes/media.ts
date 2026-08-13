@@ -3,7 +3,7 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, listMediaAssetsBySource, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
@@ -131,28 +131,15 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
 
 // --- Email media (on-demand Gmail load) ---
 
-// POST /api/media/gmail/load — triggered by the "Load last 2 days" button
-// (apps/cms .../media/email/page.tsx). Not a background job: nothing touches
-// the mailbox except when this is called. See services/gmail-ingest.ts.
+// POST /api/media/gmail/load — triggered by the "Load Email" button on the
+// Media Library page. Not a background job: nothing touches the mailbox
+// except when this is called. See services/gmail-ingest.ts.
 mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
   try {
     const result = await runGmailLoad(2);
     return c.json({ success: true, added: result.added });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to load email" }, 503);
-  }
-});
-
-// GET /api/media/gmail/list — all gmail-sourced media (permanent as soon as
-// ingested, same as any other library asset). Deliberately a separate
-// admin-only endpoint rather than a query param on GET / above, which stays
-// guest-accessible.
-mediaRouter.get("/gmail/list", requireAdmin, async (c) => {
-  try {
-    const assets = await listMediaAssetsBySource("email");
-    return c.json({ media: assets.map(toMediaItem) });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to list email media" }, 500);
   }
 });
 

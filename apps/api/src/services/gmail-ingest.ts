@@ -13,9 +13,7 @@ import { UPLOAD_DIR, classifyUpload } from "../routes/media.js";
  * (PDF/.pptx, same allowlist as a manual upload) and each recognizable link
  * found in the email body becomes a media_asset with pendingSave: false —
  * immediately a first-class Media Library asset (assignable/playable right
- * away), not a temporary row waiting on a separate "keep" step. The Email
- * Media page (apps/cms .../media/email/page.tsx) is just a source-filtered
- * view of these same permanent rows, not a review queue.
+ * away), not a temporary row waiting on a separate "keep" step.
  *
  * Read-only (gmail.readonly) — the mailbox itself is never modified. Access
  * control lives entirely in the CMS's own auth on the resulting media_asset

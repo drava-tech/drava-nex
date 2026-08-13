@@ -10,7 +10,6 @@ import {
   SquareTerminal,
   Users,
   Film,
-  Mail,
   Cpu,
   Package,
   ScanFace,
@@ -96,12 +95,6 @@ const ALL_NAV = [
     icon: Film,
     roles: ["ADMIN"] as string[],
     guestModeVisible: true,
-  },
-  {
-    title: "Email Media",
-    url: "/media/email",
-    icon: Mail,
-    roles: ["ADMIN"] as string[],
   },
   {
     title: "Settings",

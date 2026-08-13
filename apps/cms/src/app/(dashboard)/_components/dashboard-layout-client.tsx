@@ -54,8 +54,8 @@ export function DashboardLayoutClient({
               pages (Settings, Users) have no internal scroll region of their
               own at all and relied entirely on the old document-level scroll,
               so this can't be sizing-only. Pages that DO implement their own
-              internal `overflow-y-auto` (Visitors, Email Media, Media
-              Library, Screens, …) simply never need this one to activate:
+              internal `overflow-y-auto` (Visitors, Media Library, Screens,
+              …) simply never need this one to activate:
               their own inner region scrolls first, and this outer one stays
               exactly full without a visible scrollbar. That nesting is safe
               now — the earlier misaligned-scrollbar issue was actually

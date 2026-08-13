@@ -187,9 +187,9 @@ export default function MediaPage() {
     }
   };
 
-  // Same on-demand Gmail ingest as the Email Media page — pulls the last 2
-  // days of attachments/links straight into this same media_asset table, so
-  // a plain refetch is all that's needed to show the new items.
+  // On-demand Gmail ingest — pulls the last 2 days of attachments/links
+  // straight into this same media_asset table, so a plain refetch is all
+  // that's needed to show the new items.
   const handleLoadFromEmail = async () => {
     setLoadingInbox(true);
     setLoadError(null);
@@ -300,7 +300,7 @@ export default function MediaPage() {
   };
 
   // Selection order (Set insertion order) IS the queue order — the first
-  // item clicked plays first. Same rule as Email Media's push.
+  // item clicked plays first.
   const handlePushSelected = () => {
     const ordered = Array.from(selectedIds)
       .map((id) => mediaItems.find((item) => item.id === id))
