@@ -5,6 +5,7 @@ import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
 import { mediaAsset } from "../schema/media.js";
+import { getPortfolioTree } from "./portfolio.js";
 
 /**
  * Screen ↔ content data access. This is the single source of truth for
@@ -145,15 +146,22 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
     });
   }
 
-  // Experience assigned → template wire content.
+  // Experience assigned → template wire content. Portfolio's own content now
+  // lives in the relational tables, not templateContent.portfolio — swap in
+  // the reassembled tree so the wire shape stays identical for the renderer.
   if (row.kind === "experience" && row.experienceId) {
+    let templateContent = row.templateContent ?? undefined;
+    if (row.templateKey === "portfolio") {
+      const tree = await getPortfolioTree(row.experienceId);
+      templateContent = { ...(row.templateContent ?? {}), portfolio: tree };
+    }
     return {
       id: row.experienceId,
       type: "experience",
       source: "",
       title: row.experienceName ?? undefined,
       templateKey: row.templateKey ?? undefined,
-      templateContent: row.templateContent ?? undefined,
+      templateContent,
     };
   }
 

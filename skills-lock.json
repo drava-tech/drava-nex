@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
       "computedHash": "6cb585d36a0d0418986bc8449bc0c8ff216344d692e08245d7f9e7414fee11a6"
+    },
+    "react-pro": {
+      "source": "nextlevelbuilder/react-pro-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/react-pro/SKILL.md",
+      "computedHash": "980707f1f6e32b01320670592a9c4fa8e5bd328862942447784e7826f127917c"
     }
   }
 }

@@ -3,6 +3,9 @@
 // --- Product domain (schemas + types) ---
 export * from "./products.js";
 
+// --- Portfolio domain (schemas + types) ---
+export * from "./portfolio.js";
+
 // --- Visitor domain (face-recognition entrance tracking) ---
 export * from "./visitors.js";
 

@@ -742,6 +742,97 @@ export function largestFitting(min: number, max: number, fits: (px: number) => b
 }
 
 /**
+ * Prev / dots / next for the sibling pages, sitting in the text column.
+ *
+ * Deliberately the Portfolio slideshow's vocabulary — chevrons either side,
+ * dots between, the active one stretched into a pill, wrapping at both ends —
+ * because stepping through companies in a category is the same act as stepping
+ * through slides, and the two shouldn't need learning separately.
+ *
+ * What it does NOT borrow is that panel's dark floating chips: these sit inside
+ * the text column beside the category links rather than over a photo, so they
+ * take their colour from the text and stay legible whatever the editor sets the
+ * background to.
+ *
+ * Not used internally by this file anymore (the standalone Gallery template's
+ * own pager is the edge-pinned `PagerArrow` below) — kept exported for the
+ * Portfolio video-grid gallery view, which sits outside this component and
+ * still wants the in-column prev/dots/next treatment beside its links row.
+ */
+export function PagerControl({
+  pager,
+  size,
+  gap,
+}: {
+  pager: GalleryPager;
+  /** The link row's font size — everything here is scaled off it. */
+  size: number;
+  gap: number;
+}) {
+  const { index, count, onSelect } = pager;
+  const step = (delta: number) => onSelect((index + delta + count) % count);
+
+  const dot = Math.max(8, Math.round(size * 0.8));
+  const activeDot = Math.round(dot * 3.1);
+  const button = Math.round(size * 2.6);
+
+  const arrow: React.CSSProperties = {
+    appearance: "none",
+    margin: 0,
+    padding: 0,
+    width: button,
+    height: button,
+    flexShrink: 0,
+    borderRadius: 999,
+    border: "1px solid currentColor",
+    backgroundColor: "transparent",
+    color: "inherit",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    opacity: 0.75,
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap }}>
+      <button type="button" onClick={() => step(-1)} style={arrow} aria-label="Previous">
+        <ChevronLeft size={Math.round(button * 0.55)} />
+      </button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: Math.round(dot * 0.7) }}>
+        {Array.from({ length: count }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onSelect(i)}
+            aria-label={`Page ${i + 1} of ${count}`}
+            aria-current={i === index}
+            style={{
+              appearance: "none",
+              margin: 0,
+              padding: 0,
+              border: "none",
+              width: i === index ? activeDot : dot,
+              height: dot,
+              borderRadius: 999,
+              backgroundColor: "currentColor",
+              opacity: i === index ? 0.85 : 0.3,
+              transition: "width 300ms ease, opacity 300ms ease",
+              cursor: "pointer",
+            }}
+          />
+        ))}
+      </div>
+
+      <button type="button" onClick={() => step(1)} style={arrow} aria-label="Next">
+        <ChevronRight size={Math.round(button * 0.55)} />
+      </button>
+    </div>
+  );
+}
+
+/**
  * One tappable photo — a cell of the collapsed grid, or a slot of the open
  * rail. Same element either way, so both react to a tap identically; only what
  * the tap means differs, which is the caller's `onSelect`.

@@ -23,6 +23,7 @@
     "db:migrate-screen": "tsx src/migrate-screen.ts",
     "db:migrate-experience": "tsx src/migrate-experience-template.ts",
     "db:migrate-media": "tsx src/migrate-media.ts",
+    "db:migrate-portfolio": "tsx src/migrate-portfolio-content.ts",
     "db:seed-screens": "tsx src/seed-screens.ts",
     "db:seed-products": "tsx src/seed-products.ts"
   },

@@ -19,6 +19,20 @@ export {
   productMediaPurposeEnum,
 } from "./products.js";
 
+export {
+  portfolioVertical,
+  portfolioCategory,
+  portfolioCategoryImage,
+  portfolioCategoryVideo,
+  portfolioProject,
+  portfolioProjectImage,
+  portfolioProjectVideo,
+  portfolioSettings,
+  company,
+  portfolioCategoryTypeEnum,
+  portfolioGalleryKindEnum,
+} from "./portfolio.js";
+
 export { whiteboardDocument } from "./whiteboards.js";
 
 // ─── Visitors (face-recognition entrance tracking) ────────────────────────────
@@ -40,6 +54,15 @@ export {
   productFeatureRelations,
   productSpecificationRelations,
   productMediaRelations,
+  portfolioVerticalRelations,
+  portfolioCategoryRelations,
+  portfolioCategoryImageRelations,
+  portfolioCategoryVideoRelations,
+  portfolioProjectRelations,
+  portfolioProjectImageRelations,
+  portfolioProjectVideoRelations,
+  companyRelations,
+  portfolioSettingsRelations,
 } from "./relations.js";
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────
@@ -63,3 +86,23 @@ export type {
   ProductMedia,
   NewProductMedia,
 } from "./products.js";
+export type {
+  PortfolioVertical,
+  NewPortfolioVertical,
+  PortfolioCategory,
+  NewPortfolioCategory,
+  PortfolioCategoryImage,
+  NewPortfolioCategoryImage,
+  PortfolioCategoryVideo,
+  NewPortfolioCategoryVideo,
+  PortfolioProject,
+  NewPortfolioProject,
+  PortfolioProjectImage,
+  NewPortfolioProjectImage,
+  PortfolioProjectVideo,
+  NewPortfolioProjectVideo,
+  PortfolioSettings,
+  NewPortfolioSettings,
+  Company,
+  NewCompany,
+} from "./portfolio.js";

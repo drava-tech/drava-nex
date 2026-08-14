@@ -7,7 +7,6 @@ import {
   normalizeSections,
   newPortfolioProject,
   companyLinks,
-  GALLERY_FILM_LABEL,
   GALLERY_PHOTO_COUNT,
   type OverviewCard,
   type PortfolioProject,
@@ -439,6 +438,11 @@ function ProjectsEditor({
     if (next) patch(pi, { images: next });
   };
 
+  const moveVideo = (pi: number, from: number, to: number) => {
+    const next = reorder(projects[pi]?.videos ?? [], from, to);
+    if (next) patch(pi, { videos: next });
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
@@ -545,52 +549,66 @@ function ProjectsEditor({
               />
             </div>
 
-            {/* Optional — and the button on screen appears only because this is
-                set, so the copy says as much rather than leaving the author to
-                discover it by previewing. */}
+            {/* Videos (optional) — shown when this company's category is the
+                video-grid kind (e.g. Brand Films). With none, no grid. */}
             <div className="flex flex-col gap-1.5">
-              <label className={LABEL}>Film (optional)</label>
-              {project.videoUrl ? (
-                <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-black group">
+              <label className={LABEL}>Videos (optional)</label>
+
+              {(project.videos ?? []).map((url, vi) => (
+                <div
+                  key={`${vi}-${url}`}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-1.5"
+                >
                   <video
-                    src={project.videoUrl}
+                    src={url}
                     muted
                     playsInline
                     preload="metadata"
-                    className="w-full h-full object-cover"
+                    className="h-12 w-16 shrink-0 rounded-md object-cover bg-black"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setVideoPicker(pi)}
-                      className="px-3 py-1.5 rounded-lg bg-white text-zinc-900 text-xs font-semibold disabled:opacity-50"
-                    >
-                      Change
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => patch(pi, { videoUrl: "" })}
-                      className="px-3 py-1.5 rounded-lg bg-zinc-900/80 text-white text-xs font-semibold disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <span className="flex-1 truncate text-[11px] text-zinc-500">
+                    {url.split("/").pop()}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={disabled || vi === 0}
+                    onClick={() => moveVideo(pi, vi, vi - 1)}
+                    className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
+                    title="Move up"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled || vi === (project.videos ?? []).length - 1}
+                    onClick={() => moveVideo(pi, vi, vi + 1)}
+                    className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
+                    title="Move down"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      patch(pi, { videos: (project.videos ?? []).filter((_, i) => i !== vi) })
+                    }
+                    className="p-1.5 rounded-md text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 disabled:opacity-30"
+                    title="Remove"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setVideoPicker(pi)}
-                  className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
-                >
-                  ▶ Select video from media
-                </button>
-              )}
-              <p className="text-[11px] leading-relaxed text-zinc-400">
-                Adds a “{GALLERY_FILM_LABEL}” button to this page. With no film, no button.
-              </p>
+              ))}
+
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setVideoPicker(pi)}
+                className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+              >
+                ▶ Add videos
+              </button>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -681,13 +699,17 @@ function ProjectsEditor({
         }}
       />
 
-      {/* Single, not multi: a page has one film. */}
+      {/* multi, like the images picker above: stays open so a whole set of
+          films can be added in one go. */}
       <MediaPicker
         open={videoPicker !== null}
         onClose={() => setVideoPicker(null)}
+        multi
         accept="video"
         onSelect={(url) => {
-          if (videoPicker !== null) patch(videoPicker, { videoUrl: url });
+          if (videoPicker !== null) {
+            patch(videoPicker, { videos: [...(projects[videoPicker]?.videos ?? []), url] });
+          }
         }}
       />
     </div>

@@ -190,6 +190,20 @@
       "when": 1784020305837,
       "tag": "0026_drop_screen_interaction_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784020305838,
+      "tag": "0027_portfolio_relational",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784020305839,
+      "tag": "0028_portfolio_project_video",
+      "breakpoints": true
     }
   ]
 }

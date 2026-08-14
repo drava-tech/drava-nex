@@ -1,9 +1,8 @@
 import React from "react";
 import Link from "next/link";
-import type { Experience } from "@platform/db";
+import { type Experience, getPortfolioTree } from "@platform/db";
 import {
   ScreenStage,
-  readPortfolioContent,
   cardSlugs,
   sectionSlugs,
   projectSlugs,
@@ -51,7 +50,7 @@ function resolveView(content: PortfolioContent, subpath: string[]): PortfolioVie
  * the URL sub-path; each view is a predefined 1920×1080 layout rendered inside
  * the ScreenStage.
  */
-export function PortfolioLayout({
+export async function PortfolioLayout({
   experience,
   subpath,
   mode = "edit",
@@ -60,7 +59,11 @@ export function PortfolioLayout({
   subpath: string[];
   mode?: "edit" | "preview";
 }) {
-  const content = readPortfolioContent(experience.templateContent) ?? DEFAULT_PORTFOLIO_CONTENT;
+  // The dev-preview route renders with a synthetic experience row (id
+  // "dev-preview", never persisted) specifically so templates can be iterated
+  // on without a reachable Postgres connection — skip the DB round trip for it.
+  const tree = experience.id === "dev-preview" ? null : await getPortfolioTree(experience.id);
+  const content = (tree as PortfolioContent | null) ?? DEFAULT_PORTFOLIO_CONTENT;
   const view = resolveView(content, subpath);
 
   // Full-screen preview tab: URL-driven navigation through the [[...subpath]] catch-all.

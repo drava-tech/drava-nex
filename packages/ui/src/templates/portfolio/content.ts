@@ -26,6 +26,11 @@ export interface PortfolioSection {
   subtitle?: string;
   description?: string;
   /**
+   * Only meaningful for the "gallery" type: whether a company's page shows
+   * the 4-photo grid or a video grid. Missing (older rows) → "photos".
+   */
+  galleryKind?: "photos" | "videos";
+  /**
    * One entry per company whose work appears in this category — what the
    * gallery layout actually renders, and what a cross-category link points at.
    * Always at least one after normalizeSections(), migrated from the flat
@@ -55,25 +60,19 @@ export interface PortfolioProject {
   /** Bold line under the title. */
   subtitle?: string;
   description?: string;
-  /** First GALLERY_PHOTO_COUNT are the gallery photos. */
+  /** First GALLERY_PHOTO_COUNT are the gallery photos — only rendered when the parent category's galleryKind is "photos". */
   images: string[];
   /**
-   * Optional film for this company. Set = the gallery page grows a "Film"
-   * button that plays it in a popup; unset = no button at all, which is why
-   * this is the only thing that decides whether one appears.
+   * This company's films — only rendered (as a video grid, via FilmsPanel)
+   * when the parent category's galleryKind is "videos". Reaching this page
+   * is always a navigation from the company's other category (the
+   * cross-category "links" row), never a popup.
    */
-  videoUrl?: string;
+  videos?: string[];
 }
 
 /** The gallery layout is designed around exactly four photos — one feature, three below. */
 export const GALLERY_PHOTO_COUNT = 4;
-
-/**
- * Label on the button a project's film gets. Fixed rather than authored — it
- * names a medium, not the content — and shared so the editor can promise
- * exactly what the screen will show.
- */
-export const GALLERY_FILM_LABEL = "Film";
 
 /**
  * Styling for every "gallery" section, held once on the content rather than
@@ -301,16 +300,25 @@ export function normalizeProjects(
     ];
   }
 
-  return raw.map((p) => ({
-    company: typeof p?.company === "string" ? p.company : "",
-    ...(typeof p?.title === "string" ? { title: p.title } : {}),
-    ...(typeof p?.subtitle === "string" ? { subtitle: p.subtitle } : {}),
-    ...(typeof p?.description === "string" ? { description: p.description } : {}),
-    images: cleanUrls(p?.images),
-    // Dropped when blank rather than kept as "", so "has a film" is a single
-    // truthiness test everywhere downstream.
-    ...(typeof p?.videoUrl === "string" && p.videoUrl ? { videoUrl: p.videoUrl } : {}),
-  }));
+  return raw.map((p) => {
+    // Legacy shim: older rows carry a single `videoUrl` string instead of the
+    // current `videos` array — coalesce so both shapes normalize the same way.
+    const legacyVideoUrl = (p as unknown as { videoUrl?: unknown })?.videoUrl;
+    const videos = Array.isArray(p?.videos)
+      ? cleanUrls(p.videos)
+      : typeof legacyVideoUrl === "string" && legacyVideoUrl
+        ? [legacyVideoUrl]
+        : [];
+
+    return {
+      company: typeof p?.company === "string" ? p.company : "",
+      ...(typeof p?.title === "string" ? { title: p.title } : {}),
+      ...(typeof p?.subtitle === "string" ? { subtitle: p.subtitle } : {}),
+      ...(typeof p?.description === "string" ? { description: p.description } : {}),
+      images: cleanUrls(p?.images),
+      videos,
+    };
+  });
 }
 
 /** Reads the portfolio content slice off an experience row, or null if unset. */
