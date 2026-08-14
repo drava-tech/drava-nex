@@ -6,7 +6,13 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, Loader2, Check } from "lucide-react";
 import type { Experience } from "@platform/db";
 import { updateExperienceTemplateContent } from "@/actions/experience-actions";
-import { PortfolioFields, SectionFields } from "./editor-fields";
+import {
+  PortfolioFields,
+  SectionFields,
+  type EditableCard,
+  type EditableSection,
+  type EditablePortfolioContent,
+} from "./editor-fields";
 import {
   ScreenStage,
   PortfolioApp,
@@ -14,14 +20,11 @@ import {
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
-  normalizeSections,
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
   GALLERY_EXPANDED_PCT_MIN,
   GALLERY_EXPANDED_PCT_MAX,
-  type OverviewCard,
   type PortfolioContent,
   type PortfolioGalleryStyle,
-  type PortfolioSection,
   type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
 
@@ -94,16 +97,22 @@ export function PortfolioEditorWorkspace({
   initialContent,
 }: {
   experience: Experience;
-  initialContent: PortfolioContent;
+  initialContent: EditablePortfolioContent;
 }) {
   const router = useRouter();
-  const seed = initialContent?.overview?.cards?.length
+  // The relational tree (Section 14) always seeds real row ids; the
+  // DEFAULT_PORTFOLIO_CONTENT fallback (only hit for an experience with no
+  // portfolio rows yet at all) has none — its gallery-editing controls stay
+  // disabled until Phase 8's broader rewire creates real verticals/categories.
+  const seed: EditableCard[] = initialContent?.overview?.cards?.length
     ? initialContent.overview.cards
-    : DEFAULT_PORTFOLIO_CONTENT.overview.cards;
+    : (DEFAULT_PORTFOLIO_CONTENT.overview.cards as EditableCard[]);
 
-  const [cards, setCards] = useState<OverviewCard[]>(
-    seed.map((c) => ({ ...c, sections: normalizeSections(c.sections) }))
-  );
+  // No normalizeSections() here — it rebuilds section/project objects from
+  // scratch and doesn't carry the row ids this editor needs (see
+  // editor-fields.tsx); the relational seed already has exactly the fixed
+  // 3 verticals × 2 categories shape, so nothing needs filling in.
+  const [cards, setCards] = useState<EditableCard[]>(seed.map((c) => ({ ...c })));
   const [titleFontSize, setTitleFontSize] = useState<number>(
     initialContent?.overview?.titleFontSize ?? DEFAULT_TITLE_FONT_SIZE
   );
@@ -135,7 +144,7 @@ export function PortfolioEditorWorkspace({
     setGallery((g) => ({ ...g, ...patch }));
   };
 
-  const onChange = (index: number, key: keyof OverviewCard, value: string) => {
+  const onChange = (index: number, key: keyof EditableCard, value: string) => {
     setSaved(false);
     setCards((prev) => prev.map((c, idx) => (idx === index ? { ...c, [key]: value } : c)));
   };
@@ -143,20 +152,21 @@ export function PortfolioEditorWorkspace({
   const onSectionChange = (
     cardIndex: number,
     sectionIndex: number,
-    patch: Partial<PortfolioSection>
+    patch: Partial<EditableSection>
   ) => {
     setSaved(false);
     setCards((prev) =>
-      prev.map((c, i) =>
-        i !== cardIndex
-          ? c
-          : {
-              ...c,
-              sections: normalizeSections(c.sections).map((s, si) =>
-                si === sectionIndex ? { ...s, ...patch } : s
-              ),
-            }
-      )
+      prev.map((c, i) => {
+        if (i !== cardIndex) return c;
+        // Spreads the existing section as-is (not through normalizeSections)
+        // so categoryId and every project's row ids survive a plain field
+        // edit like typing in the category Name box.
+        const sections = c.sections ?? [];
+        return {
+          ...c,
+          sections: sections.map((s, si) => (si === sectionIndex ? { ...s, ...patch } : s)),
+        };
+      })
     );
   };
 

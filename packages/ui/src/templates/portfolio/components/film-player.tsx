@@ -5,7 +5,9 @@ import { useRef } from "react";
 /**
  * Popup player for the films grid: plays one video with audio (native controls),
  * with Fullscreen, Close, and a manual Next button cycling through the list
- * (wrap-around). No auto-advance on end — Next is user-driven.
+ * (wrap-around). Also auto-advances to the next video when one ends, so a
+ * company's films play back-to-back like a slideshow, wrapping to the first
+ * after the last — the manual Next button still works too, for skipping ahead.
  */
 export function FilmPlayer({
   videos,
@@ -102,6 +104,9 @@ export function FilmPlayer({
           controls
           autoPlay
           playsInline
+          onEnded={() => {
+            if (videos.length > 1) onIndex((index + 1) % videos.length);
+          }}
           style={{ width: "100%", height: "auto", maxHeight: "82vh", borderRadius: 18, background: "#000", display: "block" }}
         />
       </div>

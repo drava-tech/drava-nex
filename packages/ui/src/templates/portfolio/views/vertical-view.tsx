@@ -9,7 +9,6 @@ import {
 } from "../content";
 import type { GalleryLink } from "../../gallery/gallery-view";
 import { SlideshowPanel } from "../components/slideshow-panel";
-import { FilmsPanel } from "../components/films-panel";
 import { GallerySectionView } from "./gallery-section-view";
 
 /**
@@ -48,8 +47,23 @@ export function VerticalView({
   const active = Math.min(Math.max(activeSectionIndex, 0), sections.length - 1);
   const section = sections[active]!;
 
-  if (section.type === "gallery") {
+  if (section.type === "gallery" || section.type === "videos") {
     const projects = section.projects ?? [];
+
+    // "videos" (e.g. Brand Films): one shared film grid of every company at
+    // once — no per-company page, so no active project/pager/links.
+    if (section.type === "videos") {
+      return (
+        <GallerySectionView
+          section={section}
+          projects={projects}
+          style={galleryStyle}
+          onBack={onBack}
+        />
+      );
+    }
+
+    // "gallery" (photos) — one company's page at a time.
     // An out-of-range index — a link followed after the target was deleted, or
     // WS state that outlived a content edit — falls back to the first project
     // rather than blanking the page, matching how `active` clamps above.
@@ -76,15 +90,12 @@ export function VerticalView({
     );
   }
 
+  // Only "images" reaches here — "gallery" and "videos" both return above.
   return (
     <div className="w-full h-full relative" style={{ background: "#141414", overflow: "hidden" }}>
       {/* Full-screen content */}
       <div className="absolute inset-0">
-        {section.type === "videos" ? (
-          <FilmsPanel videos={section.videos ?? []} frameless />
-        ) : (
-          <SlideshowPanel images={section.images} frameless />
-        )}
+        <SlideshowPanel images={section.images} frameless />
       </div>
 
       {/* Header overlay: back + title */}

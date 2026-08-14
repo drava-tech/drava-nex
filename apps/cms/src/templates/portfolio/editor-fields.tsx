@@ -3,19 +3,67 @@
 import React, { useState } from "react";
 import { ArrowDown, ArrowUp, ImageIcon, Plus, X } from "lucide-react";
 import { MediaPicker } from "@/components/media-picker";
+import { CompanyPicker } from "@/components/company-picker";
+import {
+  createPortfolioProjectAction,
+  updatePortfolioProjectAction,
+  deletePortfolioProjectAction,
+  reorderPortfolioProjectsAction,
+  addPortfolioProjectImageAction,
+  removePortfolioProjectImageAction,
+  reorderPortfolioProjectImagesAction,
+  addPortfolioProjectVideoAction,
+  removePortfolioProjectVideoAction,
+  reorderPortfolioProjectVideosAction,
+} from "@/actions/portfolio-actions";
 import {
   normalizeSections,
-  newPortfolioProject,
   companyLinks,
   GALLERY_PHOTO_COUNT,
   type OverviewCard,
-  type PortfolioProject,
+  type PortfolioContent,
   type PortfolioSection,
 } from "@platform/ui/templates/portfolio";
 
 const FIELD =
   "w-full bg-zinc-100 border border-zinc-300 focus:border-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";
 const LABEL = "text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.15em]";
+
+/**
+ * A company's project, as it actually exists in the editor now: a real
+ * `portfolio_project` row (Section 14) rather than a JSONB-blob entry with
+ * no identity — every field write here is an immediate API call, not staged
+ * local state for a later whole-blob Save.
+ */
+export interface EditableProject {
+  id: string;
+  companyId: string | null;
+  company: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  images: string[];
+  imageIds: string[];
+  videos: string[];
+  videoIds: string[];
+}
+
+export interface EditableSection extends Omit<PortfolioSection, "projects"> {
+  /** Real portfolio_category.id — the "gallery" type's projects are the only
+   *  thing in the editor that's relationally live; this is what "Add company"
+   *  posts to. */
+  categoryId: string;
+  projects?: EditableProject[];
+}
+
+export interface EditableCard extends Omit<OverviewCard, "sections"> {
+  sections?: EditableSection[];
+}
+
+/** `getPortfolioTree`'s return shape, as seen by the editor (with row ids). */
+export interface EditablePortfolioContent extends Omit<PortfolioContent, "overview"> {
+  overview: Omit<PortfolioContent["overview"], "cards"> & { cards: EditableCard[] };
+}
 
 /** Controlled inputs for the Portfolio Overview cards (used by the editor workspace). */
 export function PortfolioFields({
@@ -203,16 +251,16 @@ export function SectionFields({
   disabled,
   onSectionChange,
 }: {
-  card: OverviewCard;
+  card: EditableCard;
   cardIndex: number;
   /**
    * Every card, not just the one being edited — the gallery editor shows which
    * other categories already hold each company, which can't be answered from
    * one card alone.
    */
-  allCards: OverviewCard[];
+  allCards: EditableCard[];
   disabled?: boolean;
-  onSectionChange: (cardIndex: number, sectionIndex: number, patch: Partial<PortfolioSection>) => void;
+  onSectionChange: (cardIndex: number, sectionIndex: number, patch: Partial<EditableSection>) => void;
 }) {
   const sections = normalizeSections(card.sections);
   const [picker, setPicker] = useState<{ section: number; key: MediaKey } | null>(null);
@@ -284,9 +332,14 @@ export function SectionFields({
               </div>
             </div>
 
-            {section.type === "gallery" ? (
+            {section.type === "gallery" || section.type === "videos" ? (
               <ProjectsEditor
-                projects={section.projects ?? []}
+                // Read straight off the raw (unnormalized) card, not the
+                // normalizeSections() result above — normalizing rebuilds
+                // every project object from scratch and doesn't carry the
+                // real row ids this editor now needs to save against.
+                projects={card.sections?.[si]?.projects ?? []}
+                categoryId={card.sections?.[si]?.categoryId ?? ""}
                 disabled={disabled}
                 titlePlaceholder={section.name}
                 matchesFor={(pi) =>
@@ -401,23 +454,37 @@ export function SectionFields({
  */
 function ProjectsEditor({
   projects,
+  categoryId,
   disabled,
   titlePlaceholder,
   matchesFor,
   onChange,
 }: {
-  projects: PortfolioProject[];
+  projects: EditableProject[];
+  /** The real portfolio_category row this list belongs to — "Add company" posts here. */
+  categoryId: string;
   disabled?: boolean;
   /** The category name, which the layout falls back to when a title is blank. */
   titlePlaceholder: string;
   /** Other categories already holding the company in this slot. */
   matchesFor: (projectIndex: number) => string[];
-  onChange: (projects: PortfolioProject[]) => void;
+  onChange: (projects: EditableProject[]) => void;
 }) {
   const [picker, setPicker] = useState<number | null>(null);
   const [videoPicker, setVideoPicker] = useState<number | null>(null);
+  // Keyed by project id (or "__add" for the create-company action) — disables
+  // just that row's controls while its own request is in flight, and
+  // "__list" for a failure that isn't about any one row (e.g. reorder).
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const patch = (pi: number, p: Partial<PortfolioProject>) =>
+  const isBusy = (key: string) => Boolean(busy[key]);
+  const setRowBusy = (key: string, value: boolean) =>
+    setBusy((b) => ({ ...b, [key]: value }));
+  const setRowError = (key: string, message: string) =>
+    setErrors((e) => ({ ...e, [key]: message }));
+
+  const patch = (pi: number, p: Partial<EditableProject>) =>
     onChange(projects.map((proj, i) => (i === pi ? { ...proj, ...p } : proj)));
 
   const reorder = <T,>(list: T[], from: number, to: number): T[] | null => {
@@ -428,19 +495,181 @@ function ProjectsEditor({
     return next;
   };
 
-  const moveProject = (from: number, to: number) => {
+  // Every mutation below fires its API call immediately (this project row is
+  // a real `portfolio_project` — there's no "Save" button for it anymore),
+  // then updates local state from the result so the live preview and
+  // companyLinks() stay in sync.
+
+  const handleSelectCompany = async (pi: number, company: { id: string; name: string }) => {
+    const project = projects[pi]!;
+    setRowBusy(project.id, true);
+    const res = await updatePortfolioProjectAction(project.id, { companyId: company.id });
+    setRowBusy(project.id, false);
+    if (res.success) {
+      setRowError(project.id, "");
+      patch(pi, { company: company.name, companyId: company.id });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to link company.");
+    }
+  };
+
+  const handleCreateCompany = async (pi: number, name: string) => {
+    const project = projects[pi]!;
+    setRowBusy(project.id, true);
+    const res = await updatePortfolioProjectAction(project.id, { newCompanyName: name });
+    setRowBusy(project.id, false);
+    if (res.success && res.data) {
+      setRowError(project.id, "");
+      patch(pi, { company: name, companyId: res.data.companyId });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to create company.");
+    }
+  };
+
+  const handleFieldBlur = async (
+    pi: number,
+    field: "title" | "subtitle" | "description",
+    value: string
+  ) => {
+    const project = projects[pi]!;
+    const res = await updatePortfolioProjectAction(project.id, { [field]: value || null });
+    if (!res.success) setRowError(project.id, res.error ?? "Failed to save.");
+  };
+
+  const handleAddCompany = async () => {
+    setRowBusy("__add", true);
+    const res = await createPortfolioProjectAction(categoryId, {});
+    setRowBusy("__add", false);
+    if (res.success && res.data) {
+      const row = res.data;
+      onChange([
+        ...projects,
+        {
+          id: row.id,
+          companyId: row.companyId,
+          company: "",
+          images: [],
+          imageIds: [],
+          videos: [],
+          videoIds: [],
+        },
+      ]);
+      setRowError("__list", "");
+    } else {
+      setRowError("__list", res.error ?? "Failed to add company.");
+    }
+  };
+
+  const handleRemoveCompany = async (pi: number) => {
+    const project = projects[pi]!;
+    setRowBusy(project.id, true);
+    const res = await deletePortfolioProjectAction(project.id);
+    setRowBusy(project.id, false);
+    if (res.success) {
+      onChange(projects.filter((_, i) => i !== pi));
+    } else {
+      setRowError(project.id, res.error ?? "Failed to remove company.");
+    }
+  };
+
+  // Reorders are applied optimistically (they're just a display order swap,
+  // not new content) and rolled back if the request fails.
+  const moveProject = async (from: number, to: number) => {
     const next = reorder(projects, from, to);
-    if (next) onChange(next);
+    if (!next) return;
+    const previous = projects;
+    onChange(next);
+    const res = await reorderPortfolioProjectsAction(categoryId, next.map((p) => p.id));
+    if (!res.success) {
+      onChange(previous);
+      setRowError("__list", res.error ?? "Failed to reorder companies.");
+    }
   };
 
-  const moveImage = (pi: number, from: number, to: number) => {
-    const next = reorder(projects[pi]?.images ?? [], from, to);
-    if (next) patch(pi, { images: next });
+  const handleAddImage = async (pi: number, url: string) => {
+    const project = projects[pi]!;
+    const res = await addPortfolioProjectImageAction(project.id, url);
+    if (res.success && res.data) {
+      patch(pi, {
+        images: [...project.images, url],
+        imageIds: [...project.imageIds, res.data.id],
+      });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to add image.");
+    }
   };
 
-  const moveVideo = (pi: number, from: number, to: number) => {
-    const next = reorder(projects[pi]?.videos ?? [], from, to);
-    if (next) patch(pi, { videos: next });
+  const handleRemoveImage = async (pi: number, ii: number) => {
+    const project = projects[pi]!;
+    const imageId = project.imageIds[ii];
+    if (!imageId) return;
+    const res = await removePortfolioProjectImageAction(project.id, imageId);
+    if (res.success) {
+      patch(pi, {
+        images: project.images.filter((_, i) => i !== ii),
+        imageIds: project.imageIds.filter((_, i) => i !== ii),
+      });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to remove image.");
+    }
+  };
+
+  const moveImage = async (pi: number, from: number, to: number) => {
+    const project = projects[pi]!;
+    const nextImages = reorder(project.images, from, to);
+    const nextIds = reorder(project.imageIds, from, to);
+    if (!nextImages || !nextIds) return;
+    const prevImages = project.images;
+    const prevIds = project.imageIds;
+    patch(pi, { images: nextImages, imageIds: nextIds });
+    const res = await reorderPortfolioProjectImagesAction(project.id, nextIds);
+    if (!res.success) {
+      patch(pi, { images: prevImages, imageIds: prevIds });
+      setRowError(project.id, res.error ?? "Failed to reorder images.");
+    }
+  };
+
+  const handleAddVideo = async (pi: number, url: string) => {
+    const project = projects[pi]!;
+    const res = await addPortfolioProjectVideoAction(project.id, url);
+    if (res.success && res.data) {
+      patch(pi, {
+        videos: [...project.videos, url],
+        videoIds: [...project.videoIds, res.data.id],
+      });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to add video.");
+    }
+  };
+
+  const handleRemoveVideo = async (pi: number, vi: number) => {
+    const project = projects[pi]!;
+    const videoId = project.videoIds[vi];
+    if (!videoId) return;
+    const res = await removePortfolioProjectVideoAction(project.id, videoId);
+    if (res.success) {
+      patch(pi, {
+        videos: project.videos.filter((_, i) => i !== vi),
+        videoIds: project.videoIds.filter((_, i) => i !== vi),
+      });
+    } else {
+      setRowError(project.id, res.error ?? "Failed to remove video.");
+    }
+  };
+
+  const moveVideo = async (pi: number, from: number, to: number) => {
+    const project = projects[pi]!;
+    const nextVideos = reorder(project.videos, from, to);
+    const nextIds = reorder(project.videoIds, from, to);
+    if (!nextVideos || !nextIds) return;
+    const prevVideos = project.videos;
+    const prevIds = project.videoIds;
+    patch(pi, { videos: nextVideos, videoIds: nextIds });
+    const res = await reorderPortfolioProjectVideosAction(project.id, nextIds);
+    if (!res.success) {
+      patch(pi, { videos: prevVideos, videoIds: prevIds });
+      setRowError(project.id, res.error ?? "Failed to reorder videos.");
+    }
   };
 
   return (
@@ -448,17 +677,17 @@ function ProjectsEditor({
       <div className="flex flex-col gap-1">
         <label className={LABEL}>Companies</label>
         <p className="text-[11px] leading-relaxed text-zinc-400">
-          One page per company. Give two categories the same company name and each page gets
-          a button through to the other.
+          One page per company. Give two categories the same company and each page gets a
+          button through to the other. Every change here saves immediately.
         </p>
       </div>
 
       {projects.map((project, pi) => {
-        const images = project.images ?? [];
         const matches = matchesFor(pi);
+        const rowDisabled = disabled || isBusy(project.id);
         return (
           <div
-            key={pi}
+            key={project.id}
             className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
           >
             <div className="flex items-center gap-1">
@@ -467,7 +696,7 @@ function ProjectsEditor({
               </span>
               <button
                 type="button"
-                disabled={disabled || pi === 0}
+                disabled={rowDisabled || pi === 0}
                 onClick={() => moveProject(pi, pi - 1)}
                 className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                 title="Move up"
@@ -476,7 +705,7 @@ function ProjectsEditor({
               </button>
               <button
                 type="button"
-                disabled={disabled || pi === projects.length - 1}
+                disabled={rowDisabled || pi === projects.length - 1}
                 onClick={() => moveProject(pi, pi + 1)}
                 className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                 title="Move down"
@@ -488,8 +717,8 @@ function ProjectsEditor({
                 // A category always renders its first project, so the last one
                 // can't go — emptying the list would resurrect the pre-companies
                 // fallback and quietly swap the page's copy back.
-                disabled={disabled || projects.length <= 1}
-                onClick={() => onChange(projects.filter((_, i) => i !== pi))}
+                disabled={rowDisabled || projects.length <= 1}
+                onClick={() => handleRemoveCompany(pi)}
                 className="p-1.5 rounded-md text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 disabled:opacity-30"
                 title={
                   projects.length <= 1 ? "A category needs at least one company" : "Remove company"
@@ -501,12 +730,11 @@ function ProjectsEditor({
 
             <div className="flex flex-col gap-1">
               <label className={LABEL}>Company</label>
-              <input
-                className={FIELD}
+              <CompanyPicker
                 value={project.company}
-                disabled={disabled}
-                placeholder="Collins Aerospace"
-                onChange={(e) => patch(pi, { company: e.target.value })}
+                disabled={rowDisabled}
+                onSelect={(company) => handleSelectCompany(pi, company)}
+                onCreateNew={(name) => handleCreateCompany(pi, name)}
               />
               <p className="text-[11px] leading-relaxed text-zinc-400">
                 {matches.length > 0
@@ -522,9 +750,10 @@ function ProjectsEditor({
               <input
                 className={FIELD}
                 value={project.title ?? ""}
-                disabled={disabled}
+                disabled={rowDisabled}
                 placeholder={titlePlaceholder}
                 onChange={(e) => patch(pi, { title: e.target.value })}
+                onBlur={(e) => handleFieldBlur(pi, "title", e.target.value)}
               />
             </div>
 
@@ -533,9 +762,10 @@ function ProjectsEditor({
               <input
                 className={FIELD}
                 value={project.subtitle ?? ""}
-                disabled={disabled}
+                disabled={rowDisabled}
                 placeholder="Corporate Films"
                 onChange={(e) => patch(pi, { subtitle: e.target.value })}
+                onBlur={(e) => handleFieldBlur(pi, "subtitle", e.target.value)}
               />
             </div>
 
@@ -544,19 +774,24 @@ function ProjectsEditor({
               <textarea
                 className={`${FIELD} min-h-[88px] resize-y`}
                 value={project.description ?? ""}
-                disabled={disabled}
+                disabled={rowDisabled}
                 onChange={(e) => patch(pi, { description: e.target.value })}
+                onBlur={(e) => handleFieldBlur(pi, "description", e.target.value)}
               />
             </div>
+
+            {errors[project.id] ? (
+              <p className="text-[11px] text-red-500 dark:text-red-400">{errors[project.id]}</p>
+            ) : null}
 
             {/* Videos (optional) — shown when this company's category is the
                 video-grid kind (e.g. Brand Films). With none, no grid. */}
             <div className="flex flex-col gap-1.5">
               <label className={LABEL}>Videos (optional)</label>
 
-              {(project.videos ?? []).map((url, vi) => (
+              {project.videos.map((url, vi) => (
                 <div
-                  key={`${vi}-${url}`}
+                  key={project.videoIds[vi] ?? `${vi}-${url}`}
                   className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-1.5"
                 >
                   <video
@@ -571,7 +806,7 @@ function ProjectsEditor({
                   </span>
                   <button
                     type="button"
-                    disabled={disabled || vi === 0}
+                    disabled={rowDisabled || vi === 0}
                     onClick={() => moveVideo(pi, vi, vi - 1)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                     title="Move up"
@@ -580,7 +815,7 @@ function ProjectsEditor({
                   </button>
                   <button
                     type="button"
-                    disabled={disabled || vi === (project.videos ?? []).length - 1}
+                    disabled={rowDisabled || vi === project.videos.length - 1}
                     onClick={() => moveVideo(pi, vi, vi + 1)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                     title="Move down"
@@ -589,10 +824,8 @@ function ProjectsEditor({
                   </button>
                   <button
                     type="button"
-                    disabled={disabled}
-                    onClick={() =>
-                      patch(pi, { videos: (project.videos ?? []).filter((_, i) => i !== vi) })
-                    }
+                    disabled={rowDisabled}
+                    onClick={() => handleRemoveVideo(pi, vi)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 disabled:opacity-30"
                     title="Remove"
                   >
@@ -603,7 +836,7 @@ function ProjectsEditor({
 
               <button
                 type="button"
-                disabled={disabled}
+                disabled={rowDisabled}
                 onClick={() => setVideoPicker(pi)}
                 className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
@@ -617,9 +850,9 @@ function ProjectsEditor({
                 The first image is the large feature photo; the next three sit in the row below.
               </p>
 
-              {images.map((url, ii) => (
+              {project.images.map((url, ii) => (
                 <div
-                  key={`${ii}-${url}`}
+                  key={project.imageIds[ii] ?? `${ii}-${url}`}
                   className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-1.5"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -633,7 +866,7 @@ function ProjectsEditor({
                   </span>
                   <button
                     type="button"
-                    disabled={disabled || ii === 0}
+                    disabled={rowDisabled || ii === 0}
                     onClick={() => moveImage(pi, ii, ii - 1)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                     title="Move up"
@@ -642,7 +875,7 @@ function ProjectsEditor({
                   </button>
                   <button
                     type="button"
-                    disabled={disabled || ii === images.length - 1}
+                    disabled={rowDisabled || ii === project.images.length - 1}
                     onClick={() => moveImage(pi, ii, ii + 1)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
                     title="Move down"
@@ -651,8 +884,8 @@ function ProjectsEditor({
                   </button>
                   <button
                     type="button"
-                    disabled={disabled}
-                    onClick={() => patch(pi, { images: images.filter((_, i) => i !== ii) })}
+                    disabled={rowDisabled}
+                    onClick={() => handleRemoveImage(pi, ii)}
                     className="p-1.5 rounded-md text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 disabled:opacity-30"
                     title="Remove"
                   >
@@ -663,7 +896,7 @@ function ProjectsEditor({
 
               <button
                 type="button"
-                disabled={disabled}
+                disabled={rowDisabled}
                 onClick={() => setPicker(pi)}
                 className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
@@ -675,41 +908,39 @@ function ProjectsEditor({
         );
       })}
 
+      {errors["__list"] ? (
+        <p className="text-[11px] text-red-500 dark:text-red-400">{errors["__list"]}</p>
+      ) : null}
+
       <button
         type="button"
-        disabled={disabled}
-        onClick={() => onChange([...projects, newPortfolioProject()])}
+        disabled={disabled || isBusy("__add") || !categoryId}
+        onClick={handleAddCompany}
         className="flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />
         Add company
       </button>
 
-      {/* multi, like the media lists above: the picker stays open so a whole set
-          can be added in one go, each click appending to the fresh list. */}
+      {/* multi: the picker stays open so a whole set can be added in one go,
+          each click firing its own upload-then-link request. */}
       <MediaPicker
         open={picker !== null}
         onClose={() => setPicker(null)}
         multi
         accept="image"
         onSelect={(url) => {
-          if (picker !== null) {
-            patch(picker, { images: [...(projects[picker]?.images ?? []), url] });
-          }
+          if (picker !== null) handleAddImage(picker, url);
         }}
       />
 
-      {/* multi, like the images picker above: stays open so a whole set of
-          films can be added in one go. */}
       <MediaPicker
         open={videoPicker !== null}
         onClose={() => setVideoPicker(null)}
         multi
         accept="video"
         onSelect={(url) => {
-          if (videoPicker !== null) {
-            patch(videoPicker, { videos: [...(projects[videoPicker]?.videos ?? []), url] });
-          }
+          if (videoPicker !== null) handleAddVideo(videoPicker, url);
         }}
       />
     </div>

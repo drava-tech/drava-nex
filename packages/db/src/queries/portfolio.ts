@@ -48,12 +48,20 @@ export class PortfolioValidationError extends Error {
 // stay in sync with packages/ui/src/templates/portfolio/content.ts.
 
 export interface AssembledPortfolioProject {
+  /** Real portfolio_project.id — additive, only the editor reads this; renderers ignore it. */
+  id: string;
+  /** Real company.id (or null if unlinked) — additive, editor-only. */
+  companyId: string | null;
   company: string;
   title?: string;
   subtitle?: string;
   description?: string;
   images: string[];
+  /** portfolio_project_image.id, parallel to `images` (same order) — editor-only. */
+  imageIds: string[];
   videos?: string[];
+  /** portfolio_project_video.id, parallel to `videos` (same order) — editor-only. */
+  videoIds: string[];
 }
 
 export interface AssembledPortfolioSection {
@@ -66,6 +74,8 @@ export interface AssembledPortfolioSection {
   description?: string;
   /** Only meaningful when type === "gallery" — photo grid vs video grid per company. */
   galleryKind?: "photos" | "videos";
+  /** Real portfolio_category.id — additive, editor-only (e.g. "add project to this category"). */
+  categoryId: string;
   projects?: AssembledPortfolioProject[];
 }
 
@@ -146,13 +156,18 @@ export async function getPortfolioTree(experienceId: string): Promise<AssembledP
       ...(c.subtitle ? { subtitle: c.subtitle } : {}),
       ...(c.description ? { description: c.description } : {}),
       ...(c.type === "gallery" ? { galleryKind: c.galleryKind } : {}),
+      categoryId: c.id,
       projects: c.projects.map((p) => ({
+        id: p.id,
+        companyId: p.companyId,
         company: p.company?.name ?? "",
         ...(p.title ? { title: p.title } : {}),
         ...(p.subtitle ? { subtitle: p.subtitle } : {}),
         ...(p.description ? { description: p.description } : {}),
         images: p.images.map((i) => i.url),
+        imageIds: p.images.map((i) => i.id),
         videos: p.videos.map((vid) => vid.url),
+        videoIds: p.videos.map((vid) => vid.id),
       })),
     })),
   }));
@@ -326,11 +341,13 @@ export interface CreateProjectInput {
   description?: string;
 }
 
-async function assertCategoryIsGallery(categoryId: string): Promise<void> {
+// Both "gallery" (photos) and "videos" (film grid) are project/company-scoped
+// types — only a plain "images" slideshow has no per-company rows.
+async function assertCategoryHoldsProjects(categoryId: string): Promise<void> {
   const category = await getCategoryOrThrow(categoryId);
-  if (category.type !== "gallery") {
+  if (category.type !== "gallery" && category.type !== "videos") {
     throw new PortfolioValidationError(
-      `Category ${categoryId} is type "${category.type}" — projects can only be added to a "gallery" category`
+      `Category ${categoryId} is type "${category.type}" — projects can only be added to a "gallery" or "videos" category`
     );
   }
 }
@@ -339,7 +356,7 @@ export async function createProject(
   categoryId: string,
   input: CreateProjectInput
 ): Promise<PortfolioProject> {
-  await assertCategoryIsGallery(categoryId);
+  await assertCategoryHoldsProjects(categoryId);
 
   let companyId = input.companyId ?? null;
   if (!companyId && input.newCompanyName?.trim()) {
