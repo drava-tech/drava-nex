@@ -145,9 +145,9 @@ export function GalleryView({
   links?: GalleryLink[];
   /**
    * Steps through sibling pages without leaving the layout — the portfolio
-   * fills this with the other companies in the same category. Prev/next and
-   * dots, wrapping at both ends, matching SlideshowPanel; nothing renders for a
-   * count of one, so a category with a single company looks untouched.
+   * fills this with the other companies in the same category. One arrow at each
+   * edge of the screen, wrapping at both ends; nothing renders for a count of
+   * one, so a category with a single company looks untouched.
    */
   pager?: GalleryPager;
 }) {
@@ -193,6 +193,15 @@ export function GalleryView({
   const showLinks = (links?.length ?? 0) > 0;
   const isOpen = expanded !== null;
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
+
+  const arrowSize = Math.round(linkSize * 3.4);
+  // How far in from each edge the arrows sit — a hair off it, so they read as
+  // belonging to the screen rather than to the layout.
+  const arrowOffset = Math.round(gap * 0.25);
+  // ...and how much the grid gives up on each side to leave them that room.
+  // Only when there are arrows: a lone company keeps the full width. The title
+  // shrinks with it for free, being sized off the column rather than in px.
+  const sideInset = showPager ? arrowOffset + arrowSize + Math.round(gap * 0.5) : 0;
 
   // The editor's px controls stay meaningful as a multiplier on the reference
   // size — nudging the type up or down — rather than as an absolute that
@@ -339,18 +348,23 @@ export function GalleryView({
         <div
           style={{
             position: "absolute",
-            inset: padding,
+            top: padding,
+            bottom: padding,
+            // Pulled in past the arrows rather than under them, so nothing has
+            // to overlap. The rail below keeps the plain margin — the arrows
+            // are gone by the time it shows.
+            left: padding + sideInset,
+            right: padding + sideInset,
             // Three equal columns: the feature photo spans columns 2–3, so its
             // left edge lands exactly on the middle photo's below it. That
             // shared vertical line is what makes the layout read as a grid.
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            // The nav row is `auto` — it takes only the height it needs, and
+            // The links row is `auto` — it takes only the height it needs, and
             // the photos split whatever is left in the same 56/44 ratio as
-            // before. Spanning all three columns rather than sitting under the
-            // text keeps every photo's bottom edge on one line; a column-1-only
-            // row would leave photos 2 and 3 hanging past photo 1.
-            gridTemplateRows: showPager || showLinks ? "56fr 44fr auto" : "56fr 44fr",
+            // before. No row at all for a company without other categories to
+            // cross to, so those pages look exactly as they did.
+            gridTemplateRows: showLinks ? "56fr 44fr auto" : "56fr 44fr",
             gap,
             opacity: isOpen ? 0 : 1,
             // Leaves quickly so the grid isn't seen squashing into the rail.
@@ -398,7 +412,7 @@ export function GalleryView({
             ) : null}
           </div>
 
-          {showPager || showLinks ? (
+          {showLinks ? (
             <div
               style={{
                 // Its own row at the foot of the layout, under the photos —
@@ -409,58 +423,42 @@ export function GalleryView({
                 minWidth: 0,
                 paddingTop: Math.round(gap * 0.5),
                 display: "flex",
-                flexDirection: "column",
-                gap: Math.round(gap * 0.5),
-                // Centred across the full width rather than tucked under the
-                // text column, so it reads as the layout's own footer.
-                alignItems: "center",
+                justifyContent: "center",
+                flexWrap: "wrap",
+                gap: Math.round(gap * 0.4),
               }}
             >
-              {showPager ? (
-                <PagerControl pager={pager!} size={linkSize} gap={Math.round(gap * 0.4)} />
-              ) : null}
-
-              {showLinks ? (
-                <div
+              {links!.map((link, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={link.onSelect}
                   style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: Math.round(gap * 0.4),
+                    appearance: "none",
+                    margin: 0,
+                    padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
+                    borderRadius: 999,
+                    // currentColor, not a fixed shade: the background and
+                    // text colour are both editable, and anything
+                    // hardcoded would disappear against one of the two.
+                    border: "1px solid currentColor",
+                    backgroundColor: "transparent",
+                    color: "inherit",
+                    fontFamily: "inherit",
+                    fontSize: linkSize,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                    // Secondary to the copy above it — same way the
+                    // description sits at 0.9 under the title.
+                    opacity: 0.75,
                   }}
                 >
-                  {links!.map((link, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={link.onSelect}
-                      style={{
-                        appearance: "none",
-                        margin: 0,
-                        padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
-                        borderRadius: 999,
-                        // currentColor, not a fixed shade: the background and
-                        // text colour are both editable, and anything
-                        // hardcoded would disappear against one of the two.
-                        border: "1px solid currentColor",
-                        backgroundColor: "transparent",
-                        color: "inherit",
-                        fontFamily: "inherit",
-                        fontSize: linkSize,
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        lineHeight: 1,
-                        whiteSpace: "nowrap",
-                        cursor: "pointer",
-                        // Secondary to the copy above it — same way the
-                        // description sits at 0.85 under the title.
-                        opacity: 0.75,
-                      }}
-                    >
-                      {link.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+                  {link.label}
+                </button>
+              ))}
             </div>
           ) : null}
 
@@ -577,25 +575,111 @@ export function GalleryView({
           </p>
         ) : null}
       </div>
+
+      {/* ─── Stepping between sibling pages ──────────────────────────────── */}
+      {showPager ? (
+        <>
+          <PagerArrow
+            side="left"
+            size={arrowSize}
+            offset={arrowOffset}
+            hidden={isOpen}
+            onSelect={() => pager!.onSelect((pager!.index - 1 + pager!.count) % pager!.count)}
+          />
+          <PagerArrow
+            side="right"
+            size={arrowSize}
+            offset={arrowOffset}
+            hidden={isOpen}
+            onSelect={() => pager!.onSelect((pager!.index + 1) % pager!.count)}
+          />
+        </>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * One page-step arrow, pinned to an edge of the whole layout rather than sitting
+ * in a control among the text. The two ends of the screen are the least
+ * ambiguous place to put "back" and "forward" on a wall — nothing else lives
+ * there, and neither one has to be found.
+ *
+ * Wrapping at both ends, matching SlideshowPanel, so a visitor can keep going in
+ * one direction forever rather than hitting a dead end and having to reverse.
+ */
+function PagerArrow({
+  side,
+  size,
+  offset,
+  hidden,
+  onSelect,
+}: {
+  side: "left" | "right";
+  /** Diameter. The grid reserves this much room plus `offset` on each side. */
+  size: number;
+  /** Distance from its edge of the screen. */
+  offset: number;
+  /** True while a photo is expanded: it covers the layout these step through. */
+  hidden: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      type="button"
+      // The left half of the layout closes an expanded photo on click. Even
+      // faded out this button sits over it, so a stray tap must not do both.
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      aria-label={side === "left" ? "Previous" : "Next"}
+      style={{
+        position: "absolute",
+        [side]: offset,
+        top: "50%",
+        transform: "translateY(-50%)",
+        appearance: "none",
+        margin: 0,
+        padding: 0,
+        width: size,
+        height: size,
+        borderRadius: 999,
+        border: "1px solid currentColor",
+        backgroundColor: "transparent",
+        color: "inherit",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        opacity: hidden ? 0 : 0.75,
+        // Leaves with the grid it steps through, and comes back with it.
+        transition: `opacity ${FAST} ease`,
+        pointerEvents: hidden ? "none" : "auto",
+      }}
+    >
+      <Icon size={Math.round(size * 0.55)} />
+    </button>
   );
 }
 
 /**
  * The largest font size at which the text still fits its box, never above `max`.
  *
- * The description's slot is whatever height the title, the subtitle, the pager
- * and the link row leave behind — it changes page to page — so one authored
- * size either clips the copy or strands empty space under it. CSS has no "fit
- * this paragraph in that space", so measure it.
+ * The description's slot is whatever height the title and the subtitle leave
+ * behind — it changes page to page — so one size either clips the copy or
+ * strands empty space under it. CSS has no "fit this paragraph in that space",
+ * so measure it.
  *
  * A binary search rather than scaling by the overflow ratio: line wrapping
  * makes height a staircase, not a line, so a proportional guess overshoots.
  * Roughly five reflows of one small paragraph, and only when the copy or the
  * type scale actually changes.
  *
- * The authored size stays the ceiling. The editor's control still means what it
- * says — it just stops being a promise the layout can't keep.
+ * The ceiling is the column-proportional size, not a typed-in one, so this only
+ * ever takes type further down than the reference — never past it.
  */
 function useFitFontSize(scale: number, deps: unknown[]) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -655,92 +739,6 @@ export function largestFitting(min: number, max: number, fits: (px: number) => b
     }
   }
   return best;
-}
-
-/**
- * Prev / dots / next for the sibling pages, sitting in the text column.
- *
- * Deliberately the Portfolio slideshow's vocabulary — chevrons either side,
- * dots between, the active one stretched into a pill, wrapping at both ends —
- * because stepping through companies in a category is the same act as stepping
- * through slides, and the two shouldn't need learning separately.
- *
- * What it does NOT borrow is that panel's dark floating chips: these sit inside
- * the text column beside the category links rather than over a photo, so they
- * take their colour from the text and stay legible whatever the editor sets the
- * background to.
- */
-function PagerControl({
-  pager,
-  size,
-  gap,
-}: {
-  pager: GalleryPager;
-  /** The link row's font size — everything here is scaled off it. */
-  size: number;
-  gap: number;
-}) {
-  const { index, count, onSelect } = pager;
-  const step = (delta: number) => onSelect((index + delta + count) % count);
-
-  const dot = Math.max(8, Math.round(size * 0.8));
-  const activeDot = Math.round(dot * 3.1);
-  const button = Math.round(size * 2.6);
-
-  const arrow: React.CSSProperties = {
-    appearance: "none",
-    margin: 0,
-    padding: 0,
-    width: button,
-    height: button,
-    flexShrink: 0,
-    borderRadius: 999,
-    border: "1px solid currentColor",
-    backgroundColor: "transparent",
-    color: "inherit",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    opacity: 0.75,
-  };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap }}>
-      <button type="button" onClick={() => step(-1)} style={arrow} aria-label="Previous">
-        <ChevronLeft size={Math.round(button * 0.55)} />
-      </button>
-
-      <div style={{ display: "flex", alignItems: "center", gap: Math.round(dot * 0.7) }}>
-        {Array.from({ length: count }, (_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onSelect(i)}
-            aria-label={`Page ${i + 1} of ${count}`}
-            aria-current={i === index}
-            style={{
-              appearance: "none",
-              margin: 0,
-              padding: 0,
-              border: "none",
-              width: i === index ? activeDot : dot,
-              height: dot,
-              borderRadius: 999,
-              backgroundColor: "currentColor",
-              opacity: i === index ? 0.85 : 0.3,
-              transition: "width 300ms ease, opacity 300ms ease",
-              cursor: "pointer",
-            }}
-          />
-        ))}
-      </div>
-
-      <button type="button" onClick={() => step(1)} style={arrow} aria-label="Next">
-        <ChevronRight size={Math.round(button * 0.55)} />
-      </button>
-    </div>
-  );
 }
 
 /**
