@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace LobbyKiosk;
+namespace MainScreenKiosk;
 
 /// <summary>
 /// Interaction logic for App.xaml

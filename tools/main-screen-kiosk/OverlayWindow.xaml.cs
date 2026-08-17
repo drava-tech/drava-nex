@@ -1,7 +1,7 @@
 using System;
 using System.Windows;
 
-namespace LobbyKiosk;
+namespace MainScreenKiosk;
 
 public partial class OverlayWindow : Window
 {

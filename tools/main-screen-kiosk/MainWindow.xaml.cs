@@ -4,7 +4,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
-namespace LobbyKiosk;
+namespace MainScreenKiosk;
 
 public partial class MainWindow : Window
 {

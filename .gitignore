@@ -10,9 +10,9 @@ out/
 dist/
 *.tsbuildinfo
 
-# .NET build outputs (tools/lobby-kiosk)
-tools/lobby-kiosk/bin/
-tools/lobby-kiosk/obj/
+# .NET build outputs (tools/main-screen-kiosk)
+tools/main-screen-kiosk/bin/
+tools/main-screen-kiosk/obj/
 
 # Environmental variables
 .env

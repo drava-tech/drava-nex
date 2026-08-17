@@ -1,4 +1,4 @@
-# CMS Platform — Lobby Kiosk
+# CMS Platform — Main Screen Kiosk
 
 A small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
 full-screen on a lobby TV's PC, with no browser chrome, and lets the CMS
@@ -67,7 +67,7 @@ actually pointed at.
 Requires the .NET 8 SDK.
 
 ```
-cd tools/lobby-kiosk
+cd tools/main-screen-kiosk
 dotnet build
 ```
 
@@ -77,14 +77,15 @@ dotnet build
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-Output: `bin/Release/net8.0-windows/win-x64/publish/LobbyKiosk.exe` — a single
-self-contained file (~160MB), no .NET runtime needed on the target machine.
-`bin/` and `obj/` aren't committed; publish on (or copy the published output
-to) the machine you're deploying to.
+Output: `bin/Release/net8.0-windows/win-x64/publish/MainScreenKiosk.exe` — a
+single self-contained file (~160MB), no .NET runtime needed on the target
+machine. `bin/` and `obj/` aren't committed; publish on (or copy the
+published output to) the machine you're deploying to.
 
 ## Deploy on the TV's PC
 
-1. Copy the `publish` folder's contents to the machine (only `LobbyKiosk.exe`
-   is needed to run it; the rest are debug symbols/docs).
-2. For auto-start on login/reboot, add a shortcut to `LobbyKiosk.exe` in:
+1. Copy the `publish` folder's contents to the machine (only
+   `MainScreenKiosk.exe` is needed to run it; the rest are debug
+   symbols/docs).
+2. For auto-start on login/reboot, add a shortcut to `MainScreenKiosk.exe` in:
    `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
