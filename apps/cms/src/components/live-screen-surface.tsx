@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight, Minimize2, Power } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
-import { assignExperience, assignMedia, assignDefaultMedia } from "@/actions/screen-actions";
+import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
@@ -51,6 +51,8 @@ export function LiveScreenSurface({
   changeContent,
 }: LiveScreenSurfaceProps) {
   const [showPicker, setShowPicker] = useState(false);
+  const [minimizing, setMinimizing] = useState(false);
+  const [closingApp, setClosingApp] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: changeContent?.defaultMediaAssetId ?? null,
     name: changeContent?.defaultMediaName ?? null,
@@ -86,6 +88,31 @@ export function LiveScreenSurface({
       await assignMedia(screenId, content.id);
     } else {
       await assignExperience(screenId, content.id);
+    }
+  };
+
+  // Only take effect on the physical TV — a no-op there if it's a regular
+  // browser tab rather than the LobbyKiosk WebView2 host (see LiveScreenPlayer).
+  const handleMinimize = async () => {
+    setMinimizing(true);
+    try {
+      await sendRemoteCommand(screenId, "APP_MINIMIZE");
+    } finally {
+      setMinimizing(false);
+    }
+  };
+
+  // Exits the kiosk app entirely — it won't come back until someone relaunches
+  // it or the TV's PC reboots/logs in again (Startup shortcut), so confirm first.
+  const handleCloseApp = async () => {
+    if (!window.confirm(`Close the kiosk app on "${screenName}"? It won't reopen until the TV is relaunched or rebooted.`)) {
+      return;
+    }
+    setClosingApp(true);
+    try {
+      await sendRemoteCommand(screenId, "APP_CLOSE");
+    } finally {
+      setClosingApp(false);
     }
   };
 
@@ -190,6 +217,22 @@ export function LiveScreenSurface({
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
+          </button>
+          <button
+            onClick={handleMinimize}
+            disabled={minimizing}
+            title="Minimize the kiosk app on the TV's PC, revealing its desktop"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <Minimize2 className="h-3.5 w-3.5" /> {minimizing ? "..." : "Minimize"}
+          </button>
+          <button
+            onClick={handleCloseApp}
+            disabled={closingApp}
+            title="Close the kiosk app on the TV's PC entirely"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
           </button>
           {changeContent && (
             <button

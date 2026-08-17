@@ -156,6 +156,13 @@ export function LiveScreenPlayer({
       // fullscreen too. exitFullscreen needs no user gesture; requestFullscreen
       // does, which is why there's no remote "enter".
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    } else if (command === "APP_MINIMIZE" && !preview) {
+      // Only meaningful on the real TV, running inside the LobbyKiosk WebView2
+      // host — a no-op in a regular browser tab, and ignored by CMS mirrors so
+      // the operator's own tab doesn't minimize.
+      window.chrome?.webview?.postMessage("minimize");
+    } else if (command === "APP_CLOSE" && !preview) {
+      window.chrome?.webview?.postMessage("close");
     }
   }, [preview]);
 
