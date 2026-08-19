@@ -2,7 +2,9 @@
 
 A small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
 full-screen on a lobby TV's PC, with no browser chrome, and lets the CMS
-remotely minimize or close it.
+remotely minimize, restore, or close it. There is no local minimize/close UI
+on the kiosk itself — that control lives exclusively on the CMS tablet, so
+nobody can accidentally minimize or close the display by touching the TV.
 
 Target page is hardcoded in `MainWindow.xaml.cs`:
 
@@ -30,25 +32,22 @@ fullscreen *this app* enters itself). This app owns all of that instead.
 - Auto-retries navigation every 5s if the page fails to load or the WebView2
   process crashes, so a brief network blip or backend restart doesn't leave
   the TV stuck on an error page.
-- Draws a small Minimize/Close button pair pinned to the top-right corner —
-  in a **separate, owned top-level window** (`OverlayWindow`), not inside the
-  main window's own visual tree. WebView2 renders as a real native child
-  window (an "airspace" limitation), so nothing placed in the same window can
-  ever visually sit on top of it; a distinct owned window sidesteps that and
-  keeps the page itself truly edge-to-edge.
 - Blocks Escape/F11/Alt+F4 from a keyboard. `Ctrl+Shift+Alt+X` is a hidden
   escape hatch for maintenance.
-- Listens for `window.chrome.webview.postMessage("minimize" | "close")` from
-  the page, but only when it's actually served from `TrustedHost` — see
-  "CMS integration" below.
+- Listens for `window.chrome.webview.postMessage("minimize" | "maximize" |
+  "close")` from the page, but only when it's actually served from
+  `TrustedHost` — see "CMS integration" below.
 
 ## CMS integration
 
 The CMS's per-screen control page (`/screens/<screenId>`,
-`apps/cms/src/components/live-screen-surface.tsx`) has **Minimize** and
-**Close app** buttons that send the `APP_MINIMIZE`/`APP_CLOSE` remote
-commands (`sendRemoteCommand` → `POST /api/screens/:id/command` → WS gateway
-→ screen — the same generic plumbing `RELOAD`/`MUTE`/etc. already use).
+`apps/cms/src/components/live-screen-surface.tsx`) has **Minimize**,
+**Maximize**, and **Close app** buttons that send the
+`APP_MINIMIZE`/`APP_MAXIMIZE`/`APP_CLOSE` remote commands (`sendRemoteCommand`
+→ `POST /api/screens/:id/command` → WS gateway → screen — the same generic
+plumbing `RELOAD`/`MUTE`/etc. already use). This is the **only** way to
+minimize or close the kiosk — there's deliberately no on-screen button for it
+on the TV itself.
 
 `apps/cms/src/app/display/_components/LiveScreenPlayer.tsx` receives those
 commands on the display page and forwards them into this app via
@@ -57,10 +56,10 @@ since `window.chrome.webview` only exists inside this app's WebView2 host.
 
 **This only works when the CMS control page and the kiosk are talking to the
 same backend.** The kiosk always connects to whatever `TargetUrl` points at
-(`ec-cms`) — testing Minimize/Close from a `localhost` CMS instance won't do
-anything, since that's a separate server process with its own list of which
-screens are currently connected. Test from the same host the kiosk is
-actually pointed at.
+(`ec-cms`) — testing Minimize/Maximize/Close from a `localhost` CMS instance
+won't do anything, since that's a separate server process with its own list
+of which screens are currently connected. Test from the same host the kiosk
+is actually pointed at.
 
 ## Build
 

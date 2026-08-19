@@ -161,6 +161,8 @@ export function LiveScreenPlayer({
       // host — a no-op in a regular browser tab, and ignored by CMS mirrors so
       // the operator's own tab doesn't minimize.
       window.chrome?.webview?.postMessage("minimize");
+    } else if (command === "APP_MAXIMIZE" && !preview) {
+      window.chrome?.webview?.postMessage("maximize");
     } else if (command === "APP_CLOSE" && !preview) {
       window.chrome?.webview?.postMessage("close");
     }
