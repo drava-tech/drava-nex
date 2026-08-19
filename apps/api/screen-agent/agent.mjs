@@ -58,9 +58,24 @@ async function jiggleCursor() {
   }
 }
 
+// The connect-time jiggle above only primes the cursor once, at process
+// startup — but the same "Windows/Chrome hasn't redrawn the cursor sprite"
+// state can recur any time the real cursor sits still for a while (focus
+// changes, the driven app repainting over it, etc.), well after the agent
+// itself has been online and working for hours. Re-priming at the start of
+// every *fresh* drag (not every single move event, which would be wasteful
+// and could introduce visible jitter) covers that recurring case cheaply.
+const MOVE_IDLE_REPRIME_MS = 1_500;
+let lastMoveAt = 0;
+
 async function handleCursorControl(msg) {
   try {
     if (msg.action === 'move' && typeof msg.dx === 'number' && typeof msg.dy === 'number') {
+      const now = Date.now();
+      if (now - lastMoveAt > MOVE_IDLE_REPRIME_MS) {
+        await jiggleCursor();
+      }
+      lastMoveAt = now;
       const pos = await mouse.getPosition();
       const width = await screen.width();
       const height = await screen.height();

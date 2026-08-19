@@ -14,7 +14,6 @@ public partial class MainWindow : Window
 
     private bool _allowClose;
     private readonly DispatcherTimer _retryTimer;
-    private OverlayWindow? _overlay;
 
     public MainWindow()
     {
@@ -33,21 +32,6 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        // A WPF element can never visually sit on top of WebView2 — it's a real
-        // native child window (airspace), so it always paints above anything in
-        // the same window's visual tree. The button strip instead lives in its
-        // own top-level window, owned by this one so Windows always keeps it
-        // above its owner, letting the page render truly edge-to-edge.
-        _overlay = new OverlayWindow { Owner = this };
-        _overlay.MinimizeRequested += (_, _) => MinimizeKiosk();
-        _overlay.CloseRequested += (_, _) =>
-        {
-            _allowClose = true;
-            Close();
-        };
-        _overlay.AlignToScreen();
-        _overlay.Show();
-
         await Browser.EnsureCoreWebView2Async();
 
         var core = Browser.CoreWebView2;
@@ -97,6 +81,7 @@ public partial class MainWindow : Window
 
     // Lets the page at TrustedHost control the kiosk window via:
     //   window.chrome.webview.postMessage("minimize")
+    //   window.chrome.webview.postMessage("maximize")
     //   window.chrome.webview.postMessage("close")
     private void Core_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
@@ -121,6 +106,9 @@ public partial class MainWindow : Window
             case "minimize":
                 MinimizeKiosk();
                 break;
+            case "maximize":
+                RestoreKiosk();
+                break;
             case "close":
                 _allowClose = true;
                 Close();
@@ -130,7 +118,6 @@ public partial class MainWindow : Window
 
     private void MinimizeKiosk()
     {
-        _overlay?.Hide();
         Topmost = false;
         ShowInTaskbar = true;
         WindowState = WindowState.Minimized;
@@ -141,8 +128,6 @@ public partial class MainWindow : Window
         WindowState = WindowState.Maximized;
         ShowInTaskbar = false;
         Topmost = true;
-        _overlay?.AlignToScreen();
-        _overlay?.Show();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight, Minimize2, Power } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
@@ -52,6 +52,7 @@ export function LiveScreenSurface({
 }: LiveScreenSurfaceProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
+  const [maximizing, setMaximizing] = useState(false);
   const [closingApp, setClosingApp] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: changeContent?.defaultMediaAssetId ?? null,
@@ -99,6 +100,18 @@ export function LiveScreenSurface({
       await sendRemoteCommand(screenId, "APP_MINIMIZE");
     } finally {
       setMinimizing(false);
+    }
+  };
+
+  // Brings the kiosk app back to fullscreen after a remote Minimize (or if
+  // someone minimized it by hand on the TV's PC) — a no-op there if it's a
+  // regular browser tab rather than the LobbyKiosk WebView2 host.
+  const handleMaximize = async () => {
+    setMaximizing(true);
+    try {
+      await sendRemoteCommand(screenId, "APP_MAXIMIZE");
+    } finally {
+      setMaximizing(false);
     }
   };
 
@@ -225,6 +238,14 @@ export function LiveScreenSurface({
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <Minimize2 className="h-3.5 w-3.5" /> {minimizing ? "..." : "Minimize"}
+          </button>
+          <button
+            onClick={handleMaximize}
+            disabled={maximizing}
+            title="Bring the kiosk app back to fullscreen on the TV's PC"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <Maximize2 className="h-3.5 w-3.5" /> {maximizing ? "..." : "Maximize"}
           </button>
           <button
             onClick={handleCloseApp}
