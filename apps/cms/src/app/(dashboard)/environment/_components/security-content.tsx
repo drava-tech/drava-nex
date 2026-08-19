@@ -14,7 +14,7 @@ export default function SecurityContent({ isExpanded, state, actions }: any) {
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Security</h3>
         </div>
         <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
-          <Badge variant={state.locked ? "default" : "secondary"} className={`${isExpanded ? "" : "hidden xl:inline-flex"} ${state.locked ? "bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 border-yellow-500/20" : "bg-muted/50 text-muted-foreground"} shadow-none font-bold uppercase text-[10px] tracking-widest`}>
+          <Badge variant="secondary" className={`${isExpanded ? "" : "hidden xl:inline-flex"} border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300 shadow-none font-bold uppercase text-[10px] tracking-widest`}>
             {state.locked ? "Locked" : "Unlocked"}
           </Badge>
           <Switch checked={state.locked} onChange={actions.setLocked} />

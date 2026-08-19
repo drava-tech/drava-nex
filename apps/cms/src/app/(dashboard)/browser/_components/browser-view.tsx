@@ -92,7 +92,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
     // live-screen-surface.tsx.
     <div className="flex h-full min-h-0 gap-4 overflow-hidden bg-zinc-100 p-4 dark:bg-black">
       {/* Left column — link fields + screen picker */}
-      <div className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 dark:border-white/10 dark:bg-[#0f0f0f]">
+      <div className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-[#432992] bg-white p-5 dark:bg-[#0f0f0f]">
         <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Browser</h1>
 
         <div className="flex flex-col gap-4">
@@ -188,7 +188,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
                 {liveScreen?.screenName ?? deviceId}
               </span>
             </div>
-            <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-zinc-800 shadow-2xl dark:border-zinc-900">
+            <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-[#432992] shadow-2xl">
               <ScreenTouchpad screenId={deviceId} />
             </div>
           </>

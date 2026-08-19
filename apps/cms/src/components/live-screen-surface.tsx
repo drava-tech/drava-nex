@@ -153,7 +153,7 @@ export function LiveScreenSurface({
           {cameraStatus && <CameraStatusBadge status={cameraStatus} />}
           {changeContent && currentDefault.name && (
             <span
-              className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
+              className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-200 dark:bg-white/10 text-zinc-600 dark:text-slate-300"
               title="Shown when nothing else is assigned"
             >
               Default: {currentDefault.name}
@@ -202,7 +202,7 @@ export function LiveScreenSurface({
             onClick={resetToIdle}
             disabled={resettingToIdle}
             title="Clear the current assignment and fall back to the default/idle media"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingToIdle ? "Resetting..." : "Reset to idle"}
           </button>
@@ -212,7 +212,7 @@ export function LiveScreenSurface({
             title={blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${blanked
               ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
-              : "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+              : "border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
               }`}
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
@@ -222,7 +222,7 @@ export function LiveScreenSurface({
             onClick={handleMinimize}
             disabled={minimizing}
             title="Minimize the kiosk app on the TV's PC, revealing its desktop"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <Minimize2 className="h-3.5 w-3.5" /> {minimizing ? "..." : "Minimize"}
           </button>
@@ -250,14 +250,14 @@ export function LiveScreenSurface({
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden">
             <ScreenTouchpad screenId={screenId} />
           </div>
         </div>
       ) : (
         /* Big interactive screen */
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden">
+          <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-[#432992] shadow-2xl bg-zinc-950 overflow-hidden">
             <ScreenMirror screenId={screenId} title={screenName} interactive />
           </div>
         </div>

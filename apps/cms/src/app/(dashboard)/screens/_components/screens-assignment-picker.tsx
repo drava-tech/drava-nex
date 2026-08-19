@@ -90,7 +90,7 @@ export function ScreenAssignmentPicker({
 
       {/* Dialog Panel */}
       <div
-        className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden transition-all transform scale-100"
+        className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -178,8 +178,8 @@ export function ScreenAssignmentPicker({
                       className={`relative flex flex-col items-start justify-end rounded-2xl border p-4 h-24 transition-all duration-200 text-left overflow-hidden group
                         ${
                           isActive
-                            ? "border-zinc-900 dark:border-zinc-300 bg-zinc-100 dark:bg-zinc-800/80 shadow-md"
-                            : "border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
+                            ? "border-[#432992] bg-zinc-100 dark:bg-zinc-800/80 shadow-md"
+                            : "border-[#432992] bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
                         }`}
                     >
                       <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 transition-colors group-hover:text-zinc-500">
@@ -226,12 +226,12 @@ export function ScreenAssignmentPicker({
                         className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
                           ${
                             isActive
-                              ? "border-zinc-900 dark:border-zinc-300 bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
-                              : "border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
+                              ? "border-[#432992] bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
+                              : "border-[#432992] hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
                           }`}
                       >
                         {/* Thumbnail preview */}
-                        <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-zinc-200/50 dark:border-white/5">
+                        <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
                           {media.type === "video" ? (
                             <video
                               src={media.url}

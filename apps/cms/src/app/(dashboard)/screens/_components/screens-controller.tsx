@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play, MoreVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@platform/ui";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { removeScreen, assignExperience, assignMedia, setScreenBlanked } from "@/actions/screen-actions";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import { ScreenMirror } from "./screen-mirror";
 import { AddScreenModal } from "./add-screen-modal";
+import { GRADIENT_BORDER_IMAGE } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import type { WsContent } from "@platform/types";
 
 interface ScreenConfig {
@@ -239,7 +241,7 @@ export function ScreensController({
               <p className="text-xs text-zinc-400">Add your first screen to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {screens.map((screen) => {
                 const hasLiveUpdate = Boolean(liveUpdates[screen.id]);
                 const isAssigned = Boolean(screen.contentLabel);
@@ -248,110 +250,123 @@ export function ScreensController({
                 return (
                   <div
                     key={screen.id}
-                    className={`flex flex-col items-center gap-4 bg-white dark:bg-zinc-950 border rounded-[28px] p-6 shadow-sm transition-all duration-300
-                      ${isOnline
-                        ? "border-green-200 dark:border-green-950/60 shadow-[0_0_15px_rgba(34,197,94,0.05)]"
-                        : "border-zinc-200 dark:border-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-800"
-                      }`}
+                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-[#0b0518] transition-all hover:ring-2 hover:ring-sky-500 focus-within:ring-2 focus-within:ring-sky-500"
                   >
-                    {/* Header — name, online indicator, and copy all inline on the
-                        left; delete pushed to the far right. */}
-                    <div className="flex w-full items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${isOnline ? "bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" : "bg-zinc-400"}`} />
-                        <h3 className="truncate text-base font-bold text-zinc-800 dark:text-zinc-200 tracking-wide uppercase">
-                          {screen.name}
-                        </h3>
-                        {hasLiveUpdate && (
-                          <span title="Updated from screen" className="shrink-0">
-                            <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
+                    {/* Live mirror — exactly what the TV is showing (template/media/idle) */}
+                    <div className="relative w-full aspect-video shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openControl(screen.id)}
+                        title="Open control"
+                        style={{
+                          background: `linear-gradient(to bottom right, #1c1033, #0a0518) padding-box, ${GRADIENT_BORDER_IMAGE} border-box`,
+                          border: "1px solid transparent",
+                        }}
+                        className="relative h-full w-full rounded-2xl overflow-hidden cursor-pointer"
+                      >
+                        <ScreenMirror screenId={screen.id} title={screen.name} isOnline={isOnline} loadStream={false} />
+                        {/* Hover hint */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 text-zinc-900 text-[10px] font-bold uppercase tracking-wider">
+                            <SlidersHorizontal className="h-3 w-3" /> Control
                           </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => copyScreenUrl(screen.id)}
-                          title="Copy display URL"
-                          className="shrink-0 rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-700 dark:hover:text-zinc-200"
-                        >
-                          {copiedId === screen.id ? (
-                            <Check className="h-3.5 w-3.5 text-green-500" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
+                        </div>
+                      </button>
+
                       {isAdmin && (
-                        <button
-                          onClick={() => removeScreen(screen.id).then(() => router.refresh())}
-                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
-                          title="Remove screen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Screen actions"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-[#432992] text-white/80 backdrop-blur-sm transition-colors hover:text-white"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2 py-1"
+                              onSelect={() => copyScreenUrl(screen.id)}
+                            >
+                              {copiedId === screen.id ? (
+                                <Check className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                              {copiedId === screen.id ? "Copied!" : "Copy display URL"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={blankingId === screen.id}
+                              className="cursor-pointer gap-2 py-1"
+                              onSelect={() => handleToggleBlank(screen.id, !screen.blanked)}
+                            >
+                              {screen.blanked ? <Play className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                              {blankingId === screen.id ? "..." : screen.blanked ? "Resume" : "Stop"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2 py-1 text-destructive focus:text-destructive"
+                              onSelect={() => removeScreen(screen.id).then(() => router.refresh())}
+                            >
+                              <Trash2 className="h-4 w-4" /> Remove screen
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
 
-                    {/* Live mirror — exactly what the TV is showing (template/media/idle) */}
-                    <button
-                      type="button"
-                      onClick={() => openControl(screen.id)}
-                      title="Open control"
-                      className="group w-full aspect-[16/9] relative rounded-2xl border-[5px] border-zinc-800 dark:border-zinc-900 shadow-xl bg-zinc-950 overflow-hidden shrink-0 cursor-pointer"
-                    >
-                      <ScreenMirror screenId={screen.id} title={screen.name} />
-                      {/* Hover hint + current content label */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 text-zinc-900 text-[10px] font-bold uppercase tracking-wider">
-                          <SlidersHorizontal className="h-3 w-3" /> Control
-                        </span>
-                      </div>
-                      {isAssigned && (
-                        <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-md py-1 px-3 text-center pointer-events-none">
-                          <span className="text-white/90 font-medium text-[10px] truncate block">
-                            {screen.contentLabel}
-                          </span>
+                    {/* Name + status, content-description, and actions */}
+                    <div className="flex flex-col gap-3 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-base font-light text-white">{screen.name}</p>
+                          {hasLiveUpdate && (
+                            <span title="Updated from screen" className="shrink-0">
+                              <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </button>
+                        <Badge
+                          variant="secondary"
+                          className="shrink-0 rounded-full border-0 bg-white/10 px-3 py-1 text-[11px] font-light text-slate-300"
+                        >
+                          <span
+                            className={`mr-1.5 h-1.5 w-1.5 rounded-full ${isOnline ? "bg-green-500 animate-pulse shadow-[0_0_6px_#22c55e]" : "bg-zinc-400"}`}
+                          />
+                          {isOnline ? "Online" : "Offline"}
+                        </Badge>
+                      </div>
 
-                    {/* Actions: open the full control view, reset to idle, stop/resume, or change what's playing */}
-                    <div className="w-full grid grid-cols-4 gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
-                      <button
-                        onClick={() => openControl(screen.id)}
-                        className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                        <span>Control</span>
-                      </button>
-                      <button
-                        onClick={() => handleResetToIdle(screen.id)}
-                        disabled={idlingId === screen.id}
-                        title="Clear the current assignment and fall back to the default/idle media"
-                        className="py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        <span>{idlingId === screen.id ? "..." : "Idle"}</span>
-                      </button>
-                      <button
-                        onClick={() => handleToggleBlank(screen.id, !screen.blanked)}
-                        disabled={blankingId === screen.id}
-                        title={screen.blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
-                        className={`py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 border ${
-                          screen.blanked
-                            ? "bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 border-red-200/60 dark:border-red-900/60"
-                            : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200/60 dark:border-zinc-800/60"
-                        }`}
-                      >
-                        {screen.blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
-                        <span>{blankingId === screen.id ? "..." : screen.blanked ? "Resume" : "Stop"}</span>
-                      </button>
-                      <button
-                        onClick={() => setPickerTargetId(screen.id)}
-                        className="py-3 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95"
-                      >
-                        <Layers className="h-3.5 w-3.5" />
-                        <span>{isAssigned ? "Change" : "Assign"}</span>
-                      </button>
+                      <p className="truncate text-sm text-white/40">
+                        {isAssigned ? screen.contentLabel : "No content assigned"}
+                      </p>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => openControl(screen.id)}
+                          className="rounded-full border border-[#432992] bg-transparent py-1.5 text-xs font-light text-white transition-colors hover:bg-white/10 flex items-center justify-center gap-1.5"
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                          <span>Control</span>
+                        </button>
+                        <button
+                          onClick={() => setPickerTargetId(screen.id)}
+                          className="rounded-full bg-white py-1.5 text-xs font-light text-[#0b0518] transition-colors hover:bg-white/90 flex items-center justify-center gap-1.5"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                          <span>{isAssigned ? "Change" : "Assign"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleResetToIdle(screen.id)}
+                          disabled={idlingId === screen.id}
+                          title="Clear the current assignment and fall back to the default/idle media"
+                          className="rounded-full border border-[#432992] bg-transparent py-1.5 text-xs font-light text-white transition-colors hover:bg-white/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>{idlingId === screen.id ? "..." : "Idle"}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

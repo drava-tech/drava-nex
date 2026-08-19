@@ -12,15 +12,28 @@ export function ScreenMirror({
   screenId,
   title,
   interactive = false,
+  isOnline,
+  loadStream = true,
 }: {
   screenId: string;
   title?: string;
   interactive?: boolean;
+  /** When provided, shows a centered "Live Mirror"/"No Signal" indicator,
+   * matching how the Experiences card centers its category label. Omitted by
+   * callers (e.g. the full-page live control view) that don't want this
+   * overlay. */
+  isOnline?: boolean;
+  /** False skips mounting the iframe entirely — just the isOnline indicator
+   * over the card's own background. Used by the Screens grid, which shouldn't
+   * spin up a live stream per card just from being visible; the real stream
+   * only starts once the user clicks into the full Control view. */
+  loadStream?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!loadStream) return;
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(
@@ -35,11 +48,21 @@ export function ScreenMirror({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [screenId]);
+  }, [screenId, loadStream]);
 
   return (
-    <div ref={ref} className="absolute inset-0 w-full h-full bg-zinc-950">
-      {src ? (
+    <div ref={ref} className={`absolute inset-0 w-full h-full ${loadStream ? "bg-zinc-950" : ""}`}>
+      {isOnline !== undefined && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-sm font-light text-violet-300">
+            {isOnline && (
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
+            )}
+            {isOnline ? "Live Mirror" : "No Signal"}
+          </span>
+        </div>
+      )}
+      {!loadStream ? null : src ? (
         <iframe
           src={src}
           title={title ?? `Screen ${screenId}`}

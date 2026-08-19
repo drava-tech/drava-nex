@@ -98,7 +98,7 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
           </h3>
         </div>
         <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
-          <Badge variant={state.power ? "default" : "secondary"} className={`${isExpanded ? "" : "hidden xl:inline-flex"} bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Online" : "Off"}</Badge>
+          <Badge variant="secondary" className={`${isExpanded ? "" : "hidden xl:inline-flex"} border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Online" : "Off"}</Badge>
           <Switch checked={state.power} onChange={actions.setPower} />
         </div>
       </div>

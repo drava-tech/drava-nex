@@ -65,6 +65,77 @@ export function liquidPanelStyle(accent: LiquidAccent): CSSProperties {
   return buildLiquidStyle(ACCENT_CSS[accent], "panel");
 }
 
+// White-to-violet vertical gradient for KPI text content (values/labels) —
+// background-clip: text needs the color painted as a background image, with
+// the text's own color made transparent so that image shows through the
+// glyphs instead of behind them.
+export const textGradientStyle: CSSProperties = {
+  backgroundImage: "linear-gradient(to bottom, #FFFFFF, #9978FF)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  color: "transparent",
+};
+
+// Dashboard-wide card border treatment, independent of the per-datum accent
+// colors above: "solid" is a flat brand violet; "gradient" is a glossy
+// shimmer sheen. Selectable per panel — currently every dashboard card uses
+// "solid", with "gradient" available for a future highlight/hero panel.
+export type BorderVariant = "solid" | "gradient";
+
+const SOLID_BORDER_COLOR = "#432992";
+export const GRADIENT_BORDER_IMAGE =
+  "linear-gradient(135deg, #1B006D 6%, #DED3FF 33%, #FFFFFF 50%, #DED3FF 80%, #1B006D 97%)";
+
+// Layers a border variant onto an existing liquid-glass style (e.g. from
+// liquidPanelStyle), preserving its fill gradient and glow box-shadow.
+// "gradient" needs the standard two-layer background technique — a flat
+// border-color can only ever hold one color, so the panel's own fill is
+// painted into the padding-box while the shimmer is painted into the
+// border-box beneath it; `border: 1px solid transparent` reserves the ring's
+// width without covering that layer with a flat color.
+export function withBorderVariant(base: CSSProperties, variant: BorderVariant): CSSProperties {
+  if (variant === "solid") {
+    return { ...base, borderColor: SOLID_BORDER_COLOR };
+  }
+  const fill = typeof base.background === "string" ? base.background : "transparent";
+  return {
+    ...base,
+    background: `${fill} padding-box, ${GRADIENT_BORDER_IMAGE} border-box`,
+    border: "1px solid transparent",
+  };
+}
+
+// Same border treatment for a plain panel with no existing liquid-glass base
+// style (e.g. the shared shadcn `Card`) — `fillColor` defaults to the card's
+// own design-token background so it doesn't hardcode a duplicate color.
+// `borderImage` lets a caller shift the shimmer's highlight position without
+// touching the shared default (e.g. the sidebar's active-item pill nudges
+// its highlight right, independent of the Screen Uptime card's border).
+export function panelBorderStyle(
+  variant: BorderVariant,
+  fillColor = "var(--card)",
+  borderImage: string = GRADIENT_BORDER_IMAGE
+): CSSProperties {
+  if (variant === "solid") {
+    return { borderColor: SOLID_BORDER_COLOR };
+  }
+  return {
+    background: `linear-gradient(${fillColor}, ${fillColor}) padding-box, ${borderImage} border-box`,
+    border: "1px solid transparent",
+  };
+}
+
+// Subtle violet fill for the sidebar's active nav pill — a 135deg gradient
+// between the two brand violets at 10% opacity, sitting behind the solid
+// border (panelBorderStyle("solid")).
+export const ACTIVE_NAV_BACKGROUND =
+  "linear-gradient(135deg, rgba(67, 41, 146, 0.1) 0%, rgba(89, 69, 147, 0.1) 100%)";
+
+// Same shimmer stops as GRADIENT_BORDER_IMAGE, with the bright highlight
+// nudged right — used for the sidebar's active nav pill / Admin button.
+export const GRADIENT_BORDER_IMAGE_RIGHT =
+  "linear-gradient(135deg, #1B006D 16%, #DED3FF 40%, #FFFFFF 52%, #DED3FF 60%, #1B006D 100%)";
+
 // Lighter touch for large card surfaces that must stay dark/legible: a
 // tinted rim + glow only, no fill tint — echoes the reference kit's
 // "Pro plan" / "Tabs" panels, which stay dark and let the accent show only

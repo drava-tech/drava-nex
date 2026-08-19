@@ -142,7 +142,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="h-20 items-center justify-center px-4 py-3 group-data-[collapsible=icon]:hidden">
         <div className="relative aspect-[2386/859] w-35">
-          <Image src="/Logo.png" alt="Logo" fill className="object-contain" priority sizes="80px" />
+          <Image src="/Logo.png" alt="Logo" fill className="object-contain" priority sizes="140px" />
         </div>
       </SidebarHeader>
       <SidebarContent>

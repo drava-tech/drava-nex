@@ -74,12 +74,12 @@
   --secondary-foreground: oklch(1 0 0);
   --muted: oklch(0.2300 0 0);
   --muted-foreground: oklch(0.7200 0 0);
-  --accent: oklch(0.3200 0 0);
+  --accent: #432992;
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.6900 0.2000 23.9100);
   --destructive-foreground: oklch(0 0 0);
-  --border: oklch(0.2600 0 0);
-  --input: oklch(0.3200 0 0);
+  --border: #432992;
+  --input: #432992;
   --ring: oklch(0.7200 0 0);
   --chart-1: oklch(0.8100 0.1700 75.3500);
   --chart-2: oklch(0.5800 0.2100 260.8400);
@@ -90,9 +90,9 @@
   --sidebar-foreground: oklch(1 0 0);
   --sidebar-primary: oklch(1 0 0);
   --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: oklch(0.3200 0 0);
+  --sidebar-accent: #432992;
   --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.3200 0 0);
+  --sidebar-border: #432992;
   --sidebar-ring: oklch(0.7200 0 0);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
@@ -198,6 +198,31 @@
   input[type="password"]::-ms-reveal,
   input[type="password"]::-ms-clear {
     display: none;
+  }
+
+  /* Every non-icon-only button in the CMS gets a flat violet pill outline —
+     same #432992 already used on cards/sidebar. Solid color, not the 5-stop
+     shimmer: the earlier mask-composite gradient-ring technique rendered as
+     a solid white-flooded fill instead of a thin ring in practice, since its
+     middle stop is bright white and the mask punch-out isn't reliable
+     everywhere — a plain border has no such failure mode.
+     [class*="gap-"] targets icon+label buttons (e.g. "+ Add Screen") via the
+     gap-* utility they lay their children out with; icon-only buttons don't
+     use gap (single child) and so keep their current bare look, no ring.
+     !important on all three forces this over each button's own rounded/bg/
+     text-color utility classes, which would otherwise win on specificity.
+     color: #fff also whitens any child icon that inherits currentColor
+     (Lucide icons do by default), not just the label text.
+     Excludes sidebar-chrome buttons ([data-sidebar]) — those are a separate
+     nav system with their own hand-tuned border treatment already — and any
+     button explicitly opted out via [data-plain], for icon+label buttons
+     that use gap-* for layout but aren't meant to look like a CTA (e.g. a
+     table row's name link). */
+  button:not([data-sidebar]):not([data-plain])[class*="gap-"] {
+    border: 1px solid #432992;
+    border-radius: 9999px !important;
+    background-color: transparent !important;
+    color: #FFFFFF !important;
   }
 }
 

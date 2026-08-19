@@ -67,7 +67,7 @@ export function ContentMixDonut() {
 
       <div className="flex flex-wrap justify-center gap-2">
         {contentMix.map((s) => (
-          <LiquidPill key={s.label} color={s.colorVar}>
+          <LiquidPill key={s.label}>
             <span
               className="h-2 w-2 rounded-full"
               style={{ backgroundColor: s.colorVar }}

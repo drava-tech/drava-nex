@@ -103,7 +103,7 @@ export function LiveStreamEditorWorkspace({
   return (
     <div className="w-screen h-screen flex flex-col bg-zinc-100 dark:bg-zinc-950">
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-[#432992] bg-white dark:bg-zinc-900">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/experiences"
@@ -145,7 +145,7 @@ export function LiveStreamEditorWorkspace({
 
       {/* Body: content panel + live preview */}
       <div className="flex-1 flex min-h-0">
-        <aside className="w-[400px] shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto p-4 flex flex-col gap-4">
+        <aside className="w-[400px] shrink-0 border-r border-[#432992] bg-white dark:bg-zinc-900 overflow-y-auto p-4 flex flex-col gap-4">
           <div>
             <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-3">
               Stream
@@ -155,7 +155,7 @@ export function LiveStreamEditorWorkspace({
                 {trimmedId ? (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-stretch gap-1.5">
-                      <code className="flex-1 block text-sm font-mono bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2.5 py-2 text-zinc-900 dark:text-zinc-100 break-all">
+                      <code className="flex-1 block text-sm font-mono bg-zinc-100 dark:bg-zinc-800 border border-[#432992] rounded-md px-2.5 py-2 text-zinc-900 dark:text-zinc-100 break-all">
                         {trimmedId}
                       </code>
                       <button
@@ -197,7 +197,7 @@ export function LiveStreamEditorWorkspace({
                     setSaved(false);
                     setLabel(e.target.value);
                   }}
-                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-violet-500 disabled:opacity-50"
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-[#432992] rounded-md px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-violet-500 disabled:opacity-50"
                 />
               </Field>
               <Field label="Fit">
@@ -208,7 +208,7 @@ export function LiveStreamEditorWorkspace({
                     setSaved(false);
                     setFit(e.target.value as StreamFit);
                   }}
-                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-violet-500 disabled:opacity-50"
+                  className="w-full bg-zinc-100 dark:bg-zinc-800 border border-[#432992] rounded-md px-2.5 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-violet-500 disabled:opacity-50"
                 >
                   <option value="cover">Cover (fill, crop edges)</option>
                   <option value="contain">Contain (letterbox)</option>
@@ -219,7 +219,7 @@ export function LiveStreamEditorWorkspace({
 
           {/* Connection instructions for the publisher EXE — shown once a URL is generated */}
           {trimmedId && (
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
+          <div className="rounded-xl border border-[#432992] p-4 flex flex-col gap-3">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
               Connect your stream (EXE)
             </h3>

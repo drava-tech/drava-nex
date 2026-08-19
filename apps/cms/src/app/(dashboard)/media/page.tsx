@@ -37,12 +37,6 @@ import {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
   cn,
 } from "@platform/ui";
 import { isLinkMediaType, parseYouTubeId } from "@platform/types";
@@ -361,7 +355,7 @@ export default function MediaPage() {
   const paginatedItems = filteredItems.slice(pageStart, pageStart + pageSize);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50 dark:bg-[#0a0a0a] min-h-[calc(100vh-4rem)] select-none">
+    <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
       {/* Hidden file input */}
       <input
         type="file"
@@ -372,7 +366,7 @@ export default function MediaPage() {
       />
 
       {/* Top Header Section */}
-      <div className="flex flex-col gap-4 p-4 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a] sticky top-0 z-20">
+      <div className="flex flex-col gap-4 p-4 border-b border-[#432992] sticky top-0 z-20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
@@ -384,7 +378,7 @@ export default function MediaPage() {
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
               className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border text-sm font-medium transition-all active:scale-95 ${selecting
                   ? "border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
-                  : "border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                  : "border-[#432992] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                 }`}
             >
               <CheckSquare className="h-4 w-4" />
@@ -394,7 +388,7 @@ export default function MediaPage() {
               onClick={handleLoadFromEmail}
               disabled={loadingInbox}
               title="Load last 2 days from email"
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-[#432992] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`h-4 w-4 shrink-0 ${loadingInbox ? "animate-spin" : ""}`} />
               {loadingInbox ? "Loading…" : "Load Email"}
@@ -557,7 +551,7 @@ export default function MediaPage() {
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
                     max={dateTo || undefined}
-                    className="h-9 px-2 rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
+                    className="h-9 px-2 rounded-lg border border-[#432992] bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -567,7 +561,7 @@ export default function MediaPage() {
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
                     min={dateFrom || undefined}
-                    className="h-9 px-2 rounded-lg border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
+                    className="h-9 px-2 rounded-lg border border-[#432992] bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
                   />
                 </div>
                 {(dateFrom || dateTo) && (
@@ -645,43 +639,43 @@ export default function MediaPage() {
           </div>
         ) : (
           /* Media Table */
-          <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#111] overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {selecting && <TableHead className="w-10" />}
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr>
+                  {selecting && <th className="w-10 px-4 py-3 font-medium" />}
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium">Source</th>
+                  <th className="px-4 py-3 font-medium">Size</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
                 {uploading && (
-                  <TableRow>
-                    <TableCell colSpan={selecting ? 7 : 6}>
+                  <tr className="border-b last:border-0">
+                    <td colSpan={selecting ? 7 : 6} className="px-4 py-3">
                       <div className="flex items-center gap-3 text-zinc-400 dark:text-zinc-500">
                         <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                         Uploading asset…
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 )}
                 {paginatedItems.map((media) => {
                   const isSelected = selectedIds.has(media.id);
                   return (
-                    <TableRow
+                    <tr
                       key={media.id}
                       onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
                       className={cn(
-                        "cursor-pointer",
+                        "cursor-pointer border-b last:border-0 hover:bg-muted/30",
                         isSelected && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
                       )}
                     >
                       {selecting && (
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() => toggleSelected(media.id)}
@@ -690,16 +684,16 @@ export default function MediaPage() {
                               "flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors",
                               isSelected
                                 ? "bg-blue-600 border-blue-600"
-                                : "border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500"
+                                : "border-[#432992] hover:border-zinc-400 dark:hover:border-zinc-500"
                             )}
                           >
                             {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                           </button>
-                        </TableCell>
+                        </td>
                       )}
-                      <TableCell>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800/50">
+                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-white/10">
                             <MediaThumbnail media={media} compact />
                           </div>
                           <span
@@ -709,19 +703,19 @@ export default function MediaPage() {
                             {media.name}
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                           <TypeIcon type={media.type} className="w-3.5 h-3.5" />
                           {TYPE_LABELS[media.type] ?? media.type}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="px-4 py-3">
                         <SourceBadge source={media.source} />
-                      </TableCell>
-                      <TableCell className="text-zinc-500 dark:text-zinc-400">{media.size}</TableCell>
-                      <TableCell className="text-zinc-500 dark:text-zinc-400">{media.date}</TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">{media.size}</td>
+                      <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">{media.date}</td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="inline-flex items-center justify-center w-8 h-8 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/5 dark:hover:text-zinc-100 transition-colors">
@@ -752,12 +746,12 @@ export default function MediaPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         )}
 

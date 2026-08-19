@@ -6,7 +6,10 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4">
+    <div
+      className="flex min-h-svh items-center justify-center p-4"
+      style={{ background: "linear-gradient(to bottom, #01001F, #000000)" }}
+    >
       {children}
     </div>
   );

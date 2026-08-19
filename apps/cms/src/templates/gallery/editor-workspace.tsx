@@ -41,9 +41,9 @@ import {
 
 const LABEL = "text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-400 dark:text-zinc-500";
 const INPUT =
-  "w-full rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-900 outline-none focus:border-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
+  "w-full rounded-md border border-[#432992] bg-zinc-100 px-2 py-1.5 text-xs text-zinc-900 outline-none focus:border-zinc-500 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-100";
 const SECTION_HEAD = "mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400";
-const CARD = "flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800";
+const CARD = "flex flex-col gap-3 rounded-xl border border-[#432992] p-4";
 const ICON_BTN =
   "rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-zinc-800";
 
@@ -90,7 +90,7 @@ function NumberControl({
           value={value}
           disabled={disabled}
           onChange={(e) => commit(Number(e.target.value))}
-          className="w-16 rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1 text-right text-xs text-zinc-900 outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          className="w-16 rounded-md border border-[#432992] bg-zinc-100 px-2 py-1 text-right text-xs text-zinc-900 outline-none disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-100"
         />
         <span className="text-[10px] text-zinc-400">{unit}</span>
       </div>
@@ -245,7 +245,7 @@ export function GalleryEditorWorkspace({
   return (
     <div className="flex h-screen w-screen flex-col bg-zinc-100 dark:bg-zinc-950">
       {/* Top bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#432992] bg-white px-4 dark:bg-zinc-900">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/experiences"
@@ -288,7 +288,7 @@ export function GalleryEditorWorkspace({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-[400px] shrink-0 overflow-y-auto border-r border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <aside className="w-[400px] shrink-0 overflow-y-auto border-r border-[#432992] bg-white p-4 dark:bg-zinc-900">
           {/* ─── Pages ─────────────────────────────────────────────────── */}
           <div className="mb-3 flex items-center justify-between">
             <h2 className={`${SECTION_HEAD} mb-0`}>Pages</h2>
@@ -301,7 +301,7 @@ export function GalleryEditorWorkspace({
               <Plus className="h-3 w-3" /> Add page
             </button>
           </div>
-          <div className="mb-4 flex flex-col gap-1 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
+          <div className="mb-4 flex flex-col gap-1 rounded-xl border border-[#432992] p-2">
             {pages.map((p, i) => (
               <div
                 key={i}
@@ -427,7 +427,7 @@ export function GalleryEditorWorkspace({
                     type="button"
                     onClick={() => setPicker({ mode: "slot", slot: i })}
                     disabled={isPending}
-                    className="h-14 w-20 shrink-0 overflow-hidden rounded-md border border-zinc-300 bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800"
+                    className="h-14 w-20 shrink-0 overflow-hidden rounded-md border border-[#432992] bg-zinc-100 disabled:opacity-50 dark:bg-zinc-800"
                   >
                     {photo.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -534,7 +534,7 @@ export function GalleryEditorWorkspace({
                   value={content.backgroundColor ?? "#e8e8f7"}
                   disabled={isPending}
                   onChange={(e) => update({ backgroundColor: e.target.value })}
-                  className="h-8 w-full cursor-pointer rounded-md border border-zinc-300 bg-transparent disabled:opacity-50 dark:border-zinc-700"
+                  className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
                 />
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
@@ -544,7 +544,7 @@ export function GalleryEditorWorkspace({
                   value={content.textColor ?? "#111114"}
                   disabled={isPending}
                   onChange={(e) => update({ textColor: e.target.value })}
-                  className="h-8 w-full cursor-pointer rounded-md border border-zinc-300 bg-transparent disabled:opacity-50 dark:border-zinc-700"
+                  className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
                 />
               </div>
             </div>

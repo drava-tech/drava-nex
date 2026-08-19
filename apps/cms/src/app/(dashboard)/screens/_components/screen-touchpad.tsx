@@ -194,7 +194,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
           onPointerMove={handleScrollPointerMove}
           onPointerUp={handleScrollPointerUp}
           onPointerCancel={handleScrollPointerUp}
-          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-zinc-300 bg-zinc-200/60 py-6 dark:border-white/10 dark:bg-zinc-950"
+          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-[#432992] bg-zinc-200/60 py-6 dark:bg-zinc-950"
           style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
         >
           <ChevronUp className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
@@ -204,7 +204,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
       </div>
 
       {/* Volume row — office system audio, see docblock above. */}
-      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
+      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
         <button
           type="button"
           onClick={() => adjustVolume(-VOLUME_STEP)}
@@ -239,7 +239,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
 
       {/* Laptop-trackpad-style button bar — explicit left/right clicks
           alongside the pad's own tap-to-left-click gesture above. */}
-      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-zinc-300 dark:divide-white/10 dark:border-white/10">
+      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
         <button
           type="button"
           onClick={() => click("left")}

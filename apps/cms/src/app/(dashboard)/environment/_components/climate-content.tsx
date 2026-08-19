@@ -19,7 +19,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Climate</h3>
         </div>
         <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
-          <Badge variant={state.power ? "default" : "secondary"} className={`${isExpanded ? "" : "hidden xl:inline-flex"} bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Online" : "Off"}</Badge>
+          <Badge variant="secondary" className={`${isExpanded ? "" : "hidden xl:inline-flex"} border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Online" : "Off"}</Badge>
           <Switch checked={state.power} onChange={actions.setPower} />
         </div>
       </div>
@@ -33,7 +33,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
               <div
-                className={`h-full rounded-full ${state.temp > 24 ? "bg-orange-500" : "bg-cyan-500"}`}
+                className="h-full rounded-full bg-gradient-to-r from-[#1B006D] to-[#8A5CFF] transition-[width] duration-150 ease-out"
                 style={{ width: `${((state.temp - 16) / 14) * 100}%` }}
               />
             </div>

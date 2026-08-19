@@ -110,7 +110,7 @@ export function VisitorsClient({
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-4rem)]">
-      <div className="flex flex-col gap-2 border-b bg-background p-4 sticky top-0 z-20">
+      <div className="flex flex-col gap-2 border-b p-4 sticky top-0 z-20">
         <div>
           <h1 className="text-2xl font-bold">Visitors</h1>
           <p className="text-sm text-muted-foreground">
@@ -173,17 +173,17 @@ export function VisitorsClient({
           />
         </div>
 
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40">
+            <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Photo</th>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Email</th>
-                <th className="px-4 py-3 text-left font-medium">Role</th>
-                <th className="px-4 py-3 text-left font-medium">First seen</th>
-                <th className="px-4 py-3 text-left font-medium">Last seen</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">Photo</th>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">First seen</th>
+                <th className="px-4 py-3 font-medium">Last seen</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -195,7 +195,7 @@ export function VisitorsClient({
                 </tr>
               )}
               {items.map((v) => (
-                <tr key={v.uuid} className="border-b last:border-0">
+                <tr key={v.uuid} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-2">
                     {v.hasImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -218,7 +218,7 @@ export function VisitorsClient({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{v.email || "—"}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="secondary">{v.role}</Badge>
+                    <Badge variant="secondary" className="border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300">{v.role}</Badge>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatSeen(v.firstSeen)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatSeen(v.lastSeen)}</td>

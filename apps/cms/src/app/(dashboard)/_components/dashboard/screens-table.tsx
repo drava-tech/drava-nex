@@ -38,7 +38,7 @@ export function ScreensList() {
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <LiquidPill color={status.color}>
+              <LiquidPill>
                 <span
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ backgroundColor: status.color }}

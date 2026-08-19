@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@platform/ui";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
+import { panelBorderStyle } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import { stats } from "@/app/(dashboard)/_data/dashboard-demo";
 import { StatCard } from "@/app/(dashboard)/_components/dashboard/stat-card";
 import { UptimeAreaChart } from "@/app/(dashboard)/_components/dashboard/uptime-area-chart";
@@ -34,15 +35,15 @@ export default async function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard stat={stats.screens} icon={Monitor} accent="blue" href="/screens" />
-        <StatCard stat={stats.experiences} icon={SquareTerminal} accent="violet" href="/experiences" />
-        <StatCard stat={stats.media} icon={Film} accent="amber" href="/media" />
-        <StatCard stat={stats.users} icon={Users} accent="emerald" href="/users" />
+        <StatCard stat={stats.screens} icon={Monitor} href="/screens" />
+        <StatCard stat={stats.experiences} icon={SquareTerminal} href="/experiences" />
+        <StatCard stat={stats.media} icon={Film} href="/media" />
+        <StatCard stat={stats.users} icon={Users} href="/users" />
       </div>
 
       {/* Charts row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2" style={panelBorderStyle("gradient")}>
           <CardHeader>
             <CardTitle>Screen Uptime</CardTitle>
             <CardDescription>Share of screens online, last 7 days</CardDescription>
@@ -51,7 +52,7 @@ export default async function DashboardPage() {
             <UptimeAreaChart />
           </CardContent>
         </Card>
-        <Card>
+        <Card style={panelBorderStyle("solid")}>
           <CardHeader>
             <CardTitle>Content Mix</CardTitle>
             <CardDescription>Deployed experiences by type</CardDescription>
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
 
       {/* Operations row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2" style={panelBorderStyle("solid")}>
           <CardHeader>
             <CardTitle>Screens</CardTitle>
             <CardDescription>Live status across your network</CardDescription>
@@ -73,7 +74,7 @@ export default async function DashboardPage() {
             <ScreensTable />
           </CardContent>
         </Card>
-        <Card>
+        <Card style={panelBorderStyle("solid")}>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Latest changes by your team</CardDescription>
@@ -86,7 +87,7 @@ export default async function DashboardPage() {
 
       {/* Storage row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3" style={panelBorderStyle("solid")}>
           <CardHeader>
             <CardTitle>Media Library</CardTitle>
             <CardDescription>Storage usage and recent uploads</CardDescription>

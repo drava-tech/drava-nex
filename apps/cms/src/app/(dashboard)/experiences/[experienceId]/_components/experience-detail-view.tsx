@@ -88,7 +88,7 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
             <p className="text-sm text-muted-foreground">/{experience.slug}</p>
           </div>
           {hasTemplate && isTemplateKey(experience.templateKey) && (
-            <Badge variant="secondary">{TEMPLATE_LABELS[experience.templateKey]}</Badge>
+            <Badge variant="secondary" className="border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300">{TEMPLATE_LABELS[experience.templateKey]}</Badge>
           )}
         </div>
         {isAdmin && (
@@ -110,12 +110,12 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
             href={`/edit/experiences/${experience.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline" }))}
+            className={cn(buttonVariants({ variant: "outline" }), "rounded-full")}
           >
             <Pencil className="h-4 w-4" /> Edit content
           </a>
         ) : (
-          <Button variant="outline" disabled>
+          <Button variant="outline" disabled className="rounded-full">
             <Pencil className="h-4 w-4" /> Edit content
           </Button>
         )}
@@ -124,12 +124,12 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
             href={`/preview/experiences/${experience.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline" }))}
+            className={cn(buttonVariants({ variant: "outline" }), "rounded-full")}
           >
             <Eye className="h-4 w-4" /> Preview
           </a>
         ) : (
-          <Button variant="outline" disabled>
+          <Button variant="outline" disabled className="rounded-full">
             <Eye className="h-4 w-4" /> Preview
           </Button>
         )}

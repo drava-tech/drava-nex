@@ -14,7 +14,7 @@ export default async function WhiteboardsPage() {
   }));
 
   return (
-    <div className="flex flex-col p-4 bg-zinc-100 dark:bg-black h-[calc(100vh-5rem)] min-h-0 overflow-hidden">
+    <div className="flex flex-col p-4 bg-zinc-100 dark:bg-transparent h-[calc(100vh-5rem)] min-h-0 overflow-hidden">
       <WhiteboardsList items={items} />
     </div>
   );

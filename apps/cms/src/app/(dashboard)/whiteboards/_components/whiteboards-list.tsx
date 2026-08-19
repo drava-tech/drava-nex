@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PenTool, Trash2, Loader2, AlertTriangle } from "lucide-react";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@platform/ui";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
 interface WhiteboardListItem {
@@ -44,44 +43,45 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
             <p className="text-xs text-zinc-400 dark:text-zinc-600">No saved whiteboards yet.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-900 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Pages</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Pages</th>
+                  <th className="px-4 py-3 font-medium">Updated</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
                 {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
+                  <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3">
                       <button
                         type="button"
+                        data-plain
                         onClick={() => router.push(`/whiteboards/${item.id}`)}
                         className="flex items-center gap-3 text-left"
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-500">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center text-zinc-500">
                           <PenTool className="h-3.5 w-3.5" />
                         </span>
                         <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 leading-tight hover:underline">
                           {item.name}
                         </span>
                       </button>
-                    </TableCell>
-                    <TableCell className="text-zinc-500 dark:text-zinc-400">
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                       {item.pageCount} page{item.pageCount === 1 ? "" : "s"}
-                    </TableCell>
-                    <TableCell className="text-zinc-500 dark:text-zinc-400">
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                       {new Date(item.updatedAt).toLocaleDateString(undefined, {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
                       })}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => setConfirmTarget(item)}
@@ -95,11 +95,11 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
                           <Trash2 className="h-3.5 w-3.5" />
                         )}
                       </button>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -114,7 +114,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f0f0f]"
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#432992] bg-white shadow-2xl dark:bg-[#0f0f0f]"
           >
             <div className="flex items-start gap-3 p-5">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
@@ -128,7 +128,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
+            <div className="flex justify-end gap-2 border-t border-[#432992] p-4">
               <button
                 type="button"
                 onClick={() => setConfirmTarget(null)}

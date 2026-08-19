@@ -38,7 +38,7 @@ export function ProjectsDashboardContainer({ user: _user, verticals, dbProjects 
             onSelectProject={handleSelectProject}
           />
         </div>
-        <div className="w-full flex-shrink-0 border-t border-zinc-800/50 pt-6 pb-6">
+        <div className="w-full flex-shrink-0 border-t border-[#432992] pt-6 pb-6">
           <ProjectsList projects={dbProjects} />
         </div>
       </div>

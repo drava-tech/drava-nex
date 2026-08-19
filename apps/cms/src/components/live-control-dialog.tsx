@@ -139,7 +139,7 @@ export function LiveControlDialog({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
       <div
-        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
+        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -266,7 +266,7 @@ export function LiveControlDialog({
           // instead of tapping a mirrored preview of the page.
           activeScreen && (
             <div className="shrink-0 flex items-center justify-center">
-              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-[#432992] shadow-2xl overflow-hidden">
                 <ScreenTouchpad screenId={activeScreen.screenId} />
               </div>
             </div>
@@ -284,7 +284,7 @@ export function LiveControlDialog({
                 className={
                   isFullscreen
                     ? "fixed inset-0 flex items-center justify-center bg-black"
-                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
+                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-[#432992] shadow-2xl bg-zinc-950 overflow-hidden"
                 }
               >
               {isFullscreen ? (
