@@ -133,18 +133,18 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
   }, []);
 
   // Coverflow effect: scale/nudge/fade each slide by its live distance from
-  // the scroller's horizontal center, tucking neighbors mostly behind the
-  // centered card so only a small sliver peeks out on each side — like a
-  // stacked deck rather than a row of equal cards. Writes style directly (no
-  // React state) so it stays smooth at scroll-event frequency — same
-  // ref-mutation pattern already used for PublishDragOverlay's live drag
+  // the scroller's horizontal center — the centered card sits at full size,
+  // neighbors shrink and nudge in slightly, staying individually visible and
+  // tappable rather than stacking behind the center card. Writes style
+  // directly (no React state) so it stays smooth at scroll-event frequency —
+  // same ref-mutation pattern already used for PublishDragOverlay's live drag
   // progress.
   //
   // Positions are derived from offsetLeft/scrollLeft (pure layout values,
   // unaffected by the transform this function itself applies), not
   // getBoundingClientRect — that would read back the *already-transformed*
-  // position and feed it into computing the next transform, and the nudge
-  // here is large enough for that feedback loop to visibly compound.
+  // position and feed it into computing the next transform, compounding on
+  // itself frame over frame.
   const updateSlideTransforms = useCallback(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
@@ -154,11 +154,11 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
       const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
       const clamped = Math.max(-1.4, Math.min(1.4, offset));
       const proximity = Math.min(Math.abs(clamped), 1);
-      const scale = 1 - proximity * 0.45;
-      const nudge = -clamped * 280;
+      const scale = 1 - proximity * 0.35;
+      const nudge = -clamped * 18;
       el.style.transform = `translateX(${nudge}px) scale(${scale})`;
-      el.style.opacity = String(1 - proximity * 0.55);
-      el.style.zIndex = String(100 - Math.round(proximity * 20));
+      el.style.opacity = String(1 - proximity * 0.35);
+      el.style.zIndex = String(100 - Math.round(proximity * 10));
     });
   }, []);
 
@@ -431,11 +431,9 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
               })}
             </div>
 
-            {/* A dedicated row below the carousel, not an overlay on the
-                images — the centered card's inline z-index (from the
-                coverflow scale effect above) sits above anything absolutely
-                positioned on top of it, which was swallowing clicks on the
-                old overlay buttons. */}
+            {/* A dedicated row below the carousel rather than an overlay on
+                the images — keeps these clickable regardless of the
+                coverflow scale effect's inline z-index on the cards above. */}
             <div className="flex shrink-0 items-center justify-center gap-4">
               <button
                 type="button"
