@@ -1,5 +1,5 @@
 import React from "react";
-import { Film, Monitor, SquareTerminal, Users } from "lucide-react";
+import { Monitor, SquareTerminal, Users } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -7,21 +7,39 @@ import {
   CardHeader,
   CardTitle,
 } from "@platform/ui";
+import { listMediaAssets, listScreens } from "@platform/db";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
+import { getActiveScreens } from "@/actions/screen-actions";
 import { panelBorderStyle } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import { stats } from "@/app/(dashboard)/_data/dashboard-demo";
 import { StatCard } from "@/app/(dashboard)/_components/dashboard/stat-card";
 import { UptimeAreaChart } from "@/app/(dashboard)/_components/dashboard/uptime-area-chart";
-import { ContentMixDonut } from "@/app/(dashboard)/_components/dashboard/content-mix-donut";
+import { MediaTypeRatio } from "@/app/(dashboard)/_components/dashboard/media-type-ratio";
 import { ScreensTable } from "@/app/(dashboard)/_components/dashboard/screens-table";
 import { ActivityFeed } from "@/app/(dashboard)/_components/dashboard/activity-feed";
 import { StorageUsage } from "@/app/(dashboard)/_components/dashboard/storage-usage";
+import { DashboardMediaProvider } from "@/app/(dashboard)/_components/dashboard/media-live-data";
+import { MediaAssetsStatCard } from "@/app/(dashboard)/_components/dashboard/media-assets-stat-card";
 
 export default async function DashboardPage() {
   await requireGuestOrAdmin();
+  const [screenRows, activeScreenIds, mediaAssets] = await Promise.all([
+    listScreens(),
+    getActiveScreens(),
+    listMediaAssets(),
+  ]);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <DashboardMediaProvider
+      initialAssets={mediaAssets.map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        type: asset.type,
+        sizeBytes: asset.sizeBytes,
+        createdAt: asset.createdAt.toISOString(),
+      }))}
+    >
+      <div className="flex flex-1 flex-col gap-4 p-4">
       {/* Page header */}
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
@@ -37,8 +55,8 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard stat={stats.screens} icon={Monitor} href="/screens" />
         <StatCard stat={stats.experiences} icon={SquareTerminal} href="/experiences" />
-        <StatCard stat={stats.media} icon={Film} href="/media" />
-        <StatCard stat={stats.users} icon={Users} href="/users" />
+        <MediaAssetsStatCard />
+        <StatCard stat={stats.users} icon={Users} />
       </div>
 
       {/* Charts row */}
@@ -54,11 +72,11 @@ export default async function DashboardPage() {
         </Card>
         <Card style={panelBorderStyle("solid")}>
           <CardHeader>
-            <CardTitle>Content Mix</CardTitle>
-            <CardDescription>Deployed experiences by type</CardDescription>
+            <CardTitle>Media Ratio</CardTitle>
+            <CardDescription>Videos, images, and documents</CardDescription>
           </CardHeader>
           <CardContent>
-            <ContentMixDonut />
+            <MediaTypeRatio />
           </CardContent>
         </Card>
       </div>
@@ -71,7 +89,10 @@ export default async function DashboardPage() {
             <CardDescription>Live status across your network</CardDescription>
           </CardHeader>
           <CardContent className="px-0">
-            <ScreensTable />
+            <ScreensTable
+              initialScreens={screenRows}
+              initialActiveScreenIds={activeScreenIds}
+            />
           </CardContent>
         </Card>
         <Card style={panelBorderStyle("solid")}>
@@ -90,13 +111,14 @@ export default async function DashboardPage() {
         <Card className="lg:col-span-3" style={panelBorderStyle("solid")}>
           <CardHeader>
             <CardTitle>Media Library</CardTitle>
-            <CardDescription>Storage usage and recent uploads</CardDescription>
+            <CardDescription>Live storage totals and recent uploads</CardDescription>
           </CardHeader>
           <CardContent>
             <StorageUsage />
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </DashboardMediaProvider>
   );
 }

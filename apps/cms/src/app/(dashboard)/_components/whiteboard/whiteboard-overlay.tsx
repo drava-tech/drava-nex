@@ -58,6 +58,13 @@ import { WhiteboardScreenBridge } from "./whiteboard-screen-bridge";
 
 type Surface = "light" | "dark" | "clear";
 
+/** The eraser's own size scale — 4x the pen's, same four steps. */
+const ERASER_WIDTHS = WHITEBOARD_WIDTHS.map((w) => w * 4);
+
+/** Preview-dot diameters, by position in the scale — the raw px value would
+ *  clip every eraser step to the same circle. */
+const WIDTH_DOTS = [6, 9, 12, 16];
+
 const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "pen", label: "Pen", icon: Pencil },
   { id: "eraser", label: "Eraser", icon: Eraser },
@@ -119,6 +126,10 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
+  // Separate from the pen's width so switching tools doesn't clobber either
+  // one. Defaults to 16 = the old hardcoded `width * 4`, so an eraser still
+  // starts out with visible bulk.
+  const [eraserWidth, setEraserWidth] = useState<number>(16);
   const [surface, setSurface] = useState<Surface>("light");
   const [showColors, setShowColors] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
@@ -312,8 +323,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
     const stroke: Stroke = {
       tool,
       color,
-      // An eraser you can't see the edge of is unusable — give it some bulk.
-      width: tool === "eraser" ? width * 4 : width,
+      width: tool === "eraser" ? eraserWidth : width,
       points: [pointFromEvent(e)],
     };
     currentRef.current = stroke;
@@ -464,6 +474,10 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
     if (pendingNavHref) {
       const href = pendingNavHref;
       setPendingNavHref(null);
+      // Leaving the board ends the live push — otherwise the screen keeps the
+      // overlay with nothing driving it, and the next content pushed to that
+      // screen lands underneath it. A save that isn't a leave keeps drawing.
+      endLiveSession();
       router.push(href);
     }
   };
@@ -576,7 +590,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
       if (status !== "connected") return;
       send(WHITEBOARD_START, { surface });
       send(WHITEBOARD_SYNC, { strokes: strokesRef.current, surface });
-      send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
+      send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? eraserWidth : width });
       // Lets another CMS tab's "Control" button (the /screens list) jump
       // straight back into this same live session — see stopPush for the
       // matching clear.
@@ -586,14 +600,14 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
         );
       }
     },
-    [send, surface, tool, color, width, pushTarget, documentId]
+    [send, surface, tool, color, width, eraserWidth, pushTarget, documentId]
   );
 
   // Keep the TV's touch style current with the CMS toolbar while a session is live.
   useEffect(() => {
     if (!pushTarget) return;
-    send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
-  }, [pushTarget, tool, color, width, send]);
+    send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? eraserWidth : width });
+  }, [pushTarget, tool, color, width, eraserWidth, send]);
 
   // Applies a stroke the TV (or the ScreenMirror preview) drew to our own
   // board — the mirror image of the pointer handlers above, which apply our
@@ -648,14 +662,23 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
     setOpen(true);
   };
 
-  const stopPush = () => {
+  /**
+   * Tear down the live session without navigating anywhere. Split out of
+   * stopPush so the leave-the-page paths (Save / Discard below) can end the
+   * session without its redirect fighting the navigation they're already
+   * doing. Safe to call with no session active — it's a no-op then.
+   */
+  const endLiveSession = () => {
+    if (!pushTarget) return;
     send(WHITEBOARD_STOP);
-    if (pushTarget) {
-      setScreenWhiteboardSession(pushTarget.screenId, null).catch((err) =>
-        console.error("Failed to clear live whiteboard session:", err)
-      );
-    }
+    setScreenWhiteboardSession(pushTarget.screenId, null).catch((err) =>
+      console.error("Failed to clear live whiteboard session:", err)
+    );
     setPushTarget(null);
+  };
+
+  const stopPush = () => {
+    endLiveSession();
     // Leave the /live/<deviceId> URL once the session ends, back to the
     // plain document route.
     if (documentId && pathname.includes("/live/")) {
@@ -664,6 +687,11 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
   };
 
   const activeSurface = SURFACES.find((s) => s.id === surface) ?? SURFACES[0]!;
+  // The toolbar's size buttons edit whichever tool is selected — the eraser
+  // has its own, coarser scale (an eraser you can't see the edge of is
+  // unusable, so its smallest step is the pen's largest).
+  const activeWidth = tool === "eraser" ? eraserWidth : width;
+  const setActiveWidth = tool === "eraser" ? setEraserWidth : setWidth;
 
   return (
     <>
@@ -672,38 +700,48 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
           is just this page's own content box, sidebar left visible. */}
       {showCanvas && (
         <div
-          ref={canvasContainerRef}
           className={
             variant === "overlay"
-              ? "fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950"
-              : "relative flex h-[calc(100vh-5rem)] w-full items-center justify-center overflow-hidden bg-zinc-950"
+              ? "fixed inset-0 z-[60] flex flex-col bg-zinc-950"
+              // h-full, not a calc() against the header — the dashboard header
+              // is h-auto, so any hardcoded offset is wrong by however much it
+              // actually measures. The layout's content box already has a
+              // definite height (SidebarInset is h-svh), so 100% of it is
+              // exactly the space available and the page never scrolls.
+              : "relative flex h-full w-full flex-col overflow-hidden bg-zinc-950"
           }
         >
-          {/* Letterboxed to 16:9 — every screen this pushes to renders at
-              that ratio, so the board has to match it too or normalized
-              points land in the wrong relative spot on the real screen. */}
-          <div className="relative" style={{ width: boardBox.width, height: boardBox.height }}>
-            <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
-            <canvas ref={boardRef} className="absolute inset-0" />
-            <canvas
-              ref={previewRef}
-              className="absolute inset-0 touch-none"
-              style={{ cursor: tool === "eraser" ? "cell" : "crosshair" }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            />
+          {/* The 16:9 box is measured against THIS element, not the shell, so
+              the toolbar below is subtracted from the available height rather
+              than floating over the board and clipping its bottom edge. */}
+          <div ref={canvasContainerRef} className="flex min-h-0 flex-1 items-center justify-center">
+            {/* Letterboxed to 16:9 — every screen this pushes to renders at
+                that ratio, so the board has to match it too or normalized
+                points land in the wrong relative spot on the real screen. */}
+            <div className="relative" style={{ width: boardBox.width, height: boardBox.height }}>
+              <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
+              <canvas ref={boardRef} className="absolute inset-0" />
+              <canvas
+                ref={previewRef}
+                className="absolute inset-0 touch-none"
+                style={{ cursor: tool === "eraser" ? "cell" : "crosshair" }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              />
+            </div>
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 sm:p-6">
+          <div className="pointer-events-none flex shrink-0 justify-center p-4 sm:p-6">
             <WhiteboardToolStrip
               tool={tool}
               setTool={setTool}
               color={color}
               setColor={setColor}
-              width={width}
-              setWidth={setWidth}
+              width={activeWidth}
+              setWidth={setActiveWidth}
+              widths={tool === "eraser" ? ERASER_WIDTHS : WHITEBOARD_WIDTHS}
               showColors={showColors}
               setShowColors={setShowColors}
               activeSurface={activeSurface}
@@ -924,6 +962,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
                   const href = pendingNavHref;
                   dirtyRef.current = false;
                   setPendingNavHref(null);
+                  endLiveSession();
                   router.push(href);
                 }}
                 className="flex h-10 items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-500/20 dark:text-red-400"
@@ -968,6 +1007,7 @@ function WhiteboardToolStrip({
   setColor,
   width,
   setWidth,
+  widths,
   showColors,
   setShowColors,
   activeSurface,
@@ -983,6 +1023,7 @@ function WhiteboardToolStrip({
   setColor: (c: string) => void;
   width: number;
   setWidth: (w: number) => void;
+  widths: readonly number[];
   showColors: boolean;
   setShowColors: (v: boolean | ((prev: boolean) => boolean)) => void;
   activeSurface: { id: Surface; label: string; icon: typeof Sun; className: string };
@@ -1049,11 +1090,11 @@ function WhiteboardToolStrip({
 
       {/* Stroke width */}
       <div className="flex items-center gap-0.5">
-        {WHITEBOARD_WIDTHS.map((w) => (
+        {widths.map((w, i) => (
           <ToolbarButton key={w} label={`${w}px`} active={width === w} onClick={() => setWidth(w)}>
             <span
               className="rounded-full bg-current"
-              style={{ width: Math.min(w + 2, 16), height: Math.min(w + 2, 16) }}
+              style={{ width: WIDTH_DOTS[i], height: WIDTH_DOTS[i] }}
             />
           </ToolbarButton>
         ))}

@@ -295,6 +295,7 @@ export type WsClientMessage =
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
   | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
+  | { type: 'MEDIA_LIBRARY_UPDATED' }
   | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
   // Face-vision: a visitor was recognized/enrolled at an entrance camera. Drives
   // the live-updating CMS Visitors list. Emitted by services/vision via the

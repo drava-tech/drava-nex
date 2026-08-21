@@ -117,6 +117,11 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   // "Stop" — updates the live (already-connected) screen immediately, on
   // top of the DB write above which covers a later reconnect.
   setScreenBlankState(screenId, false);
+  // New content replaces what was on the screen, so any live whiteboard
+  // drawn over the OLD content is stale — leaving it up means the push
+  // lands underneath an overlay nobody asked for, and the only way out is
+  // closing the board by hand from the CMS.
+  stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -136,11 +141,9 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   await setScreenMedia(screenId, body.mediaAssetId);
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
-  // Reset to idle (null) is meant as a full clean reset — stop a lingering
-  // whiteboard overlay too, or it stays layered on top of the idle screen.
-  // A normal media assignment leaves it running (annotate-over-content stays
-  // intentional there).
-  if (body.mediaAssetId === null) stopScreenWhiteboard(screenId);
+  // Every assignment, not just the null "reset to idle" — see the note on
+  // the /experience route above.
+  stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -164,6 +167,7 @@ screensRouter.post("/:id/media-queue", requireGuestOrAdmin, async (c) => {
   await setScreenMediaQueue(screenId, body.mediaAssetIds, body.startIndex ?? 0);
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
+  stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });

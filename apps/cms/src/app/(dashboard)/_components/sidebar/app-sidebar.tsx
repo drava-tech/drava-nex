@@ -7,11 +7,8 @@ import { NavUser } from "./nav-user";
 import {
   LayoutDashboard,
   Monitor,
-  SquareTerminal,
-  Users,
   Film,
   Cpu,
-  Package,
   ScanFace,
   PenTool,
   Settings2,
@@ -40,19 +37,19 @@ const ALL_NAV = [
     icon: LayoutDashboard,
     roles: ["ADMIN", "GUEST"] as string[],
   },
-  {
-    title: "Experiences",
-    url: "/experiences",
-    icon: SquareTerminal,
-    roles: ["ADMIN"] as string[],
-    guestModeVisible: true,
-  },
-  {
-    title: "Products",
-    url: "/products",
-    icon: Package,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Experiences",
+  //   url: "/experiences",
+  //   icon: SquareTerminal,
+  //   roles: ["ADMIN"] as string[],
+  //   guestModeVisible: true,
+  // },
+  // {
+  //   title: "Products",
+  //   url: "/products",
+  //   icon: Package,
+  //   roles: ["ADMIN"] as string[],
+  // },
   {
     title: "Environment",
     url: "/environment",
@@ -68,7 +65,7 @@ const ALL_NAV = [
     guestModeVisible: true,
   },
   {
-    title: "Push",
+    title: "Broadcast",
     url: "/push",
     icon: Send,
     roles: ["ADMIN", "GUEST"] as string[],
@@ -87,12 +84,12 @@ const ALL_NAV = [
     icon: PenTool,
     roles: ["ADMIN", "GUEST"] as string[],
   },
-  {
-    title: "Users",
-    url: "/users",
-    icon: Users,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Users",
+  //   url: "/users",
+  //   icon: Users,
+  //   roles: ["ADMIN"] as string[],
+  // },
   {
     title: "Visitors",
     url: "/visitors",
