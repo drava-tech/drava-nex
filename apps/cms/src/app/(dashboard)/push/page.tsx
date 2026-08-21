@@ -1,5 +1,5 @@
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
-import { getScreens, getActiveScreens } from "@/actions/screen-actions";
+import { getScreens } from "@/actions/screen-actions";
 import { getExperiences } from "@/actions/project-actions";
 import { PublishBoard } from "./_components/publish-board";
 
@@ -10,19 +10,11 @@ import { PublishBoard } from "./_components/publish-board";
  */
 export default async function PublishPage() {
   await requireGuestOrAdmin();
-  const [screens, experiences, activeScreenIds] = await Promise.all([
-    getScreens(),
-    getExperiences(),
-    getActiveScreens(),
-  ]);
+  const [screens, experiences] = await Promise.all([getScreens(), getExperiences()]);
 
   return (
     <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-hidden bg-zinc-100 dark:bg-transparent">
-      <PublishBoard
-        initialScreens={screens}
-        initialActiveScreenIds={activeScreenIds}
-        experiences={experiences}
-      />
+      <PublishBoard initialScreens={screens} experiences={experiences} />
     </div>
   );
 }

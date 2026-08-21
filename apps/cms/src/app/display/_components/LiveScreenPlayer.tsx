@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
+import { cn } from "@platform/ui";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
@@ -11,9 +12,11 @@ import { useContentPreloader } from "@/hooks/useContentPreloader";
 // are left in place; re-enable the call below to restore browser detection.
 // import { useServerDetection } from "@/hooks/useServerDetection";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
+import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
+import { PublishDragOverlay } from "./PublishDragOverlay";
 import { BlackoutOverlay } from "./BlackoutOverlay";
 import { FiveTapCorner } from "./FiveTapCorner";
 import { IdleDisplay } from "./IdleDisplay";
@@ -77,6 +80,22 @@ export function LiveScreenPlayer({
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
+
+  // Set from a PUBLISH_DRAG_END{committed:true} command; consumed by the
+  // effect below the moment the matching content actually arrives, so the
+  // real content's own entrance animation doesn't replay on top of the one
+  // PublishDragOverlay already played live during the drag.
+  const lastDragCommittedIdRef = useRef<string | null>(null);
+  const [suppressNextReveal, setSuppressNextReveal] = useState(false);
+  useEffect(() => {
+    if (lastDragCommittedIdRef.current === activeContent.id) {
+      setSuppressNextReveal(true);
+      lastDragCommittedIdRef.current = null;
+    } else {
+      setSuppressNextReveal(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
 
   // "Stop" must actually stop everything (video/audio/animations), not just
   // hide it behind BlackoutOverlay's black div — a hidden-but-still-mounted
@@ -150,6 +169,13 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
       window.dispatchEvent(new CustomEvent("screen-unblank"));
+    } else if (command === PUBLISH_DRAG_START) {
+      window.dispatchEvent(new CustomEvent("publish-drag-start", { detail: value }));
+    } else if (command === PUBLISH_DRAG_PROGRESS) {
+      window.dispatchEvent(new CustomEvent("publish-drag-progress", { detail: value }));
+    } else if (command === PUBLISH_DRAG_END) {
+      window.dispatchEvent(new CustomEvent("publish-drag-end", { detail: value }));
+      if (value?.committed) lastDragCommittedIdRef.current = value.cardId;
     } else if (command === "EXIT_FULLSCREEN" && !preview) {
       // Remote escape hatch (5-tap on a CMS mirror). Ignored by mirrors so the
       // gateway's echo-to-sender doesn't drop the operator's own tab out of
@@ -287,7 +313,10 @@ export function LiveScreenPlayer({
 
   return (
     <>
-      <div key={activeKey} className="screen-content-fade">
+      <div
+        key={activeKey}
+        className={cn("screen-content-fade", suppressNextReveal && "screen-content-fade--no-anim")}
+      >
         {!blanked && (
           activeContent.id === "__idle__" ? (
             <IdleDisplay screenId={screenId} />
@@ -296,6 +325,7 @@ export function LiveScreenPlayer({
           )
         )}
       </div>
+      <PublishDragOverlay activeContentId={activeContent.id} />
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />
       {/* Only the html renderer puts content in a cross-origin iframe, where a

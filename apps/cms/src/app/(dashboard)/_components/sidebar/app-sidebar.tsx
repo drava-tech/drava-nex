@@ -15,6 +15,7 @@ import {
   ScanFace,
   PenTool,
   Settings2,
+  Send,
   // Globe,
 } from "lucide-react";
 import Image from "next/image";
@@ -63,6 +64,13 @@ const ALL_NAV = [
     title: "Screens",
     url: "/screens",
     icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Push",
+    url: "/push",
+    icon: Send,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },

@@ -226,21 +226,38 @@
   }
 }
 
-/* Fade-in for the TV display when its content changes (idle video, Welcome,
-   any experience). Fixed + inset-0 so it still fills the viewport even though
-   a non-1 opacity briefly makes it a containing block for fixed-position
+/* Slide-up reveal for the TV display when its content changes (idle video, Welcome,
+   any experience). Fixed + inset-0 so it still fills the viewport even though a
+   non-default transform briefly makes it a containing block for fixed-position
    children (VideoRenderer/ImageRenderer render position: fixed internally). */
-@keyframes screen-content-fade-in {
+@keyframes screen-content-reveal {
   from {
-    opacity: 0;
+    transform: translateY(100%);
   }
   to {
-    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 .screen-content-fade {
   position: fixed;
   inset: 0;
-  animation: screen-content-fade-in 600ms ease-out;
+  animation: screen-content-reveal 600ms ease-in;
+}
+
+/* Applied when PublishDragOverlay already played this reveal live during a
+   drag-to-publish swipe — the real content is already in its final position
+   underneath by the time this div mounts, so replaying the slide would pop. */
+.screen-content-fade--no-anim {
+  animation: none;
+}
+
+/* Hides the scrollbar on a scrollable container without disabling scrolling
+   (used by the publish-board coverflow carousel). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

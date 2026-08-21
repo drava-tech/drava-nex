@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, animate, useAnimation, useMotionValue, type PanInfo } from "framer-motion";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Layers, Loader2, Video, Wifi, WifiOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Image as ImageIcon, Layers, Loader2, Video } from "lucide-react";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
+import { PublishScreenBridge } from "./publish-screen-bridge";
+import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import type { WsContent } from "@platform/types";
 
 /** How far / how fast a card must be swiped up before it counts as "publish". */
@@ -35,7 +36,6 @@ interface ContentCard {
 
 interface PublishBoardProps {
   initialScreens: ScreenRow[];
-  initialActiveScreenIds: string[];
   experiences: ExperienceOption[];
 }
 
@@ -47,9 +47,8 @@ interface PublishBoardProps {
  * the checkbox-list pickers elsewhere in the CMS; the screen box plays a
  * quick "opening" flash when new content lands on it.
  */
-export function PublishBoard({ initialScreens, initialActiveScreenIds, experiences }: PublishBoardProps) {
+export function PublishBoard({ initialScreens, experiences }: PublishBoardProps) {
   const [screens, setScreens] = useState<ScreenRow[]>(initialScreens);
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
   const [targetIndex, setTargetIndex] = useState(0);
   const [filter, setFilter] = useState<"all" | "experiences" | "media">("all");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -57,6 +56,9 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const boxControls = useAnimation();
+  const sendDragRef = useRef<(command: string, value?: unknown) => void>(() => {});
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     fetch("/api/media")
@@ -97,10 +99,7 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
     );
   }, []);
 
-  useCmsScreenSync({
-    onScreenUpdated: handleScreenUpdated,
-    onActiveScreensUpdated: (ids) => setActiveScreenIds(new Set(ids)),
-  });
+  useCmsScreenSync({ onScreenUpdated: handleScreenUpdated });
 
   useEffect(() => {
     if (!feedback) return;
@@ -127,7 +126,164 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
   }, [experiences, mediaItems, filter]);
 
   const targetScreen = screens[targetIndex] ?? null;
-  const targetOnline = targetScreen ? activeScreenIds.has(targetScreen.screenId) : false;
+
+  const setSlideRef = useCallback((key: string, el: HTMLDivElement | null) => {
+    if (el) slideRefs.current.set(key, el);
+    else slideRefs.current.delete(key);
+  }, []);
+
+  // Coverflow effect: scale/nudge/fade each slide by its live distance from
+  // the scroller's horizontal center, tucking neighbors mostly behind the
+  // centered card so only a small sliver peeks out on each side — like a
+  // stacked deck rather than a row of equal cards. Writes style directly (no
+  // React state) so it stays smooth at scroll-event frequency — same
+  // ref-mutation pattern already used for PublishDragOverlay's live drag
+  // progress.
+  //
+  // Positions are derived from offsetLeft/scrollLeft (pure layout values,
+  // unaffected by the transform this function itself applies), not
+  // getBoundingClientRect — that would read back the *already-transformed*
+  // position and feed it into computing the next transform, and the nudge
+  // here is large enough for that feedback loop to visibly compound.
+  const updateSlideTransforms = useCallback(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const viewportCenter = scroller.clientWidth / 2;
+    slideRefs.current.forEach((el) => {
+      const elCenterInViewport = el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
+      const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
+      const clamped = Math.max(-1.4, Math.min(1.4, offset));
+      const proximity = Math.min(Math.abs(clamped), 1);
+      const scale = 1 - proximity * 0.45;
+      const nudge = -clamped * 280;
+      el.style.transform = `translateX(${nudge}px) scale(${scale})`;
+      el.style.opacity = String(1 - proximity * 0.55);
+      el.style.zIndex = String(100 - Math.round(proximity * 20));
+    });
+  }, []);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    updateSlideTransforms();
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        updateSlideTransforms();
+      });
+    };
+    // A plain mouse wheel only ever generates vertical delta, and this row has
+    // no vertical overflow to scroll — redirect it to horizontal so a normal
+    // mouse (not just touch/trackpad swipes) can browse the carousel too.
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      scroller.scrollLeft += e.deltaY;
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("wheel", onWheel);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [cards, updateSlideTransforms]);
+
+  // Only an explicit filter switch should jump the carousel back to the
+  // start — publishing a card, a screen-sync update, etc. must never reset
+  // scroll position (cards itself doesn't change from those, but nothing
+  // here should assume that and reset on its account either).
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.scrollLeft = 0;
+  }, [filter]);
+
+  // Click-and-drag with a mouse to browse the carousel. Touch/trackpad users
+  // already get native panning (touchAction: "pan-x" on each card below), but
+  // a mouse has no native way to drag-scroll a div, so it's wired up by hand
+  // here — gated to pointerType "mouse" only so touch/pen keep using the
+  // native path instead of being double-driven by both at once.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    let dragging = false;
+    let startX = 0;
+    let startScrollLeft = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      dragging = true;
+      startX = e.clientX;
+      startScrollLeft = scroller.scrollLeft;
+      scroller.style.cursor = "grabbing";
+      // Stops the browser starting a native image drag-ghost when the press
+      // lands on a thumbnail <img>, without affecting SwipeCard's own
+      // pointerdown-driven vertical drag (preventDefault here doesn't stop
+      // the event from also reaching that separate listener).
+      e.preventDefault();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      scroller.scrollLeft = startScrollLeft - (e.clientX - startX);
+    };
+    const stopDragging = () => {
+      dragging = false;
+      scroller.style.cursor = "";
+    };
+
+    scroller.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      scroller.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, []);
+
+  // Explicit prev/next controls — a guaranteed way to move between cards
+  // regardless of input device (mouse with no trackpad, no touch, etc.),
+  // finding whichever slide is currently nearest-center and stepping from it.
+  const scrollToAdjacentCard = useCallback(
+    (direction: 1 | -1) => {
+      const scroller = scrollerRef.current;
+      if (!scroller || cards.length === 0) return;
+      const rect = scroller.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      let activeIndex = 0;
+      let smallestOffset = Infinity;
+      cards.forEach((card, i) => {
+        const el = slideRefs.current.get(`${card.type}:${card.id}`);
+        if (!el) return;
+        const elRect = el.getBoundingClientRect();
+        const offset = Math.abs(elRect.left + elRect.width / 2 - centerX);
+        if (offset < smallestOffset) {
+          smallestOffset = offset;
+          activeIndex = i;
+        }
+      });
+      const nextCard = cards[Math.max(0, Math.min(cards.length - 1, activeIndex + direction))];
+      if (!nextCard) return;
+      slideRefs.current.get(`${nextCard.type}:${nextCard.id}`)?.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    },
+    [cards]
+  );
+
+  const sendDragEvent = useCallback(
+    (command: string, value?: unknown) => sendDragRef.current(command, value),
+    []
+  );
 
   const triggerPublish = useCallback(
     (card: ContentCard) => {
@@ -178,6 +334,9 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
+      {targetScreen && (
+        <PublishScreenBridge key={targetScreen.screenId} screenId={targetScreen.screenId} sendRef={sendDragRef} />
+      )}
       {/* Screen switcher / publish target */}
       <div className="flex shrink-0 items-center gap-3">
         <button
@@ -190,7 +349,7 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <DropZone screen={targetScreen} isOnline={targetOnline} isPushing={pushingId !== null} controls={boxControls} />
+        <DropZone screen={targetScreen} isPushing={pushingId !== null} controls={boxControls} />
 
         <button
           type="button"
@@ -217,7 +376,7 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
           </span>
         ) : (
           <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-            Hold a card and swipe up to publish it
+            Swipe left/right to browse • hold and swipe up to publish
           </span>
         )}
       </div>
@@ -239,8 +398,8 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
         ))}
       </div>
 
-      {/* Content grid */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Content carousel */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
         {loadingMedia && filter !== "experiences" && cards.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
@@ -251,16 +410,51 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
             <p className="text-sm text-zinc-400">No content to publish yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 pb-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {cards.map((card) => (
-              <SwipeCard
-                key={`${card.type}:${card.id}`}
-                card={card}
-                pushing={pushingId === card.id}
-                onPublish={triggerPublish}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              ref={scrollerRef}
+              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory scroll-smooth"
+              style={{ paddingLeft: "calc(50% - 12rem)", paddingRight: "calc(50% - 12rem)" }}
+            >
+              {cards.map((card) => {
+                const key = `${card.type}:${card.id}`;
+                return (
+                  <div key={key} ref={(el) => setSlideRef(key, el)} className="w-96 shrink-0 snap-center">
+                    <SwipeCard
+                      card={card}
+                      pushing={pushingId === card.id}
+                      onPublish={triggerPublish}
+                      sendDrag={sendDragEvent}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* A dedicated row below the carousel, not an overlay on the
+                images — the centered card's inline z-index (from the
+                coverflow scale effect above) sits above anything absolutely
+                positioned on top of it, which was swallowing clicks on the
+                old overlay buttons. */}
+            <div className="flex shrink-0 items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => scrollToAdjacentCard(-1)}
+                aria-label="Previous card"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToAdjacentCard(1)}
+                aria-label="Next card"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -269,41 +463,25 @@ export function PublishBoard({ initialScreens, initialActiveScreenIds, experienc
 
 function DropZone({
   screen,
-  isOnline,
   isPushing,
   controls,
 }: {
   screen: ScreenRow | null;
-  isOnline: boolean;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
 }) {
   return (
     <motion.div
       animate={controls}
-      className="relative h-56 w-full flex-1 overflow-hidden rounded-2xl border-2 border-[#432992] bg-zinc-950 shadow-lg md:h-64"
+      className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border-2 border-[#432992] bg-zinc-950 px-4 shadow-sm"
     >
-      {!screen ? (
-        <div className="flex h-full items-center justify-center">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">No screens registered yet</p>
-        </div>
-      ) : (
-        <>
-          <ScreenMirror key={screen.screenId} screenId={screen.screenId} title={screen.screenName} />
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/70 to-transparent p-3">
-            {isOnline ? (
-              <Wifi className="h-3.5 w-3.5 text-green-400" />
-            ) : (
-              <WifiOff className="h-3.5 w-3.5 text-zinc-400" />
-            )}
-            <span className="text-sm font-bold uppercase tracking-wide text-white">{screen.screenName}</span>
-          </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-center">
-            <span className="text-[11px] text-white/80">
-              {isPushing ? "Publishing…" : `now showing: ${currentLabel(screen)}`}
-            </span>
-          </div>
-        </>
+      <span className="truncate text-sm font-bold uppercase tracking-wide text-white">
+        {screen ? screen.screenName : "No screens registered yet"}
+      </span>
+      {screen && (
+        <span className="shrink-0 truncate text-xs text-white/60">
+          {isPushing ? "Publishing…" : currentLabel(screen)}
+        </span>
       )}
     </motion.div>
   );
@@ -313,16 +491,36 @@ function SwipeCard({
   card,
   pushing,
   onPublish,
+  sendDrag,
 }: {
   card: ContentCard;
   pushing?: boolean;
   onPublish: (card: ContentCard) => void;
+  sendDrag: (command: string, value?: unknown) => void;
 }) {
   const y = useMotionValue(0);
   const opacity = useMotionValue(1);
+  const latestProgress = useRef(0);
+  const rafScheduled = useRef(false);
+
+  const handleDragStart = () => {
+    sendDrag(PUBLISH_DRAG_START, { cardId: card.id, title: card.title, thumbnail: card.thumbnail, type: card.type });
+  };
+
+  const handleDrag = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    latestProgress.current = Math.min(1, Math.max(0, -info.offset.y / SWIPE_DISTANCE));
+    if (!rafScheduled.current) {
+      rafScheduled.current = true;
+      requestAnimationFrame(() => {
+        rafScheduled.current = false;
+        sendDrag(PUBLISH_DRAG_PROGRESS, { cardId: card.id, progress: latestProgress.current });
+      });
+    }
+  };
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const swipedUp = info.offset.y < -SWIPE_DISTANCE || info.velocity.y < -SWIPE_VELOCITY;
+    sendDrag(PUBLISH_DRAG_END, { cardId: card.id, committed: swipedUp });
     if (swipedUp) {
       animate(y, -400, { duration: 0.22, ease: "easeIn" });
       animate(opacity, 0, { duration: 0.22 });
@@ -340,7 +538,9 @@ function SwipeCard({
   return (
     <motion.div
       drag="y"
-      style={{ y, opacity, touchAction: "none" }}
+      style={{ y, opacity, touchAction: "pan-x" }}
+      onDragStart={handleDragStart}
+      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       className="cursor-grab active:cursor-grabbing"
