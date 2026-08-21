@@ -55,10 +55,10 @@ export function NavMain({
                                         <SidebarMenuButton
                                             tooltip={item.title}
                                             isActive={isItemActive}
-                                            className={isItemActive ? "rounded-full border hover:bg-transparent" : "hover:bg-transparent"}
+                                            className={isItemActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
                                             style={isItemActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
                                         >
-                                            {item.icon && <item.icon className="ml-2.5" />}
+                                            {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
                                             <span className="text-base ml-2.5">{item.title}</span>
                                             <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                         </SidebarMenuButton>
@@ -92,11 +92,11 @@ export function NavMain({
                                 asChild
                                 tooltip={item.title}
                                 isActive={isThisActive}
-                                className={isThisActive ? "rounded-full border hover:bg-transparent" : "hover:bg-transparent"}
+                                className={isThisActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
                                 style={isThisActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
                             >
                                 <Link href={item.url}>
-                                    {item.icon && <item.icon className="ml-2.5" />}
+                                    {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
                                     <span className="text-base ml-1">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>

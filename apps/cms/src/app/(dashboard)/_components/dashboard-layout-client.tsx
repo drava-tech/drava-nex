@@ -22,7 +22,7 @@ export function DashboardLayoutClient({
   initialTriggerArmed: boolean;
 }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider style={{ "--sidebar-width": "14rem" } as React.CSSProperties}>
       <AppSidebar />
       {/* Bounded to the viewport + overflow-hidden so this is the ONE
           scrolling boundary for the whole dashboard — without this, `<main>`
