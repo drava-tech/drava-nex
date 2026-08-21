@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play, MoreVertical } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play, MoreVertical, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@platform/ui";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
@@ -37,7 +37,7 @@ interface ScreenRow {
 interface ScreensControllerProps {
   initialScreens: ScreenRow[];
   isAdmin: boolean;
-  experiences: { id: string; title: string }[];
+  experiences: { id: string; title: string; coverImage?: string | null }[];
   initialActiveScreenIds?: string[];
   /** screenId -> whiteboard_document id, for screens currently live-pushing a saved whiteboard. */
   activeWhiteboards?: Record<string, string>;
@@ -221,9 +221,16 @@ export function ScreensController({
 
       <div className="flex-1 w-full h-full flex flex-col select-none min-h-0 overflow-y-auto py-2">
         <div className="w-full max-w-full mx-auto px-4">
-          {/* Add screen row — admin only */}
-          {isAdmin && (
-            <div className="flex justify-end mb-6">
+          {/* Drag & Publish + Add screen row */}
+          <div className="flex items-center justify-end gap-2 mb-6">
+            <button
+              onClick={() => router.push("/screens/publish")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 text-xs font-bold tracking-wider uppercase transition-colors"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Drag & Publish
+            </button>
+            {isAdmin && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-300 dark:text-zinc-900 text-zinc-100 text-xs font-bold tracking-wider uppercase transition-colors"
@@ -231,8 +238,8 @@ export function ScreensController({
                 <Plus className="h-3.5 w-3.5" />
                 Add Screen
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {screens.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">

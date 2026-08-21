@@ -1,9 +1,11 @@
 "use server";
 
-import { listExperiences } from "@platform/db";
+import { db, experience, isNull } from "@platform/db";
+import { asc, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
+import { extractCoverImage } from "@/lib/extract-cover-image";
 
 // Mutations delegate to the Hono API (the single source of truth); reads stay direct.
 
@@ -36,9 +38,19 @@ export async function reorderExperiences(
   return { success: true };
 }
 
-export async function getExperiences(): Promise<{ id: string; title: string }[]> {
+/**
+ * Runs its own query (rather than the shared `listExperiences`, which also
+ * backs the public GET /api/experiences and must stay lightweight) so it can
+ * pull templateContent and derive a coverImage for drag/swipe-style pickers.
+ */
+export async function getExperiences(): Promise<{ id: string; title: string; coverImage: string | null }[]> {
   await requireGuestOrAdmin();
-  return listExperiences();
+  const rows = await db
+    .select({ id: experience.id, name: experience.name, templateContent: experience.templateContent })
+    .from(experience)
+    .where(isNull(experience.deletedAt))
+    .orderBy(asc(experience.position), desc(experience.createdAt));
+  return rows.map((r) => ({ id: r.id, title: r.name, coverImage: extractCoverImage(r.templateContent) }));
 }
 
 export async function deleteProject(id: string): Promise<{ success: boolean; error?: string }> {

@@ -27,7 +27,7 @@ interface LiveScreenSurfaceProps {
    * /screens/:screenId has one, /media/live/:deviceId intentionally doesn't
    * (reassigning away would orphan the queue that page exists to show). */
   changeContent?: {
-    experiences: { id: string; title: string }[];
+    experiences: { id: string; title: string; coverImage?: string | null }[];
     defaultMediaAssetId?: string | null;
     defaultMediaName?: string | null;
   };
