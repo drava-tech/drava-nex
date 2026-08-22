@@ -7,6 +7,7 @@ import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset,
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
+import { broadcastToCms } from "../ws/gateway.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
@@ -79,7 +80,7 @@ function toMediaItem(a: MediaAsset) {
     month: "short", day: "2-digit", year: "numeric",
   });
   return {
-    id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    id: a.id, name: a.name, type: a.type, url: a.url, size, sizeBytes: bytes, date,
     // Raw ISO timestamp alongside the display-formatted `date` above — the
     // CMS's date-range filter needs a real comparable value, not a
     // locale-formatted string.
@@ -137,6 +138,7 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
 mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
   try {
     const result = await runGmailLoad(2);
+    if (result.added > 0) broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
     return c.json({ success: true, added: result.added });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to load email" }, 503);
@@ -174,6 +176,8 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
+    if (!pendingSave) broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
+
     return c.json({ success: true, media: toMediaItem(asset) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to add link" }, 500);
@@ -189,6 +193,7 @@ mediaRouter.post("/:id/save", requireAdmin, async (c) => {
     const asset = await getMediaAsset(id);
     if (!asset) return c.json({ error: "Media item not found" }, 404);
     await markMediaSaved(id);
+    broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to save media" }, 500);
@@ -209,6 +214,7 @@ mediaRouter.delete("/", requireAdmin, async (c) => {
       const filePath = path.join(UPLOAD_DIR, path.basename(asset.url));
       await fsPromises.unlink(filePath).catch(() => { /* best-effort */ });
     }
+    broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to delete media" }, 500);
@@ -255,6 +261,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
       source: "upload",
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
+    broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
 
     const size =
       file.size > 1024 * 1024
@@ -268,7 +275,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
     return c.json({
       success: true,
       media: {
-        id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, date,
+        id: asset.id, name: asset.name, type: asset.type, url: asset.url, size, sizeBytes: asset.sizeBytes, date,
         createdAt: new Date(asset.createdAt).toISOString(),
         source: asset.source, selected: false,
       },
