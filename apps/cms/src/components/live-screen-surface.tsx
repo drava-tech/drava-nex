@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { useIdleAutoReturn } from "@/hooks/useIdleAutoReturn";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
@@ -61,6 +61,7 @@ export function LiveScreenSurface({
   const [minimizing, setMinimizing] = useState(false);
   const [maximizing, setMaximizing] = useState(false);
   const [closingApp, setClosingApp] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: changeContent?.defaultMediaAssetId ?? null,
     name: changeContent?.defaultMediaName ?? null,
@@ -124,6 +125,20 @@ export function LiveScreenSurface({
       await sendRemoteCommand(screenId, "APP_MAXIMIZE");
     } finally {
       setMaximizing(false);
+    }
+  };
+
+  // Full browser reload on the TV's PC — the kiosk's WebView2 keeps whatever
+  // JS/CSS bundle it loaded at last navigation, so after a CMS redeploy the
+  // running kiosk needs this to actually pick up the new build (already
+  // handled display-side: LiveScreenPlayer's handleCommand does
+  // window.location.reload() on "RELOAD"). A no-op on a regular browser tab.
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      await sendRemoteCommand(screenId, "RELOAD");
+    } finally {
+      setReloading(false);
     }
   };
 
@@ -251,6 +266,14 @@ export function LiveScreenSurface({
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
+          </button>
+          <button
+            onClick={handleReload}
+            disabled={reloading}
+            title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Reload"}
           </button>
           <button
             onClick={handleMinimize}

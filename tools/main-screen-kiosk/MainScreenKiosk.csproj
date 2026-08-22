@@ -13,4 +13,15 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ships tools/frame-unlock-extension as loose files next to the published
+         exe. AddBrowserExtensionAsync (MainWindow.xaml.cs) needs a real folder
+         on disk containing manifest.json — an unpacked extension can't be
+         loaded from inside the PublishSingleFile bundle itself. -->
+    <Content Include="..\frame-unlock-extension\**"
+             Link="frame-unlock-extension\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

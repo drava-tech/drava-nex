@@ -37,6 +37,9 @@ fullscreen *this app* enters itself). This app owns all of that instead.
 - Listens for `window.chrome.webview.postMessage("minimize" | "maximize" |
   "close")` from the page, but only when it's actually served from
   `TrustedHost` — see "CMS integration" below.
+- Auto-installs the [Frame Unlock extension](../frame-unlock-extension/README.md)
+  into its own WebView2 profile at startup (best-effort, non-fatal) — see
+  "Frame Unlock extension" below.
 
 ## CMS integration
 
@@ -83,8 +86,45 @@ published output to) the machine you're deploying to.
 
 ## Deploy on the TV's PC
 
-1. Copy the `publish` folder's contents to the machine (only
-   `MainScreenKiosk.exe` is needed to run it; the rest are debug
-   symbols/docs).
+1. Copy the **entire** `publish` folder's contents to the machine — not just
+   `MainScreenKiosk.exe` anymore. The `frame-unlock-extension/` subfolder next
+   to it is required at every launch (see below), not just debug symbols/docs.
 2. For auto-start on login/reboot, add a shortcut to `MainScreenKiosk.exe` in:
    `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
+
+### Scripted deploy (`deploy.ps1`)
+
+`deploy.ps1` automates the publish + copy + relaunch cycle above over the LAN,
+so you don't have to sneakernet a USB drive to the TV's PC every time this app
+changes:
+
+```powershell
+./deploy.ps1 -ComputerName <kiosk PC's hostname or IP> -RemotePath 'C:\MainScreenKiosk'
+```
+
+It publishes, mirrors the publish folder to `\\<ComputerName>\C$\...` via
+`robocopy /MIR`, and (best-effort, needs PowerShell Remoting/WinRM enabled on
+the target) stops the old process before copying and starts the new one
+after. If remoting isn't set up there, the copy still happens — you'll just
+need to relaunch the app on that PC by hand (or reboot it) afterwards. Pass
+`-Credential (Get-Credential)` if the kiosk PC needs different credentials
+than your own session, `-SkipPublish` to redeploy the last build without
+rebuilding, or `-SkipRestart` to only copy files. See the script's own
+comment-based help (`Get-Help ./deploy.ps1 -Full`) for every parameter.
+
+## Frame Unlock extension
+
+Most large sites send `X-Frame-Options`/CSP headers that make the pages this
+app frames (via the CMS Browser feature) show a "blocked" icon instead of
+rendering. Since this kiosk has no browser chrome, there's no `chrome://extensions`
+page to manually install a fix into — so on startup, `MainWindow.xaml.cs`
+loads [`../frame-unlock-extension`](../frame-unlock-extension/README.md)
+straight into its own WebView2 profile via `CoreWebView2Profile.AddBrowserExtensionAsync`,
+using the folder shipped alongside the exe (see the `.csproj`'s `Content`
+item). This is:
+
+- **Idempotent** — checked by extension name before adding, so relaunching or
+  rebooting the kiosk doesn't re-add it every time.
+- **Best-effort** — a missing folder, or an installed WebView2 Runtime too old
+  to support extensions, is swallowed silently; the kiosk still starts and
+  navigates normally either way, just without the header-stripping.
