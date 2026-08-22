@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { PenTool, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { PenTool, Plus, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
 interface WhiteboardListItem {
@@ -29,11 +29,20 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
 
   return (
     <div className="flex flex-col gap-6 h-full min-h-0">
-      <div>
-        <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
-          Saved Boards
-        </p>
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">Whiteboards</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
+            Saved Boards
+          </p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">Whiteboards</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/whiteboards/new")}
+          className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-100 transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Board
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">

@@ -1,8 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, animate, useAnimation, useMotionValue, type PanInfo } from "framer-motion";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Layers, Loader2, Video } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Layers,
+  Loader2,
+  Mail,
+  Presentation,
+  RefreshCw,
+  Video,
+} from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
@@ -10,14 +26,27 @@ import { PublishScreenBridge } from "./publish-screen-bridge";
 import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import type { WsContent } from "@platform/types";
 
-/** How far / how fast a card must be swiped up before it counts as "publish". */
-const SWIPE_DISTANCE = 110;
-const SWIPE_VELOCITY = 500;
+/** How far / how fast a card must be swiped up before it counts as "publish" —
+ * deliberately strict (near the card's full height) so an accidental brush
+ * or light flick never fires a real publish. */
+const SWIPE_DISTANCE = 260;
+const SWIPE_VELOCITY = 900;
+
+/** SwipeCard's own local fly-off/reset duration — the full-screen "opening
+ * the screen" cover (triggerPublish) must never start before this finishes,
+ * or the two animations visibly overlap. */
+const CARD_RESET_MS = 240;
 
 interface ExperienceOption {
   id: string;
   title: string;
   coverImage: string | null;
+  typeIds: string[];
+}
+
+interface ExperienceTag {
+  id: string;
+  name: string;
 }
 
 interface MediaItem {
@@ -25,18 +54,35 @@ interface MediaItem {
   name: string;
   type: string;
   url: string;
+  source: string | null;
 }
+
+/** Every non-experience card carries the media asset's own classified type
+ * (see apps/api/src/routes/media.ts's ALLOWED map) — "image"/"video" render a
+ * real preview, the rest fall back to a file-type icon (see CardVisual). */
+type MediaCardType = "image" | "video" | "document" | "sheet" | "presentation" | "word";
+
+const MEDIA_TYPE_LABELS: Record<MediaCardType, string> = {
+  video: "Video",
+  image: "Image",
+  document: "PDF",
+  sheet: "Sheet",
+  presentation: "PPT",
+  word: "Word",
+};
 
 interface ContentCard {
   id: string;
-  type: "experience" | "image" | "video";
+  type: "experience" | MediaCardType;
   title: string;
   thumbnail: string | null;
+  typeIds?: string[];
 }
 
 interface PublishBoardProps {
   initialScreens: ScreenRow[];
   experiences: ExperienceOption[];
+  experienceTypes: ExperienceTag[];
 }
 
 /**
@@ -47,31 +93,65 @@ interface PublishBoardProps {
  * the checkbox-list pickers elsewhere in the CMS; the screen box plays a
  * quick "opening" flash when new content lands on it.
  */
-export function PublishBoard({ initialScreens, experiences }: PublishBoardProps) {
+export function PublishBoard({ initialScreens, experiences, experienceTypes }: PublishBoardProps) {
   const [screens, setScreens] = useState<ScreenRow[]>(initialScreens);
   const [targetIndex, setTargetIndex] = useState(0);
   const [filter, setFilter] = useState<"all" | "experiences" | "media">("all");
+  /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  /** Only meaningful (and shown) while filter === "media" — narrows to one media type. */
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(null);
+  /** Only meaningful while filter === "media" — narrows to email-ingested items only. */
+  const [emailOnly, setEmailOnly] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const boxControls = useAnimation();
+  const router = useRouter();
+  const [covering, setCovering] = useState<{ screenId: string; screenName: string } | null>(null);
   const sendDragRef = useRef<(command: string, value?: unknown) => void>(() => {});
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // Reusable so "Load Email" can refetch after ingesting, not just on mount.
+  const fetchMedia = useCallback(async () => {
+    const res = await fetch("/api/media");
+    const data = await res.json();
+    // All pushable file types, not just image/video — anything else
+    // (link/email-sourced entries with no real file) is left out.
+    const files = (data.media || []).filter((item: MediaItem) => Object.hasOwn(MEDIA_TYPE_LABELS, item.type));
+    setMediaItems(files);
+  }, []);
+
   useEffect(() => {
-    fetch("/api/media")
-      .then((res) => res.json())
-      .then((data) => {
-        const files = (data.media || []).filter(
-          (item: MediaItem) => item.type === "image" || item.type === "video"
-        );
-        setMediaItems(files);
-      })
+    fetchMedia()
       .catch((err) => console.error("Failed to load media for publish board:", err))
       .finally(() => setLoadingMedia(false));
-  }, []);
+  }, [fetchMedia]);
+
+  // On-demand Gmail ingest — pulls the last 2 days of attachments/links into
+  // media_asset, same action as the "Load Email" button on the Media Library
+  // page (apps/cms/src/app/(dashboard)/media/page.tsx) — a plain refetch is
+  // all that's needed here to show the new items.
+  const [loadingInbox, setLoadingInbox] = useState(false);
+  const handleLoadFromEmail = async () => {
+    setLoadingInbox(true);
+    try {
+      const res = await fetch("/api/media/gmail/load", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error ?? "Could not load email");
+      await fetchMedia();
+      setFeedback({ message: "Loaded new media from email", tone: "success" });
+    } catch (err) {
+      setFeedback({
+        message: err instanceof Error ? err.message : "Could not load email",
+        tone: "error",
+      });
+    } finally {
+      setLoadingInbox(false);
+    }
+  };
 
   // Keeps "now showing" / online-dot correct if a screen is reassigned from
   // elsewhere (another tab, the touch picker) while this page stays open.
@@ -107,23 +187,47 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
     return () => clearTimeout(timer);
   }, [feedback]);
 
+  // Only offer tags that actually have at least one experience — same
+  // convention as experiences/_components/projects-list.tsx's category filter.
+  const availableTags = useMemo(() => {
+    const present = new Set(experiences.flatMap((e) => e.typeIds));
+    return experienceTypes.filter((t) => present.has(t.id));
+  }, [experiences, experienceTypes]);
+
+  // Same "only offer what's actually present" convention, for media types —
+  // respects the email-source toggle too, so it never offers a type that
+  // would come back empty once that's also applied.
+  const availableMediaTypes = useMemo(() => {
+    const scoped = emailOnly ? mediaItems.filter((m) => m.source === "email") : mediaItems;
+    const present = Array.from(new Set(scoped.map((m) => m.type as MediaCardType)));
+    return present
+      .filter((t) => t in MEDIA_TYPE_LABELS)
+      .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] }));
+  }, [mediaItems, emailOnly]);
+
   const cards = useMemo<ContentCard[]>(() => {
-    const experienceCards: ContentCard[] = experiences.map((e) => ({
-      id: e.id,
-      type: "experience",
-      title: e.title,
-      thumbnail: e.coverImage,
-    }));
-    const mediaCards: ContentCard[] = mediaItems.map((m) => ({
-      id: m.id,
-      type: m.type === "video" ? "video" : "image",
-      title: m.name,
-      thumbnail: m.url,
-    }));
+    const experienceCards: ContentCard[] = experiences
+      .filter((e) => !tagFilter || e.typeIds.includes(tagFilter))
+      .map((e) => ({
+        id: e.id,
+        type: "experience",
+        title: e.title,
+        thumbnail: e.coverImage,
+        typeIds: e.typeIds,
+      }));
+    const mediaCards: ContentCard[] = mediaItems
+      .filter((m) => !mediaTypeFilter || m.type === mediaTypeFilter)
+      .filter((m) => !emailOnly || m.source === "email")
+      .map((m) => ({
+        id: m.id,
+        type: m.type as MediaCardType,
+        title: m.name,
+        thumbnail: m.url,
+      }));
     if (filter === "experiences") return experienceCards;
     if (filter === "media") return mediaCards;
     return [...experienceCards, ...mediaCards];
-  }, [experiences, mediaItems, filter]);
+  }, [experiences, mediaItems, filter, tagFilter, mediaTypeFilter, emailOnly]);
 
   const targetScreen = screens[targetIndex] ?? null;
 
@@ -194,14 +298,15 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
     };
   }, [cards, updateSlideTransforms]);
 
-  // Only an explicit filter switch should jump the carousel back to the
-  // start — publishing a card, a screen-sync update, etc. must never reset
-  // scroll position (cards itself doesn't change from those, but nothing
-  // here should assume that and reset on its account either).
+  // Only an explicit filter (or tag/media-type) switch should jump the
+  // carousel back to the start — publishing a card, a screen-sync update,
+  // etc. must never reset scroll position (cards itself doesn't change from
+  // those, but nothing here should assume that and reset on its account
+  // either).
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = 0;
-  }, [filter]);
+  }, [filter, tagFilter, mediaTypeFilter, emailOnly]);
 
   // Click-and-drag with a mouse to browse the carousel. Touch/trackpad users
   // already get native panning (touchAction: "pan-x" on each card below), but
@@ -295,7 +400,7 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
       setScreens((prev) =>
         prev.map((s) => {
           if (s.screenId !== screenId) return s;
-          if (card.type === "image" || card.type === "video") {
+          if (card.type !== "experience") {
             return {
               ...s,
               currentContentKind: "media",
@@ -315,12 +420,16 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
       });
       (async () => {
         try {
-          if (card.type === "image" || card.type === "video") {
-            await assignMedia(screenId, card.id);
-          } else {
+          if (card.type === "experience") {
             await assignExperience(screenId, card.id);
+          } else {
+            await assignMedia(screenId, card.id);
           }
           setFeedback({ message: `Pushed "${card.title}" to ${screenName}`, tone: "success" });
+          // Delayed to match SwipeCard's own local fly-off/reset timeout
+          // (CARD_RESET_MS) below — otherwise a fast response can start the
+          // full-screen cover while the card is still mid-animation.
+          window.setTimeout(() => setCovering({ screenId, screenName }), CARD_RESET_MS);
         } catch (err) {
           console.error("Failed to push content:", err);
           setFeedback({ message: `Failed to push "${card.title}" to ${screenName}`, tone: "error" });
@@ -333,7 +442,7 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
   );
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
+    <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
       {targetScreen && (
         <PublishScreenBridge key={targetScreen.screenId} screenId={targetScreen.screenId} sendRef={sendDragRef} />
       )}
@@ -381,21 +490,142 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
         )}
       </div>
 
-      {/* Filter pills */}
-      <div className="flex shrink-0 justify-center gap-2">
-        {(["all", "experiences", "media"] as const).map((key) => (
+      {/* Filter (left) + Load from email (right). */}
+      <div className="flex shrink-0 items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+            >
+              {filter}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+          <DropdownMenuContent align="start" className="z-[300]">
+            {(["all", "experiences", "media"] as const).map((key) => (
+              <DropdownMenuItem
+                key={key}
+                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                onSelect={() => {
+                  setFilter(key);
+                  if (key !== "experiences") setTagFilter(null);
+                  if (key !== "media") setMediaTypeFilter(null);
+                }}
+              >
+                {key}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Second-level filter — only once "Experiences" is picked, and only
+            offering tags that at least one experience actually has. */}
+        {filter === "experiences" && availableTags.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+              >
+                {tagFilter ? availableTags.find((t) => t.id === tagFilter)?.name ?? "Tag" : "All tags"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+          <DropdownMenuContent align="start" className="z-[300]">
+              <DropdownMenuItem
+                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                onSelect={() => setTagFilter(null)}
+              >
+                All tags
+              </DropdownMenuItem>
+              {availableTags.map((tag) => (
+                <DropdownMenuItem
+                  key={tag.id}
+                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  onSelect={() => setTagFilter(tag.id)}
+                >
+                  {tag.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* Second-level filter — only once "Media" is picked, and only
+            offering types that are actually present (Video, Image, PDF, ...). */}
+        {filter === "media" && availableMediaTypes.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+              >
+                {mediaTypeFilter ? MEDIA_TYPE_LABELS[mediaTypeFilter] : "All types"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+            <DropdownMenuContent align="start" className="z-[300]">
+              <DropdownMenuItem
+                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                onSelect={() => setMediaTypeFilter(null)}
+              >
+                All types
+              </DropdownMenuItem>
+              {availableMediaTypes.map(({ type, label }) => (
+                <DropdownMenuItem
+                  key={type}
+                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  onSelect={() => setMediaTypeFilter(type)}
+                >
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Source filter — only meaningful while actually browsing media. */}
+        {filter === "media" && (
           <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-              filter === key
-                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50"
-                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+            type="button"
+            onClick={() => setEmailOnly((v) => !v)}
+            aria-pressed={emailOnly}
+            title={emailOnly ? "Showing only media from email — click to show all" : "Show only media that came in from email"}
+            className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+              emailOnly
+                ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
             }`}
           >
-            {key}
+            {emailOnly ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+            From Email
           </button>
-        ))}
+        )}
+
+        <button
+          type="button"
+          onClick={handleLoadFromEmail}
+          disabled={loadingInbox}
+          title="Load last 2 days from email"
+          className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
+          {loadingInbox ? "Loading…" : "Load Email"}
+        </button>
+      </div>
       </div>
 
       {/* Content carousel */}
@@ -455,6 +685,30 @@ export function PublishBoard({ initialScreens, experiences }: PublishBoardProps)
           </>
         )}
       </div>
+
+      {/* Reveals from bottom to top over just this page's content area (not
+          the sidebar/header — this component's own root div above is the
+          `relative` positioning context, so `absolute inset-0` here is
+          bounded to it) right after a successful publish, then hands off to
+          that screen's live control page — same interface as /screens/<id>,
+          just kept under /push so the sidebar stays on "Push" instead of
+          jumping to "Screens". */}
+      {covering && (
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          onAnimationComplete={() => router.push(`/push/live/${covering.screenId}`)}
+          // z-[200]: the coverflow effect above gives the centered card an
+          // inline z-index up to 100 (updateSlideTransforms) — this must
+          // always outrank that or the cards nearest center poke through.
+          className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
+        >
+          <span className="text-sm font-bold uppercase tracking-widest text-white/70">
+            Opening {covering.screenName}…
+          </span>
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -527,7 +781,7 @@ function SwipeCard({
         y.set(0);
         opacity.set(0);
         animate(opacity, 1, { duration: 0.25 });
-      }, 240);
+      }, CARD_RESET_MS);
     } else {
       animate(y, 0, { type: "spring", stiffness: 500, damping: 32 });
     }
@@ -548,19 +802,48 @@ function SwipeCard({
   );
 }
 
+/** Non-visual file types (document/sheet/presentation/word) have no real
+ * image to preview — a fallback icon instead of attempting <img src=file.pdf>. */
+const FILE_TYPE_ICONS: Record<Exclude<MediaCardType, "image" | "video">, typeof FileText> = {
+  document: FileText,
+  word: FileText,
+  sheet: FileSpreadsheet,
+  presentation: Presentation,
+};
+
 function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean }) {
+  const FileIcon = card.type === "experience" || card.type === "image" || card.type === "video"
+    ? null
+    : FILE_TYPE_ICONS[card.type];
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Autoplay each video preview only while its card is actually visible —
+  // entering the viewport (coverflow scroll) starts it, leaving stops it,
+  // rather than every video in the carousel playing at once.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) video.play().catch(() => {});
+        else video.pause();
+      },
+      { threshold: 0.6 }
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
-        {card.thumbnail ? (
-          card.type === "video" ? (
-            <video src={card.thumbnail} className="h-full w-full object-cover" muted playsInline />
-          ) : (
-            <img src={card.thumbnail} alt={card.title} className="h-full w-full object-cover" loading="lazy" />
-          )
+        {card.type === "video" && card.thumbnail ? (
+          <video ref={videoRef} src={card.thumbnail} className="h-full w-full object-cover" muted loop playsInline />
+        ) : card.thumbnail && (card.type === "image" || card.type === "experience") ? (
+          <img src={card.thumbnail} alt={card.title} className="h-full w-full object-cover" loading="lazy" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <Layers className="h-6 w-6 text-zinc-400" />
+            {FileIcon ? <FileIcon className="h-8 w-8 text-zinc-400" /> : <Layers className="h-6 w-6 text-zinc-400" />}
           </div>
         )}
         <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">
@@ -568,10 +851,12 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
             <Video className="h-2.5 w-2.5" />
           ) : card.type === "image" ? (
             <ImageIcon className="h-2.5 w-2.5" />
+          ) : FileIcon ? (
+            <FileIcon className="h-2.5 w-2.5" />
           ) : (
             <Layers className="h-2.5 w-2.5" />
           )}
-          {card.type}
+          {card.type === "experience" ? "experience" : MEDIA_TYPE_LABELS[card.type]}
         </div>
         {pushing && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">

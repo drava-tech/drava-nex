@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power } from "lucide-react";
+import Link from "next/link";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
+import { useIdleAutoReturn } from "@/hooks/useIdleAutoReturn";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
@@ -31,6 +33,10 @@ interface LiveScreenSurfaceProps {
     defaultMediaAssetId?: string | null;
     defaultMediaName?: string | null;
   };
+  /** When set, shows a "Back" button at the start of the action bar linking
+   * here — e.g. /push/live/:deviceId links back to /push. Omitted entirely
+   * for entry points with no single obvious place to return to. */
+  backHref?: string;
 }
 
 /**
@@ -49,6 +55,7 @@ export function LiveScreenSurface({
   queueMediaIds,
   initialQueueIndex = 0,
   changeContent,
+  backHref,
 }: LiveScreenSurfaceProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
@@ -80,6 +87,11 @@ export function LiveScreenSurface({
     queueMediaIds,
     initialQueueIndex,
   });
+
+  // Only auto-returns where a "home" was actually given (backHref) — no-op
+  // for callers like /screens/:screenId that have no single obvious place to
+  // send an idle operator back to.
+  useIdleAutoReturn(backHref);
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
 
@@ -151,6 +163,15 @@ export function LiveScreenSurface({
       {/* Action bar */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
+          {backHref && (
+            <Link
+              href={backHref}
+              aria-label="Back"
+              className="flex items-center justify-center rounded-xl p-2 text-zinc-500 transition-colors hover:bg-zinc-500/10 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
           <span
             className={`flex items-center gap-1.5 px-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${online
               ? "bg-green-500/10 text-green-600 dark:text-green-400"

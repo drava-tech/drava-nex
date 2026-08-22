@@ -52,7 +52,11 @@ function toWsContent(c: Content): WsContent {
 function toDisplayContent(ws: WsContent): Content {
   switch (ws.type) {
     case "video":
-      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? true };
+      // Only the idle/default-fallback video explicitly asks to stay silent
+      // (packages/db/src/queries/screens.ts) — anything pushed to a screen
+      // on purpose (assignMedia) carries no `muted` at all, so it should
+      // default to playing with audio, not silently.
+      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? false };
     case "image":
       return { id: ws.id, type: "image", source: ws.source };
     case "html":

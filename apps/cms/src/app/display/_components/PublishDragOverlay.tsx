@@ -120,7 +120,10 @@ export function PublishDragOverlay({ activeContentId }: PublishDragOverlayProps)
           loop
           playsInline
         />
-      ) : preview.thumbnail ? (
+      ) : (preview.type === "image" || preview.type === "experience") && preview.thumbnail ? (
+        // Only image/experience thumbnails are real images — document/sheet/
+        // presentation/word cards carry their raw file URL here instead, which
+        // isn't renderable as <img>, so those just fall through to the plain panel.
         <img src={preview.thumbnail} alt={preview.title} className="h-full w-full object-cover" />
       ) : null}
     </div>

@@ -1,6 +1,6 @@
 "use server";
 
-import { db, experience, isNull } from "@platform/db";
+import { db, experience, experienceToType, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
@@ -41,16 +41,36 @@ export async function reorderExperiences(
 /**
  * Runs its own query (rather than the shared `listExperiences`, which also
  * backs the public GET /api/experiences and must stay lightweight) so it can
- * pull templateContent and derive a coverImage for drag/swipe-style pickers.
+ * pull templateContent and derive a coverImage for drag/swipe-style pickers,
+ * plus each experience's tag (experience_type) ids for tag-based filtering —
+ * same bulk-join pattern as apps/cms/src/app/(dashboard)/experiences/page.tsx.
  */
-export async function getExperiences(): Promise<{ id: string; title: string; coverImage: string | null }[]> {
+export async function getExperiences(): Promise<
+  { id: string; title: string; coverImage: string | null; typeIds: string[] }[]
+> {
   await requireGuestOrAdmin();
-  const rows = await db
-    .select({ id: experience.id, name: experience.name, templateContent: experience.templateContent })
-    .from(experience)
-    .where(isNull(experience.deletedAt))
-    .orderBy(asc(experience.position), desc(experience.createdAt));
-  return rows.map((r) => ({ id: r.id, title: r.name, coverImage: extractCoverImage(r.templateContent) }));
+  const [rows, assignments] = await Promise.all([
+    db
+      .select({ id: experience.id, name: experience.name, templateContent: experience.templateContent })
+      .from(experience)
+      .where(isNull(experience.deletedAt))
+      .orderBy(asc(experience.position), desc(experience.createdAt)),
+    db.select({ experienceId: experienceToType.experienceId, typeId: experienceToType.typeId }).from(experienceToType),
+  ]);
+
+  const typeIdsByExperience = new Map<string, string[]>();
+  for (const { experienceId, typeId } of assignments) {
+    const list = typeIdsByExperience.get(experienceId);
+    if (list) list.push(typeId);
+    else typeIdsByExperience.set(experienceId, [typeId]);
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.name,
+    coverImage: extractCoverImage(r.templateContent),
+    typeIds: typeIdsByExperience.get(r.id) ?? [],
+  }));
 }
 
 export async function deleteProject(id: string): Promise<{ success: boolean; error?: string }> {
