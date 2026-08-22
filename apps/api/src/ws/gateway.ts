@@ -192,10 +192,12 @@ export function getActiveWhiteboardDocuments(): Record<string, string> {
 /**
  * Fully stop a screen's whiteboard overlay — live command, in-memory cache,
  * and DB persistence, so it neither lingers on top of freshly-assigned
- * content right now nor gets resumed on the TV's next reconnect. Used by
- * "reset to idle" (see /api/screens/:id/media), which is meant as a full
- * clean reset — unlike a normal content (re)assignment, which deliberately
- * leaves an in-progress whiteboard annotation running on top of it.
+ * content right now nor gets resumed on the TV's next reconnect. Called from
+ * pushScreenContent() (see routes/screens.ts), so every path that changes
+ * what a screen is showing — experience/media/queue assignment, queue
+ * navigation, default-media changes, "reset to idle", the door-screen
+ * trigger — clears a stale whiteboard the same way, instead of leaving it up
+ * over content nobody meant it to cover.
  */
 export function stopScreenWhiteboard(screenId: string): void {
   whiteboardStateCache.delete(screenId);
