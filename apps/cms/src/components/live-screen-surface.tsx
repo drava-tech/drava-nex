@@ -17,36 +17,17 @@ interface LiveScreenSurfaceProps {
   screenId: string;
   screenName: string;
   initialBlanked?: boolean;
-  /** When the screen's current content is a page/embed (link, YouTube, Drive,
-   * PDF, sheet, deck...), shows the blank OS-cursor touchpad instead of
-   * tap-on-mirror — see LiveControlDialog and ScreenTouchpad. */
   initialShowTouchpad?: boolean;
-  /** Present only for a queue push (Media multi-select) — renders the
-   * "Item N of M" nav pill and enables Next/Prev. */
   queueMediaIds?: string[];
   initialQueueIndex?: number;
-  /** Present only when this screen should offer a "Change content" picker —
-   * /screens/:screenId has one, /media/live/:deviceId intentionally doesn't
-   * (reassigning away would orphan the queue that page exists to show). */
   changeContent?: {
     experiences: { id: string; title: string; coverImage?: string | null }[];
     defaultMediaAssetId?: string | null;
     defaultMediaName?: string | null;
-  };
-  /** When set, shows a "Back" button at the start of the action bar linking
-   * here — e.g. /push/live/:deviceId links back to /push. Omitted entirely
-   * for entry points with no single obvious place to return to. */
+  }
   backHref?: string;
 }
 
-/**
- * Full-page interactive control for one screen — shared by /screens/:screenId
- * and /media/live/:deviceId, which were previously two byte-identical copies
- * of this exact JSX (ScreenControlView and MediaLiveView). The big surface is
- * the live screen player (touch to explore, or the OS-cursor touchpad for
- * page content); interactions relay to every client of the screen so the TV
- * stays in sync.
- */
 export function LiveScreenSurface({
   screenId,
   screenName,
@@ -105,8 +86,6 @@ export function LiveScreenSurface({
     }
   };
 
-  // Only take effect on the physical TV — a no-op there if it's a regular
-  // browser tab rather than the LobbyKiosk WebView2 host (see LiveScreenPlayer).
   const handleMinimize = async () => {
     setMinimizing(true);
     try {
@@ -116,9 +95,6 @@ export function LiveScreenSurface({
     }
   };
 
-  // Brings the kiosk app back to fullscreen after a remote Minimize (or if
-  // someone minimized it by hand on the TV's PC) — a no-op there if it's a
-  // regular browser tab rather than the LobbyKiosk WebView2 host.
   const handleMaximize = async () => {
     setMaximizing(true);
     try {
@@ -128,11 +104,6 @@ export function LiveScreenSurface({
     }
   };
 
-  // Full browser reload on the TV's PC — the kiosk's WebView2 keeps whatever
-  // JS/CSS bundle it loaded at last navigation, so after a CMS redeploy the
-  // running kiosk needs this to actually pick up the new build (already
-  // handled display-side: LiveScreenPlayer's handleCommand does
-  // window.location.reload() on "RELOAD"). A no-op on a regular browser tab.
   const handleReload = async () => {
     setReloading(true);
     try {
@@ -142,8 +113,6 @@ export function LiveScreenSurface({
     }
   };
 
-  // Exits the kiosk app entirely — it won't come back until someone relaunches
-  // it or the TV's PC reboots/logs in again (Startup shortcut), so confirm first.
   const handleCloseApp = async () => {
     if (!window.confirm(`Close the kiosk app on "${screenName}"? It won't reopen until the TV is relaunched or rebooted.`)) {
       return;
@@ -167,13 +136,6 @@ export function LiveScreenSurface({
   };
 
   return (
-    // h-full, not flex-1 — the parent scroll region (dashboard-layout-client's
-    // overflow-y-auto div) is a plain block container, not a flex container,
-    // so flex-1 here has nothing to grow against and this would otherwise
-    // shrink to its content height. The screen mirror below masks that (it
-    // sizes itself from aspect-[16/9], independent of ancestor height), but
-    // the touchpad has no aspect ratio and needs a real height chain to fill
-    // the screen instead of collapsing to just its own button bar.
     <div className="flex h-full min-h-0 flex-col p-4 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Action bar */}
       <div className="flex items-center justify-between shrink-0">
@@ -231,11 +193,6 @@ export function LiveScreenSurface({
               </button>
             </div>
           )}
-
-          {/* <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-            {showTouchpad ? "· drag the pad below to drive the cursor on the TV" : "· touch to explore — mirrored on the TV in realtime"}
-          </span> */}
-          {/* // for testing */}
         </div>
         <div className="flex items-center gap-2">
           {SCREEN_TO_CAMERA[screenId] && (

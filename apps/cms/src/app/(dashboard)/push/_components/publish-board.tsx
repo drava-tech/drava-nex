@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, animate, useAnimation, useMotionValue, type PanInfo } from "framer-motion";
 import {
+  CalendarRange,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -22,6 +23,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
+import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { PublishScreenBridge } from "./publish-screen-bridge";
 import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import type { WsContent } from "@platform/types";
@@ -55,6 +57,19 @@ interface MediaItem {
   type: string;
   url: string;
   source: string | null;
+  createdAt: string | null;
+}
+
+/** `from`/`to` are "YYYY-MM-DD" (possibly empty for an open-ended bound),
+ * directly comparable against the leading 10 chars of an ISO createdAt —
+ * same convention as apps/cms/src/app/(dashboard)/media/page.tsx's date filter. */
+function matchesDateRange(item: MediaItem, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  if (!item.createdAt) return true;
+  const itemDate = item.createdAt.slice(0, 10);
+  if (from && itemDate < from) return false;
+  if (to && itemDate > to) return false;
+  return true;
 }
 
 /** Every non-experience card carries the media asset's own classified type
@@ -96,13 +111,16 @@ interface PublishBoardProps {
 export function PublishBoard({ initialScreens, experiences, experienceTypes }: PublishBoardProps) {
   const [screens, setScreens] = useState<ScreenRow[]>(initialScreens);
   const [targetIndex, setTargetIndex] = useState(0);
-  const [filter, setFilter] = useState<"all" | "experiences" | "media">("all");
+  const [filter, setFilter] = useState<"experiences" | "media">("experiences");
   /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   /** Only meaningful (and shown) while filter === "media" — narrows to one media type. */
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(null);
   /** Only meaningful while filter === "media" — narrows to email-ingested items only. */
   const [emailOnly, setEmailOnly] = useState(false);
+  /** Only meaningful while filter === "media" — "" | "YYYY-MM-DD", open-ended if either is empty. */
+  const [mediaDateFrom, setMediaDateFrom] = useState("");
+  const [mediaDateTo, setMediaDateTo] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [pushingId, setPushingId] = useState<string | null>(null);
@@ -110,7 +128,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
   const boxControls = useAnimation();
   const router = useRouter();
   const [covering, setCovering] = useState<{ screenId: string; screenName: string } | null>(null);
-  const sendDragRef = useRef<(command: string, value?: unknown) => void>(() => {});
+  const sendDragRef = useRef<(command: string, value?: unknown) => void>(() => { });
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -195,15 +213,17 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
   }, [experiences, experienceTypes]);
 
   // Same "only offer what's actually present" convention, for media types —
-  // respects the email-source toggle too, so it never offers a type that
-  // would come back empty once that's also applied.
+  // respects the email-source and date-range filters too, so it never offers
+  // a type that would come back empty once those are also applied.
   const availableMediaTypes = useMemo(() => {
-    const scoped = emailOnly ? mediaItems.filter((m) => m.source === "email") : mediaItems;
+    const scoped = mediaItems
+      .filter((m) => !emailOnly || m.source === "email")
+      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo));
     const present = Array.from(new Set(scoped.map((m) => m.type as MediaCardType)));
     return present
       .filter((t) => t in MEDIA_TYPE_LABELS)
       .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] }));
-  }, [mediaItems, emailOnly]);
+  }, [mediaItems, emailOnly, mediaDateFrom, mediaDateTo]);
 
   const cards = useMemo<ContentCard[]>(() => {
     const experienceCards: ContentCard[] = experiences
@@ -218,16 +238,15 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     const mediaCards: ContentCard[] = mediaItems
       .filter((m) => !mediaTypeFilter || m.type === mediaTypeFilter)
       .filter((m) => !emailOnly || m.source === "email")
+      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo))
       .map((m) => ({
         id: m.id,
         type: m.type as MediaCardType,
         title: m.name,
         thumbnail: m.url,
       }));
-    if (filter === "experiences") return experienceCards;
-    if (filter === "media") return mediaCards;
-    return [...experienceCards, ...mediaCards];
-  }, [experiences, mediaItems, filter, tagFilter, mediaTypeFilter, emailOnly]);
+    return filter === "experiences" ? experienceCards : mediaCards;
+  }, [experiences, mediaItems, filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);
 
   const targetScreen = screens[targetIndex] ?? null;
 
@@ -306,7 +325,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = 0;
-  }, [filter, tagFilter, mediaTypeFilter, emailOnly]);
+  }, [filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);
 
   // Click-and-drag with a mouse to browse the carousel. Touch/trackpad users
   // already get native panning (touchAction: "pan-x" on each card below), but
@@ -475,11 +494,10 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       <div className="flex h-6 shrink-0 items-center justify-center">
         {feedback ? (
           <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              feedback.tone === "success"
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-red-500/10 text-red-600 dark:text-red-400"
-            }`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${feedback.tone === "success"
+              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : "bg-red-500/10 text-red-600 dark:text-red-400"
+              }`}
           >
             {feedback.message}
           </span>
@@ -492,83 +510,14 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
 
       {/* Filter (left) + Load from email (right). */}
       <div className="flex shrink-0 items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
-            >
-              {filter}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-          {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
-              always outrank that or cards poke over the open menu. */}
-          <DropdownMenuContent align="start" className="z-[300]">
-            {(["all", "experiences", "media"] as const).map((key) => (
-              <DropdownMenuItem
-                key={key}
-                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                onSelect={() => {
-                  setFilter(key);
-                  if (key !== "experiences") setTagFilter(null);
-                  if (key !== "media") setMediaTypeFilter(null);
-                }}
-              >
-                {key}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Second-level filter — only once "Experiences" is picked, and only
-            offering tags that at least one experience actually has. */}
-        {filter === "experiences" && availableTags.length > 0 && (
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
               >
-                {tagFilter ? availableTags.find((t) => t.id === tagFilter)?.name ?? "Tag" : "All tags"}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
-              always outrank that or cards poke over the open menu. */}
-          <DropdownMenuContent align="start" className="z-[300]">
-              <DropdownMenuItem
-                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                onSelect={() => setTagFilter(null)}
-              >
-                All tags
-              </DropdownMenuItem>
-              {availableTags.map((tag) => (
-                <DropdownMenuItem
-                  key={tag.id}
-                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                  onSelect={() => setTagFilter(tag.id)}
-                >
-                  {tag.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
-        {/* Second-level filter — only once "Media" is picked, and only
-            offering types that are actually present (Video, Image, PDF, ...). */}
-        {filter === "media" && availableMediaTypes.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
-              >
-                {mediaTypeFilter ? MEDIA_TYPE_LABELS[mediaTypeFilter] : "All types"}
+                {filter}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -576,56 +525,169 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
               inline z-index up to 100 (updateSlideTransforms) — this must
               always outrank that or cards poke over the open menu. */}
             <DropdownMenuContent align="start" className="z-[300]">
-              <DropdownMenuItem
-                className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                onSelect={() => setMediaTypeFilter(null)}
-              >
-                All types
-              </DropdownMenuItem>
-              {availableMediaTypes.map(({ type, label }) => (
+              {(["experiences", "media"] as const).map((key) => (
                 <DropdownMenuItem
-                  key={type}
+                  key={key}
                   className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                  onSelect={() => setMediaTypeFilter(type)}
+                  onSelect={() => {
+                    setFilter(key);
+                    if (key !== "experiences") setTagFilter(null);
+                    if (key !== "media") {
+                      setMediaTypeFilter(null);
+                      setEmailOnly(false);
+                      setMediaDateFrom("");
+                      setMediaDateTo("");
+                    }
+                  }}
                 >
-                  {label}
+                  {key}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
-      </div>
 
-      <div className="flex items-center gap-2">
-        {/* Source filter — only meaningful while actually browsing media. */}
-        {filter === "media" && (
-          <button
-            type="button"
-            onClick={() => setEmailOnly((v) => !v)}
-            aria-pressed={emailOnly}
-            title={emailOnly ? "Showing only media from email — click to show all" : "Show only media that came in from email"}
-            className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-              emailOnly
+          {/* Second-level filter — only once "Experiences" is picked, and only
+            offering tags that at least one experience actually has. */}
+          {filter === "experiences" && availableTags.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                >
+                  {tagFilter ? availableTags.find((t) => t.id === tagFilter)?.name ?? "Tag" : "All tags"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+              <DropdownMenuContent align="start" className="z-[300]">
+                <DropdownMenuItem
+                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  onSelect={() => setTagFilter(null)}
+                >
+                  All tags
+                </DropdownMenuItem>
+                {availableTags.map((tag) => (
+                  <DropdownMenuItem
+                    key={tag.id}
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                    onSelect={() => setTagFilter(tag.id)}
+                  >
+                    {tag.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Second-level filter — only once "Media" is picked, and only
+            offering types that are actually present (Video, Image, PDF, ...). */}
+          {filter === "media" && availableMediaTypes.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                >
+                  {mediaTypeFilter ? MEDIA_TYPE_LABELS[mediaTypeFilter] : "All types"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+              <DropdownMenuContent align="start" className="z-[300]">
+                <DropdownMenuItem
+                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  onSelect={() => setMediaTypeFilter(null)}
+                >
+                  All types
+                </DropdownMenuItem>
+                {availableMediaTypes.map(({ type, label }) => (
+                  <DropdownMenuItem
+                    key={type}
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                    onSelect={() => setMediaTypeFilter(type)}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Third-level filter — a single range-select calendar, not two
+              separate date inputs (unlike the Media Library page's picker). */}
+          {filter === "media" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                    mediaDateFrom || mediaDateTo
+                      ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                      : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
+                  }`}
+                >
+                  <CalendarRange className="h-3.5 w-3.5" />
+                  {!mediaDateFrom && !mediaDateTo
+                    ? "Date Range"
+                    : mediaDateFrom && mediaDateTo
+                      ? `${mediaDateFrom} → ${mediaDateTo}`
+                      : mediaDateFrom
+                        ? `From ${mediaDateFrom}`
+                        : `Until ${mediaDateTo}`}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              {/* z-[300]: the coverflow effect above gives the centered card an
+              inline z-index up to 100 (updateSlideTransforms) — this must
+              always outrank that or cards poke over the open menu. */}
+              <DropdownMenuContent align="start" className="z-[300] p-3">
+                <DateRangeCalendar
+                  from={mediaDateFrom}
+                  to={mediaDateTo}
+                  onChange={(from, to) => {
+                    setMediaDateFrom(from);
+                    setMediaDateTo(to);
+                  }}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Source filter — only meaningful while actually browsing media. */}
+          {filter === "media" && (
+            <button
+              type="button"
+              onClick={() => setEmailOnly((v) => !v)}
+              aria-pressed={emailOnly}
+              title={emailOnly ? "Showing only media from email — click to show all" : "Show only media that came in from email"}
+              className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${emailOnly
                 ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                 : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
-            }`}
-          >
-            {emailOnly ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
-            From Email
-          </button>
-        )}
+                }`}
+            >
+              {emailOnly ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+              From Email
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={handleLoadFromEmail}
-          disabled={loadingInbox}
-          title="Load last 2 days from email"
-          className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
-          {loadingInbox ? "Loading…" : "Load Email"}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleLoadFromEmail}
+            disabled={loadingInbox}
+            title="Load last 2 days from email"
+            className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
+            {loadingInbox ? "Loading…" : "Load Email"}
+          </button>
+        </div>
       </div>
 
       {/* Content carousel */}
@@ -661,9 +723,6 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
               })}
             </div>
 
-            {/* A dedicated row below the carousel rather than an overlay on
-                the images — keeps these clickable regardless of the
-                coverflow scale effect's inline z-index on the cards above. */}
             <div className="flex shrink-0 items-center justify-center gap-4">
               <button
                 type="button"
@@ -686,22 +745,12 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
         )}
       </div>
 
-      {/* Reveals from bottom to top over just this page's content area (not
-          the sidebar/header — this component's own root div above is the
-          `relative` positioning context, so `absolute inset-0` here is
-          bounded to it) right after a successful publish, then hands off to
-          that screen's live control page — same interface as /screens/<id>,
-          just kept under /push so the sidebar stays on "Push" instead of
-          jumping to "Screens". */}
       {covering && (
         <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           onAnimationComplete={() => router.push(`/push/live/${covering.screenId}`)}
-          // z-[200]: the coverflow effect above gives the centered card an
-          // inline z-index up to 100 (updateSlideTransforms) — this must
-          // always outrank that or the cards nearest center poke through.
           className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
         >
           <span className="text-sm font-bold uppercase tracking-widest text-white/70">
@@ -825,7 +874,7 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
     if (!video) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) video.play().catch(() => {});
+        if (entry?.isIntersecting) video.play().catch(() => { });
         else video.pause();
       },
       { threshold: 0.6 }

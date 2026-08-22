@@ -57,6 +57,13 @@ public partial class MainWindow : Window
         var environmentOptions = new CoreWebView2EnvironmentOptions
         {
             AreBrowserExtensionsEnabled = true,
+            // Without this, Chromium (WebView2) only ever guarantees MUTED
+            // autoplay — an unattended kiosk TV has no user gesture to unlock
+            // unmuted playback, so any <video autoPlay muted={false}>
+            // (VideoRenderer.tsx) just freezes on its first frame instead of
+            // playing. Same flag already required and documented for the
+            // alternate chrome.exe --kiosk path (.doc/device-setup.md).
+            AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required",
         };
         var environment = await CoreWebView2Environment.CreateAsync(null, null, environmentOptions);
 
