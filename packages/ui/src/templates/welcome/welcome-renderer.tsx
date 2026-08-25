@@ -77,6 +77,16 @@ export function WelcomeRenderer({
   // actually makes autoplay work unconditionally; sound is then a deliberate
   // opt-in via the unmute control below, not a precondition for playback.
   const [muted, setMuted] = useState(true);
+  // A videoUrl pointing at a deleted/missing asset (e.g. removed from the
+  // Media Library after being saved here) would otherwise fail to load
+  // silently — the <video> element just sits there black with nothing on
+  // screen. Falls back to the headline/subtitle branch below instead.
+  // Reset whenever the url itself changes, so a fresh, valid video gets a
+  // clean retry rather than staying stuck on a previous failure.
+  const [videoFailed, setVideoFailed] = useState(false);
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [videoUrl]);
 
   const handleUnmute = () => {
     setMuted(false);
@@ -89,8 +99,11 @@ export function WelcomeRenderer({
 
   useEffect(() => {
     // A full-screen video already carries its own audio — narrating the
-    // headline over it would just talk over the video's own sound.
-    if (!speak || videoUrl || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // headline over it would just talk over the video's own sound. A failed
+    // video falls back to the text branch below, so it should speak same as
+    // if no video had been set at all.
+    const showingVideo = videoUrl && !videoFailed;
+    if (!speak || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     let cancelled = false;
@@ -144,11 +157,11 @@ export function WelcomeRenderer({
       synth.cancel();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speak, title, subtitle]);
+  }, [speak, title, subtitle, videoFailed]);
 
   // A video takes over the whole screen on its own — no headline, subtitle,
   // gradient, or padding around it, just the video edge-to-edge.
-  if (videoUrl) {
+  if (videoUrl && !videoFailed) {
     return (
       <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#000", position: "relative" }}>
         <video
@@ -158,6 +171,7 @@ export function WelcomeRenderer({
           autoPlay
           muted={muted}
           playsInline
+          onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
         {muted && (

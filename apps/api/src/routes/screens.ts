@@ -51,6 +51,14 @@ screensRouter.get("/:screenId/config", async (c) => {
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
 export async function pushScreenContent(screenId: string) {
+  // Whatever's about to render here replaces what's on screen now, so any
+  // live whiteboard drawn over the OLD content is stale — leaving it up means
+  // the push lands underneath an overlay nobody asked for, and the only way
+  // out was closing the board by hand from the CMS. Centralized here (rather
+  // than at each call site) so every current and future caller of this
+  // function gets it automatically — /queue/navigate and /default-media used
+  // to miss this until it was centralized.
+  stopScreenWhiteboard(screenId);
   let content = await getScreenContent(screenId);
   if (content?.templateKey === "object-recognition") {
     // The DB row is never the live source of truth for this template (see
@@ -117,11 +125,7 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   // "Stop" — updates the live (already-connected) screen immediately, on
   // top of the DB write above which covers a later reconnect.
   setScreenBlankState(screenId, false);
-  // New content replaces what was on the screen, so any live whiteboard
-  // drawn over the OLD content is stale — leaving it up means the push
-  // lands underneath an overlay nobody asked for, and the only way out is
-  // closing the board by hand from the CMS.
-  stopScreenWhiteboard(screenId);
+  // Stale-whiteboard cleanup lives in pushScreenContent() now — see there.
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -141,9 +145,6 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   await setScreenMedia(screenId, body.mediaAssetId);
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
-  // Every assignment, not just the null "reset to idle" — see the note on
-  // the /experience route above.
-  stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
@@ -167,7 +168,6 @@ screensRouter.post("/:id/media-queue", requireGuestOrAdmin, async (c) => {
   await setScreenMediaQueue(screenId, body.mediaAssetIds, body.startIndex ?? 0);
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
-  stopScreenWhiteboard(screenId);
   const content = await pushScreenContent(screenId);
   return ok(c, { screenId, content });
 });
