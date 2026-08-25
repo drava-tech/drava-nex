@@ -160,6 +160,11 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error ?? "Could not load email");
       await fetchMedia();
+      // /api/media already returns newest-first, so the just-loaded items land
+      // at the front of mediaItems/cards — but the scroller's pixel position
+      // doesn't know that on its own, so without this it can keep showing
+      // whatever was already centered instead of the new newest item.
+      if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
       setFeedback({ message: "Loaded new media from email", tone: "success" });
     } catch (err) {
       setFeedback({
@@ -281,7 +286,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       const nudge = -clamped * 18;
       el.style.transform = `translateX(${nudge}px) scale(${scale})`;
       el.style.opacity = String(1 - proximity * 0.35);
-      el.style.zIndex = String(100 - Math.round(proximity * 10));
+      el.style.zIndex = String(5 - Math.round(proximity * 5));
     });
   }, []);
 
@@ -522,7 +527,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
               </button>
             </DropdownMenuTrigger>
             {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
+              inline z-index up to 5 (updateSlideTransforms) — this must
               always outrank that or cards poke over the open menu. */}
             <DropdownMenuContent align="start" className="z-[300]">
               {(["experiences", "media"] as const).map((key) => (
@@ -560,7 +565,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                 </button>
               </DropdownMenuTrigger>
               {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
+              inline z-index up to 5 (updateSlideTransforms) — this must
               always outrank that or cards poke over the open menu. */}
               <DropdownMenuContent align="start" className="z-[300]">
                 <DropdownMenuItem
@@ -596,7 +601,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                 </button>
               </DropdownMenuTrigger>
               {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
+              inline z-index up to 5 (updateSlideTransforms) — this must
               always outrank that or cards poke over the open menu. */}
               <DropdownMenuContent align="start" className="z-[300]">
                 <DropdownMenuItem
@@ -643,7 +648,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                 </button>
               </DropdownMenuTrigger>
               {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 100 (updateSlideTransforms) — this must
+              inline z-index up to 5 (updateSlideTransforms) — this must
               always outrank that or cards poke over the open menu. */}
               <DropdownMenuContent align="start" className="z-[300] p-3">
                 <DateRangeCalendar

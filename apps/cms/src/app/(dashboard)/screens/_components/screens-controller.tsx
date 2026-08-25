@@ -314,7 +314,10 @@ export function ScreensController({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer gap-2 py-1 text-destructive focus:text-destructive"
-                              onSelect={() => removeScreen(screen.id).then(() => router.refresh())}
+                              onSelect={() => {
+                                if (!confirm(`Remove "${screen.name}"? This cannot be undone.`)) return;
+                                removeScreen(screen.id).then(() => router.refresh());
+                              }}
                             >
                               <Trash2 className="h-4 w-4" /> Remove screen
                             </DropdownMenuItem>

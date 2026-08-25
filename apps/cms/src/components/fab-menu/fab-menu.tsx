@@ -172,7 +172,7 @@ export function FabMenu({
   }, [items, direction, isVertical, horizontalSide]);
 
   return (
-    <div ref={wrapperRef} className={cn("fixed z-50", POSITION_CLASSES[position], className)}>
+    <div ref={wrapperRef} className={cn("fixed z-[400]", POSITION_CLASSES[position], className)}>
       <div className="relative" style={{ width: MAIN_FAB_SIZE, height: MAIN_FAB_SIZE }}>
         <AnimatePresence>
           {open && (

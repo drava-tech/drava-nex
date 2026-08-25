@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
-import { useIdleAutoReturn } from "@/hooks/useIdleAutoReturn";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
@@ -69,11 +68,6 @@ export function LiveScreenSurface({
     queueMediaIds,
     initialQueueIndex,
   });
-
-  // Only auto-returns where a "home" was actually given (backHref) — no-op
-  // for callers like /screens/:screenId that have no single obvious place to
-  // send an idle operator back to.
-  useIdleAutoReturn(backHref);
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
 
