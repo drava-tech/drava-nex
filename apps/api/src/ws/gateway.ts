@@ -43,10 +43,15 @@ const screenRegistry = new Map<string, Set<WebSocket>>();
 const cmsRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
-// Last in-template view state per screen (absolute "SET_*" interaction), so a
-// client that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
+// Last in-template view state per screen, one slot per distinct "SET_*"
+// command name — a template can have independently-nested state (e.g.
+// portfolio's SET_PORTFOLIO_VIEW picks which category page is active, while
+// that category's own SET_FILM_VIEW picks which film within it), and a
+// single shared slot would let the inner command silently clobber the outer
+// one, losing "how did we even get to this page" on reconnect. So a client
+// that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
 // reconnecting TV) converges to the current view. Cleared when content changes.
-const viewStateCache = new Map<string, { command: string; value?: unknown }>();
+const viewStateCache = new Map<string, Map<string, unknown>>();
 // Live whiteboard state per screen — reconstructed from SCREEN_INTERACTION
 // commands via the same reducer the CMS/TV clients use, and persisted to the
 // screen row on "settling" commands. Presence in this map means "active";
@@ -635,17 +640,24 @@ export function createGateway(): WebSocketServer {
             ws.send(JSON.stringify(welcome));
           };
 
-          // After WELCOME, replay the screen's current in-template view state to
-          // THIS socket only, so a late joiner lands on the same page/video.
+          // After WELCOME, replay every cached in-template view-state command to
+          // THIS socket only, so a late joiner lands on the same page/video —
+          // ALL of them, not just the most recent, since outer/inner nested
+          // state (e.g. portfolio's SET_PORTFOLIO_VIEW + a category's own
+          // SET_FILM_VIEW) live in independent slots. Map iteration order is
+          // insertion order, so the outer command (set first, on the original
+          // navigation into it) naturally replays before the inner one.
           const replayViewState = () => {
             const vs = viewStateCache.get(sid);
             if (!vs || ws.readyState !== WebSocket.OPEN) return;
-            ws.send(JSON.stringify({
-              type: 'SCREEN_COMMAND',
-              command: vs.command,
-              value: vs.value,
-              timestamp: Date.now(),
-            }));
+            for (const [command, value] of vs) {
+              ws.send(JSON.stringify({
+                type: 'SCREEN_COMMAND',
+                command,
+                value,
+                timestamp: Date.now(),
+              }));
+            }
           };
 
           // If a whiteboard is live on this screen, resume it for the newly
@@ -884,9 +896,17 @@ export function createGateway(): WebSocketServer {
         }
 
         case 'SCREEN_INTERACTION': {
-          // Cache absolute view-state interactions so late joiners can converge.
+          // Cache absolute view-state interactions so late joiners can
+          // converge — one slot per command name (see viewStateCache above),
+          // so an inner command (e.g. SET_FILM_VIEW) doesn't clobber an
+          // outer one (e.g. SET_PORTFOLIO_VIEW) for the same screen.
           if (msg.command.startsWith('SET_')) {
-            viewStateCache.set(msg.screenId, { command: msg.command, value: msg.value });
+            let screenViewState = viewStateCache.get(msg.screenId);
+            if (!screenViewState) {
+              screenViewState = new Map();
+              viewStateCache.set(msg.screenId, screenViewState);
+            }
+            screenViewState.set(msg.command, msg.value);
           }
 
           if (isWhiteboardCommand(msg.command)) {

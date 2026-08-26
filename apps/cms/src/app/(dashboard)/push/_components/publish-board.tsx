@@ -418,6 +418,25 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     (card: ContentCard) => {
       if (!targetScreen) return;
       const { screenId, screenName } = targetScreen;
+
+      // Pushing content that's already live on this screen is a no-op on the
+      // real device — its player dedupes by content key and never reloads
+      // (see useContentPreloader). Skip the redundant DB write/broadcast and
+      // the "opening" landing animation (nothing is actually landing), but
+      // still take the user to the live control page like any other publish
+      // — its mirror now replays the screen's real current state correctly
+      // (see replayable-window-event.ts), so there's no reset-to-overview
+      // flash to avoid anymore.
+      const alreadyShowing =
+        card.type === "experience"
+          ? targetScreen.currentContentKind === "experience" && targetScreen.currentExperienceId === card.id
+          : targetScreen.currentContentKind === "media" && targetScreen.currentMediaAssetId === card.id;
+      if (alreadyShowing) {
+        setFeedback({ message: `"${card.title}" is already showing on ${screenName}`, tone: "success" });
+        window.setTimeout(() => setCovering({ screenId, screenName }), CARD_RESET_MS);
+        return;
+      }
+
       setPushingId(card.id);
       // Optimistic update so the box's "now showing" line reflects the push
       // immediately, same pattern as screens-controller.tsx's handleAssign.

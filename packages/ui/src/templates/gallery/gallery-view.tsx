@@ -20,6 +20,7 @@ import {
   type GalleryContent,
   type GalleryPhoto,
 } from "./content";
+import { useReplayableWindowEvent } from "../../lib/replayable-window-event";
 
 /** Matches the commit/settle feel of the portfolio split view. */
 const TRANSITION = "560ms cubic-bezier(0.22, 0.61, 0.36, 1)";
@@ -249,15 +250,10 @@ export function GalleryView({
     }
   };
 
-  useEffect(() => {
-    const onSetExpansion = (e: Event) => {
-      const detail = (e as CustomEvent<Partial<GalleryExpansion>>).detail;
-      setExpanded(detail?.expanded ?? null);
-      if (Array.isArray(detail?.railOrder)) setRailOrder(detail.railOrder);
-    };
-    window.addEventListener(EXPANSION_EVENT, onSetExpansion);
-    return () => window.removeEventListener(EXPANSION_EVENT, onSetExpansion);
-  }, []);
+  useReplayableWindowEvent<Partial<GalleryExpansion>>(EXPANSION_EVENT, (detail) => {
+    setExpanded(detail?.expanded ?? null);
+    if (Array.isArray(detail?.railOrder)) setRailOrder(detail.railOrder);
+  });
 
   /** Tap on a grid photo: open it, the rest fall into the rail in order. */
   const expand = (index: number) =>

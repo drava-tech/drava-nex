@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
-import { cn } from "@platform/ui";
+import { cn, dispatchReplayableEvent } from "@platform/ui";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
@@ -136,19 +136,23 @@ export function LiveScreenPlayer({
       });
       window.dispatchEvent(event);
     } else if (command === "SET_SLIDE") {
-      const event = new CustomEvent("screen-set-slide", {
-        detail: { slideIndex: Number(value) },
-      });
-      window.dispatchEvent(event);
+      // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
+      // can receive this before ExperienceDisplay's listener has mounted —
+      // see replayable-window-event.ts.
+      dispatchReplayableEvent("screen-set-slide", { slideIndex: Number(value) });
     } else if (command === "SET_PORTFOLIO_VIEW") {
       // Inbound portfolio view change from another client of this screen.
-      window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
+      // Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("portfolio-set-view", value);
     } else if (command === "SET_PORTFOLIO_VIDEO") {
-      window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+      dispatchReplayableEvent("portfolio-set-video", value);
     } else if (command === "SET_GALLERY_VIEW") {
       // Which gallery photo is expanded — a tap on a control tablet has to open
-      // the same photo on the wall.
-      window.dispatchEvent(new CustomEvent("gallery-set-view", { detail: value }));
+      // the same photo on the wall. Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("gallery-set-view", value);
+    } else if (command === "SET_FILM_VIEW") {
+      // Films page grid/player + which film — replayable, same reason as above.
+      dispatchReplayableEvent("film-set-view", value);
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {

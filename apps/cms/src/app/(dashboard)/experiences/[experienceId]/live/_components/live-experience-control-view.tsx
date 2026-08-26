@@ -43,6 +43,9 @@ interface LiveExperienceControlViewProps {
   initialQueueMediaIds?: string[];
   initialQueueIndex?: number;
   liveScreens: LiveScreenOption[];
+  /** Whatever's actually live on the screen right now, so re-picking the
+   * same content can be skipped as a no-op — see handleAssign. */
+  initialContent?: { id: string; type: string } | null;
 }
 
 /**
@@ -65,9 +68,11 @@ export function LiveExperienceControlView({
   initialQueueMediaIds,
   initialQueueIndex = 0,
   liveScreens,
+  initialContent = null,
 }: LiveExperienceControlViewProps) {
   const router = useRouter();
   const [showPicker, setShowPicker] = useState(false);
+  const [currentContent, setCurrentContent] = useState(initialContent);
   const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -132,6 +137,12 @@ export function LiveExperienceControlView({
 
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
+    // Re-picking whatever's already live is a no-op on the real screen (its
+    // player dedupes by content key) — skip the push so it doesn't wipe the
+    // gateway's in-template view-state cache for nothing (see
+    // apps/api/src/ws/gateway.ts's viewStateCache.delete on every push).
+    if (currentContent?.id === content.id && currentContent?.type === content.type) return;
+    setCurrentContent({ id: content.id, type: content.type });
     if (content.type === "video" || content.type === "image") {
       await assignMedia(deviceId, content.id);
       // No experience applies anymore — this page can't represent that state.

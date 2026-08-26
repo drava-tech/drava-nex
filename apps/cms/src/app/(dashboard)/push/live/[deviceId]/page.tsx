@@ -36,6 +36,7 @@ export default async function PushLivePage({ params }: PageProps) {
         defaultMediaAssetId: row.defaultMediaAssetId,
         defaultMediaName: row.defaultMediaName,
       }}
+      initialContent={content ? { id: content.id, type: content.type } : null}
       backHref="/push"
     />
   );

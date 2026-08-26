@@ -28,6 +28,9 @@ interface LiveScreenSurfaceProps {
     defaultMediaAssetId?: string | null;
     defaultMediaName?: string | null;
   }
+  /** Whatever's actually live on the screen right now, so re-picking the same
+   * content can be skipped as a no-op — see handleAssign. */
+  initialContent?: { id: string; type: string } | null;
   backHref?: string;
 }
 
@@ -39,6 +42,7 @@ export function LiveScreenSurface({
   queueMediaIds,
   initialQueueIndex = 0,
   changeContent,
+  initialContent = null,
   backHref,
 }: LiveScreenSurfaceProps) {
   const [showPicker, setShowPicker] = useState(false);
@@ -50,6 +54,7 @@ export function LiveScreenSurface({
     id: changeContent?.defaultMediaAssetId ?? null,
     name: changeContent?.defaultMediaName ?? null,
   });
+  const [currentContent, setCurrentContent] = useState(initialContent);
 
   const {
     online,
@@ -83,6 +88,14 @@ export function LiveScreenSurface({
 
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
+    // Re-picking whatever's already live is a no-op on the real screen (its
+    // player dedupes by content key) — skip the push so it doesn't wipe the
+    // gateway's in-template view-state cache for nothing (see
+    // apps/api/src/ws/gateway.ts's viewStateCache.delete on every push),
+    // which would otherwise reset the portfolio/gallery/film position for
+    // the next client that connects.
+    if (currentContent?.id === content.id && currentContent?.type === content.type) return;
+    setCurrentContent({ id: content.id, type: content.type });
     if (content.type === "video" || content.type === "image") {
       await assignMedia(screenId, content.id);
     } else {

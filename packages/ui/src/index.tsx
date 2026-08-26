@@ -5,8 +5,10 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Monitor, MapPin, Tag } from "lucide-react";
 import type { Screen } from "@platform/types";
 import { cn } from "./lib/utils";
+import { dispatchReplayableEvent, useReplayableWindowEvent } from "./lib/replayable-window-event";
 
 export { cn };
+export { dispatchReplayableEvent, useReplayableWindowEvent };
 
 // ==========================================
 // 1. SHADCN BUTTON

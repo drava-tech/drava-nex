@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useReplayableWindowEvent } from "@platform/ui";
 
 interface ExperienceDisplayProps {
   title?: string;
@@ -20,17 +21,13 @@ export function ExperienceDisplay({ title, screenId }: ExperienceDisplayProps) {
         setCurrentSlide((prev) => (prev - 1 + 3) % 3);
       }
     };
-    const handleSetSlide = (e: Event) => {
-      const customEvent = e as CustomEvent<{ slideIndex: number }>;
-      setCurrentSlide(customEvent.detail.slideIndex);
-    };
     window.addEventListener("screen-navigate", handleNavigate);
-    window.addEventListener("screen-set-slide", handleSetSlide);
-    return () => {
-      window.removeEventListener("screen-navigate", handleNavigate);
-      window.removeEventListener("screen-set-slide", handleSetSlide);
-    };
+    return () => window.removeEventListener("screen-navigate", handleNavigate);
   }, []);
+
+  useReplayableWindowEvent<{ slideIndex: number }>("screen-set-slide", (detail) => {
+    setCurrentSlide(detail.slideIndex);
+  });
 
   if (!title) {
     return (

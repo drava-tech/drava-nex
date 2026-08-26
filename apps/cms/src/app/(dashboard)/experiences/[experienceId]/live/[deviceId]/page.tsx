@@ -75,6 +75,7 @@ export default async function LiveExperienceControlPage({ params }: PageProps) {
       initialQueueMediaIds={screenRow.currentQueueMediaIds ?? undefined}
       initialQueueIndex={screenRow.currentQueueIndex ?? undefined}
       liveScreens={liveScreens}
+      initialContent={content ? { id: content.id, type: content.type } : null}
     />
   );
 }

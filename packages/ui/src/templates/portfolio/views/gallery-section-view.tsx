@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, LayoutGrid, Play } from "lucide-react";
 import { GalleryView, type GalleryLink, type GalleryPager } from "../../gallery/gallery-view";
 import type { GalleryContent } from "../../gallery/content";
+import { useReplayableWindowEvent } from "../../../lib/replayable-window-event";
 import {
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
   GALLERY_PHOTO_COUNT,
@@ -72,12 +73,14 @@ interface FlatFilm {
 }
 
 /**
- * The Films category body: defaults to a full-screen inline player cycling
- * through every company's videos back-to-back (prev/next + autoplay-advance),
- * with a "View all" toggle to switch to a grid of every company (one tile
- * each) for jumping straight to a specific company's film. Deliberately not
- * `FilmsPanel` (a flat list of raw video URLs with no company grouping) — a
- * tile here is a company, not a video.
+ * The Films category body: defaults to a grid of every company (one tile
+ * each); tapping a tile opens a full-screen inline player starting at that
+ * company's first film, which then cycles through every company's videos
+ * back-to-back (prev/next + autoplay-advance, remounting the `<video>` via
+ * `key={current.url}` so each new source actually autoplays). A "View all"
+ * toggle in the player returns to the grid. Deliberately not `FilmsPanel` (a
+ * flat list of raw video URLs with no company grouping) — a tile here is a
+ * company, not a video.
  */
 function FilmsGridView({
   section,
@@ -111,12 +114,30 @@ function FilmsGridView({
     return { films: flat, startOffsets: offsets };
   }, [companies]);
 
-  const [mode, setMode] = useState<"player" | "grid">("player");
+  const [mode, setMode] = useState<"player" | "grid">("grid");
   const [index, setIndex] = useState(0);
 
+  // Relays every navigation to every other client of this screen (the
+  // physical TV and any CMS mirror) — same pattern as Gallery's
+  // applyExpansion/Portfolio's navigate. `emit: false` is for APPLYING an
+  // inbound command; the gateway echoes to the sender, so re-broadcasting
+  // what was just applied would loop.
+  const applyFilmView = (next: { mode: "player" | "grid"; index: number }, opts?: { emit?: boolean }) => {
+    setMode(next.mode);
+    setIndex(next.index);
+    if (opts?.emit && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("screen-control", { detail: { command: "SET_FILM_VIEW", value: next } })
+      );
+    }
+  };
+
+  useReplayableWindowEvent<{ mode?: "player" | "grid"; index?: number }>("film-set-view", (detail) => {
+    applyFilmView({ mode: detail?.mode ?? "grid", index: detail?.index ?? 0 });
+  });
+
   const openFilm = (flatIndex: number) => {
-    setIndex(flatIndex);
-    setMode("player");
+    applyFilmView({ mode: "player", index: flatIndex }, { emit: true });
   };
 
   // Nothing to play yet — the grid (with its placeholder tiles) is the only
@@ -312,21 +333,25 @@ function FilmsGridView({
             autoPlay
             controls
             playsInline
-            onEnded={() => setIndex((i) => (i + 1) % films.length)}
+            onEnded={() => applyFilmView({ mode: "player", index: (index + 1) % films.length }, { emit: true })}
             style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000", display: "block" }}
           />
 
           {films.length > 1 ? (
             <>
               <button
-                onClick={() => setIndex((index - 1 + films.length) % films.length)}
+                onClick={() =>
+                  applyFilmView({ mode: "player", index: (index - 1 + films.length) % films.length }, { emit: true })
+                }
                 style={{ ...edgeButtonStyle, left: 20 }}
                 title="Previous"
               >
                 <ChevronLeft size={30} />
               </button>
               <button
-                onClick={() => setIndex((index + 1) % films.length)}
+                onClick={() =>
+                  applyFilmView({ mode: "player", index: (index + 1) % films.length }, { emit: true })
+                }
                 style={{ ...edgeButtonStyle, right: 20 }}
                 title="Next"
               >
@@ -356,7 +381,7 @@ function FilmsGridView({
 
           {/* "View all" grid toggle, top-right */}
           <button
-            onClick={() => setMode("grid")}
+            onClick={() => applyFilmView({ mode: "grid", index }, { emit: true })}
             style={{
               position: "absolute",
               top: 20,
