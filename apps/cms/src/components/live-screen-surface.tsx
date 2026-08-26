@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
+import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
@@ -11,6 +12,9 @@ import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirro
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
 import { ScreenAssignmentPicker } from "@/app/(dashboard)/screens/_components/screens-assignment-picker";
 import type { WsContent } from "@platform/types";
+
+/** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
+const VOLUME_STEP = 5;
 
 interface LiveScreenSurfaceProps {
   screenId: string;
@@ -70,6 +74,12 @@ export function LiveScreenSurface({
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
+
+  // Same office-wide system audio endpoint as the touchpad's volume row and
+  // the Environment Control Audio tile — one physical PC's speakers,
+  // independent of whatever content is assigned, so it's always visible here
+  // regardless of what's live.
+  const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
 
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
@@ -250,6 +260,44 @@ export function LiveScreenSurface({
           >
             <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
           </button>
+
+          {/* Volume cluster — always rendered, independent of what content is
+              live (video, image, experience, or the touchpad), since it
+              drives the PC's system audio rather than any one piece of
+              content. */}
+          <div className="flex items-center gap-0.5 rounded-xl bg-zinc-500/10 px-1 py-1">
+            <button
+              onClick={() => adjustVolume(-VOLUME_STEP)}
+              title="Decrease volume"
+              aria-label="Decrease volume"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={toggleMute}
+              title={muted ? "Unmute" : "Mute"}
+              aria-label={muted ? "Unmute" : "Mute"}
+              aria-pressed={muted}
+              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                muted
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-zinc-500 hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+              }`}
+            >
+              {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              {muted ? "Muted" : `${volume}%`}
+            </button>
+            <button
+              onClick={() => adjustVolume(VOLUME_STEP)}
+              title="Increase volume"
+              aria-label="Increase volume"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           {changeContent && (
             <button
               onClick={() => setShowPicker(true)}

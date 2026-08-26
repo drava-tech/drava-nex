@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { ChevronUp, ChevronDown, MousePointer2, Minus, Plus, Volume2, VolumeX } from "lucide-react";
 import { useScreenCursorControl } from "@/hooks/useScreenCursorControl";
+import { useSystemAudio } from "@/hooks/useSystemAudio";
 
 /** Beyond this pointer travel (px), a press is a drag, not a tap. */
 const DRAG_THRESHOLD = 6;
@@ -46,49 +47,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
   const { agentOnline, moveCursor, click, scroll } = useScreenCursorControl(screenId);
 
   // --- Volume (existing global /api/audio endpoint — see docblock above) ---
-  const [volume, setVolume] = useState(50);
-  const [muted, setMuted] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/audio/status")
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (typeof data?.volume === "number") setVolume(data.volume);
-        if (typeof data?.muted === "boolean") setMuted(data.muted);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const adjustVolume = useCallback(
-    (delta: number) => {
-      const base = muted ? 0 : volume;
-      const next = Math.max(0, Math.min(100, base + delta));
-      setVolume(next);
-      setMuted(false);
-      fetch("/api/audio/volume", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ volume: next }),
-      }).catch(() => {});
-    },
-    [volume, muted]
-  );
-
-  const toggleMute = useCallback(() => {
-    const next = !muted;
-    setMuted(next);
-    fetch("/api/audio/toggle-mute", { method: "POST" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data?.muted === "boolean") setMuted(data.muted);
-      })
-      .catch(() => {});
-  }, [muted]);
+  const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
 
   // Only one finger is ever tracked per zone — a second finger landing in the
   // same zone while one is already down is ignored, and a finger in the other
