@@ -6,9 +6,11 @@ import { Monitor, MapPin, Tag } from "lucide-react";
 import type { Screen } from "@platform/types";
 import { cn } from "./lib/utils";
 import { dispatchReplayableEvent, useReplayableWindowEvent } from "./lib/replayable-window-event";
+import { useInView } from "./lib/use-in-view";
 
 export { cn };
 export { dispatchReplayableEvent, useReplayableWindowEvent };
+export { useInView };
 
 // ==========================================
 // 1. SHADCN BUTTON

@@ -193,6 +193,35 @@ export function GalleryView({
   const showPager = (pager?.count ?? 0) > 1;
   const showLinks = (links?.length ?? 0) > 0;
   const isOpen = expanded !== null;
+
+  // Swipe-to-page, same destination as the edge PagerArrow buttons below —
+  // just a second way to reach them. Plain pointer tracking (no gesture
+  // library elsewhere in this package) with a movement threshold, same shape
+  // as screen-touchpad.tsx's drag-vs-tap handling. Only armed while there's
+  // actually somewhere to swipe to, and not while a photo is expanded
+  // (matches PagerArrow's own `hidden={isOpen}`) — no preventDefault, so a
+  // plain tap on a photo/link still reaches its own onClick untouched.
+  const swipeStartRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const SWIPE_THRESHOLD = 60;
+
+  const handleSwipePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pager || pager.count <= 1 || isOpen) return;
+    swipeStartRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  };
+
+  const handleSwipePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || start.id !== e.pointerId || !pager) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+    pager.onSelect(dx < 0 ? (pager.index + 1) % pager.count : (pager.index - 1 + pager.count) % pager.count);
+  };
+
+  const handleSwipePointerCancel = () => {
+    swipeStartRef.current = null;
+  };
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
 
   const arrowSize = Math.round(linkSize * 3.4);
@@ -312,6 +341,9 @@ export function GalleryView({
 
   return (
     <div
+      onPointerDown={handleSwipePointerDown}
+      onPointerUp={handleSwipePointerUp}
+      onPointerCancel={handleSwipePointerCancel}
       style={{
         position: "relative",
         display: "flex",
