@@ -68,15 +68,17 @@ export function WelcomeRenderer({
   const typedSubtitle = useTypewriter(subtitle ?? "", subtitleDelay);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Browsers only ever guarantee autoplay when the element starts muted
-  // (unmuted autoplay is blocked without a qualifying user gesture, and that
-  // gesture isn't reliably available on a kiosk/TV display) — see
-  // VideoRenderer.tsx, which uses the same muted-autoplay contract for every
-  // other video on a screen. Starting muted (rather than attempting unmuted
-  // playback and falling back to a blocked "tap to play" state) is what
-  // actually makes autoplay work unconditionally; sound is then a deliberate
-  // opt-in via the unmute control below, not a precondition for playback.
-  const [muted, setMuted] = useState(true);
+  // Default to unmuted: the kiosk's WebView2 host launches with
+  // --autoplay-policy=no-user-gesture-required (tools/main-screen-kiosk/
+  // MainWindow.xaml.cs), so the real TV can autoplay with sound with no
+  // gesture needed. The `autoPlay` attribute can't surface a blocked-playback
+  // promise rejection, though, so the effect below calls play() explicitly —
+  // on any viewer WITHOUT that flag (a plain browser previewing this
+  // experience in the CMS, say), the rejection flips this to muted and the
+  // tap-to-unmute button below becomes the fallback. Same contract as
+  // VideoRenderer.tsx, minus the unattended-kiosk assumption — this template
+  // keeps the button since a muted fallback here does have a real click path.
+  const [muted, setMuted] = useState(false);
   // A videoUrl pointing at a deleted/missing asset (e.g. removed from the
   // Media Library after being saved here) would otherwise fail to load
   // silently — the <video> element just sits there black with nothing on
@@ -86,6 +88,19 @@ export function WelcomeRenderer({
   const [videoFailed, setVideoFailed] = useState(false);
   useEffect(() => {
     setVideoFailed(false);
+    setMuted(false);
+  }, [videoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => {
+      if (!video.muted) {
+        video.muted = true;
+        setMuted(true);
+        video.play().catch(() => {});
+      }
+    });
   }, [videoUrl]);
 
   const handleUnmute = () => {
@@ -168,8 +183,14 @@ export function WelcomeRenderer({
           key={videoUrl}
           ref={videoRef}
           src={videoUrl}
-          autoPlay
+          // No `autoPlay` attribute: the effect above already calls play()
+          // explicitly. Having BOTH triggers the video's own autoplay start
+          // *and* our imperative play() call as two separate play requests —
+          // the browser treats the second as interrupting the first, which is
+          // what caused the ~1s-in stutter (silent and invisible while the
+          // video was always muted; audible now that it plays with sound).
           muted={muted}
+          preload="auto"
           playsInline
           onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}

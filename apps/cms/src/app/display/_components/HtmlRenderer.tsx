@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { SLIDES_VIEWER_PATH } from "@platform/types";
 import type { HtmlContent } from "@/types/display";
+
+interface YTPlayer {
+  unMute(): void;
+  setVolume(volume: number): void;
+  setPlaybackQuality(suggestedQuality: string): void;
+  destroy(): void;
+}
+
+declare global {
+  interface Window {
+    YT?: { Player: new (el: HTMLElement, opts: { events?: { onReady?: (e: { target: YTPlayer }) => void } }) => YTPlayer };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+const YT_API_SCRIPT_ID = "youtube-iframe-api";
 
 /**
  * Full-screen embedded page. Backs every media kind that isn't natively
@@ -47,6 +63,59 @@ export function HtmlRenderer({
   // that was never going to appear.
   const isSlides = content.source.startsWith(SLIDES_VIEWER_PATH);
 
+  // mediaEmbedUrl() starts a kiosk YouTube embed muted (see the comment
+  // there) so autoplay is deterministic instead of YouTube's own player
+  // silently retrying an unmuted attempt. This unmutes it for real once the
+  // IFrame Player API reports the player ready, and asks (best-effort —
+  // YouTube stopped reliably honoring forced quality for most embeds years
+  // ago, so this is a hint, not a guarantee) for a higher starting quality
+  // than the player's own conservative-then-ramp-up default, which a looping
+  // clip may never climb out of between restarts.
+  const isKioskYouTube = !preview && /^https:\/\/www\.youtube\.com\/embed\//.test(content.source);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!isKioskYouTube) return;
+    let cancelled = false;
+    let player: YTPlayer | undefined;
+
+    const createPlayer = () => {
+      if (cancelled || !iframeRef.current || !window.YT) return;
+      player = new window.YT.Player(iframeRef.current, {
+        events: {
+          onReady: (e) => {
+            e.target.unMute();
+            e.target.setVolume(100);
+            try {
+              e.target.setPlaybackQuality("hd1080");
+            } catch {}
+          },
+        },
+      });
+    };
+
+    if (window.YT?.Player) {
+      createPlayer();
+    } else {
+      const previousReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previousReady?.();
+        createPlayer();
+      };
+      if (!document.getElementById(YT_API_SCRIPT_ID)) {
+        const script = document.createElement("script");
+        script.id = YT_API_SCRIPT_ID;
+        script.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(script);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      player?.destroy();
+    };
+  }, [isKioskYouTube, content.source]);
+
   // The display page pins `touch-action: none` on html/body so signage can't be
   // panned or pinch-zoomed by a passer-by. Touch-action is intersected down the
   // ancestor chain and that chain crosses into the frame, so leaving it set
@@ -70,6 +139,7 @@ export function HtmlRenderer({
   return (
     <iframe
       key={content.source}
+      ref={iframeRef}
       src={content.source}
       style={{
         position: "fixed",

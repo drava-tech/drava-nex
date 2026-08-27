@@ -338,14 +338,24 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
       if (!id) return url;
       const params = new URLSearchParams({ rel: "0", modestbranding: "1", playsinline: "1" });
       if (kiosk) {
-        // Autoplay may be blocked by browsers unless launched with specific flags
-        // (e.g., --autoplay-policy=no-user-gesture-required).
-        // ponytail: assuming kiosk environment allows unmuted autoplay.
+        // Unlike a same-origin <video>, YouTube's player negotiates autoplay
+        // itself — it doesn't just inherit the host browser's
+        // --autoplay-policy flag the way a plain <video> does. Requesting
+        // unmuted autoplay left it to attempt-then-silently-recover on its
+        // own, which is what produced the startup stutter (a chunk of audio
+        // dropped right as it corrected itself). Starting muted like every
+        // other provider here is deterministic; HtmlRenderer then calls the
+        // IFrame Player API's unMute() once the player reports ready, which
+        // is one clean call instead of that internal retry.
         // `loop` additionally requires `playlist` to be the same id.
         params.set("autoplay", "1");
+        params.set("mute", "1");
         params.set("controls", "0");
         params.set("loop", "1");
         params.set("playlist", id);
+        // Lets HtmlRenderer drive the player via postMessage (unMute(),
+        // setPlaybackQuality()) once it's ready.
+        params.set("enablejsapi", "1");
       }
       return `https://www.youtube.com/embed/${id}?${params.toString()}`;
     }
