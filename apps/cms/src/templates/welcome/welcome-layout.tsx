@@ -11,7 +11,7 @@ export function WelcomeLayout({ experience }: { experience: Experience; subpath:
   const content = readWelcomeContent(experience.templateContent) ?? undefined;
   return (
     <ScreenStage variant="fit-screen">
-      <WelcomeRenderer content={content} />
+      <WelcomeRenderer content={content} preview />
     </ScreenStage>
   );
 }

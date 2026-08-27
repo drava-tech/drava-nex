@@ -57,7 +57,7 @@ export function ContentRenderer({
       }
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);
-        return <WelcomeRenderer content={welcome ?? undefined} speak={!preview} />;
+        return <WelcomeRenderer content={welcome ?? undefined} speak={!preview} preview={preview} />;
       }
       if (content.templateKey === "flight-simulation") {
         const flight = readFlightSimulationContent(content.templateContent);

@@ -55,9 +55,14 @@ function useTypewriter(text: string, startDelayMs: number): { shown: string; don
 export function WelcomeRenderer({
   content,
   speak = false,
+  preview = false,
 }: {
   content?: WelcomeContent;
   speak?: boolean;
+  /** True for any CMS-side embed of this screen (editor live preview, Screens
+   * control page, Live Control popup, ...) — audio must only ever come out of
+   * the real TV, same contract as VideoRenderer.tsx's `preview` prop. */
+  preview?: boolean;
 }) {
   const title = content?.title || "Welcome to Tusker Digital Experience Center";
   const subtitle = content?.subtitle;
@@ -78,7 +83,7 @@ export function WelcomeRenderer({
   // tap-to-unmute button below becomes the fallback. Same contract as
   // VideoRenderer.tsx, minus the unattended-kiosk assumption — this template
   // keeps the button since a muted fallback here does have a real click path.
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(preview);
   // A videoUrl pointing at a deleted/missing asset (e.g. removed from the
   // Media Library after being saved here) would otherwise fail to load
   // silently — the <video> element just sits there black with nothing on
@@ -88,10 +93,15 @@ export function WelcomeRenderer({
   const [videoFailed, setVideoFailed] = useState(false);
   useEffect(() => {
     setVideoFailed(false);
-    setMuted(false);
-  }, [videoUrl]);
+    setMuted(preview);
+  }, [videoUrl, preview]);
 
   useEffect(() => {
+    // A CMS-side embed never attempts unmuted playback at all — skipping
+    // straight past the play()/catch dance below means it also never trips
+    // the fallback-to-muted state, so there's nothing for the tap-to-unmute
+    // button to react to and it correctly never renders in preview.
+    if (preview) return;
     const video = videoRef.current;
     if (!video) return;
     video.play().catch(() => {
@@ -101,9 +111,10 @@ export function WelcomeRenderer({
         video.play().catch(() => {});
       }
     });
-  }, [videoUrl]);
+  }, [videoUrl, preview]);
 
   const handleUnmute = () => {
+    if (preview) return;
     setMuted(false);
     // A muted-autoplaying video can visually stall right when unmuted on some
     // browsers/TV webviews — nudge it to keep playing under the same click
@@ -195,7 +206,7 @@ export function WelcomeRenderer({
           onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-        {muted && (
+        {muted && !preview && (
           <button
             onClick={handleUnmute}
             style={{
