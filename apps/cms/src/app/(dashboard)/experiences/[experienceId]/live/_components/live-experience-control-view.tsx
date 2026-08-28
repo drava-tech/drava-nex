@@ -381,6 +381,7 @@ export function LiveExperienceControlView({
 
       {showPicker && (
         <ScreenAssignmentPicker
+          screenId={deviceId}
           screenName={screenName}
           experiences={experiences}
           onAssign={handleAssign}

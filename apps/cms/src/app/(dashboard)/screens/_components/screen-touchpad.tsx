@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { ChevronUp, ChevronDown, MousePointer2, Minus, Plus, Volume2, VolumeX } from "lucide-react";
+import {
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  MousePointer2,
+  Minus,
+  Plus,
+  Volume2,
+  VolumeX,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useScreenCursorControl } from "@/hooks/useScreenCursorControl";
 import { useSystemAudio } from "@/hooks/useSystemAudio";
 
@@ -44,7 +56,7 @@ interface ScreenTouchpadProps {
  * regardless of which screen's touchpad you're on.
  */
 export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
-  const { agentOnline, moveCursor, click, scroll } = useScreenCursorControl(screenId);
+  const { agentOnline, moveCursor, click, scroll, scrollHorizontal, zoom } = useScreenCursorControl(screenId);
 
   // --- Volume (existing global /api/audio endpoint — see docblock above) ---
   const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
@@ -61,6 +73,7 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
     dragging: boolean;
   } | null>(null);
   const scrollGestureRef = useRef<{ id: number; lastY: number } | null>(null);
+  const hScrollGestureRef = useRef<{ id: number; lastX: number } | null>(null);
 
   const handleMovePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (moveGestureRef.current) return;
@@ -125,6 +138,29 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
     scrollGestureRef.current = null;
   }, []);
 
+  const handleHScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (hScrollGestureRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    hScrollGestureRef.current = { id: e.pointerId, lastX: e.clientX };
+  }, []);
+
+  const handleHScrollPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const g = hScrollGestureRef.current;
+      if (!g || g.id !== e.pointerId) return;
+      const dx = e.clientX - g.lastX;
+      g.lastX = e.clientX;
+      scrollHorizontal(dx * SCROLL_GAIN);
+    },
+    [scrollHorizontal]
+  );
+
+  const handleHScrollPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const g = hScrollGestureRef.current;
+    if (!g || g.id !== e.pointerId) return;
+    hScrollGestureRef.current = null;
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" style={{ touchAction: "none", overscrollBehavior: "contain" }}>
       <div className="relative flex flex-1" style={{ touchAction: "none", overscrollBehavior: "contain" }}>
@@ -162,6 +198,21 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
         </div>
       </div>
 
+      {/* Horizontal-scroll strip — single-finger drag left/right, same idea
+          as the vertical edge-scroll strip above but for the other axis. */}
+      <div
+        onPointerDown={handleHScrollPointerDown}
+        onPointerMove={handleHScrollPointerMove}
+        onPointerUp={handleHScrollPointerUp}
+        onPointerCancel={handleHScrollPointerUp}
+        className="relative flex h-20 shrink-0 select-none flex-row items-center justify-between border-t border-[#432992] bg-zinc-200/60 px-6 dark:bg-zinc-950"
+        style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
+      >
+        <ChevronLeft className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
+        <div className="h-px flex-1 bg-zinc-300 dark:bg-white/10" />
+        <ChevronRight className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
+      </div>
+
       {/* Volume row — office system audio, see docblock above. */}
       <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
         <button
@@ -196,24 +247,29 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
         </button>
       </div>
 
-      {/* Laptop-trackpad-style button bar — explicit left/right clicks
-          alongside the pad's own tap-to-left-click gesture above. */}
+      {/* Zoom row — simulated as Ctrl+scroll on the remote PC, so it works
+          the same as the OS-standard zoom gesture in whatever app is on
+          screen. No persisted "zoom level" to display, unlike volume's real
+          percentage, so it's a plain button pair. */}
       <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
         <button
           type="button"
-          onClick={() => click("left")}
-          className="flex-1 select-none text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
+          onClick={() => zoom("out")}
+          className="flex flex-1 select-none items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
         >
-          Left
+          <ZoomOut className="h-4 w-4" />
+          Zoom Out
         </button>
         <button
           type="button"
-          onClick={() => click("right")}
-          className="flex-1 select-none text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
+          onClick={() => zoom("in")}
+          className="flex flex-1 select-none items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
         >
-          Right
+          <ZoomIn className="h-4 w-4" />
+          Zoom In
         </button>
       </div>
+
       {agentOnline === false && (
         <p className="px-4 py-2 text-center text-xs text-amber-600 dark:text-amber-400">
           Screen agent not connected — this pad won't reach the TV.

@@ -204,6 +204,7 @@ export function ScreensController({
     <>
       {pickerTarget && (
         <ScreenAssignmentPicker
+          screenId={pickerTarget.id}
           screenName={pickerTarget.name}
           currentContentLabel={pickerTarget.contentLabel}
           experiences={experiences}

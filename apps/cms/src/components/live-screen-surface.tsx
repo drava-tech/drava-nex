@@ -342,6 +342,7 @@ export function LiveScreenSurface({
 
       {changeContent && showPicker && (
         <ScreenAssignmentPicker
+          screenId={screenId}
           screenName={screenName}
           experiences={changeContent.experiences}
           currentDefaultMediaAssetId={currentDefault.id}

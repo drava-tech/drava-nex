@@ -412,6 +412,33 @@ export async function getScreenBlanked(screenId: string): Promise<boolean> {
  * Used to decide whether an unlock event should take over the screen (only
  * when idle) without interrupting real assigned content.
  */
+/**
+ * Clear every screen's live state back to idle — assigned content, the
+ * blanked (black-screen) overlay, and any whiteboard overlay. Run once at API
+ * boot (see apps/api/src/index.ts) so a server restart doesn't resume
+ * whatever was last assigned; every in-memory cache in the WS gateway
+ * (screenRegistry, contentCache, whiteboardStateCache, screenTakeover) starts
+ * empty on a fresh process anyway, so the DB row is the only thing that would
+ * otherwise keep old content alive across a restart. Does not touch
+ * defaultMediaAssetId — that's the configured idle fallback itself.
+ */
+export async function resetAllScreensToIdle(): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(isNull(screen.deletedAt));
+}
+
 export async function isScreenIdle(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({

@@ -14,6 +14,7 @@ interface MediaItem {
 }
 
 interface ScreenAssignmentPickerProps {
+  screenId: string;
   screenName: string;
   currentContentLabel?: string;
   currentDefaultMediaAssetId?: string | null;
@@ -23,7 +24,97 @@ interface ScreenAssignmentPickerProps {
   onClose: () => void;
 }
 
+/** Cap for the "Recently Opened" tab — a quick-access shortlist, not a full history. */
+const MAX_RECENT_MEDIA = 5;
+
+function recentMediaStorageKey(screenId: string) {
+  return `cms:recentMedia:${screenId}`;
+}
+
+/** One media thumbnail card — shared by the Files and Recently Opened tabs. */
+function MediaCard({
+  media,
+  isActive,
+  isDefault,
+  onSelect,
+  onSetDefault,
+}: {
+  media: MediaItem;
+  isActive: boolean;
+  isDefault: boolean;
+  onSelect: () => void;
+  onSetDefault?: (item: { id: string; name: string }) => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
+        ${
+          isActive
+            ? "border-[#432992] bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
+            : "border-[#432992] hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
+        }`}
+    >
+      {/* Thumbnail preview */}
+      <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
+        {media.type === "video" ? (
+          <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+        ) : (
+          <img
+            src={media.url}
+            alt={media.name}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+        )}
+        {/* Badge tag */}
+        <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
+          {media.type === "video" ? <Video className="w-2.5 h-2.5" /> : <ImageIcon className="w-2.5 h-2.5" />}
+          {media.type}
+        </div>
+        {/* Set-as-default toggle */}
+        {onSetDefault && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSetDefault({ id: media.id, name: media.name });
+            }}
+            title={isDefault ? "Default for this screen" : "Set as default"}
+            className={`absolute top-2 left-2 p-1 rounded-full backdrop-blur-sm transition-colors ${
+              isDefault
+                ? "bg-amber-400 text-amber-950"
+                : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
+            }`}
+          >
+            <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
+          </div>
+        )}
+      </div>
+
+      {/* Title and metadata */}
+      <div className="p-3 w-full flex flex-col gap-0.5">
+        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full" title={media.name}>
+          {media.name}
+        </h4>
+        <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+          <span>{media.size}</span>
+          <span>{media.date}</span>
+        </div>
+      </div>
+
+      {isActive && (
+        <div className="absolute top-2.5 right-2.5 p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md">
+          <Check className="h-2.5 w-2.5 shrink-0" />
+        </div>
+      )}
+    </button>
+  );
+}
+
 export function ScreenAssignmentPicker({
+  screenId,
   screenName,
   currentContentLabel,
   currentDefaultMediaAssetId,
@@ -32,10 +123,11 @@ export function ScreenAssignmentPicker({
   onSetDefault,
   onClose,
 }: ScreenAssignmentPickerProps) {
-  const [activeTab, setActiveTab] = useState<"experiences" | "files">("experiences");
+  const [activeTab, setActiveTab] = useState<"experiences" | "files" | "recent">("experiences");
   const [searchQuery, setSearchQuery] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [recentMedia, setRecentMedia] = useState<MediaItem[]>([]);
 
   useEffect(() => {
     if (activeTab === "files" && mediaItems.length === 0) {
@@ -54,6 +146,29 @@ export function ScreenAssignmentPicker({
     }
   }, [activeTab, mediaItems.length]);
 
+  // Per-screen "recently pushed to this screen" shortlist — reloaded whenever
+  // the picker is pointed at a different screen.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(recentMediaStorageKey(screenId));
+      setRecentMedia(raw ? JSON.parse(raw) : []);
+    } catch {
+      setRecentMedia([]);
+    }
+  }, [screenId]);
+
+  const recordRecentMedia = (item: MediaItem) => {
+    setRecentMedia((prev) => {
+      const next = [item, ...prev.filter((m) => m.id !== item.id)].slice(0, MAX_RECENT_MEDIA);
+      try {
+        localStorage.setItem(recentMediaStorageKey(screenId), JSON.stringify(next));
+      } catch {
+        // Best-effort — a full/blocked localStorage just means no persisted shortlist.
+      }
+      return next;
+    });
+  };
+
   const handleSelectExperience = (item: { id: string; title: string }) => {
     onAssign({
       id: item.id,
@@ -70,6 +185,7 @@ export function ScreenAssignmentPicker({
       source: item.url,
       title: item.name,
     });
+    recordRecentMedia(item);
   };
 
   const filteredExperiences = experiences.filter((exp) =>
@@ -77,6 +193,10 @@ export function ScreenAssignmentPicker({
   );
 
   const filteredMedia = mediaItems.filter((media) =>
+    media.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredRecentMedia = recentMedia.filter((media) =>
     media.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -141,6 +261,19 @@ export function ScreenAssignmentPicker({
             >
               Files (Media)
             </button>
+            <button
+              onClick={() => {
+                setActiveTab("recent");
+                setSearchQuery("");
+              }}
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-semibold rounded-full uppercase tracking-wider transition-all duration-200 ${
+                activeTab === "recent"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-350"
+              }`}
+            >
+              Recently Opened
+            </button>
           </div>
 
           {/* Search bar */}
@@ -153,7 +286,9 @@ export function ScreenAssignmentPicker({
               placeholder={
                 activeTab === "experiences"
                   ? "Search experiences..."
-                  : "Search files..."
+                  : activeTab === "recent"
+                    ? "Search recently opened..."
+                    : "Search files..."
               }
               className="w-full h-9 pl-9 pr-4 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-transparent focus:bg-white dark:focus:bg-zinc-905 focus:border-zinc-300 dark:focus:border-zinc-750 transition-all text-xs outline-none text-zinc-800 dark:text-zinc-200"
             />
@@ -198,7 +333,7 @@ export function ScreenAssignmentPicker({
                 })
               )}
             </div>
-          ) : (
+          ) : activeTab === "files" ? (
             /* Media Files Tab */
             <div className="w-full">
               {loadingMedia ? (
@@ -216,89 +351,42 @@ export function ScreenAssignmentPicker({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {filteredMedia.map((media) => {
-                    const isActive = currentContentLabel === media.name;
-                    const isDefault = currentDefaultMediaAssetId === media.id;
-                    return (
-                      <button
-                        key={media.id}
-                        onClick={() => handleSelectMedia(media)}
-                        className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
-                          ${
-                            isActive
-                              ? "border-[#432992] bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
-                              : "border-[#432992] hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
-                          }`}
-                      >
-                        {/* Thumbnail preview */}
-                        <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
-                          {media.type === "video" ? (
-                            <video
-                              src={media.url}
-                              className="w-full h-full object-cover"
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <img
-                              src={media.url}
-                              alt={media.name}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              loading="lazy"
-                            />
-                          )}
-                          {/* Badge tag */}
-                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
-                            {media.type === "video" ? (
-                              <Video className="w-2.5 h-2.5" />
-                            ) : (
-                              <ImageIcon className="w-2.5 h-2.5" />
-                            )}
-                            {media.type}
-                          </div>
-                          {/* Set-as-default toggle */}
-                          {onSetDefault && (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSetDefault({ id: media.id, name: media.name });
-                              }}
-                              title={isDefault ? "Default for this screen" : "Set as default"}
-                              className={`absolute top-2 left-2 p-1 rounded-full backdrop-blur-sm transition-colors ${
-                                isDefault
-                                  ? "bg-amber-400 text-amber-950"
-                                  : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
-                              }`}
-                            >
-                              <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Title and metadata */}
-                        <div className="p-3 w-full flex flex-col gap-0.5">
-                          <h4
-                            className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full"
-                            title={media.name}
-                          >
-                            {media.name}
-                          </h4>
-                          <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
-                            <span>{media.size}</span>
-                            <span>{media.date}</span>
-                          </div>
-                        </div>
-
-                        {isActive && (
-                          <div className="absolute top-2.5 right-2.5 p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md">
-                            <Check className="h-2.5 w-2.5 shrink-0" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {filteredMedia.map((media) => (
+                    <MediaCard
+                      key={media.id}
+                      media={media}
+                      isActive={currentContentLabel === media.name}
+                      isDefault={currentDefaultMediaAssetId === media.id}
+                      onSelect={() => handleSelectMedia(media)}
+                      onSetDefault={onSetDefault}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Recently Opened Tab — up to MAX_RECENT_MEDIA items most recently pushed to this screen */
+            <div className="w-full">
+              {filteredRecentMedia.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                  <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                    {searchQuery
+                      ? `No recently opened media match "${searchQuery}"`
+                      : "No recently opened media yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {filteredRecentMedia.map((media) => (
+                    <MediaCard
+                      key={media.id}
+                      media={media}
+                      isActive={currentContentLabel === media.name}
+                      isDefault={currentDefaultMediaAssetId === media.id}
+                      onSelect={() => handleSelectMedia(media)}
+                      onSetDefault={onSetDefault}
+                    />
+                  ))}
                 </div>
               )}
             </div>

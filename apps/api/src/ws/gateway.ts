@@ -851,6 +851,8 @@ export function createGateway(): WebSocketServer {
                 dx: msg.dx,
                 dy: msg.dy,
                 deltaY: msg.deltaY,
+                deltaX: msg.deltaX,
+                direction: msg.direction,
                 button: msg.button,
               } satisfies WsServerMessage)
             );

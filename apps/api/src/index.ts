@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
-import { db, sql } from '@platform/db';
+import { db, sql, resetAllScreensToIdle } from '@platform/db';
 import { productsRouter } from './routes/products.js';
 import { portfolioRouter } from './routes/portfolio.js';
 import { companiesRouter } from './routes/companies.js';
@@ -17,7 +17,7 @@ import { setMqttPublisher, setMqttManager, setIrManager } from './services/devic
 import { startCasambiIngest } from './services/casambi-ingest.js';
 import { startIrIngest } from './services/ir-ingest.js';
 import { startGmailIngest } from './services/gmail-ingest.js';
-import { screensRouter } from './routes/screens.js';
+import { screensRouter, pushScreenContent } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
 import { flightSimulationRouter } from './routes/flight-simulation.js';
@@ -30,7 +30,7 @@ import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
-import { createGateway } from './ws/gateway.js';
+import { createGateway, getConnectedScreenIds, setScreenBlankState } from './ws/gateway.js';
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
 import { whiteboardsRouter } from './routes/whiteboards.js';
@@ -155,14 +155,55 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-httpServer.listen(PORT, () => {
-  audioService.start();
-  console.info('');
-  console.info('┌─────────────────────────────────────────────────────────┐');
-  console.info('│          @platform/api  —  CMS Platform Gateway         │');
-  console.info('├─────────────────────────────────────────────────────────┤');
-  console.info(`│  HTTP  →  http://localhost:${PORT}                      │`);
-  console.info(`│  WS    →  ws://localhost:${PORT}/ws/                    │`);
-  console.info('└─────────────────────────────────────────────────────────┘');
-  console.info('');
-});
+// ─── Shutdown → reset screens to idle immediately ────────────────────────────
+// The DB reset at boot (below) only takes effect once a screen reconnects —
+// without this, a screen still connected when the app is closed just freezes
+// on whatever it was last showing until the app comes back. Push every
+// currently-connected screen to idle live, the same way an operator's
+// "reset to idle" button does (setScreenBlankState + pushScreenContent),
+// on top of the same DB reset so screens that are offline right now (or that
+// reconnect while the app is down) pick up idle on their next connect too.
+let shuttingDown = false;
+async function resetScreensAndExit(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.info(`[shutdown] ${signal} received — resetting screens to idle`);
+  try {
+    await resetAllScreensToIdle();
+    await Promise.all(
+      getConnectedScreenIds().map(async (screenId) => {
+        setScreenBlankState(screenId, false);
+        await pushScreenContent(screenId);
+      })
+    );
+    console.info('[shutdown] all screens reset to idle');
+  } catch (err: unknown) {
+    console.error('[shutdown] failed to reset screens to idle:', err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on('SIGINT', () => void resetScreensAndExit('SIGINT'));
+process.on('SIGTERM', () => void resetScreensAndExit('SIGTERM'));
+
+// Every screen resets to idle on boot — see resetAllScreensToIdle. Runs
+// before the server starts accepting connections so no screen can register
+// over WS and get replayed stale content first. Best-effort: a failure here
+// shouldn't block the whole API from starting.
+resetAllScreensToIdle()
+  .then(() => console.info('[startup] all screens reset to idle'))
+  .catch((err: unknown) => console.error('[startup] failed to reset screens to idle:', err))
+  .finally(() => {
+    httpServer.listen(PORT, () => {
+      audioService.start();
+      console.info('');
+      console.info('┌─────────────────────────────────────────────────────────┐');
+      console.info('│          @platform/api  —  CMS Platform Gateway         │');
+      console.info('├─────────────────────────────────────────────────────────┤');
+      console.info(`│  HTTP  →  http://localhost:${PORT}                      │`);
+      console.info(`│  WS    →  ws://localhost:${PORT}/ws/                    │`);
+      console.info('└─────────────────────────────────────────────────────────┘');
+      console.info('');
+    });
+  });

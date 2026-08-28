@@ -245,8 +245,14 @@ export async function runGmailLoad(days = 2): Promise<{ added: number }> {
   const lastIngestedAt = await getLastGmailIngestTimestamp();
   const query = lastIngestedAt ? `after:${toGmailAfterQuery(lastIngestedAt)}` : `newer_than:${days}d`;
 
-  let added = 0;
-  let processedCount = 0;
+  // Gmail returns messages newest-first. Collect ids across every page before
+  // processing any of them, then walk the full list oldest-to-newest so each
+  // createMediaAsset() insert (createdAt = now()) lands in the same order as
+  // the emails themselves. Processing newest-first would insert the newest
+  // email first — giving it the *earliest* timestamp of the batch — and the
+  // oldest email last with the *latest* timestamp, inverting the
+  // newest-first sort listMediaAssets relies on (packages/db/src/queries/media.ts).
+  const messageIds: string[] = [];
   let pageToken: string | undefined;
 
   do {
@@ -258,18 +264,22 @@ export async function runGmailLoad(days = 2): Promise<{ added: number }> {
     });
 
     for (const message of list.data.messages ?? []) {
-      if (!message.id || processedCount >= MAX_MESSAGES_PER_LOAD) break;
-      processedCount++;
-      try {
-        if (await isMessageIngested(message.id)) continue;
-        added += await processMessage(gmail, message.id);
-      } catch (err) {
-        console.error(`[gmail-ingest] failed to process message ${message.id}:`, err);
-      }
+      if (!message.id || messageIds.length >= MAX_MESSAGES_PER_LOAD) break;
+      messageIds.push(message.id);
     }
 
     pageToken = list.data.nextPageToken ?? undefined;
-  } while (pageToken && processedCount < MAX_MESSAGES_PER_LOAD);
+  } while (pageToken && messageIds.length < MAX_MESSAGES_PER_LOAD);
+
+  let added = 0;
+  for (const messageId of messageIds.reverse()) {
+    try {
+      if (await isMessageIngested(messageId)) continue;
+      added += await processMessage(gmail, messageId);
+    } catch (err) {
+      console.error(`[gmail-ingest] failed to process message ${messageId}:`, err);
+    }
+  }
 
   return { added };
 }
