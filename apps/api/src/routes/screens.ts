@@ -13,6 +13,7 @@ import {
   setScreenBlanked,
   getScreenContent,
   screenExists,
+  getRecentContentForScreen,
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
@@ -47,6 +48,17 @@ screensRouter.get("/:screenId/config", async (c) => {
   const content = await getScreenContent(screenId);
   if (!content) return c.json({ content: null }, 404);
   return c.json({ screenId, content });
+});
+
+// GET /api/screens/:screenId/recent-content — up to 5 most-recently-pushed
+// pieces of content (media or experience) for this screen, newest first
+// (see recordScreenMediaPush/recordScreenExperiencePush). CMS-only surface,
+// unlike the reads above.
+screensRouter.get("/:screenId/recent-content", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "screenId");
+  const items = await getRecentContentForScreen(screenId);
+  c.header("Cache-Control", "no-store, no-cache, must-revalidate");
+  return c.json({ items });
 });
 
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */

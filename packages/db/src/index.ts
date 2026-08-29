@@ -11,6 +11,7 @@ export * from "./schema/index.js";
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 export * from "./queries/screens.js";
+export * from "./queries/screen-content-history.js";
 export * from "./queries/experiences.js";
 export * from "./queries/experience-types.js";
 export * from "./queries/media.js";

@@ -75,7 +75,13 @@ public partial class MainWindow : Window
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.AreBrowserAcceleratorKeysEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
-        core.Settings.IsZoomControlEnabled = false;
+        // Needed for the CMS touchpad's zoom in/out buttons — the native
+        // screen-agent (apps/api/screen-agent/agent.mjs) simulates zoom as a
+        // real Ctrl+MouseWheel gesture, which WebView2 only honors when this
+        // is enabled. Display pages otherwise stay locked down (see
+        // [screenId]/page.tsx's overflow:hidden) so this alone doesn't make
+        // signage generally pannable/zoomable.
+        core.Settings.IsZoomControlEnabled = true;
 
         core.ServerCertificateErrorDetected += (_, args) =>
         {

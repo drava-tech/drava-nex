@@ -76,6 +76,12 @@ export function LiveScreenSurface({
     initialShowTouchpad,
     queueMediaIds,
     initialQueueIndex,
+    // Keep the no-op check in handleAssign honest: without this, currentContent
+    // only ever reflects pushes made from THIS panel, so a reset-to-idle, a
+    // queue step, or another admin tab would leave it pointing at content
+    // that is no longer live — and re-picking that content would be
+    // misread as a redundant push and silently dropped.
+    onContentUpdated: setCurrentContent,
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
@@ -89,17 +95,22 @@ export function LiveScreenSurface({
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
     // Re-picking whatever's already live is a no-op on the real screen (its
-    // player dedupes by content key) — skip the push so it doesn't wipe the
-    // gateway's in-template view-state cache for nothing (see
-    // apps/api/src/ws/gateway.ts's viewStateCache.delete on every push),
-    // which would otherwise reset the portfolio/gallery/film position for
-    // the next client that connects.
+    // player dedupes by content key), so skip the round trip entirely and
+    // leave the screen exactly where it is rather than re-pushing it back to
+    // its own remembered position. Reliable only because onContentUpdated
+    // above keeps currentContent tracking the real live content.
     if (currentContent?.id === content.id && currentContent?.type === content.type) return;
     setCurrentContent({ id: content.id, type: content.type });
-    if (content.type === "video" || content.type === "image") {
-      await assignMedia(screenId, content.id);
-    } else {
+    // "experience" is the one type the picker's Experiences tab ever sends;
+    // every other type (video/image from Files, or any other media kind —
+    // document/presentation/sheet/word/youtube/drive/link — surfaced by
+    // Recently Opened) is a media asset id, so treat "experience" as the
+    // special case rather than allowlisting just video/image, which used to
+    // be the only two kinds this picker could ever produce.
+    if (content.type === "experience") {
       await assignExperience(screenId, content.id);
+    } else {
+      await assignMedia(screenId, content.id);
     }
   };
 
@@ -247,7 +258,7 @@ export function LiveScreenSurface({
             title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Reload"}
+            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Refresh"}
           </button>
           <button
             onClick={handleMinimize}
@@ -292,11 +303,10 @@ export function LiveScreenSurface({
               title={muted ? "Unmute" : "Mute"}
               aria-label={muted ? "Unmute" : "Mute"}
               aria-pressed={muted}
-              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                muted
+              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${muted
                   ? "text-red-600 dark:text-red-400"
                   : "text-zinc-500 hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
-              }`}
+                }`}
             >
               {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
               {muted ? "Muted" : `${volume}%`}

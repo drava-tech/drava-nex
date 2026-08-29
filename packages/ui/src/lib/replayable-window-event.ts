@@ -33,3 +33,12 @@ export function useReplayableWindowEvent<T = unknown>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 }
+
+/**
+ * The last value dispatched under `name`, for a consumer that subscribes to a
+ * fixed list of event names imperatively and so can't use the hook above.
+ * Same catch-up purpose — see the docblock on lastEventDetail.
+ */
+export function lastReplayableDetail<T = unknown>(name: string): T | undefined {
+  return lastEventDetail.get(name) as T | undefined;
+}

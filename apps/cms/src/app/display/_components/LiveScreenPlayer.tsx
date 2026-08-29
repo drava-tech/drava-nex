@@ -7,6 +7,7 @@ import { cn, dispatchReplayableEvent } from "@platform/ui";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
@@ -123,6 +124,15 @@ export function LiveScreenPlayer({
   );
 
   const handleCommand = useCallback((command: string, value?: any) => {
+    // Commands a framed viewer owns are ALSO republished for HtmlRenderer to
+    // relay into its iframe (a separate JS realm the branches below can't
+    // reach). Deliberately not an `else if` — NEXT_PAGE/PREV_PAGE must keep
+    // reaching ExperienceDisplay below as well. Replayable so a viewer whose
+    // iframe is still loading catches up (see the bridge's ready handshake).
+    if (isFrameForwardedCommand(command)) {
+      dispatchReplayableEvent(frameCommandEvent(command), value);
+    }
+
     if (command === "RELOAD") {
       window.location.reload();
     } else if (command === "MUTE" || command === "UNMUTE") {

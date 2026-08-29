@@ -60,6 +60,9 @@ export const SLIDES_VIEWER_PATH = "/display/slides";
 /** Path of the CMS-hosted Word-document viewer (see apps/cms/src/app/display/word). */
 export const WORD_VIEWER_PATH = "/display/word";
 
+/** Path of the CMS-hosted PDF viewer (see apps/cms/src/app/display/pdf). */
+export const PDF_VIEWER_PATH = "/display/pdf";
+
 function safeUrl(raw: string): URL | null {
   try {
     return new URL(raw.trim());
@@ -310,10 +313,14 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
 
   switch (type) {
     case "document":
-      // Browsers render PDFs natively in an iframe. These are PDF Open
-      // Parameters — on a screen we hide the toolbar so it reads as content,
-      // not as a document someone left open.
-      return kiosk ? `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH` : `${url}#view=FitH`;
+      // Our own PDF.js viewer rather than the browser's built-in one. That
+      // one is a privileged extension desktop Chrome ships but embedded
+      // signage engines often omit; it refuses to run sandboxed; and it
+      // exposes no readable page/zoom state, so it can neither be driven
+      // remotely (a screen with no native agent has no other way to zoom)
+      // nor resumed where it was left. Same reasoning as sheet/slides/word
+      // below — no kiosk variant, since the viewer owns its own chrome.
+      return `${PDF_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 
     case "sheet":
       // Rendered by our own client-side viewer rather than a hosted Office/

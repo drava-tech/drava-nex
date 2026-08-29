@@ -248,7 +248,7 @@ export type WsServerMessage =
     };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string; preview?: boolean }
+  | { type: 'REGISTER'; screenId: string; preview?: boolean; freshLaunch?: boolean }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)

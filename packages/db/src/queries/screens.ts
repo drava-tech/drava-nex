@@ -6,6 +6,7 @@ import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
 import { mediaAsset } from "../schema/media.js";
 import { getPortfolioTree } from "./portfolio.js";
+import { recordScreenMediaPush, recordScreenExperiencePush } from "./screen-content-history.js";
 
 /**
  * Screen ↔ content data access. This is the single source of truth for
@@ -259,6 +260,9 @@ export async function setScreenExperience(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-null isn't a "push" — nothing to log.
+  if (experienceId) await recordScreenExperiencePush(screenId, experienceId);
 }
 
 /** Assign a media asset (or clear with null). Clears any experience assignment. */
@@ -278,6 +282,9 @@ export async function setScreenMedia(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-default (null) isn't a "push" — nothing to log.
+  if (mediaAssetId) await recordScreenMediaPush(screenId, mediaAssetId);
 }
 
 /**
@@ -308,6 +315,8 @@ export async function setScreenMediaQueue(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  await Promise.all(mediaAssetIds.map((id) => recordScreenMediaPush(screenId, id)));
 }
 
 /**
@@ -437,6 +446,30 @@ export async function resetAllScreensToIdle(): Promise<void> {
       updatedAt: new Date(),
     })
     .where(isNull(screen.deletedAt));
+}
+
+/**
+ * Same as resetAllScreensToIdle but scoped to one screen — see there for the
+ * full column-set rationale. Used by the WS gateway's REGISTER handler when
+ * a screen's own kiosk process just (re)started (see freshLaunch on
+ * WsClientMessage), so a stale in-memory contentCache entry plus a DB row
+ * that still points at old content doesn't get replayed to it.
+ */
+export async function resetScreenToIdle(screenId: string): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
 }
 
 export async function isScreenIdle(screenId: string): Promise<boolean> {
