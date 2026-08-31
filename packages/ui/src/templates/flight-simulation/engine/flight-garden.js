@@ -1664,19 +1664,28 @@ function placeGroundedFlower(object, x, y, z, diameter) {
 }
 
 /**
- * Where mainflower.glb is served from. It is NOT currently in this repo or
- * in R2, so the terminal blooms — the hero structure of the whole metaphor —
- * do not render. Point this at the .glb (locally under assets/, or a URL) to
- * bring them back; everything downstream of the load already works.
+ * Where mainflower.glb is served from — deliberately empty.
+ *
+ * The upstream comment here used to say the blooms "do not render" because the
+ * .glb was missing, and invited pointing this at a copy of it. That is stale,
+ * and acting on it is a mistake: the 4K render *is* the garden, and both
+ * terminal blooms are already baked into it at exactly the T1/T2 positions
+ * this file places geometry at. Setting a URL loads a second set of flowers on
+ * top of the painted ones — two blooms per terminal, visibly overlapping.
+ *
+ * The CMS does still ship mainflower.glb under public/media/flight-garden/
+ * (it is left over from the pre-video design, when the garden was assembled
+ * from GLBs). Its presence is not a reason to load it.
+ *
+ * Only set this if a render is ever produced *without* the blooms painted in.
  */
-// CMS: unset upstream (the .glb is not in that repo), but the CMS ships it
-// under public/media/flight-garden/, so the terminal blooms actually render here.
-const MAINFLOWER_URL = asset("mainflower.glb");
+const MAINFLOWER_URL = "";
 
 /** Terminal 1 + Terminal 2 blooms — see the metaphor map at the top of this file. */
 function loadTerminalFlowers() {
   if (!MAINFLOWER_URL) {
-    console.warn("[Flight Garden] MAINFLOWER_URL is unset — terminal blooms stay empty. The .glb is missing from the project.");
+    // Not a warning: this is the normal, correct path — the blooms come from
+    // the render, not from geometry. See MAINFLOWER_URL above.
     return;
   }
 
