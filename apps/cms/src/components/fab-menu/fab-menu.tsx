@@ -7,7 +7,7 @@ import { cn } from "@platform/ui";
 import { FabItem, FAB_ITEM_SIZE } from "./fab-item";
 import type { FabMenuDirection, FabMenuItem, FabMenuPosition } from "./types";
 
-const MAIN_FAB_SIZE = 56;
+const MAIN_FAB_SIZE = 44;
 /** Gap between the edges of consecutive FABs — keeps spacing uniform regardless of item count. */
 const ITEM_SPACING = 16;
 const STEP = FAB_ITEM_SIZE + ITEM_SPACING;
@@ -172,7 +172,7 @@ export function FabMenu({
   }, [items, direction, isVertical, horizontalSide]);
 
   return (
-    <div ref={wrapperRef} className={cn("fixed z-50", POSITION_CLASSES[position], className)}>
+    <div ref={wrapperRef} className={cn("fixed z-[400]", POSITION_CLASSES[position], className)}>
       <div className="relative" style={{ width: MAIN_FAB_SIZE, height: MAIN_FAB_SIZE }}>
         <AnimatePresence>
           {open && (
@@ -225,7 +225,7 @@ export function FabMenu({
           style={{ width: MAIN_FAB_SIZE, height: MAIN_FAB_SIZE }}
         >
           <motion.span
-            className="flex items-center justify-center [&_svg]:h-6 [&_svg]:w-6"
+            className="flex items-center justify-center [&_svg]:h-5 [&_svg]:w-5"
             animate={{ rotate: open ? 45 : 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 24 }}
           >

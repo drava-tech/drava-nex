@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Centered, resolveSource } from "../../_components/viewer-common";
 
 // Cells are rendered as text whatever they hold, so the parser's own union
 // (which varies by version) isn't worth mirroring here.
@@ -75,18 +76,6 @@ function formatCell(value: Cell): string {
 /** A row is padded out to the widest row in the sheet, so ragged data lines up. */
 function cellAt(row: Row | undefined, index: number): Cell {
   return row?.[index] ?? null;
-}
-
-/** Only same-origin/relative sources are loadable — anything else fails CORS anyway. */
-function resolveSource(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 export function SheetViewer() {
@@ -205,14 +194,6 @@ export function SheetViewer() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[#0a0a0a] p-8 text-center">
-      <p className={`text-lg ${tone === "error" ? "text-red-400" : "text-zinc-400"}`}>{children}</p>
     </div>
   );
 }

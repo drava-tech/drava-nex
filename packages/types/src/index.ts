@@ -3,6 +3,9 @@
 // --- Product domain (schemas + types) ---
 export * from "./products.js";
 
+// --- Portfolio domain (schemas + types) ---
+export * from "./portfolio.js";
+
 // --- Visitor domain (face-recognition entrance tracking) ---
 export * from "./visitors.js";
 
@@ -177,6 +180,13 @@ export interface WsContent {
   templateContent?: Record<string, unknown>;
 }
 
+/** Sentinel content for a screen with nothing assigned (and no default media) — renders the idle logo screen instead of playing anything. */
+export const IDLE_WS_CONTENT: WsContent = {
+  id: "__idle__",
+  type: "image",
+  source: "",
+};
+
 export interface AudioStatus {
   volume: number;
   muted: boolean;
@@ -225,16 +235,20 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll';
+      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
       dx?: number;
       dy?: number;
       deltaY?: number;
+      /** Horizontal scroll delta, for action 'scrollH'. */
+      deltaX?: number;
+      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
+      direction?: 'in' | 'out';
       /** Which physical button a 'click' simulates — omitted means 'left'. */
       button?: 'left' | 'right';
     };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string; preview?: boolean }
+  | { type: 'REGISTER'; screenId: string; preview?: boolean; freshLaunch?: boolean }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)
@@ -249,16 +263,12 @@ export type WsClientMessage =
   | { type: 'CAMERA_REGISTER'; cameraId: string; registeredAt?: string }
   | { type: 'CAMERA_HEARTBEAT'; cameraId: string; sentAt?: string }
   | { type: 'CAMERA_STATUS'; cameraId: string; status: CameraStatus; message?: string; updatedAt?: string; confidence?: number; label?: string }
-  // Unreal Engine / external automation subscribes to the event channel. Auth is
-  // an API key, sent here or as a `?apiKey=` query param on the WS URL.
-  | { type: 'UE_REGISTER'; apiKey?: string }
   // Camera detection events
   | import('./products.js').ProductDetectedEvent
   | import('./products.js').ProductLostEvent
   // Native audio bridge (apps/api/audio-helper/bridge.mjs) registers itself.
   // Auth is a shared secret (BROADCAST_SECRET), matching the internal.ts
-  // machine-to-machine trust pattern — not the API-key/scope system (that's
-  // for third-party UE automation; this is a single first-party helper).
+  // machine-to-machine trust pattern.
   | { type: 'AUDIO_BRIDGE_REGISTER'; secret: string }
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
@@ -279,32 +289,21 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll';
+      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
       dx?: number;
       dy?: number;
       deltaY?: number;
+      /** Horizontal scroll delta, for action 'scrollH'. */
+      deltaX?: number;
+      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
+      direction?: 'in' | 'out';
       button?: 'left' | 'right';
     };
-
-/**
- * Events the gateway pushes to subscribed Unreal Engine / automation clients
- * (see WsClientMessage 'UE_REGISTER'). A superset is intentional: UE can ignore
- * event types it doesn't care about.
- */
-export type WsUeEvent =
-  | { type: 'UE_REGISTER_ACK' }
-  | { type: 'UE_REGISTER_NACK'; reason: string }
-  | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
-  | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
-  | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
-  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number }
-  // Full current mat contents (services/vision OBJECT worker) — a snapshot, not
-  // a single best guess like PRODUCT_DETECTED above.
-  | { type: 'INVENTORY_UPDATE'; cameraId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number };
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
   | { type: 'ACTIVE_SCREENS_LIST'; activeScreenIds: string[] }
+  | { type: 'MEDIA_LIBRARY_UPDATED' }
   | ({ type: 'CAMERA_STATUS_UPDATE' } & CameraStatusUpdate)
   // Face-vision: a visitor was recognized/enrolled at an entrance camera. Drives
   // the live-updating CMS Visitors list. Emitted by services/vision via the

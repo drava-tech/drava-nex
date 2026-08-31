@@ -5,8 +5,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Monitor, MapPin, Tag } from "lucide-react";
 import type { Screen } from "@platform/types";
 import { cn } from "./lib/utils";
+import { dispatchReplayableEvent, useReplayableWindowEvent, lastReplayableDetail } from "./lib/replayable-window-event";
+import { useInView } from "./lib/use-in-view";
 
 export { cn };
+export { dispatchReplayableEvent, useReplayableWindowEvent, lastReplayableDetail };
+export { useInView };
 
 // ==========================================
 // 1. SHADCN BUTTON
@@ -301,5 +305,6 @@ export * from "./components/ui/dropdown-menu";
 export * from "./components/ui/separator";
 export * from "./components/ui/sheet";
 export * from "./components/ui/sidebar";
+export * from "./components/ui/table";
 export * from "./components/ui/tooltip";
 export { useIsMobile } from "./hooks/use-mobile";

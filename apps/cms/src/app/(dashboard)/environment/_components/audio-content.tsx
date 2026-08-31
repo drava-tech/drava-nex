@@ -31,7 +31,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Audio</h3>
         </div>
         <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
-          <Badge variant={state.power ? "default" : "secondary"} className={`${isExpanded ? "" : "hidden xl:inline-flex"} bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Playing" : "Off"}</Badge>
+          <Badge variant="secondary" className={`${isExpanded ? "" : "hidden xl:inline-flex"} border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300 shadow-none font-bold uppercase text-[10px] tracking-widest`}>{state.power ? "Playing" : "Off"}</Badge>
           <Switch checked={state.power} onChange={actions.setPower} />
         </div>
       </div>
@@ -44,7 +44,10 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Volume</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-blue-500" style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }} />
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#1B006D] to-[#8A5CFF] transition-[width] duration-150 ease-out"
+                style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }}
+              />
             </div>
           </div>
         ) : (

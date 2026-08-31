@@ -1,6 +1,6 @@
 import React from "react";
 import { notFound } from "next/navigation";
-import { db, experience, eq, and, isNull } from "@platform/db";
+import { db, experience, eq, and, isNull, getPortfolioTree } from "@platform/db";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { isTemplateKey, type TemplateKey } from "@/lib/templates";
 import { TEMPLATE_DEFINITIONS } from "@/templates/definitions";
@@ -66,8 +66,15 @@ export default async function ExperienceEditPage({ params }: EditPageProps) {
   const Workspace = def.Workspace;
   if (!Workspace) return <FullScreenMessage>This template has no content editor.</FullScreenMessage>;
 
+  // Portfolio's real content lives in the relational tables now (see
+  // packages/db/src/queries/portfolio.ts) — CONTENT_READERS.portfolio reads
+  // the old JSONB blob, which portfolio-layout.tsx and getScreenContent
+  // stopped using once the relational cutover landed, so seeding the editor
+  // from it would start every edit from data nobody else sees.
   const initialContent =
-    CONTENT_READERS[key](exp.templateContent) ?? def.defaultContent;
+    key === "portfolio"
+      ? ((await getPortfolioTree(exp.id)) ?? def.defaultContent)
+      : (CONTENT_READERS[key](exp.templateContent) ?? def.defaultContent);
 
   return <Workspace experience={exp} initialContent={initialContent} />;
 }

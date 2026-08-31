@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Centered, resolveSource } from "../../_components/viewer-common";
 
 // Metric-compatible, self-hosted replacements for the handful of Microsoft
 // Office fonts that actually show up in decks (Google's own substitutes,
@@ -33,9 +34,6 @@ import "@fontsource/gelasio/400.css";
 import "@fontsource/gelasio/700.css";
 import "@fontsource/gelasio/400-italic.css";
 import "@fontsource/gelasio/700-italic.css";
-
-/** How long each slide holds when running unattended on a screen. */
-const KIOSK_SLIDE_MS = 10_000;
 
 /** Recognized Office typeface name (lowercased) → bundled substitute stack. */
 const FONT_SUBSTITUTES: Record<string, string> = {
@@ -218,22 +216,9 @@ interface Previewer {
   destroy: () => void;
 }
 
-/** Only same-origin/relative sources are loadable — anything else fails CORS anyway. */
-function resolveSource(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 export function SlidesViewer() {
   const params = useSearchParams();
   const src = params.get("src");
-  const kiosk = params.get("kiosk") === "1";
 
   const hostRef = useRef<HTMLDivElement>(null);
   // The parsed file is kept so a resize can re-render without re-downloading.
@@ -248,6 +233,19 @@ export function SlidesViewer() {
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Self-contained touchscreen-style zoom/pan, driven by the CMS touchpad's
+  // zoom buttons (Ctrl+wheel) and scroll strips (plain wheel) — see
+  // apps/api/screen-agent/agent.mjs. A slide deck renders at one fixed
+  // exact-fit size with no native scroll/zoom surface of its own (unlike
+  // Sheet/Word/PDF), so this is implemented directly here as a CSS
+  // transform rather than relying on the browser's own page zoom, which
+  // also means it needs no change to the display page's overflow lockdown —
+  // the transform is clipped to this component's own bounds either way.
+  const MIN_SCALE = 1;
+  const MAX_SCALE = 4;
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
 
   /**
    * Build (or rebuild) the previewer at the host's current pixel size. The
@@ -306,6 +304,10 @@ export function SlidesViewer() {
     const host = hostRef.current;
     if (host) patchFonts(host, embeddedFontsRef.current);
     setCurrent(next);
+    // Each slide starts back at fit-view — a zoomed/panned state from the
+    // previous slide wouldn't line up with this one's own layout.
+    setScale(1);
+    setPan({ x: 0, y: 0 });
   }, []);
 
   // Initial load.
@@ -327,6 +329,8 @@ export function SlidesViewer() {
         const buffer = await res.arrayBuffer();
         if (cancelled) return;
         bufferRef.current = buffer;
+        setScale(1);
+        setPan({ x: 0, y: 0 });
         await render(buffer, 0);
       } catch (err) {
         if (!cancelled) {
@@ -354,7 +358,11 @@ export function SlidesViewer() {
       clearTimeout(timer);
       timer = setTimeout(() => {
         const buffer = bufferRef.current;
-        if (buffer) void render(buffer, previewerRef.current?.currentIndex ?? 0);
+        if (buffer) {
+          render(buffer, previewerRef.current?.currentIndex ?? 0).catch((err) => {
+            setError(err instanceof Error ? err.message : "Could not read this presentation");
+          });
+        }
       }, 200);
     });
     observer.observe(host);
@@ -365,16 +373,9 @@ export function SlidesViewer() {
     };
   }, [render]);
 
-  // Unattended playback on a screen.
+  // Arrow-key navigation — harmless with no keyboard attached on a real
+  // screen, and keeps behavior identical to the CMS preview.
   useEffect(() => {
-    if (!kiosk || slideCount < 2) return;
-    const timer = setInterval(() => goTo((previewerRef.current?.currentIndex ?? 0) + 1), KIOSK_SLIDE_MS);
-    return () => clearInterval(timer);
-  }, [kiosk, slideCount, goTo]);
-
-  // Arrow-key navigation for the human-facing preview.
-  useEffect(() => {
-    if (kiosk) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") {
         goTo((previewerRef.current?.currentIndex ?? 0) + 1);
@@ -384,16 +385,57 @@ export function SlidesViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [kiosk, goTo]);
+  }, [goTo]);
 
-  const showControls = !kiosk && slideCount > 1 && !loading && !error;
+  // Touchscreen-style zoom + pan: Ctrl+wheel (the touchpad's zoom in/out
+  // buttons, relayed as a real Ctrl+MouseWheel by agent.mjs) changes scale;
+  // plain wheel (the touchpad's scroll strips) pans around once zoomed in.
+  // preventDefault on both stops WebView2's own competing native page-zoom
+  // (see IsZoomControlEnabled in MainWindow.xaml.cs) from also firing —
+  // the standard technique for a page implementing its own ctrl+wheel zoom.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      const host = hostRef.current;
+      if (!host) return;
+
+      if (e.ctrlKey) {
+        e.preventDefault();
+        setScale((prev) => {
+          const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+          return Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev * factor));
+        });
+        return;
+      }
+
+      if (scale <= MIN_SCALE) return; // nothing to pan when fully fit
+      if (e.deltaX === 0 && e.deltaY === 0) return;
+      e.preventDefault();
+
+      const rect = host.getBoundingClientRect();
+      // How far the scaled content can move before its edge would show empty
+      // space beyond it, in unscaled px (transform is scale() then
+      // translate(), so translate values are in pre-scale units).
+      const maxOffsetX = (rect.width * (scale - 1)) / (2 * scale);
+      const maxOffsetY = (rect.height * (scale - 1)) / (2 * scale);
+
+      setPan((prev) => ({
+        x: Math.min(maxOffsetX, Math.max(-maxOffsetX, prev.x - e.deltaX / scale)),
+        y: Math.min(maxOffsetY, Math.max(-maxOffsetY, prev.y - e.deltaY / scale)),
+      }));
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [scale]);
+
+  const showControls = slideCount > 1 && !loading && !error;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#0a0a0a] text-zinc-100">
+    <div className="fixed inset-0 bg-[#0a0a0a] text-zinc-100">
       {/*
         The library draws its own next/prev buttons and pagination in "slide"
-        mode. They're hidden here in favour of the controls below, which match
-        the rest of the display surfaces.
+        mode. They're hidden here in favour of the overlay controls below,
+        which match the rest of the display surfaces.
       */}
       <style>{`
         .pptx-preview-wrapper-next,
@@ -402,14 +444,29 @@ export function SlidesViewer() {
         .pptx-preview-wrapper { background: transparent !important; }
       `}</style>
 
-      <div ref={hostRef} className="min-h-0 flex-1 overflow-hidden" />
+      {/* Full-bleed now that controls float over the slide instead of
+          sharing a flex row with it — the deck gets the entire viewport.
+          The outer div is a static clip boundary pinned to the viewport;
+          zoom/pan transforms the inner host div, which is what
+          pptx-preview actually renders into (its own clientWidth/Height,
+          used to size the render, is unaffected by a transform on itself —
+          transforms are paint-only, not layout). Clipping the STATIC outer
+          box rather than the transformed inner one is what keeps zoomed
+          content bounded to the screen instead of spilling past it. */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          ref={hostRef}
+          className="absolute inset-0"
+          style={{ transform: `scale(${scale}) translate(${pan.x}px, ${pan.y}px)`, transformOrigin: "center center" }}
+        />
+      </div>
 
       {loading && <Centered>Loading presentation…</Centered>}
       {error && <Centered tone="error">{error}</Centered>}
       {!loading && !error && slideCount === 0 && <Centered>This presentation has no slides</Centered>}
 
       {showControls && (
-        <div className="flex shrink-0 items-center justify-center gap-4 border-t border-white/10 px-4 py-3">
+        <div className="absolute bottom-4 left-4 flex items-center gap-3 rounded-full border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-sm">
           <button
             onClick={() => goTo(current - 1)}
             aria-label="Previous slide"
@@ -429,14 +486,6 @@ export function SlidesViewer() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[#0a0a0a] p-8 text-center">
-      <p className={`text-lg ${tone === "error" ? "text-red-400" : "text-zinc-400"}`}>{children}</p>
     </div>
   );
 }

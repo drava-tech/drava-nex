@@ -1,85 +1,34 @@
-import React, { useState } from "react";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import React from "react";
+import { motion } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
 
-export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-zinc-900 dark:bg-white", instant = false }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string, instant?: boolean }) {
-  const [dragging, setDragging] = useState(false);
-  const mv = useMotionValue(value);
-  const [, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    if (!dragging) {
-      if (instant) {
-        mv.set(value);
-      } else {
-        animate(mv, value, { type: "spring", stiffness: 60, damping: 15 });
-      }
-    }
-  }, [value, dragging, mv, instant]);
-
-  const pctFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
+export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-gradient-to-r from-[#1B006D] to-[#8A5CFF]" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
+  // Single click/tap on the track sets the value directly at that position —
+  // no drag-tracking, no spring re-sync after release (that combination was
+  // what caused the visible "jump": mid-drag positions raced ahead of the
+  // throttled onChange, then snapped back to the confirmed value on release).
+  const handleSetFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    return Math.round(min + (x / rect.width) * (max - min));
+    const val = Math.round(min + (x / rect.width) * (max - min));
+    onChange(val);
   };
 
-  const lastCallRef = React.useRef(0);
-
-  const handleDrag = (e: React.PointerEvent<HTMLDivElement>, isFinal = false) => {
-    const val = pctFromEvent(e);
-    mv.set(val);
-    
-    const now = Date.now();
-    if (isFinal || now - lastCallRef.current > 32) {
-      lastCallRef.current = now;
-      startTransition(() => onChange(val));
-    }
-  };
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDragging(true);
-    handleDrag(e);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (dragging) handleDrag(e);
-  };
-
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    setDragging(false);
-    handleDrag(e, true);
-  };
-
-  const pctMv = useTransform(mv, [min, max], [0, 100]);
-  const widthStr = useTransform(pctMv, p => `${p}%`);
-  const leftStr = useTransform(pctMv, p => `calc(${p}% - 10px)`);
-  const textStr = useTransform(mv, v => `${Math.round(v)}${suffix}`);
+  const pct = ((value - min) / (max - min)) * 100;
 
   return (
     <div className="w-full">
       {label && (
         <div className="flex justify-between items-center mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-          <motion.span className="text-[11px] font-black text-foreground">{textStr}</motion.span>
+          <span className="text-[11px] font-black text-foreground">{Math.round(value)}{suffix}</span>
         </div>
       )}
       <div
-        className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full relative cursor-pointer touch-none flex items-center shadow-inner"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full relative cursor-pointer touch-none flex items-center shadow-inner"
+        onPointerDown={handleSetFromEvent}
       >
-        <motion.div className={`absolute left-0 h-full rounded-full ${color}`} style={{ width: widthStr }} />
-        <motion.div
-          className="absolute h-5 w-5 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.15)] rounded-full border border-zinc-200"
-          style={{ left: leftStr }}
-        />
+        <div className={`h-full rounded-full transition-[width] duration-150 ease-out ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

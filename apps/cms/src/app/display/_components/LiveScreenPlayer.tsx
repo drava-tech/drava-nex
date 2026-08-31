@@ -1,20 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
+import { cn, dispatchReplayableEvent } from "@platform/ui";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
 // import { useServerDetection } from "@/hooks/useServerDetection";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
+import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
+import { PublishDragOverlay } from "./PublishDragOverlay";
 import { BlackoutOverlay } from "./BlackoutOverlay";
 import { FiveTapCorner } from "./FiveTapCorner";
+import { IdleDisplay } from "./IdleDisplay";
 import {
   WHITEBOARD_START,
   WHITEBOARD_STOP,
@@ -36,15 +42,6 @@ interface LiveScreenPlayerProps {
   preview?: boolean;
 }
 
-// Sentinel used when screen has no content assigned yet
-const IDLE_WS_CONTENT: WsContent = {
-  id: "__idle__",
-  type: "video",
-  source: "/media/4k_render_intro_animation_0003.mp4",
-  loop: true,
-  muted: true,
-};
-
 function toWsContent(c: Content): WsContent {
   const base = { id: c.id, type: c.type as WsContent["type"], source: (c as { source?: string }).source ?? "" };
   if (c.type === "video") return { ...base, loop: c.loop, muted: c.muted };
@@ -56,7 +53,11 @@ function toWsContent(c: Content): WsContent {
 function toDisplayContent(ws: WsContent): Content {
   switch (ws.type) {
     case "video":
-      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? true };
+      // Only the idle/default-fallback video explicitly asks to stay silent
+      // (packages/db/src/queries/screens.ts) — anything pushed to a screen
+      // on purpose (assignMedia) carries no `muted` at all, so it should
+      // default to playing with audio, not silently.
+      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? false };
     case "image":
       return { id: ws.id, type: "image", source: ws.source };
     case "html":
@@ -85,6 +86,37 @@ export function LiveScreenPlayer({
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
 
+  // Set from a PUBLISH_DRAG_END{committed:true} command; consumed by the
+  // effect below the moment the matching content actually arrives, so the
+  // real content's own entrance animation doesn't replay on top of the one
+  // PublishDragOverlay already played live during the drag.
+  const lastDragCommittedIdRef = useRef<string | null>(null);
+  const [suppressNextReveal, setSuppressNextReveal] = useState(false);
+  useEffect(() => {
+    if (lastDragCommittedIdRef.current === activeContent.id) {
+      setSuppressNextReveal(true);
+      lastDragCommittedIdRef.current = null;
+    } else {
+      setSuppressNextReveal(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]);
+
+  // "Stop" must actually stop everything (video/audio/animations), not just
+  // hide it behind BlackoutOverlay's black div — a hidden-but-still-mounted
+  // <video> keeps playing its sound underneath. Unmounting ContentRenderer
+  // is the one thing that reliably stops every content type's playback.
+  const [blanked, setBlanked] = useState(false);
+  useEffect(() => {
+    const onBlank = () => setBlanked(true);
+    const onUnblank = () => setBlanked(false);
+    window.addEventListener("screen-blank", onBlank);
+    window.addEventListener("screen-unblank", onUnblank);
+    return () => {
+      window.removeEventListener("screen-blank", onBlank);
+      window.removeEventListener("screen-unblank", onUnblank);
+    };
+  }, []);
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -92,6 +124,15 @@ export function LiveScreenPlayer({
   );
 
   const handleCommand = useCallback((command: string, value?: any) => {
+    // Commands a framed viewer owns are ALSO republished for HtmlRenderer to
+    // relay into its iframe (a separate JS realm the branches below can't
+    // reach). Deliberately not an `else if` — NEXT_PAGE/PREV_PAGE must keep
+    // reaching ExperienceDisplay below as well. Replayable so a viewer whose
+    // iframe is still loading catches up (see the bridge's ready handshake).
+    if (isFrameForwardedCommand(command)) {
+      dispatchReplayableEvent(frameCommandEvent(command), value);
+    }
+
     if (command === "RELOAD") {
       window.location.reload();
     } else if (command === "MUTE" || command === "UNMUTE") {
@@ -105,19 +146,23 @@ export function LiveScreenPlayer({
       });
       window.dispatchEvent(event);
     } else if (command === "SET_SLIDE") {
-      const event = new CustomEvent("screen-set-slide", {
-        detail: { slideIndex: Number(value) },
-      });
-      window.dispatchEvent(event);
+      // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
+      // can receive this before ExperienceDisplay's listener has mounted —
+      // see replayable-window-event.ts.
+      dispatchReplayableEvent("screen-set-slide", { slideIndex: Number(value) });
     } else if (command === "SET_PORTFOLIO_VIEW") {
       // Inbound portfolio view change from another client of this screen.
-      window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
+      // Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("portfolio-set-view", value);
     } else if (command === "SET_PORTFOLIO_VIDEO") {
-      window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+      dispatchReplayableEvent("portfolio-set-video", value);
     } else if (command === "SET_GALLERY_VIEW") {
       // Which gallery photo is expanded — a tap on a control tablet has to open
-      // the same photo on the wall.
-      window.dispatchEvent(new CustomEvent("gallery-set-view", { detail: value }));
+      // the same photo on the wall. Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("gallery-set-view", value);
+    } else if (command === "SET_FILM_VIEW") {
+      // Films page grid/player + which film — replayable, same reason as above.
+      dispatchReplayableEvent("film-set-view", value);
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {
@@ -142,12 +187,28 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
       window.dispatchEvent(new CustomEvent("screen-unblank"));
+    } else if (command === PUBLISH_DRAG_START) {
+      window.dispatchEvent(new CustomEvent("publish-drag-start", { detail: value }));
+    } else if (command === PUBLISH_DRAG_PROGRESS) {
+      window.dispatchEvent(new CustomEvent("publish-drag-progress", { detail: value }));
+    } else if (command === PUBLISH_DRAG_END) {
+      window.dispatchEvent(new CustomEvent("publish-drag-end", { detail: value }));
+      if (value?.committed) lastDragCommittedIdRef.current = value.cardId;
     } else if (command === "EXIT_FULLSCREEN" && !preview) {
       // Remote escape hatch (5-tap on a CMS mirror). Ignored by mirrors so the
       // gateway's echo-to-sender doesn't drop the operator's own tab out of
       // fullscreen too. exitFullscreen needs no user gesture; requestFullscreen
       // does, which is why there's no remote "enter".
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    } else if (command === "APP_MINIMIZE" && !preview) {
+      // Only meaningful on the real TV, running inside the LobbyKiosk WebView2
+      // host — a no-op in a regular browser tab, and ignored by CMS mirrors so
+      // the operator's own tab doesn't minimize.
+      window.chrome?.webview?.postMessage("minimize");
+    } else if (command === "APP_MAXIMIZE" && !preview) {
+      window.chrome?.webview?.postMessage("maximize");
+    } else if (command === "APP_CLOSE" && !preview) {
+      window.chrome?.webview?.postMessage("close");
     }
   }, [preview]);
 
@@ -270,9 +331,19 @@ export function LiveScreenPlayer({
 
   return (
     <>
-      <div key={activeKey} className="screen-content-fade">
-        <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+      <div
+        key={activeKey}
+        className={cn("screen-content-fade", suppressNextReveal && "screen-content-fade--no-anim")}
+      >
+        {!blanked && (
+          activeContent.id === "__idle__" ? (
+            <IdleDisplay screenId={screenId} />
+          ) : (
+            <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
+          )
+        )}
       </div>
+      <PublishDragOverlay activeContentId={activeContent.id} />
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />
       {/* Only the html renderer puts content in a cross-origin iframe, where a

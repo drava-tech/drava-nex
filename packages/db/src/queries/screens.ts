@@ -5,6 +5,8 @@ import { db } from "../client.js";
 import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
 import { mediaAsset } from "../schema/media.js";
+import { getPortfolioTree } from "./portfolio.js";
+import { recordScreenMediaPush, recordScreenExperiencePush } from "./screen-content-history.js";
 
 /**
  * Screen ↔ content data access. This is the single source of truth for
@@ -61,6 +63,44 @@ export async function listScreens(): Promise<{
 }
 
 /**
+ * Single-screen row for a live-control page (/screens/:screenId,
+ * /media/live/:deviceId) — everything those pages need beyond
+ * getScreenContent: display name, blank/interaction state, the default-media
+ * badge, and (when present) the active queue position. Same defaultMedia
+ * alias-join as listScreens, just scoped to one screen instead of all of them.
+ */
+export async function getScreenLiveRow(screenId: string): Promise<
+  | {
+      screenName: string;
+      blanked: boolean;
+      defaultMediaAssetId: string | null;
+      defaultMediaName: string | null;
+      currentQueueMediaIds: string[] | null;
+      currentQueueIndex: number | null;
+    }
+  | undefined
+> {
+  const defaultMedia = alias(mediaAsset, "default_media");
+  const [row] = await db
+    .select({
+      screenName: screen.screenName,
+      blanked: screen.blanked,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      defaultMediaName: defaultMedia.name,
+      currentQueueMediaIds: screen.currentQueueMediaIds,
+      currentQueueIndex: screen.currentQueueIndex,
+    })
+    .from(screen)
+    .leftJoin(
+      defaultMedia,
+      and(eq(screen.defaultMediaAssetId, defaultMedia.id), isNull(defaultMedia.deletedAt))
+    )
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row;
+}
+
+/**
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
  * assigned (or the referenced content was deleted). Resolves by the screen's
  * content kind: a media asset → a video/image, an experience → its template.
@@ -107,15 +147,22 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
     });
   }
 
-  // Experience assigned → template wire content.
+  // Experience assigned → template wire content. Portfolio's own content now
+  // lives in the relational tables, not templateContent.portfolio — swap in
+  // the reassembled tree so the wire shape stays identical for the renderer.
   if (row.kind === "experience" && row.experienceId) {
+    let templateContent = row.templateContent ?? undefined;
+    if (row.templateKey === "portfolio") {
+      const tree = await getPortfolioTree(row.experienceId);
+      templateContent = { ...(row.templateContent ?? {}), portfolio: tree };
+    }
     return {
       id: row.experienceId,
       type: "experience",
       source: "",
       title: row.experienceName ?? undefined,
       templateKey: row.templateKey ?? undefined,
-      templateContent: row.templateContent ?? undefined,
+      templateContent,
     };
   }
 
@@ -204,9 +251,18 @@ export async function setScreenExperience(
       currentContentKind: experienceId ? "experience" : null,
       currentExperienceId: experienceId,
       currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      // A fresh assignment should actually play, not stay behind the black
+      // overlay from a previous "Stop" — see setScreenBlankState call in the
+      // API route for the live (already-connected) side of this.
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-null isn't a "push" — nothing to log.
+  if (experienceId) await recordScreenExperiencePush(screenId, experienceId);
 }
 
 /** Assign a media asset (or clear with null). Clears any experience assignment. */
@@ -220,9 +276,77 @@ export async function setScreenMedia(
       currentContentKind: mediaAssetId ? "media" : null,
       currentMediaAssetId: mediaAssetId,
       currentExperienceId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-default (null) isn't a "push" — nothing to log.
+  if (mediaAssetId) await recordScreenMediaPush(screenId, mediaAssetId);
+}
+
+/**
+ * Start (or replace) an ordered multi-item queue on a screen: sets
+ * currentMediaAssetId to the item at startIndex (clamped into range) and
+ * records the full ordered list + index so advanceScreenQueue can step
+ * through it later. Same "single current media asset" shape as
+ * setScreenMedia — getScreenContent needs no changes to resolve it.
+ */
+export async function setScreenMediaQueue(
+  screenId: string,
+  mediaAssetIds: string[],
+  startIndex = 0
+): Promise<void> {
+  if (mediaAssetIds.length === 0) {
+    throw new Error("setScreenMediaQueue requires at least one media asset id");
+  }
+  const clampedIndex = Math.min(Math.max(startIndex, 0), mediaAssetIds.length - 1);
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: "media",
+      currentMediaAssetId: mediaAssetIds[clampedIndex],
+      currentExperienceId: null,
+      currentQueueMediaIds: mediaAssetIds,
+      currentQueueIndex: clampedIndex,
+      blanked: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+
+  await Promise.all(mediaAssetIds.map((id) => recordScreenMediaPush(screenId, id)));
+}
+
+/**
+ * Step a screen's active queue forward/back one item (clamped at the ends —
+ * not wrap-around), updating currentMediaAssetId to match. Returns null if the
+ * screen has no active queue (queue columns null/empty).
+ */
+export async function advanceScreenQueue(
+  screenId: string,
+  direction: "next" | "prev"
+): Promise<{ index: number; length: number; mediaAssetId: string } | null> {
+  const [row] = await db
+    .select({ queueIds: screen.currentQueueMediaIds, queueIndex: screen.currentQueueIndex })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+
+  if (!row?.queueIds || row.queueIds.length === 0 || row.queueIndex === null) return null;
+
+  const lastIndex = row.queueIds.length - 1;
+  const nextIndex =
+    direction === "next" ? Math.min(row.queueIndex + 1, lastIndex) : Math.max(row.queueIndex - 1, 0);
+  const mediaAssetId = row.queueIds[nextIndex]!;
+
+  await db
+    .update(screen)
+    .set({ currentQueueIndex: nextIndex, currentMediaAssetId: mediaAssetId, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+
+  return { index: nextIndex, length: row.queueIds.length, mediaAssetId };
 }
 
 /**
@@ -290,23 +414,6 @@ export async function getScreenBlanked(screenId: string): Promise<boolean> {
   return row?.blanked ?? false;
 }
 
-/** Enable/disable click/scroll/type everywhere this screen renders — see `screen.interactionEnabled`. */
-export async function setScreenInteractionEnabled(screenId: string, enabled: boolean): Promise<void> {
-  await db
-    .update(screen)
-    .set({ interactionEnabled: enabled, updatedAt: new Date() })
-    .where(eq(screen.screenId, screenId));
-}
-
-export async function getScreenInteractionEnabled(screenId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ interactionEnabled: screen.interactionEnabled })
-    .from(screen)
-    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
-    .limit(1);
-  return row?.interactionEnabled ?? true;
-}
-
 /**
  * True if the screen is currently showing its default/idle video — either no
  * active assignment at all (kind is null, falls back to defaultMediaAssetId),
@@ -314,6 +421,57 @@ export async function getScreenInteractionEnabled(screenId: string): Promise<boo
  * Used to decide whether an unlock event should take over the screen (only
  * when idle) without interrupting real assigned content.
  */
+/**
+ * Clear every screen's live state back to idle — assigned content, the
+ * blanked (black-screen) overlay, and any whiteboard overlay. Run once at API
+ * boot (see apps/api/src/index.ts) so a server restart doesn't resume
+ * whatever was last assigned; every in-memory cache in the WS gateway
+ * (screenRegistry, contentCache, whiteboardStateCache, screenTakeover) starts
+ * empty on a fresh process anyway, so the DB row is the only thing that would
+ * otherwise keep old content alive across a restart. Does not touch
+ * defaultMediaAssetId — that's the configured idle fallback itself.
+ */
+export async function resetAllScreensToIdle(): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(isNull(screen.deletedAt));
+}
+
+/**
+ * Same as resetAllScreensToIdle but scoped to one screen — see there for the
+ * full column-set rationale. Used by the WS gateway's REGISTER handler when
+ * a screen's own kiosk process just (re)started (see freshLaunch on
+ * WsClientMessage), so a stale in-memory contentCache entry plus a DB row
+ * that still points at old content doesn't get replayed to it.
+ */
+export async function resetScreenToIdle(screenId: string): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
 export async function isScreenIdle(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({

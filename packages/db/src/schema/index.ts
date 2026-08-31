@@ -1,9 +1,6 @@
 // ─── Auth Tables (Better Auth) ────────────────────────────────────────────────
 export { user, session, account, verification, userRoleEnum } from "./auth.js";
 
-// ─── API Keys (machine clients: Unreal Engine, IoT) ───────────────────────────
-export { apiKey } from "./api-keys.js";
-
 // ─── Devices (lights, scenes, speakers — Unreal Engine / IoT control) ─────────
 export { device } from "./devices.js";
 
@@ -22,6 +19,20 @@ export {
   productMediaPurposeEnum,
 } from "./products.js";
 
+export {
+  portfolioVertical,
+  portfolioCategory,
+  portfolioCategoryImage,
+  portfolioCategoryVideo,
+  portfolioProject,
+  portfolioProjectImage,
+  portfolioProjectVideo,
+  portfolioSettings,
+  company,
+  portfolioCategoryTypeEnum,
+  portfolioGalleryKindEnum,
+} from "./portfolio.js";
+
 export { whiteboardDocument } from "./whiteboards.js";
 
 // ─── Visitors (face-recognition entrance tracking) ────────────────────────────
@@ -29,6 +40,9 @@ export { visitor } from "./visitors.js";
 
 // ─── Door Events (Yale lock webhook history) ──────────────────────────────────
 export { doorEvent } from "./door-events.js";
+
+// ─── Screen Content Push History ───────────────────────────────────────────────
+export { screenContentPush } from "./screen-content-pushes.js";
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 export {
@@ -43,11 +57,19 @@ export {
   productFeatureRelations,
   productSpecificationRelations,
   productMediaRelations,
+  portfolioVerticalRelations,
+  portfolioCategoryRelations,
+  portfolioCategoryImageRelations,
+  portfolioCategoryVideoRelations,
+  portfolioProjectRelations,
+  portfolioProjectImageRelations,
+  portfolioProjectVideoRelations,
+  companyRelations,
+  portfolioSettingsRelations,
 } from "./relations.js";
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 export type { User, NewUser, Session, Account } from "./auth.js";
-export type { ApiKey, NewApiKey } from "./api-keys.js";
 export type { Device, NewDevice } from "./devices.js";
 export type { Experience, NewExperience } from "./projects.js";
 export type { WhiteboardDocument, NewWhiteboardDocument } from "./whiteboards.js";
@@ -57,6 +79,7 @@ export type { MediaAsset, NewMediaAsset } from "./media.js";
 export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-ingest.js";
 export type { Visitor, NewVisitor } from "./visitors.js";
 export type { DoorEvent, NewDoorEvent } from "./door-events.js";
+export type { ScreenContentPush, NewScreenContentPush } from "./screen-content-pushes.js";
 export type {
   Product,
   NewProduct,
@@ -67,3 +90,23 @@ export type {
   ProductMedia,
   NewProductMedia,
 } from "./products.js";
+export type {
+  PortfolioVertical,
+  NewPortfolioVertical,
+  PortfolioCategory,
+  NewPortfolioCategory,
+  PortfolioCategoryImage,
+  NewPortfolioCategoryImage,
+  PortfolioCategoryVideo,
+  NewPortfolioCategoryVideo,
+  PortfolioProject,
+  NewPortfolioProject,
+  PortfolioProjectImage,
+  NewPortfolioProjectImage,
+  PortfolioProjectVideo,
+  NewPortfolioProjectVideo,
+  PortfolioSettings,
+  NewPortfolioSettings,
+  Company,
+  NewCompany,
+} from "./portfolio.js";

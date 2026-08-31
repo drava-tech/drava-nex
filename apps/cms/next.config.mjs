@@ -16,14 +16,22 @@ const nextConfig = {
     middlewareClientMaxBodySize: '100mb',
   },
   async rewrites() {
-    return [
+    return {
       // Next.js has no API routes — proxy everything to the single Hono backend.
-      { source: '/api/:path*', destination: `${API_INTERNAL}/api/:path*` },
-      { source: '/media/:path*', destination: `${API_INTERNAL}/media/:path*` },
-      { source: '/health',     destination: `${API_INTERNAL}/health` },
-      { source: '/ws',         destination: `${API_INTERNAL}/ws` },
-      { source: '/ws/:path*',  destination: `${API_INTERNAL}/ws/:path*` },
-    ];
+      beforeFiles: [
+        { source: '/api/:path*', destination: `${API_INTERNAL}/api/:path*` },
+        { source: '/health',     destination: `${API_INTERNAL}/health` },
+        { source: '/ws',         destination: `${API_INTERNAL}/ws` },
+        { source: '/ws/:path*',  destination: `${API_INTERNAL}/ws/:path*` },
+      ],
+      // fallback (not beforeFiles/afterFiles): app routes under /media/ — like
+      // the dynamic /media/live/[deviceId] — must resolve first. This only
+      // proxies to the API's file server for paths with no matching page,
+      // i.e. actual uploaded media files.
+      fallback: [
+        { source: '/media/:path*', destination: `${API_INTERNAL}/media/:path*` },
+      ],
+    };
   },
 };
 

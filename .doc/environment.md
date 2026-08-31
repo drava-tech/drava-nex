@@ -78,10 +78,16 @@ of this document listed them as live:
 
 | Variable | Was | Still in `.env.example`? |
 |---|---|---|
-| `SCREEN_ID` | Per-instance screen identifier; the id now comes from the URL path | **Yes** (line 36) — safe to delete |
+| `SCREEN_ID` | Per-instance screen identifier for the *removed* screens app | **Yes** — but do NOT delete: it was reused, see note below |
 | `SCREENS_PORT` | Listen port of the removed screens app | No |
 | `NEXT_PUBLIC_SCREENS_BASE_PATH` | `basePath` of the removed screens app | No |
 | `CONFIG_DIR` | Mount path into the removed screens app's `public/config` | No |
+
+> **`SCREEN_ID` is live again — do not delete it.** It was repurposed by the
+> screen-agent (`apps/api/screen-agent/.env`), which hard-exits without it. Since
+> that agent now runs hidden, deleting the variable would silently disable the
+> CMS touchpad with no visible error — the reason would only appear in
+> `apps/api/screen-agent/agent.log`. See `device-setup.md` § Screen PC helpers.
 
 `NEXT_PUBLIC_SCREENS_URL` is **not** obsolete — it is still read by
 `apps/cms/src/lib/screen-url.ts` and ships in `.env.example`.

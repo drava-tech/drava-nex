@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { PenTool, Trash2, Loader2 } from "lucide-react";
-import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
+import { useRouter } from "next/navigation";
+import { PenTool, Plus, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
 interface WhiteboardListItem {
@@ -13,11 +13,13 @@ interface WhiteboardListItem {
 }
 
 export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
-  const { openWhiteboardDocument } = useWhiteboardEditor();
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<WhiteboardListItem | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = (id: string) => {
+    setConfirmTarget(null);
     setDeletingId(id);
     startTransition(async () => {
       await deleteWhiteboard(id);
@@ -27,14 +29,20 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
 
   return (
     <div className="flex flex-col gap-6 h-full min-h-0">
-      <div>
-        <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
-          Saved Boards
-        </p>
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">Whiteboards</h1>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Start a new one from the pencil button on any page — save it there and it shows up here, fully editable.
-        </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
+            Saved Boards
+          </p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">Whiteboards</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/whiteboards/new")}
+          className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-100 transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Board
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -44,46 +52,110 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
             <p className="text-xs text-zinc-400 dark:text-zinc-600">No saved whiteboards yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="relative flex flex-col rounded-2xl border border-zinc-200 dark:border-zinc-900 bg-white dark:bg-zinc-950 p-4 shadow-sm"
-              >
-                <button
-                  type="button"
-                  onClick={() => openWhiteboardDocument(item.id)}
-                  className="flex flex-1 flex-col items-start text-left"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 mb-3">
-                    <PenTool className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 leading-tight truncate w-full">
-                    {item.name}
-                  </span>
-                  <span className="mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
-                    {item.pageCount} page{item.pageCount === 1 ? "" : "s"} · updated{" "}
-                    {new Date(item.updatedAt).toLocaleDateString()}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={isPending && deletingId === item.id}
-                  aria-label={`Delete ${item.name}`}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                >
-                  {isPending && deletingId === item.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Pages</th>
+                  <th className="px-4 py-3 font-medium">Updated</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        data-plain
+                        onClick={() => router.push(`/whiteboards/${item.id}`)}
+                        className="flex items-center gap-3 text-left"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center text-zinc-500">
+                          <PenTool className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 leading-tight hover:underline">
+                          {item.name}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                      {item.pageCount} page{item.pageCount === 1 ? "" : "s"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
+                      {new Date(item.updatedAt).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmTarget(item)}
+                        disabled={isPending && deletingId === item.id}
+                        aria-label={`Delete ${item.name}`}
+                        className="inline-flex p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                      >
+                        {isPending && deletingId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setConfirmTarget(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#432992] bg-white shadow-2xl dark:bg-[#0f0f0f]"
+          >
+            <div className="flex items-start gap-3 p-5">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  Delete &quot;{confirmTarget.name}&quot;?
+                </h2>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  This can&apos;t be undone — all {confirmTarget.pageCount} page
+                  {confirmTarget.pageCount === 1 ? "" : "s"} will be permanently removed.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#432992] p-4">
+              <button
+                type="button"
+                onClick={() => setConfirmTarget(null)}
+                className="h-9 rounded-full px-4 text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(confirmTarget.id)}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-red-600 px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

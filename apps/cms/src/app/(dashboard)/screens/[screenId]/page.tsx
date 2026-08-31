@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { db, screen, mediaAsset, eq, and, isNull, getScreenContent } from "@platform/db";
+import { getScreenLiveRow, getScreenContent } from "@platform/db";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getExperiences } from "@/actions/project-actions";
-import { ScreenControlView } from "@/app/(dashboard)/screens/_components/screen-control-view";
+import { LiveScreenSurface } from "@/components/live-screen-surface";
 
 interface PageProps {
   params: Promise<{ screenId: string }>;
@@ -18,37 +18,23 @@ export default async function ScreenControlPage({ params }: PageProps) {
   await requireGuestOrAdmin();
   const { screenId } = await params;
 
-  const [row] = await db
-    .select({
-      screenName: screen.screenName,
-      defaultMediaAssetId: screen.defaultMediaAssetId,
-      defaultMediaName: mediaAsset.name,
-      blanked: screen.blanked,
-      interactionEnabled: screen.interactionEnabled,
-    })
-    .from(screen)
-    .leftJoin(
-      mediaAsset,
-      and(eq(screen.defaultMediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt))
-    )
-    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
-    .limit(1);
-
+  const row = await getScreenLiveRow(screenId);
   if (!row) notFound();
 
   const [experiences, content] = await Promise.all([getExperiences(), getScreenContent(screenId)]);
-  const initialShowTouchpad = content?.type === "html";
 
   return (
-    <ScreenControlView
+    <LiveScreenSurface
       screenId={screenId}
       screenName={row.screenName}
-      experiences={experiences}
-      defaultMediaAssetId={row.defaultMediaAssetId}
-      defaultMediaName={row.defaultMediaName}
       initialBlanked={row.blanked}
-      initialInteractionEnabled={row.interactionEnabled}
-      initialShowTouchpad={initialShowTouchpad}
+      initialShowTouchpad={content?.type === "html"}
+      changeContent={{
+        experiences,
+        defaultMediaAssetId: row.defaultMediaAssetId,
+        defaultMediaName: row.defaultMediaName,
+      }}
+      initialContent={content ? { id: content.id, type: content.type } : null}
     />
   );
 }

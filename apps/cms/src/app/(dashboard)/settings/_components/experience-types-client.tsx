@@ -68,11 +68,11 @@ export function ExperienceTypesClient({ types }: Props) {
         </Button>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-hidden rounded-xl border">
         <table className="w-full text-sm">
-          <thead className="border-b bg-muted/40">
+          <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -88,7 +88,7 @@ export function ExperienceTypesClient({ types }: Props) {
               </tr>
             ) : (
               types.map((t) => (
-                <tr key={t.id} className="border-b last:border-0">
+                <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{t.name}</td>
                   <td className="px-4 py-3 text-right">
                     <Button

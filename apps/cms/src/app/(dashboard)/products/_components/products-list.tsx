@@ -92,7 +92,7 @@ export function ProductsList({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">Products</h1>
-          <Badge variant="secondary">{total}</Badge>
+          <Badge variant="secondary" className="border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300">{total}</Badge>
           {isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
         <Link href="/products/new">
@@ -177,7 +177,7 @@ export function ProductsList({
                 <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 dark:bg-white/10">
                         {p.thumbnailUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.thumbnailUrl} alt={p.name} className="h-full w-full object-cover" />

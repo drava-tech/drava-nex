@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, AlertTriangle, RotateCw } from "lucide-react";
 import { mediaEmbedUrl, isPageMediaType } from "@platform/types";
 import { assignMedia } from "@/actions/screen-actions";
@@ -12,7 +13,15 @@ export interface MediaItem {
   type: string;
   url: string;
   size: string;
+  /** Locale-formatted for display (e.g. "Aug 12, 2026") — see `createdAt`
+   * below for a comparable value. */
   date: string;
+  /** Raw ISO timestamp — for date-range filtering, which can't reliably
+   * parse the locale-formatted `date` string above. */
+  createdAt?: string;
+  /** Where this asset came from — 'upload' | 'email' | 'link'. See
+   * packages/db/src/schema/media.ts. */
+  source?: string | null;
   /** True for a not-yet-kept link (Add Link) — hidden from the Media Library
    * listing until explicitly saved. Only present on items just created via
    * that flow; ordinary already-listed items omit it (falsy). */
@@ -34,6 +43,9 @@ export function MediaPreviewModal({
   media: MediaItem;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const showTouchpad = isPageMediaType(media.type);
+
   const handleSaveLink = async () => {
     const res = await fetch(`/api/media/${media.id}/save`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
@@ -56,7 +68,20 @@ export function MediaPreviewModal({
       // Only a not-yet-saved link has anything to save — an ordinary already-
       // listed item (upload, or a link kept earlier) shouldn't show the button.
       onSaveLink={media.pendingSave ? handleSaveLink : undefined}
-      showTouchpad={isPageMediaType(media.type)}
+      showTouchpad={showTouchpad}
+      // Page-type content (link/YouTube/Drive/PDF/sheet/deck) hands off to the
+      // routed touchpad at /browser/live/[deviceId] instead of swapping in
+      // the in-popup LiveControlDialog — one touchpad surface, not two. Other
+      // content (images/videos) keeps the default swap-to-mirror behavior.
+      onPushed={
+        showTouchpad
+          ? (pushed) => {
+              const target = pushed.find((s) => s.isOnline) ?? pushed[0];
+              onClose();
+              if (target) router.push(`/browser/live/${target.screenId}`);
+            }
+          : undefined
+      }
     />
   );
 }
@@ -113,13 +138,6 @@ function EmbedSurface({ media }: { media: MediaItem }) {
   // Only arbitrary web pages hit framing headers — YouTube, Drive and our own
   // viewers all publish embeds built to be framed.
   const isWebPage = media.type === "link";
-  // Chromium's built-in PDF viewer is a privileged extension that refuses to
-  // run inside a sandboxed iframe at all — it shows a hard "This page has
-  // been blocked" screen instead of the document, so PDFs skip sandboxing
-  // entirely (a same-origin PDF poses none of the risk sandboxing guards
-  // against here).
-  const isRawPdf = media.type === "document";
-
   // Checked after mount so SSR markup and the first client render agree.
   useEffect(() => {
     setHasExtension(document.documentElement.hasAttribute(EXTENSION_MARKER));
@@ -138,10 +156,8 @@ function EmbedSurface({ media }: { media: MediaItem }) {
         src={src}
         title={media.name}
         onLoad={() => setMaybeBlocked(false)}
-        className="h-full w-full border-0 bg-white"
-        {...(!isRawPdf && {
-          sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation",
-        })}
+        className="h-full w-full border-0 bg-black"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation"
         allow="autoplay; encrypted-media; fullscreen; clipboard-write"
       />
 
@@ -159,7 +175,7 @@ function EmbedSurface({ media }: { media: MediaItem }) {
 
       {isWebPage && maybeBlocked && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4">
-          <div className="pointer-events-auto flex max-w-lg items-start gap-3 rounded-xl border border-zinc-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:border-white/10 dark:bg-[#111]/95">
+          <div className="pointer-events-auto flex max-w-lg items-start gap-3 rounded-xl border border-[#432992] bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-[#111]/95">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <div className="min-w-0 text-xs">
               <p className="font-medium text-zinc-900 dark:text-zinc-100">Nothing rendered yet</p>

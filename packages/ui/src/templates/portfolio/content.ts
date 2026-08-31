@@ -14,24 +14,28 @@ export interface PortfolioSection {
   /** What this button opens. Missing (older rows) → "images". */
   type?: PortfolioSectionType;
   images: string[];
-  /** Video URLs for the "videos" grid. */
+  /** Video URLs — only meaningful for the flat "images" type's legacy shim; see `videos` on `PortfolioProject` for "videos" type content. */
   videos?: string[];
-  // ─── "gallery" type only ──────────────────────────────────────────────────
-  // The text block beside the photos. The photos themselves are the first
-  // GALLERY_PHOTO_COUNT entries of `images`, so a section already filled in as a
-  // slideshow can be switched to "gallery" without re-picking anything.
+  // ─── "gallery" and "videos" types only ────────────────────────────────────
+  // The text block beside the photos/videos. The photos themselves are the
+  // first GALLERY_PHOTO_COUNT entries of `images`, so a section already
+  // filled in as a slideshow can be switched to "gallery" without re-picking
+  // anything.
   /** Large heading. Falls back to `name` when unset. */
   title?: string;
   /** Bold line under the title. */
   subtitle?: string;
   description?: string;
+  /** Vestigial — "gallery" vs "videos" is now decided entirely by `type`, not this flag. Left in the shape for old stored rows; no longer read by any view. */
+  galleryKind?: "photos" | "videos";
   /**
    * One entry per company whose work appears in this category — what the
-   * gallery layout actually renders, and what a cross-category link points at.
-   * Always at least one after normalizeSections(), migrated from the flat
-   * title/subtitle/description/images above for rows saved before projects
-   * existed. Only read for the "gallery" type; the other two still render
-   * straight from `images`/`videos`, which is why those stay put.
+   * "gallery" (photo) and "videos" (film grid) layouts both actually render,
+   * and what a cross-category link points at. Always at least one after
+   * normalizeSections(), migrated from the flat title/subtitle/description/
+   * images/videos above for rows saved before projects existed. Only read
+   * for those two types; a plain "images" slideshow still renders straight
+   * from `images`, which is why that stays put.
    */
   projects?: PortfolioProject[];
 }
@@ -55,25 +59,19 @@ export interface PortfolioProject {
   /** Bold line under the title. */
   subtitle?: string;
   description?: string;
-  /** First GALLERY_PHOTO_COUNT are the gallery photos. */
+  /** First GALLERY_PHOTO_COUNT are the gallery photos — only rendered when the parent category's type is "gallery". */
   images: string[];
   /**
-   * Optional film for this company. Set = the gallery page grows a "Film"
-   * button that plays it in a popup; unset = no button at all, which is why
-   * this is the only thing that decides whether one appears.
+   * This company's films — only rendered (as a tile in the shared film grid,
+   * opening the full-screen player) when the parent category's type is
+   * "videos". Reaching this page is always a navigation from the company's
+   * other category (the cross-category "links" row), never a popup.
    */
-  videoUrl?: string;
+  videos?: string[];
 }
 
 /** The gallery layout is designed around exactly four photos — one feature, three below. */
 export const GALLERY_PHOTO_COUNT = 4;
-
-/**
- * Label on the button a project's film gets. Fixed rather than authored — it
- * names a medium, not the content — and shared so the editor can promise
- * exactly what the screen will show.
- */
-export const GALLERY_FILM_LABEL = "Film";
 
 /**
  * Styling for every "gallery" section, held once on the content rather than
@@ -248,6 +246,10 @@ export function normalizeSections(sections?: PortfolioSection[]): PortfolioSecti
       ...(typeof s?.title === "string" ? { title: s.title } : {}),
       ...(typeof s?.subtitle === "string" ? { subtitle: s.subtitle } : {}),
       ...(typeof s?.description === "string" ? { description: s.description } : {}),
+      // "gallery" only, but carried through unconditionally like the fields
+      // above — dropping it here would silently fall the video grid back to
+      // the photo grid on every normalize pass.
+      ...(s?.galleryKind ? { galleryKind: s.galleryKind } : {}),
     };
     return { ...section, projects: normalizeProjects(s?.projects, section) };
   });
@@ -262,7 +264,7 @@ export function normalizeSections(sections?: PortfolioSection[]): PortfolioSecti
  * what a slideshow or videos category (and a pre-companies gallery) still uses.
  */
 export function sectionCoverImage(section: PortfolioSection): string | undefined {
-  if (section.type === "gallery") {
+  if (section.type === "gallery" || section.type === "videos") {
     const cover = (section.projects ?? []).find((p) => p.images[0])?.images[0];
     if (cover) return cover;
   }
@@ -285,7 +287,7 @@ export function newPortfolioProject(company = ""): PortfolioProject {
  */
 export function normalizeProjects(
   projects: PortfolioProject[] | undefined,
-  section: Pick<PortfolioSection, "title" | "subtitle" | "description" | "images">
+  section: Pick<PortfolioSection, "title" | "subtitle" | "description" | "images" | "videos">
 ): PortfolioProject[] {
   const raw = Array.isArray(projects) ? projects : [];
 
@@ -297,20 +299,30 @@ export function normalizeProjects(
         ...(typeof section.subtitle === "string" ? { subtitle: section.subtitle } : {}),
         ...(typeof section.description === "string" ? { description: section.description } : {}),
         images: cleanUrls(section.images),
+        videos: cleanUrls(section.videos ?? []),
       },
     ];
   }
 
-  return raw.map((p) => ({
-    company: typeof p?.company === "string" ? p.company : "",
-    ...(typeof p?.title === "string" ? { title: p.title } : {}),
-    ...(typeof p?.subtitle === "string" ? { subtitle: p.subtitle } : {}),
-    ...(typeof p?.description === "string" ? { description: p.description } : {}),
-    images: cleanUrls(p?.images),
-    // Dropped when blank rather than kept as "", so "has a film" is a single
-    // truthiness test everywhere downstream.
-    ...(typeof p?.videoUrl === "string" && p.videoUrl ? { videoUrl: p.videoUrl } : {}),
-  }));
+  return raw.map((p) => {
+    // Legacy shim: older rows carry a single `videoUrl` string instead of the
+    // current `videos` array — coalesce so both shapes normalize the same way.
+    const legacyVideoUrl = (p as unknown as { videoUrl?: unknown })?.videoUrl;
+    const videos = Array.isArray(p?.videos)
+      ? cleanUrls(p.videos)
+      : typeof legacyVideoUrl === "string" && legacyVideoUrl
+        ? [legacyVideoUrl]
+        : [];
+
+    return {
+      company: typeof p?.company === "string" ? p.company : "",
+      ...(typeof p?.title === "string" ? { title: p.title } : {}),
+      ...(typeof p?.subtitle === "string" ? { subtitle: p.subtitle } : {}),
+      ...(typeof p?.description === "string" ? { description: p.description } : {}),
+      images: cleanUrls(p?.images),
+      videos,
+    };
+  });
 }
 
 /** Reads the portfolio content slice off an experience row, or null if unset. */
@@ -405,6 +417,18 @@ export interface CompanyLink {
  *
  * Ordered by card then section, so the row stays put as you move between a
  * company's pages instead of reshuffling under the finger.
+ *
+ * One link per CATEGORY, not per project — a company can have more than one
+ * project tagged within the same category (e.g. two Collins Aerospace
+ * entries under "Brand Experiences"), and that must still produce a single
+ * "Brand Experiences" button, not one per matching project. The first
+ * matching project in a category is what the link points at.
+ *
+ * The category `here` is standing in is skipped entirely, even when a
+ * sibling project in that same category matches — switching between two
+ * projects of the same company in one category is the pager's job, not
+ * this row's; a "Brand Experiences" button while already inside Brand
+ * Experiences would just duplicate it.
  */
 export function companyLinks(
   cards: OverviewCard[],
@@ -416,16 +440,20 @@ export function companyLinks(
   if (!key) return [];
 
   const links: CompanyLink[] = [];
+  const seenCategories = new Set<string>();
   cards.forEach((_, cardIndex) => {
     sectionsOf(cardIndex).forEach((section, sectionIndex) => {
-      if (section.type !== "gallery") return;
+      // Both "gallery" (photos) and "videos" (film grid) are project/company-
+      // scoped types — either can be a link source or target. Only "images"
+      // (a flat, company-less slideshow) has nothing to link.
+      if (section.type !== "gallery" && section.type !== "videos") return;
+      const isHereCategory = cardIndex === here.cardIndex && sectionIndex === here.sectionIndex;
+      if (isHereCategory) return;
       (section.projects ?? []).forEach((project, projectIndex) => {
         if (slugify(project.company) !== key) return;
-        const isHere =
-          cardIndex === here.cardIndex &&
-          sectionIndex === here.sectionIndex &&
-          projectIndex === here.projectIndex;
-        if (isHere) return;
+        const categoryKey = `${cardIndex}-${sectionIndex}`;
+        if (seenCategories.has(categoryKey)) return;
+        seenCategories.add(categoryKey);
         links.push({ label: section.name, cardIndex, sectionIndex, projectIndex });
       });
     });

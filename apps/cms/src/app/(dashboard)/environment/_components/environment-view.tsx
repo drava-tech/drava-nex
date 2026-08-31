@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@platform/ui";
-import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
+// import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
@@ -93,7 +93,7 @@ export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("climate");
   const [isClient, setIsClient] = useState(false);
   const [showColourPanel, setShowColourPanel] = useState(false);
-  const [show3D, setShow3D] = useState(false);
+  // const [show3D, setShow3D] = useState(false);
   const [showRemotes, setShowRemotes] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
 
@@ -711,22 +711,7 @@ export function EnvironmentView() {
   return (
     <div className="w-full h-full flex flex-col gap-6 overflow-hidden font-sans text-foreground pb-2">
 
-      <div className="flex justify-between items-center shrink-0 pt-2 pb-0">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight mb-1">Environment Control</h1>
-          <p className="text-muted-foreground font-medium">Manage workspace climate, lighting, audio, and devices.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {IR_REMOTES.length > 0 && (
-            <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShowRemotes(true)}>
-              Remotes
-            </Button>
-          )}
-          <Button variant="outline" className="rounded-xl font-bold tracking-widest text-xs uppercase" onClick={() => setShow3D(true)}>
-            3D
-          </Button>
-        </div>
-      </div>
+      <h1 className="shrink-0 text-3xl font-black tracking-tight pt-2">Environment</h1>
 
       <div
         className="flex-1 w-full grid gap-6 min-h-0"
@@ -745,8 +730,13 @@ export function EnvironmentView() {
               initial={false}
               animate={{ zIndex: isPrimary ? 50 : 1 }}
               transition={cardLayoutTransition}
-              style={{ gridArea: role, originX: 0.5, originY: 0.5, touchAction: "manipulation" }}
-              className={`rounded-2xl border bg-card shadow-sm flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
+              style={{
+                gridArea: role,
+                originX: 0.5,
+                originY: 0.5,
+                touchAction: "manipulation",
+              }}
+              className={`rounded-2xl border bg-transparent flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
               // onTap (not onClick) — this card animates with `layout`, and on
               // touchscreens a plain onClick's first tap can get swallowed while
               // Framer Motion is mid layout-measurement; onTap is its own
@@ -875,7 +865,7 @@ export function EnvironmentView() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {show3D && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
@@ -897,7 +887,7 @@ export function EnvironmentView() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
     </div>
   );
 }

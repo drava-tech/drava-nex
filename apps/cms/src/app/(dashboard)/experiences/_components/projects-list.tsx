@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useTransition } from "react";
+import React, { useState, useEffect, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -12,6 +12,8 @@ import {
   MonitorPlay,
   Radio,
   Tags,
+  MoreVertical,
+  Search,
 } from "lucide-react";
 import {
   DndContext,
@@ -44,12 +46,12 @@ import {
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { EditExperienceModal } from "./edit-experience-modal";
-import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
-import { assignExperience } from "@/actions/screen-actions";
-import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
+import { assignExperience, assignMedia } from "@/actions/screen-actions";
+import { TEMPLATE_KEYS, TEMPLATE_LABELS, type TemplateKey } from "@/lib/templates";
+import { GRADIENT_BORDER_IMAGE } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import type { Experience } from "@platform/db";
 
 type ExperienceWithTypes = Experience & { typeIds: string[]; coverImage?: string | null };
@@ -69,26 +71,14 @@ const withTypeIds = (
   list: (Experience & { typeIds?: string[]; coverImage?: string | null })[]
 ): ExperienceWithTypes[] => list.map((p) => ({ ...p, typeIds: p.typeIds ?? [] }));
 
-/**
- * One distinct hue per pill position (cycles beyond 9).
- * `base` fills imageless pills, `tint` washes over cover images so every
- * pill still reads its color, `hex` drives the glass rim + colored bloom.
- */
-const PILL_STYLES = [
-  { hex: "#8b5cf6", base: "from-zinc-950 via-violet-950/70 to-violet-500", tint: "from-black/45 via-violet-900/20 to-violet-500/75" },
-  { hex: "#0ea5e9", base: "from-zinc-950 via-sky-950/70 to-sky-500", tint: "from-black/45 via-sky-900/20 to-sky-500/75" },
-  { hex: "#10b981", base: "from-zinc-950 via-emerald-950/70 to-emerald-500", tint: "from-black/45 via-emerald-900/20 to-emerald-500/75" },
-  { hex: "#f59e0b", base: "from-zinc-950 via-amber-950/70 to-amber-500", tint: "from-black/45 via-amber-900/20 to-amber-500/75" },
-  { hex: "#f43f5e", base: "from-zinc-950 via-rose-950/70 to-rose-500", tint: "from-black/45 via-rose-900/20 to-rose-500/75" },
-  { hex: "#06b6d4", base: "from-zinc-950 via-cyan-950/70 to-cyan-500", tint: "from-black/45 via-cyan-900/20 to-cyan-500/75" },
-  { hex: "#d946ef", base: "from-zinc-950 via-fuchsia-950/70 to-fuchsia-500", tint: "from-black/45 via-fuchsia-900/20 to-fuchsia-500/75" },
-  { hex: "#84cc16", base: "from-zinc-950 via-lime-950/70 to-lime-500", tint: "from-black/45 via-lime-900/20 to-lime-500/75" },
-  { hex: "#f97316", base: "from-zinc-950 via-orange-950/70 to-orange-500", tint: "from-black/45 via-orange-900/20 to-orange-500/75" },
-];
+/** Category a card's filter pill / thumbnail label falls into — every real
+ * template key, or "untemplated" for an experience with none assigned yet. */
+type Category = TemplateKey | "untemplated";
+
+const categoryLabel = (cat: Category) => (cat === "untemplated" ? "Untemplated" : TEMPLATE_LABELS[cat]);
 
 interface SortableCardProps {
   proj: ExperienceWithTypes;
-  index: number;
   isAdmin?: boolean;
   dragEnabled?: boolean;
   onDelete: (id: string) => void;
@@ -97,26 +87,14 @@ interface SortableCardProps {
   experienceTypes: { id: string; name: string }[];
 }
 
-const LONG_PRESS_MS = 500;
-// Beyond this pointer travel (px) a "press" is a drag/scroll, not a tap.
-const PRESS_MOVE_TOLERANCE = 6;
-
-function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds, experienceTypes }: SortableCardProps) {
+function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, activeScreenIds, experienceTypes }: SortableCardProps) {
   const router = useRouter();
   const [, startAssign] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showPushDialog, setShowPushDialog] = useState(false);
-  const [showControlDialog, setShowControlDialog] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const setRefs = (node: HTMLDivElement | null) => {
-    setNodeRef(node);
-    cardRef.current = node;
-  };
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -131,70 +109,9 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
       router.refresh();
     });
 
-  // Tap = open the preview + screens + push modal; long-press = the full actions menu.
-  // dnd-kit's own pointerdown listener (when dragEnabled) must still fire so
-  // dragging keeps working — we call it through before running our own logic.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const draggableProps: Record<string, any> = dragEnabled ? { ...attributes, ...listeners } : {};
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pressActive = useRef(false);
-  const longPressFired = useRef(false);
-  const pressStart = useRef<{ x: number; y: number } | null>(null);
 
-  const clearPressTimer = () => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
-
-  useEffect(() => clearPressTimer, []);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    draggableProps.onPointerDown?.(e);
-    if (!isAdmin) return;
-    pressActive.current = true;
-    longPressFired.current = false;
-    pressStart.current = { x: e.clientX, y: e.clientY };
-    clearPressTimer();
-    pressTimer.current = setTimeout(() => {
-      if (!pressActive.current) return;
-      longPressFired.current = true;
-      pressActive.current = false;
-      // Open the menu right where the press happened instead of a fixed spot.
-      const rect = cardRef.current?.getBoundingClientRect();
-      if (rect && pressStart.current) {
-        setMenuAnchor({ x: pressStart.current.x - rect.left, y: pressStart.current.y - rect.top });
-      }
-      setMenuOpen(true);
-    }, LONG_PRESS_MS);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    clearPressTimer();
-    if (!pressActive.current) return;
-    pressActive.current = false;
-    if (!isAdmin || isDragging || longPressFired.current) return;
-    if (pressStart.current) {
-      const dx = e.clientX - pressStart.current.x;
-      const dy = e.clientY - pressStart.current.y;
-      if (Math.hypot(dx, dy) > PRESS_MOVE_TOLERANCE) return;
-    }
-    // Tap always opens the preview + screens + push modal first (even when
-    // already live) — "Control" from the long-press menu remains the direct
-    // shortcut straight into LiveControlDialog.
-    if (proj.templateKey) setShowPreviewModal(true);
-  };
-
-  const handlePressCancel = () => {
-    clearPressTimer();
-    pressActive.current = false;
-  };
-
-  const num = String(index + 1).padStart(2, "0");
-  const pal = PILL_STYLES[index % PILL_STYLES.length]!;
-  // Alternate which end the number/name (and glow) sit on: odd pills up, even down.
-  const dropped = index % 2 === 1;
   // Screens currently assigned this experience — shown regardless of whether
   // that screen's client happens to be connected right now (it still holds
   // this content and will display it once it reconnects).
@@ -203,66 +120,71 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   );
   const isLive = assignedScreens.length > 0;
   const isOnline = assignedScreens.some((s) => activeScreenIds.has(s.screenId));
-  // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
-  const allScreensForControl: LiveScreen[] = screens.map((s) => ({
-    screenId: s.screenId,
-    screenName: s.screenName,
-    isOnline: activeScreenIds.has(s.screenId),
-  }));
+  const category: Category = proj.templateKey ? (proj.templateKey as TemplateKey) : "untemplated";
 
   return (
     <>
-    <div
-      ref={setRefs}
-      style={style}
-      {...draggableProps}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePressCancel}
-      onPointerCancel={handlePressCancel}
-      onContextMenu={(e) => { if (isAdmin) e.preventDefault(); }}
-      className={cn(
-        "group relative select-none",
-        dragEnabled && "cursor-grab active:cursor-grabbing"
-      )}
-    >
-      {/* Arch / pill frame — flat hue capsule; bright end follows the number. */}
-      <div className="relative aspect-[10/19] w-full overflow-hidden rounded-full bg-zinc-900">
-        {/* Pure hue gradient — dark end → bright end (bright by the number) */}
-        <div className={cn("absolute inset-0", dropped ? "bg-gradient-to-t" : "bg-gradient-to-b", pal.base)} />
-
-        {/* Smoky glass body — darker center */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_55%,rgba(0,0,0,0.22),transparent_72%)]" />
-
-        {/* Deepen the dark end (opposite the number) */}
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "group relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-[#0b0518] transition-all",
+          "hover:ring-2 hover:ring-sky-500 focus-within:ring-2 focus-within:ring-sky-500",
+          dragEnabled && "cursor-grab active:cursor-grabbing"
+        )}
+        {...draggableProps}
+      >
+        {/* Thumbnail — a plain card container (not a button); click still opens
+            the experience's detail/hub page, kept keyboard-accessible via
+            role="button". Keeps its own two-tone fill as the padding-box layer
+            while the shimmer paints the border-box layer beneath it. */}
         <div
-          className={cn(
-            "pointer-events-none absolute inset-0 from-transparent via-transparent to-black/30",
-            dropped ? "bg-gradient-to-b" : "bg-gradient-to-t"
-          )}
-        />
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push(`/experiences/${proj.id}`)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") router.push(`/experiences/${proj.id}`);
+          }}
+          style={{
+            background: `linear-gradient(to bottom right, #1c1033, #0a0518) padding-box, ${GRADIENT_BORDER_IMAGE} border-box`,
+            border: "1px solid transparent",
+          }}
+          className="relative flex aspect-[5/4] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl outline-none"
+        >
+          <span className="flex items-center gap-1.5 text-sm font-light text-violet-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+            {categoryLabel(category)}
+          </span>
 
-        {/* Actions menu — opened by long-pressing the card (see handlePointerDown
-            above); a quick tap pushes straight to a screen instead. This trigger
-            is just the invisible positioning anchor + keyboard entry point
-            (Tab + Enter). Edit / Preview / Push to screen / Assign template /
-            Delete. Admins only. */}
+          {isLive && (
+            <span className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full border-0 bg-white/10 px-2.5 py-1 backdrop-blur-sm">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" : "bg-zinc-400"
+                )}
+              />
+              <span className="text-[9px] font-light uppercase tracking-[0.15em] text-slate-300">
+                {isOnline ? "Live" : "Offline"}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Actions menu */}
         {isAdmin && (
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label="Experience actions"
-                className="absolute z-20 h-10 w-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0"
-                style={
-                  menuAnchor
-                    ? { left: menuAnchor.x, top: menuAnchor.y }
-                    : { left: "50%", top: "50%" }
-                }
-              />
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-[#432992] text-white/80 backdrop-blur-sm transition-colors hover:text-white"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-52" onPointerDown={(e) => e.stopPropagation()}>
-              {/* Edit / Preview need a template assigned */}
+            <DropdownMenuContent align="end" className="w-52">
               {proj.templateKey ? (
                 <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
                   <a href={`/edit/experiences/${proj.slug}`} target="_blank" rel="noopener noreferrer">
@@ -294,7 +216,10 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
               {isLive && (
                 <DropdownMenuItem
                   className="cursor-pointer gap-2 py-1"
-                  onSelect={() => setShowControlDialog(true)}
+                  onSelect={() => {
+                    const target = assignedScreens.find((s) => activeScreenIds.has(s.screenId)) ?? assignedScreens[0];
+                    if (target) router.push(`/experiences/${proj.id}/live/${target.screenId}`);
+                  }}
                 >
                   <Radio className="h-4 w-4" /> Control{isOnline ? " (live)" : " (offline)"}
                 </DropdownMenuItem>
@@ -312,7 +237,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
                 </DropdownMenuItem>
               )}
 
-              {/* Assign / change template */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="gap-2 py-0">Assign template</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
@@ -348,152 +272,72 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-      </div>
 
-      {/* Assignment badge — this experience is assigned to a screen, plus
-          which screen(s). Green + "Live" when that screen is connected right
-          now; gray + "Offline" when it's assigned but not currently online.
-          Sits opposite the number/name block so the two never overlap. */}
-      {isLive && (
-        <div
-          className={cn(
-            "pointer-events-none absolute left-4 z-20 flex flex-col items-start gap-1",
-            dropped ? "bottom-4" : "top-4"
-          )}
-        >
-          <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" : "bg-zinc-400"
-              )}
-            />
-            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white">
-              {isOnline ? "Live" : "Offline"}
-            </span>
+        {/* Title + slug + category pill / Edit */}
+        <div className="flex flex-col gap-3 p-4">
+          <div>
+            <p className="truncate text-base font-light text-white">{proj.name}</p>
+            <p className="truncate text-sm text-white/40">/{proj.slug}</p>
           </div>
-          <span className="max-w-[8rem] truncate rounded-full bg-black/30 px-2 py-0.5 text-[8px] font-semibold text-white/80 backdrop-blur-sm">
-            {assignedScreens.length > 1
-              ? `${assignedScreens.length} screens`
-              : assignedScreens[0]?.screenName}
-          </span>
-        </div>
-      )}
-
-      {/* Tag badges — the experience's assigned Experience Type(s). Sits in the
-          same corner as the Live/Offline indicator, stacked above/below it
-          when both are present so they never overlap. */}
-      {proj.typeIds.length > 0 && (
-        <div
-          className={cn(
-            "pointer-events-none absolute left-4 z-20 flex max-w-[70%] flex-wrap gap-1",
-            dropped ? (isLive ? "bottom-16" : "bottom-4") : isLive ? "top-16" : "top-4"
-          )}
-        >
-          {proj.typeIds.slice(0, 2).map((id) => {
-            const t = experienceTypes.find((et) => et.id === id);
-            return t ? (
-              <Badge key={id} variant="secondary" className="px-1.5 py-0 text-[9px] font-semibold">
-                {t.name}
-              </Badge>
-            ) : null;
-          })}
-          {proj.typeIds.length > 2 && (
-            <Badge variant="outline" className="px-1.5 py-0 text-[9px]">
-              +{proj.typeIds.length - 2}
+          <div className="flex items-center justify-between gap-2">
+            <Badge
+              variant="secondary"
+              className="rounded-full border-0 bg-white/10 px-3 py-1 text-[11px] font-light text-slate-300"
+            >
+              {categoryLabel(category)}
             </Badge>
-          )}
+            {proj.templateKey ? (
+              <a
+                href={`/edit/experiences/${proj.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-light text-white transition-colors hover:bg-white/10"
+              >
+                Edit
+              </a>
+            ) : (
+              <span className="cursor-not-allowed rounded-full border border-white/10 px-4 py-1.5 text-xs font-light text-white/30">
+                Edit
+              </span>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Oversized index number + name — alternates top / bottom per pill.
-          The digits are clipped to 60% height, emerging from the pill edge. */}
-      <div
-        className={cn(
-          "pointer-events-none absolute -right-1 z-10 flex flex-col items-end text-right",
-          dropped ? "top-4" : "bottom-4"
-        )}
-      >
-        <span
-          className="block h-[0.5em] overflow-hidden text-6xl font-black leading-none tracking-tighter text-white tabular-nums md:text-7xl"
-          aria-hidden
-        >
-          {/* Top-aligned so only the lower half of each digit is clipped away */}
-          <span className="block">{num}</span>
-        </span>
-        <span
-          className="-mt-1 max-w-full break-words text-base font-black uppercase leading-[1.05] tracking-tight text-white md:text-xl"
-          style={{ fontFamily: "'Satoshi', ui-sans-serif, system-ui, sans-serif" }}
-        >
-          {proj.name}
-        </span>
       </div>
-    </div>
-    {showControlDialog && (
-      <LiveControlDialog
-        experienceName={proj.name}
-        screens={assignedScreens.map((s) => ({
-          screenId: s.screenId,
-          screenName: s.screenName,
-          isOnline: activeScreenIds.has(s.screenId),
-        }))}
-        allScreens={allScreensForControl}
-        onClose={() => setShowControlDialog(false)}
-      />
-    )}
-    {/* Long-press "Push to screen" — same shared popup as the tap preview
-        below, just without a preview pane. */}
-    {showPushDialog && (
-      <PushToScreenModal
-        contentName={proj.name}
-        onPush={(screenId) => assignExperience(screenId, proj.id)}
-        isAlreadyShowing={(s) =>
-          s.currentContentKind === "experience" && s.currentExperienceId === proj.id
-        }
-        onClose={() => setShowPushDialog(false)}
-      />
-    )}
-    {/* Tap = preview + push combined. */}
-    {showPreviewModal && (
-      <PushToScreenModal
-        contentName={proj.name}
-        preview={
-          proj.templateKey ? (
-            <iframe
-              key={proj.slug}
-              src={`/preview/experiences/${proj.slug}`}
-              title={proj.name}
-              className="h-full w-full border-0 bg-black"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
-              allow="autoplay; encrypted-media; fullscreen"
-            />
-          ) : (
-            <p className="px-8 text-center text-sm text-white/50">No template assigned to this experience.</p>
-          )
-        }
-        onPush={(screenId) => assignExperience(screenId, proj.id)}
-        isAlreadyShowing={(s) =>
-          s.currentContentKind === "experience" && s.currentExperienceId === proj.id
-        }
-        onClose={() => setShowPreviewModal(false)}
-      />
-    )}
-    {showEditModal && (
-      <EditExperienceModal
-        experience={{
-          id: proj.id,
-          name: proj.name,
-          slug: proj.slug,
-          templateKey: proj.templateKey,
-          typeIds: proj.typeIds,
-        }}
-        experienceTypes={experienceTypes}
-        onClose={() => {
-          setShowEditModal(false);
-          router.refresh();
-        }}
-      />
-    )}
+
+      {showPushDialog && (
+        <PushToScreenModal
+          contentName={proj.name}
+          onPush={(screenId) => assignExperience(screenId, proj.id)}
+          isAlreadyShowing={(s) =>
+            s.currentContentKind === "experience" && s.currentExperienceId === proj.id
+          }
+          onClose={() => setShowPushDialog(false)}
+          onControl={(s) => {
+            setShowPushDialog(false);
+            router.push(`/experiences/${proj.id}/live/${s.screenId}`);
+          }}
+          onRemove={async (s) => {
+            await assignMedia(s.screenId, null);
+            router.refresh();
+          }}
+        />
+      )}
+      {showEditModal && (
+        <EditExperienceModal
+          experience={{
+            id: proj.id,
+            name: proj.name,
+            slug: proj.slug,
+            templateKey: proj.templateKey,
+            typeIds: proj.typeIds,
+          }}
+          experienceTypes={experienceTypes}
+          onClose={() => {
+            setShowEditModal(false);
+            router.refresh();
+          }}
+        />
+      )}
     </>
   );
 }
@@ -509,20 +353,33 @@ export function ProjectsList({
   const [showModal, setShowModal] = useState(false);
   const [items, setItems] = useState<ExperienceWithTypes[]>(() => withTypeIds(projects));
   const [saving, setSaving] = useState(false);
-  const [filterTypeIds, setFilterTypeIds] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
+  const [search, setSearch] = useState("");
   const [activeScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
 
-  const isFiltering = filterTypeIds.length > 0;
-  const dragEnabled = isAdmin && !isFiltering;
+  const isFiltering = categoryFilter !== "all";
+  const dragEnabled = isAdmin && !isFiltering && search.trim() === "";
 
-  const toggleFilter = (id: string) =>
-    setFilterTypeIds((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+  // Only offer categories that actually have at least one experience —
+  // "All" plus real template keys in their canonical order, "Untemplated" last.
+  const availableCategories = useMemo(() => {
+    const present = new Set<Category>(
+      items.map((p) => (p.templateKey ? (p.templateKey as TemplateKey) : "untemplated"))
     );
+    const ordered = TEMPLATE_KEYS.filter((k) => present.has(k)) as Category[];
+    if (present.has("untemplated")) ordered.push("untemplated");
+    return ordered;
+  }, [items]);
 
-  const filteredItems = isFiltering
-    ? items.filter((p) => p.typeIds.some((t) => filterTypeIds.includes(t)))
-    : items;
+  const filteredItems = items.filter((p) => {
+    const category: Category = p.templateKey ? (p.templateKey as TemplateKey) : "untemplated";
+    if (isFiltering && category !== categoryFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !p.slug.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -543,7 +400,7 @@ export function ProjectsList({
 
   const handleDragEnd = async (event: DragEndEvent) => {
     // Reordering a filtered subset would write wrong global positions — ignore.
-    if (isFiltering) return;
+    if (isFiltering || search.trim()) return;
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = items.findIndex((i) => i.id === active.id);
@@ -592,62 +449,79 @@ export function ProjectsList({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">Experiences</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-xl font-light tracking-tight">Experiences</h1>
+              <p className="text-sm font-light text-muted-foreground">
                 Manage your signage experiences
               </p>
             </div>
-            <Badge variant="secondary" className="tabular-nums">
+            <Badge
+              variant="secondary"
+              className="border-0 bg-zinc-100 dark:bg-white/10 px-2.5 py-1 tabular-nums font-light text-zinc-600 dark:text-slate-300"
+            >
               {items.length}
             </Badge>
             {saving && (
-              <Badge variant="outline" className="gap-1.5 text-muted-foreground">
+              <Badge
+                variant="secondary"
+                className="gap-1.5 rounded-xl border-0 bg-zinc-100 dark:bg-white/10 px-2.5 py-1 font-light text-zinc-600 dark:text-slate-300"
+              >
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Saving order…
               </Badge>
             )}
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setShowModal(true)}>
+            <Button size="sm" className="font-light" onClick={() => setShowModal(true)}>
               <Plus className="h-4 w-4" />
               New Experience
             </Button>
           )}
         </div>
 
-        {/* Type filter */}
-        {items.length > 0 && experienceTypes.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Filter:</span>
-            {experienceTypes.map((t) => {
-              const active = filterTypeIds.includes(t.id);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => toggleFilter(t.id)}
-                  aria-pressed={active}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-                  )}
-                >
-                  {active && <Check className="h-3 w-3" />}
-                  {t.name}
-                </button>
-              );
-            })}
-            {isFiltering && (
+        {/* Category filter + search */}
+        {items.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setFilterTypeIds([])}
-                className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                onClick={() => setCategoryFilter("all")}
+                aria-pressed={categoryFilter === "all"}
+                className={cn(
+                  "rounded-full border px-3.5 py-1.5 text-xs font-light transition-colors",
+                  categoryFilter === "all"
+                    ? "border-violet-500 bg-violet-500/15 text-violet-300"
+                    : "border-white/15 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
               >
-                Clear
+                All
               </button>
-            )}
+              {availableCategories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoryFilter(cat)}
+                  aria-pressed={categoryFilter === cat}
+                  className={cn(
+                    "rounded-full border px-3.5 py-1.5 text-xs font-light transition-colors",
+                    categoryFilter === cat
+                      ? "border-violet-500 bg-violet-500/15 text-violet-300"
+                      : "border-white/15 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {categoryLabel(cat)}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full max-w-[220px] sm:w-auto">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full rounded-full border border-white/15 bg-transparent py-1.5 pl-8 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-500"
+              />
+            </div>
           </div>
         )}
 
@@ -676,59 +550,56 @@ export function ProjectsList({
               )}
             </div>
           </Card>
-        ) : isFiltering && filteredItems.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <Card className="flex flex-col items-center justify-center gap-2 border-dashed bg-muted/30 p-12 text-center shadow-none">
             <p className="text-sm text-muted-foreground">
-              No experiences match the selected type{filterTypeIds.length > 1 ? "s" : ""}.
+              No experiences match your filter.
             </p>
             <button
               type="button"
-              onClick={() => setFilterTypeIds([])}
-              className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={() => {
+                setCategoryFilter("all");
+                setSearch("");
+              }}
+              className="text-xs font-light text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               Clear filter
             </button>
           </Card>
         ) : (
-          /* Dark showcase stage — staggered arch-pill cards with oversized indices */
-          <div className="dark relative overflow-hidden rounded-[2rem] bg-zinc-950 p-0">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-2 items-start gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 xl:gap-x-8">
-                  {filteredItems.map((proj, index) => (
-                    <SortableCard
-                      key={proj.id}
-                      proj={proj}
-                      index={index}
-                      isAdmin={isAdmin}
-                      dragEnabled={dragEnabled}
-                      onDelete={handleDelete}
-                      screens={screens}
-                      activeScreenIds={activeScreenIds}
-                      experienceTypes={experienceTypes}
-                    />
-                  ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filteredItems.map((i) => i.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredItems.map((proj) => (
+                  <SortableCard
+                    key={proj.id}
+                    proj={proj}
+                    isAdmin={isAdmin}
+                    dragEnabled={dragEnabled}
+                    onDelete={handleDelete}
+                    screens={screens}
+                    activeScreenIds={activeScreenIds}
+                    experienceTypes={experienceTypes}
+                  />
+                ))}
 
-                  {isAdmin && !isFiltering && (
-                    <button
-                      type="button"
-                      onClick={() => setShowModal(true)}
-                      className="group/new relative"
-                    >
-                      <div className="flex aspect-[10/19] w-full flex-col items-center justify-center gap-3 rounded-full border border-dashed border-white/15 bg-white/5 text-zinc-500 backdrop-blur-sm transition-colors group-hover/new:border-white/35 group-hover/new:text-zinc-200">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md transition-colors group-hover/new:bg-white/20">
-                          <Plus className="h-4 w-4" />
-                        </div>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
-                          New
-                        </span>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
+                {isAdmin && !isFiltering && !search.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(true)}
+                    className="flex aspect-[5/4] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/5 text-zinc-500 backdrop-blur-sm transition-colors hover:border-white/35 hover:text-zinc-200 sm:aspect-auto sm:min-h-[220px]"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-light uppercase tracking-[0.2em]">
+                      New
+                    </span>
+                  </button>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </>

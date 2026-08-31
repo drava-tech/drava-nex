@@ -30,11 +30,14 @@ import { DEFAULT_GALLERY_CONTENT } from "@platform/ui/templates/gallery";
 export interface TemplateDefinition {
   key: TemplateKey;
   label: string;
-  Layout: React.ComponentType<{
+  // A plain function type (not React.ComponentType) so an async Server
+  // Component — PortfolioLayout fetches its relational tree from the DB —
+  // is assignable alongside the other templates' synchronous Layouts.
+  Layout: (props: {
     experience: Experience;
     subpath: string[];
     mode?: "edit" | "preview";
-  }>;
+  }) => React.ReactNode | Promise<React.ReactNode>;
   defaultContent?: unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Workspace?: React.ComponentType<{ experience: Experience; initialContent: any }>;

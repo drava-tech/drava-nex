@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
+import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 
 export interface LiveScreen {
   screenId: string;
@@ -34,6 +35,11 @@ interface LiveControlDialogProps {
    * since it drives the real cursor on the TV's own PC (see ScreenTouchpad).
    */
   showTouchpad?: boolean;
+  /** Full ordered media-asset id list for an active queue push — omit for a normal (non-queue) push. */
+  queueMediaIds?: string[];
+  initialQueueIndex?: number;
+  /** Step the queue forward/back one item on the active screen; returns the new index. */
+  onNavigateQueue?: (direction: "next" | "prev") => Promise<number>;
 }
 
 /**
@@ -43,7 +49,18 @@ interface LiveControlDialogProps {
  * controlling any other screen in the system instantly, not just the ones
  * this content was pushed to.
  */
-export function LiveControlDialog({ experienceName, screens, allScreens, onClose, toolbar, onSaveLink, showTouchpad }: LiveControlDialogProps) {
+export function LiveControlDialog({
+  experienceName,
+  screens,
+  allScreens,
+  onClose,
+  toolbar,
+  onSaveLink,
+  showTouchpad,
+  queueMediaIds,
+  initialQueueIndex,
+  onNavigateQueue,
+}: LiveControlDialogProps) {
   const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
   const activeScreen =
@@ -53,6 +70,39 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [queueIndex, setQueueIndex] = useState(initialQueueIndex ?? 0);
+  const [navigatingQueue, setNavigatingQueue] = useState(false);
+  // Meaningful only on the one screen this queue was actually pushed to —
+  // switching the header dropdown to a different screen has no relation to it.
+  const queueScreenId = screens[0]?.screenId;
+  const showQueueControls = Boolean(
+    queueMediaIds && queueMediaIds.length > 0 && activeScreen?.screenId === queueScreenId
+  );
+
+  useCmsScreenSync({
+    // Keeps the "N of M" counter in sync across every open control panel
+    // (another tab, a second admin) — derived from the live content id
+    // rather than a bespoke WS message, since queueMediaIds is already known
+    // locally and doesn't change mid-queue.
+    onScreenUpdated: (updatedScreenId, content) => {
+      if (!queueMediaIds || updatedScreenId !== queueScreenId) return;
+      const idx = queueMediaIds.indexOf(content.id);
+      if (idx !== -1) setQueueIndex(idx);
+    },
+  });
+
+  const handleNavigateQueue = async (direction: "next" | "prev") => {
+    if (!onNavigateQueue || navigatingQueue) return;
+    setNavigatingQueue(true);
+    try {
+      setQueueIndex(await onNavigateQueue(direction));
+    } catch {
+      // best-effort — DB stays authoritative, leave the counter as-is, retryable
+    } finally {
+      setNavigatingQueue(false);
+    }
+  };
 
   const handleSaveLink = async () => {
     if (!onSaveLink || saving || saved) return;
@@ -89,7 +139,7 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
       <div
-        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
+        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -132,6 +182,29 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
             </DropdownMenu>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {showQueueControls && (
+              <div className="flex items-center gap-1 rounded-xl bg-zinc-100 px-1 py-1 dark:bg-zinc-900">
+                <button
+                  onClick={() => handleNavigateQueue("prev")}
+                  disabled={navigatingQueue || queueIndex === 0}
+                  title="Previous item"
+                  className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="min-w-[3.5rem] text-center text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  {queueIndex + 1} / {queueMediaIds!.length}
+                </span>
+                <button
+                  onClick={() => handleNavigateQueue("next")}
+                  disabled={navigatingQueue || queueIndex === queueMediaIds!.length - 1}
+                  title="Next item"
+                  className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             {onSaveLink && (
               <button
                 onClick={handleSaveLink}
@@ -193,7 +266,7 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
           // instead of tapping a mirrored preview of the page.
           activeScreen && (
             <div className="shrink-0 flex items-center justify-center">
-              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-[#432992] shadow-2xl overflow-hidden">
                 <ScreenTouchpad screenId={activeScreen.screenId} />
               </div>
             </div>
@@ -211,7 +284,7 @@ export function LiveControlDialog({ experienceName, screens, allScreens, onClose
                 className={
                   isFullscreen
                     ? "fixed inset-0 flex items-center justify-center bg-black"
-                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden"
+                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-[#432992] shadow-2xl bg-zinc-950 overflow-hidden"
                 }
               >
               {isFullscreen ? (

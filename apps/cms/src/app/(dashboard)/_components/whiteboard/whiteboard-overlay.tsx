@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Pencil,
   Eraser,
@@ -21,14 +22,13 @@ import {
   ChevronRight,
   Save,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { FabMenu } from "@/components/fab-menu";
 import type { FabMenuItem } from "@/components/fab-menu";
-import { AddLinkDialog } from "@/app/(dashboard)/media/_components/add-link-dialog";
-import { MediaPreviewModal, type MediaItem } from "@/app/(dashboard)/media/_components/media-preview-modal";
-import { LiveControlDialog } from "@/components/live-control-dialog";
-import { useWhiteboardEditor } from "@/lib/whiteboard-editor-context";
-import { createWhiteboard, updateWhiteboard, getWhiteboardDocument } from "@/actions/whiteboard-actions";
+import { PushToScreenModal } from "@/components/push-to-screen-modal";
+import { setScreenWhiteboardSession } from "@/actions/screen-actions";
+import { createWhiteboard, updateWhiteboard, getWhiteboardDocument, listWhiteboards } from "@/actions/whiteboard-actions";
 import {
   applyStrokeStyle,
   drawWhiteboardStroke,
@@ -55,9 +55,15 @@ import {
 } from "@/lib/whiteboard-protocol";
 import { applyWhiteboardCommand } from "@/lib/whiteboard-sync";
 import { WhiteboardScreenBridge } from "./whiteboard-screen-bridge";
-import { PushWhiteboardDialog } from "./push-whiteboard-dialog";
 
 type Surface = "light" | "dark" | "clear";
+
+/** The eraser's own size scale — 4x the pen's, same four steps. */
+const ERASER_WIDTHS = WHITEBOARD_WIDTHS.map((w) => w * 4);
+
+/** Preview-dot diameters, by position in the scale — the raw px value would
+ *  clip every eraser step to the same circle. */
+const WIDTH_DOTS = [6, 9, 12, 16];
 
 const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "pen", label: "Pen", icon: Pencil },
@@ -73,23 +79,57 @@ const SURFACES: { id: Surface; label: string; icon: typeof Sun; className: strin
   { id: "clear", label: "Annotate the page", icon: Eye, className: "bg-transparent" },
 ];
 
+interface WhiteboardOverlayProps {
+  /**
+   * "overlay" (default): the always-mounted, full-screen popup opened by the
+   * "+" FAB from anywhere in the dashboard — covers the sidebar too.
+   * "embedded": rendered by /whiteboards/[id]/page.tsx as normal page
+   * content instead — no FAB, no popup, the sidebar stays visible because
+   * this is just what's inside the page's own content area. Both variants
+   * are the same component (not a fork) so drawing/push/save behavior can't
+   * drift between them; only sizing and chrome (FAB, close button) differ.
+   */
+  variant?: "overlay" | "embedded";
+  /** embedded only — which saved document to load on mount. */
+  initialDocumentId?: string;
+  /**
+   * embedded only — set by /whiteboards/[id]/live/[deviceId] to auto-resume a
+   * live push to this screen once initialDocumentId has loaded, instead of
+   * showing the screen picker again.
+   */
+  initialPushTarget?: { screenId: string; screenName: string; isOnline: boolean };
+}
+
 /**
- * Floating whiteboard + speed dial. A "+" FAB in the bottom-right corner opens
- * a menu with "Draw" (pick a screen, then control it exactly like an
- * experience — via the same LiveControlDialog + ScreenMirror everything else
- * uses) and "Add Link" (push an existing Media Library item to a screen).
+ * Floating whiteboard + speed dial (variant="overlay"), or an embedded,
+ * sidebar-visible editor for one specific saved document
+ * (variant="embedded", see /whiteboards/[id]/page.tsx and
+ * /whiteboards/[id]/live/[deviceId]/page.tsx). A "+" FAB in the bottom-right
+ * corner opens a menu with "Draw" (pick a screen, saves the board, then
+ * navigates to the live route — same canvas + toolbar throughout, just with
+ * the cast button now reading "Live on <screen>" and strokes relaying to it)
+ * and "Browse URL" (navigates to the routed /browser tool — paste a link,
+ * pick screens, send); the embedded variant skips the FAB entirely — it's
+ * already a page, not a launcher.
  *
  * Strokes are kept as objects and replayed rather than being flattened into
- * pixels — that's what makes undo and window resizing work at all.
+ * pixels — that's what makes undo and resizing work at all. Canvas sizing
+ * is measured off canvasContainerRef via ResizeObserver rather than
+ * window.innerWidth/innerHeight, so the same drawing math is correct
+ * whether that container is the full viewport (overlay) or just the page's
+ * content area next to the sidebar (embedded).
  */
-export function WhiteboardOverlay() {
-  const { requestedDocumentId, clearRequestedDocument } = useWhiteboardEditor();
+export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, initialPushTarget }: WhiteboardOverlayProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [showAddLink, setShowAddLink] = useState(false);
-  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState<string>(WHITEBOARD_COLORS[0] as string);
   const [width, setWidth] = useState<number>(4);
+  // Separate from the pen's width so switching tools doesn't clobber either
+  // one. Defaults to 16 = the old hardcoded `width * 4`, so an eraser still
+  // starts out with visible bulk.
+  const [eraserWidth, setEraserWidth] = useState<number>(16);
   const [surface, setSurface] = useState<Surface>("light");
   const [showColors, setShowColors] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
@@ -103,18 +143,51 @@ export function WhiteboardOverlay() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveNameInput, setSaveNameInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  /** A saved whiteboard whose name collides with saveNameInput — confirm replacing it before overwriting. */
+  const [duplicateMatch, setDuplicateMatch] = useState<{ id: string; name: string } | null>(null);
+
+  // --- Unsaved-changes guard ---------------------------------------------
+  // Ref, not state: read synchronously from a document-level click listener
+  // that isn't part of this component's own render cycle.
+  const dirtyRef = useRef(false);
+  /** href of an in-app navigation (Link click) blocked pending a save/discard/cancel decision. */
+  const [pendingNavHref, setPendingNavHref] = useState<string | null>(null);
 
   // --- Live push to a screen -------------------------------------------------
   const [showPushDialog, setShowPushDialog] = useState(false);
-  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [pushTarget, setPushTarget] = useState<{ screenId: string; screenName: string; isOnline: boolean } | null>(
     null
   );
+  // Mirrors pushTarget for the mount-once onDocumentClick listener below,
+  // which — like dirtyRef above — needs the current value without pushTarget
+  // in its effect deps (that would tear down and reattach the listener on
+  // every push/stop instead of once).
+  const pushTargetRef = useRef(pushTarget);
+  useEffect(() => {
+    pushTargetRef.current = pushTarget;
+  }, [pushTarget]);
   const sendRef = useRef<(command: string, value?: unknown) => void>(() => {});
   const senderIdRef = useRef(createWhiteboardSenderId());
 
   const boardRef = useRef<HTMLCanvasElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
+  // The canvases' sizing reference — the full viewport for "overlay", just
+  // this component's own box for "embedded". A ref, not state: read
+  // synchronously from pointer handlers that fire far more often than this
+  // component re-renders, always the latest measured size without needing
+  // to be in any callback's dependency array.
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const dimensionsRef = useRef({ width: 0, height: 0 });
+  /**
+   * The board's own letterboxed size within canvasContainerRef — state (not
+   * just dimensionsRef) because it sizes the board box in JSX. Every screen
+   * this can be pushed to renders 16:9 (see ScreenMirror/LiveControlDialog),
+   * so without locking the drawing surface to that same ratio, a point
+   * normalized against this editor's own (arbitrary) window shape lands in a
+   * different relative spot once replayed on the actual 16:9 TV — that's why
+   * the TV never quite matched what was drawn here.
+   */
+  const [boardBox, setBoardBox] = useState({ width: 0, height: 0 });
   const strokesRef = useRef<Stroke[]>([]);
   /** The operator's own in-progress stroke (painted incrementally as they draw). */
   const currentRef = useRef<Stroke | null>(null);
@@ -140,11 +213,10 @@ export function WhiteboardOverlay() {
         if (documentId === null && isEmpty) {
           startFreshWhiteboard();
         }
-        setPreviewDataUrl(null);
         setShowPushDialog(true);
       },
     },
-    { id: "link", label: "Add Link", icon: <LinkIcon />, onClick: () => setShowAddLink(true) },
+    { id: "link", label: "Browse URL", icon: <LinkIcon />, onClick: () => router.push("/browser") },
   ];
 
   // --- Canvas ---------------------------------------------------------------
@@ -160,8 +232,7 @@ export function WhiteboardOverlay() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = dimensionsRef.current;
     for (const stroke of strokesRef.current) drawWhiteboardStroke(ctx, stroke, w, h);
     if (remoteCurrentRef.current) drawWhiteboardStroke(ctx, remoteCurrentRef.current, w, h);
     // Our own in-progress stroke isn't in strokesRef yet — repaint it too so a
@@ -194,38 +265,61 @@ export function WhiteboardOverlay() {
     setDocumentId(null);
     setDocumentName("Untitled Whiteboard");
     loadPageIntoActive(0);
+    dirtyRef.current = false;
   };
 
-  /** Size both layers to the viewport in device pixels, then replay the strokes. */
+  // Whether the local drawing canvas + toolbar is the thing on screen right
+  // now. "overlay" keeps its FAB-driven open/close toggle. "embedded" has no
+  // such toggle — it's just the page, and stays on the same canvas/toolbar
+  // UI whether or not a live push is active (the toolbar's cast button just
+  // switches between "Push to screen" and "Live on <screen>").
+  const showCanvas = variant === "embedded" ? true : open;
+
+  /** Size both layers to a 16:9 box letterboxed within canvasContainerRef's current space, in device pixels, then replay the strokes. */
   const resizeCanvases = useCallback(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const availWidth = container.clientWidth;
+    const availHeight = container.clientHeight;
+    const width = Math.min(availWidth, availHeight * (16 / 9));
+    const height = width * (9 / 16);
+    dimensionsRef.current = { width, height };
+    setBoardBox({ width, height });
     const dpr = window.devicePixelRatio || 1;
     for (const canvas of [boardRef.current, previewRef.current]) {
       if (!canvas) continue;
-      canvas.width = Math.floor(window.innerWidth * dpr);
-      canvas.height = Math.floor(window.innerHeight * dpr);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       canvas.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     redraw();
   }, [redraw]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!showCanvas) return;
+    const container = canvasContainerRef.current;
+    if (!container) return;
     resizeCanvases();
-    window.addEventListener("resize", resizeCanvases);
-    return () => window.removeEventListener("resize", resizeCanvases);
-  }, [open, resizeCanvases]);
+    // ResizeObserver, not a window resize listener — "embedded" can change
+    // size without the window itself resizing (e.g. the sidebar collapsing),
+    // and this covers "overlay" (container === the full viewport) just as well.
+    const ro = new ResizeObserver(() => resizeCanvases());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [showCanvas, resizeCanvases]);
 
-  // Escape closes the board, but only once it's finished a stroke.
+  // Escape closes the board, but only once it's finished a stroke. Overlay only
+  // — "embedded" has nothing modal to dismiss with Escape, it's just the page.
   useEffect(() => {
-    if (!open) return;
+    if (variant !== "overlay" || !open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !currentRef.current) setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [variant, open]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point =>
     normalizedPointFromClient(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
@@ -237,8 +331,7 @@ export function WhiteboardOverlay() {
     const stroke: Stroke = {
       tool,
       color,
-      // An eraser you can't see the edge of is unusable — give it some bulk.
-      width: tool === "eraser" ? width * 4 : width,
+      width: tool === "eraser" ? eraserWidth : width,
       points: [pointFromEvent(e)],
     };
     currentRef.current = stroke;
@@ -247,7 +340,8 @@ export function WhiteboardOverlay() {
     // rubber-banded on the preview layer until released.
     if (tool === "pen" || tool === "eraser") {
       const { board } = contexts();
-      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
+      const { width: w, height: h } = dimensionsRef.current;
+      if (board) drawWhiteboardStroke(board, stroke, w, h);
     }
 
     if (pushTarget) {
@@ -265,16 +359,17 @@ export function WhiteboardOverlay() {
     if (!stroke) return;
     const point = pointFromEvent(e);
     const { board, preview } = contexts();
+    const { width: w, height: h } = dimensionsRef.current;
 
     if (stroke.tool === "pen" || stroke.tool === "eraser") {
       const previous = stroke.points[stroke.points.length - 1];
       stroke.points.push(point);
       if (board && previous) {
         board.save();
-        applyStrokeStyle(board, stroke);
+        applyStrokeStyle(board, stroke, w);
         board.beginPath();
-        board.moveTo(previous.x * window.innerWidth, previous.y * window.innerHeight);
-        board.lineTo(point.x * window.innerWidth, point.y * window.innerHeight);
+        board.moveTo(previous.x * w, previous.y * h);
+        board.lineTo(point.x * w, point.y * h);
         board.stroke();
         board.restore();
       }
@@ -286,8 +381,8 @@ export function WhiteboardOverlay() {
     stroke.points[1] = point;
     if (preview) {
       // In CSS pixels — the context carries a devicePixelRatio transform.
-      preview.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      drawWhiteboardStroke(preview, stroke, window.innerWidth, window.innerHeight);
+      preview.clearRect(0, 0, w, h);
+      drawWhiteboardStroke(preview, stroke, w, h);
     }
     if (pushTarget) send(WHITEBOARD_STROKE_POINT, { point });
   };
@@ -299,13 +394,15 @@ export function WhiteboardOverlay() {
     e.currentTarget.releasePointerCapture(e.pointerId);
 
     const { board, preview } = contexts();
+    const { width: w, height: h } = dimensionsRef.current;
     if (stroke.tool !== "pen" && stroke.tool !== "eraser") {
-      preview?.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (board) drawWhiteboardStroke(board, stroke, window.innerWidth, window.innerHeight);
+      preview?.clearRect(0, 0, w, h);
+      if (board) drawWhiteboardStroke(board, stroke, w, h);
     }
 
     strokesRef.current.push(stroke);
     setStrokeCount(strokesRef.current.length);
+    dirtyRef.current = true;
     if (pushTarget) send(WHITEBOARD_STROKE_END);
   };
 
@@ -313,6 +410,7 @@ export function WhiteboardOverlay() {
     strokesRef.current.pop();
     setStrokeCount(strokesRef.current.length);
     redraw();
+    dirtyRef.current = true;
     if (pushTarget) send(WHITEBOARD_UNDO);
   };
 
@@ -320,6 +418,7 @@ export function WhiteboardOverlay() {
     strokesRef.current = [];
     setStrokeCount(0);
     redraw();
+    dirtyRef.current = true;
     if (pushTarget) send(WHITEBOARD_CLEAR);
   };
 
@@ -327,6 +426,7 @@ export function WhiteboardOverlay() {
     const index = SURFACES.findIndex((s) => s.id === surface);
     const next = SURFACES[(index + 1) % SURFACES.length]!.id;
     setSurface(next);
+    dirtyRef.current = true;
     if (pushTarget) send(WHITEBOARD_SURFACE, { surface: next });
   };
 
@@ -350,21 +450,43 @@ export function WhiteboardOverlay() {
     const newIndex = pagesRef.current.length - 1;
     loadPageIntoActive(newIndex);
     setPageIndex(newIndex);
+    dirtyRef.current = true;
     if (pushTarget) send(WHITEBOARD_SYNC, { strokes: [], surface: "light" });
   };
 
   // --- Save / open saved whiteboards --------------------------------------
 
+  // Always asks for a label, whether this is the first save or a re-save —
+  // pre-filled with the current name so re-saving under the same name is
+  // just hitting Enter.
   const handleSaveClick = () => {
     syncActivePageIntoPages();
-    if (documentId) {
-      setIsSaving(true);
-      updateWhiteboard(documentId, { pages: pagesRef.current })
-        .catch((err) => console.error("Failed to save whiteboard:", err))
-        .finally(() => setIsSaving(false));
+    setSaveNameInput(documentName === "Untitled Whiteboard" ? "" : documentName);
+    setDuplicateMatch(null);
+    setShowSaveDialog(true);
+  };
+
+  /** Actually writes the board, closes every save-flow dialog, clears the dirty flag, and resumes any navigation that was waiting on this save. */
+  const persistSave = async (targetId: string | null, name: string) => {
+    if (targetId) {
+      await updateWhiteboard(targetId, { name, pages: pagesRef.current });
+      setDocumentId(targetId);
     } else {
-      setSaveNameInput(documentName === "Untitled Whiteboard" ? "" : documentName);
-      setShowSaveDialog(true);
+      const id = await createWhiteboard(name, pagesRef.current);
+      setDocumentId(id);
+    }
+    setDocumentName(name);
+    setShowSaveDialog(false);
+    setDuplicateMatch(null);
+    dirtyRef.current = false;
+    if (pendingNavHref) {
+      const href = pendingNavHref;
+      setPendingNavHref(null);
+      // Leaving the board ends the live push — otherwise the screen keeps the
+      // overlay with nothing driving it, and the next content pushed to that
+      // screen lands underneath it. A save that isn't a leave keeps drawing.
+      endLiveSession();
+      router.push(href);
     }
   };
 
@@ -374,10 +496,17 @@ export function WhiteboardOverlay() {
     syncActivePageIntoPages();
     setIsSaving(true);
     try {
-      const id = await createWhiteboard(name, pagesRef.current);
-      setDocumentId(id);
-      setDocumentName(name);
-      setShowSaveDialog(false);
+      // A different saved board already has this name — ask before silently
+      // creating a same-named duplicate (or renaming this one over it).
+      const existing = await listWhiteboards();
+      const collision = existing.find(
+        (b) => b.id !== documentId && b.name.trim().toLowerCase() === name.toLowerCase()
+      );
+      if (collision) {
+        setDuplicateMatch({ id: collision.id, name: collision.name });
+        return;
+      }
+      await persistSave(documentId, name);
     } catch (err) {
       console.error("Failed to save whiteboard:", err);
     } finally {
@@ -385,30 +514,97 @@ export function WhiteboardOverlay() {
     }
   };
 
-  // Opening a saved whiteboard from the /whiteboards list (see WhiteboardEditorProvider).
+  /** User chose "Replace" on the name-collision prompt — overwrite that other board instead of the one (if any) we were already editing. */
+  const handleConfirmReplace = async () => {
+    if (!duplicateMatch) return;
+    setIsSaving(true);
+    try {
+      await persistSave(duplicateMatch.id, saveNameInput.trim());
+    } catch (err) {
+      console.error("Failed to save whiteboard:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Browser-level navigation (tab close, refresh, typing a new URL) — the
+  // browser's own native prompt; its text/buttons can't be customized.
   useEffect(() => {
-    if (!requestedDocumentId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const doc = await getWhiteboardDocument(requestedDocumentId);
-        if (!cancelled && doc) {
-          const pages = doc.pages as unknown as WhiteboardPageData[];
-          pagesRef.current = pages.length > 0 ? pages : [{ surface: "light", strokes: [] }];
-          setDocumentId(doc.id);
-          setDocumentName(doc.name);
-          setPageIndex(0);
-          loadPageIntoActive(0);
-          setOpen(true);
-        }
-      } finally {
-        clearRequestedDocument();
-      }
-    })();
-    return () => {
-      cancelled = true;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
     };
-  }, [requestedDocumentId, clearRequestedDocument, loadPageIntoActive]);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  // In-app navigation (any Link click — sidebar, breadcrumb, anywhere else
+  // in the dashboard). Next's App Router has no router-level navigation
+  // guard, so this intercepts at the DOM level instead: every Link renders
+  // as a real <a>, so a capture-phase click listener catches them all
+  // before Next's own handler does. Left-clicks only — modified clicks
+  // (new tab, etc.) and clicks outside any link pass through untouched.
+  useEffect(() => {
+    const onDocumentClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as HTMLElement | null)?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || (anchor.target && anchor.target !== "_self")) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+      if (!dirtyRef.current) {
+        // No unsaved strokes to confirm, but a still-live push must not be
+        // abandoned here — without this, the screen keeps its "active
+        // whiteboard" flag (getActiveWhiteboardDocuments) with nobody driving
+        // it, and the /screens list's "Control" button keeps redirecting back
+        // into this now-dead session instead of the screen's actual content.
+        const target = pushTargetRef.current;
+        if (target) {
+          send(WHITEBOARD_STOP);
+          setScreenWhiteboardSession(target.screenId, null).catch((err) =>
+            console.error("Failed to clear live whiteboard session:", err)
+          );
+          setPushTarget(null);
+        }
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingNavHref(href);
+    };
+    document.addEventListener("click", onDocumentClick, true);
+    return () => document.removeEventListener("click", onDocumentClick, true);
+  }, []);
+
+  /** Check a saved document out of the DB and into the editor. */
+  const loadDocument = useCallback(
+    async (id: string) => {
+      const doc = await getWhiteboardDocument(id);
+      if (!doc) return;
+      const pages = doc.pages as unknown as WhiteboardPageData[];
+      pagesRef.current = pages.length > 0 ? pages : [{ surface: "light", strokes: [] }];
+      setDocumentId(doc.id);
+      setDocumentName(doc.name);
+      setPageIndex(0);
+      loadPageIntoActive(0);
+      dirtyRef.current = false;
+    },
+    [loadPageIntoActive]
+  );
+
+  // Embedded only — /whiteboards/[id]/page.tsx passes the routed id, loaded
+  // once on mount. (Overlay never lands here with a document to load — the
+  // whiteboards list now routes straight to /whiteboards/<id> instead.)
+  // /whiteboards/[id]/live/[deviceId] additionally passes initialPushTarget —
+  // once the saved strokes are loaded, resume pushing to that screen instead
+  // of showing the picker again.
+  useEffect(() => {
+    if (variant !== "embedded" || !initialDocumentId) return;
+    loadDocument(initialDocumentId).then(() => {
+      if (initialPushTarget) setPushTarget(initialPushTarget);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, initialDocumentId, loadDocument]);
 
   // --- Live push to a screen -------------------------------------------------
 
@@ -417,16 +613,24 @@ export function WhiteboardOverlay() {
       if (status !== "connected") return;
       send(WHITEBOARD_START, { surface });
       send(WHITEBOARD_SYNC, { strokes: strokesRef.current, surface });
-      send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
+      send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? eraserWidth : width });
+      // Lets another CMS tab's "Control" button (the /screens list) jump
+      // straight back into this same live session — see stopPush for the
+      // matching clear.
+      if (pushTarget && documentId) {
+        setScreenWhiteboardSession(pushTarget.screenId, documentId).catch((err) =>
+          console.error("Failed to record live whiteboard session:", err)
+        );
+      }
     },
-    [send, surface, tool, color, width]
+    [send, surface, tool, color, width, eraserWidth, pushTarget, documentId]
   );
 
   // Keep the TV's touch style current with the CMS toolbar while a session is live.
   useEffect(() => {
     if (!pushTarget) return;
-    send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? width * 4 : width });
-  }, [pushTarget, tool, color, width, send]);
+    send(WHITEBOARD_SET_STYLE, { tool, color, width: tool === "eraser" ? eraserWidth : width });
+  }, [pushTarget, tool, color, width, eraserWidth, send]);
 
   // Applies a stroke the TV (or the ScreenMirror preview) drew to our own
   // board — the mirror image of the pointer handlers above, which apply our
@@ -443,15 +647,37 @@ export function WhiteboardOverlay() {
       remoteCurrentRef.current = next.current;
       if (next.surface !== surface) setSurface(next.surface);
       setStrokeCount(strokesRef.current.length);
+      dirtyRef.current = true;
       redraw();
     },
     [surface, redraw]
   );
 
-  const handleSelectPushTarget = (screenId: string, screenName: string, isOnline: boolean) => {
+  const handleSelectPushTarget = (screenId: string) => {
     setShowPushDialog(false);
     setOpen(false);
-    setPushTarget({ screenId, screenName, isOnline });
+    syncActivePageIntoPages();
+
+    // Give the live session a real, bookmarkable/refresh-safe
+    // /whiteboards/<id>/live/<deviceId> URL — same /live/<deviceId>
+    // convention experiences/media/browser use. Auto-saves current strokes
+    // first (as "Untitled Whiteboard" if this board was never explicitly
+    // saved) so the routed page always has fresh strokes to load; the
+    // WhiteboardOverlay mounted there resumes the live push itself (see
+    // initialPushTarget) once that load completes.
+    const goLive = (id: string) => router.push(`/whiteboards/${id}/live/${screenId}`);
+    if (documentId === null) {
+      createWhiteboard(documentName, pagesRef.current)
+        .then((id) => {
+          setDocumentId(id);
+          goLive(id);
+        })
+        .catch((err) => console.error("Failed to auto-save whiteboard before going live:", err));
+    } else {
+      updateWhiteboard(documentId, { pages: pagesRef.current })
+        .catch((err) => console.error("Failed to save whiteboard before going live:", err))
+        .finally(() => goLive(documentId));
+    }
   };
 
   const handleSkipPush = () => {
@@ -459,38 +685,86 @@ export function WhiteboardOverlay() {
     setOpen(true);
   };
 
-  const stopPush = () => {
+  /**
+   * Tear down the live session without navigating anywhere. Split out of
+   * stopPush so the leave-the-page paths (Save / Discard below) can end the
+   * session without its redirect fighting the navigation they're already
+   * doing. Safe to call with no session active — it's a no-op then.
+   */
+  const endLiveSession = () => {
+    if (!pushTarget) return;
     send(WHITEBOARD_STOP);
+    setScreenWhiteboardSession(pushTarget.screenId, null).catch((err) =>
+      console.error("Failed to clear live whiteboard session:", err)
+    );
     setPushTarget(null);
   };
 
+  const stopPush = () => {
+    endLiveSession();
+    // Leave the /live/<deviceId> URL once the session ends, back to the
+    // plain document route.
+    if (documentId && pathname.includes("/live/")) {
+      router.push(`/whiteboards/${documentId}`);
+    }
+  };
+
   const activeSurface = SURFACES.find((s) => s.id === surface) ?? SURFACES[0]!;
+  // The toolbar's size buttons edit whichever tool is selected — the eraser
+  // has its own, coarser scale (an eraser you can't see the edge of is
+  // unusable, so its smallest step is the pen's largest).
+  const activeWidth = tool === "eraser" ? eraserWidth : width;
+  const setActiveWidth = tool === "eraser" ? setEraserWidth : setWidth;
 
   return (
     <>
-      {/* Drawing surface — local-only sketch (no screen picked, or "Draw without pushing") */}
-      {open && (
-        <div className="fixed inset-0 z-[60]">
-          <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
-          <canvas ref={boardRef} className="absolute inset-0" />
-          <canvas
-            ref={previewRef}
-            className="absolute inset-0 touch-none"
-            style={{ cursor: tool === "eraser" ? "cell" : "crosshair" }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-          />
+      {/* Drawing surface — local-only sketch (no screen picked, or "Draw without pushing").
+          "overlay" covers the whole viewport including the sidebar; "embedded"
+          is just this page's own content box, sidebar left visible. */}
+      {showCanvas && (
+        <div
+          className={
+            variant === "overlay"
+              ? "fixed inset-0 z-[60] flex flex-col bg-zinc-950"
+              // h-full, not a calc() against the header — the dashboard header
+              // is h-auto, so any hardcoded offset is wrong by however much it
+              // actually measures. The layout's content box already has a
+              // definite height (SidebarInset is h-svh), so 100% of it is
+              // exactly the space available and the page never scrolls.
+              : "relative flex h-full w-full flex-col overflow-hidden bg-zinc-950"
+          }
+        >
+          {/* The 16:9 box is measured against THIS element, not the shell, so
+              the toolbar below is subtracted from the available height rather
+              than floating over the board and clipping its bottom edge. */}
+          <div ref={canvasContainerRef} className="flex min-h-0 flex-1 items-center justify-center">
+            {/* Letterboxed to 16:9 — every screen this pushes to renders at
+                that ratio, so the board has to match it too or normalized
+                points land in the wrong relative spot on the real screen. */}
+            <div className="relative" style={{ width: boardBox.width, height: boardBox.height }}>
+              <div className={`absolute inset-0 ${activeSurface.className} ${surface === "clear" ? "" : "transition-colors"}`} />
+              <canvas ref={boardRef} className="absolute inset-0" />
+              <canvas
+                ref={previewRef}
+                className="absolute inset-0 touch-none"
+                style={{ cursor: tool === "eraser" ? "cell" : "crosshair" }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              />
+            </div>
+          </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4 sm:p-6">
+          <div className="pointer-events-none flex shrink-0 justify-center p-4 sm:p-6">
             <WhiteboardToolStrip
               tool={tool}
               setTool={setTool}
               color={color}
               setColor={setColor}
-              width={width}
-              setWidth={setWidth}
+              width={activeWidth}
+              setWidth={setActiveWidth}
+              widths={tool === "eraser" ? ERASER_WIDTHS : WHITEBOARD_WIDTHS}
               showColors={showColors}
               setShowColors={setShowColors}
               activeSurface={activeSurface}
@@ -534,19 +808,26 @@ export function WhiteboardOverlay() {
                   <Divider />
 
                   <ToolbarButton
-                    label={pushTarget ? `Live on ${pushTarget.screenName}` : "Push to screen"}
+                    label={pushTarget ? `Live on ${pushTarget.screenName} — click to stop` : "Push to screen"}
                     active={!!pushTarget}
                     onClick={() => {
-                      setPreviewDataUrl(boardRef.current?.toDataURL("image/png") ?? null);
+                      if (pushTarget) {
+                        stopPush();
+                        return;
+                      }
                       setShowPushDialog(true);
                     }}
                   >
                     <Cast className="h-4 w-4" />
                   </ToolbarButton>
-                  <Divider />
-                  <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
-                    <X className="h-4 w-4" />
-                  </ToolbarButton>
+                  {variant === "overlay" && (
+                    <>
+                      <Divider />
+                      <ToolbarButton label="Close whiteboard" onClick={() => setOpen(false)}>
+                        <X className="h-4 w-4" />
+                      </ToolbarButton>
+                    </>
+                  )}
                 </>
               }
             />
@@ -554,110 +835,169 @@ export function WhiteboardOverlay() {
         </div>
       )}
 
-      {/* Live push — same control panel every other experience uses. Drawing
-          controls live on the mirror itself (it's the same page as the real
-          TV, so it already shows its own tool/color/undo/clear/exit bar) — but
-          page switching + save are CMS-side concerns (the TV only ever shows
-          the one active page), so those still live here. */}
-      {pushTarget && (
-        <LiveControlDialog
-          experienceName="Whiteboard"
-          screens={[{ screenId: pushTarget.screenId, screenName: pushTarget.screenName, isOnline: pushTarget.isOnline }]}
-          onClose={stopPush}
-          toolbar={
-            <div className="flex flex-col items-stretch gap-1.5 rounded-2xl border border-black/10 bg-white/90 p-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#18181b]/90">
-              <div className="flex items-center gap-1">
-                <ToolbarButton
-                  label="Previous page"
-                  onClick={() => switchToPage(pageIndex - 1)}
-                  disabled={pageIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </ToolbarButton>
-                <span className="flex-1 text-center text-[10px] font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
-                  Page {pageIndex + 1}/{pagesRef.current.length}
-                </span>
-                <ToolbarButton
-                  label="Next page"
-                  onClick={() => switchToPage(pageIndex + 1)}
-                  disabled={pageIndex === pagesRef.current.length - 1}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </ToolbarButton>
-              </div>
-
-              <WideToolbarButton label="New page" onClick={handleNewPage}>
-                <Plus className="h-4 w-4" />
-              </WideToolbarButton>
-
-              <HDivider />
-
-              <WideToolbarButton
-                label={documentId ? `Save "${documentName}"` : "Save whiteboard"}
-                onClick={handleSaveClick}
-                disabled={isSaving}
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              </WideToolbarButton>
-
-              <HDivider />
-
-              <WideToolbarButton label="Stop whiteboard" onClick={stopPush} danger>
-                <X className="h-4 w-4" />
-              </WideToolbarButton>
-            </div>
-          }
-        />
-      )}
-
       {showPushDialog && (
-        <PushWhiteboardDialog
-          previewDataUrl={previewDataUrl}
+        // No `preview` prop — same compact, no-image screen-picker used
+        // everywhere else content gets pushed (e.g. experiences); a
+        // whiteboard has no fixed shot worth showing since it keeps
+        // updating live as you draw.
+        <PushToScreenModal
+          contentName={documentName}
+          subtitle="Pick a screen to replicate your drawing to, live"
           onClose={() => setShowPushDialog(false)}
-          onSelect={handleSelectPushTarget}
+          // No content to persist upfront — WhiteboardScreenBridge starts the
+          // live session itself (WHITEBOARD_START) once pushTarget is set and
+          // its WS connection comes up. See handleBridgeStatusChange.
+          onPush={async () => {}}
+          onPushed={(pushed) => {
+            const target = pushed[0];
+            if (target) handleSelectPushTarget(target.screenId);
+          }}
           onSkip={handleSkipPush}
+          skipLabel="Draw without pushing"
         />
       )}
 
       {showSaveDialog && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center p-4"
-          onClick={() => setShowSaveDialog(false)}
+          onClick={() => {
+            setShowSaveDialog(false);
+            setDuplicateMatch(null);
+            setPendingNavHref(null);
+          }}
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-2xl"
+            className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-[#432992] rounded-2xl p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1">
-              Save Whiteboard
-            </p>
-            <input
-              autoFocus
-              value={saveNameInput}
-              onChange={(e) => setSaveNameInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConfirmSave();
-              }}
-              placeholder="Whiteboard name"
-              className="mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
-            />
-            <div className="mt-4 flex justify-end gap-2">
+            {duplicateMatch ? (
+              <>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      Replace &quot;{duplicateMatch.name}&quot;?
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      A whiteboard already has this name. Saving will overwrite its content — this can&apos;t be
+                      undone.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateMatch(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmReplace}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Replace
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1">
+                  Save Whiteboard
+                </p>
+                <input
+                  autoFocus
+                  value={saveNameInput}
+                  onChange={(e) => setSaveNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleConfirmSave();
+                  }}
+                  placeholder="Whiteboard name"
+                  className="mt-2 w-full rounded-xl border border-[#432992] bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+                />
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSaveDialog(false);
+                      setPendingNavHref(null);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSave}
+                    disabled={!saveNameInput.trim() || isSaving}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                  >
+                    {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Save
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Blocks in-app navigation (see the document-click guard above) and
+          the FAB/toolbar close actions below while there's unsaved content. */}
+      {pendingNavHref && !showSaveDialog && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setPendingNavHref(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl border border-[#432992] bg-white p-5 shadow-2xl dark:bg-zinc-950"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Unsaved changes</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  This board has drawing that hasn&apos;t been saved yet. Save it before leaving, or discard it?
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => setShowSaveDialog(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                onClick={() => {
+                  syncActivePageIntoPages();
+                  setSaveNameInput(documentName === "Untitled Whiteboard" ? "" : documentName);
+                  setDuplicateMatch(null);
+                  setShowSaveDialog(true);
+                }}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl bg-zinc-900 text-xs font-bold uppercase tracking-wider text-zinc-100 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
-                Cancel
+                Save
               </button>
               <button
                 type="button"
-                onClick={handleConfirmSave}
-                disabled={!saveNameInput.trim() || isSaving}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                onClick={() => {
+                  const href = pendingNavHref;
+                  dirtyRef.current = false;
+                  setPendingNavHref(null);
+                  endLiveSession();
+                  router.push(href);
+                }}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-500/20 dark:text-red-400"
               >
-                {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Save
+                Discard &amp; leave
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingNavHref(null)}
+                className="flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -673,25 +1013,16 @@ export function WhiteboardOverlay() {
         />
       )}
 
-      {showAddLink && (
-        <AddLinkDialog
-          onClose={() => setShowAddLink(false)}
-          onAdded={(media) => {
-            setShowAddLink(false);
-            setPreviewItem(media);
-          }}
-        />
+      {/* Speed-dial FAB — Draw opens the board above, Browse URL navigates to /browser.
+          Overlay only — "embedded" is already the whiteboard, no launcher needed. */}
+      {variant === "overlay" && !open && (
+        <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />
       )}
-
-      {previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
-
-      {/* Speed-dial FAB — Draw opens the board above, Add Link opens the add-link dialog */}
-      {!open && <FabMenu items={fabItems} position="bottom-right" direction="up" label="Whiteboard actions" />}
     </>
   );
 }
 
-/** Tools / colour / width / surface / undo / clear — shared between the full-screen local board and the LiveControlDialog panel. */
+/** Tools / colour / width / surface / undo / clear / page nav / save / cast — the one toolbar, local or live. */
 function WhiteboardToolStrip({
   tool,
   setTool,
@@ -699,6 +1030,7 @@ function WhiteboardToolStrip({
   setColor,
   width,
   setWidth,
+  widths,
   showColors,
   setShowColors,
   activeSurface,
@@ -714,6 +1046,7 @@ function WhiteboardToolStrip({
   setColor: (c: string) => void;
   width: number;
   setWidth: (w: number) => void;
+  widths: readonly number[];
   showColors: boolean;
   setShowColors: (v: boolean | ((prev: boolean) => boolean)) => void;
   activeSurface: { id: Surface; label: string; icon: typeof Sun; className: string };
@@ -780,11 +1113,11 @@ function WhiteboardToolStrip({
 
       {/* Stroke width */}
       <div className="flex items-center gap-0.5">
-        {WHITEBOARD_WIDTHS.map((w) => (
+        {widths.map((w, i) => (
           <ToolbarButton key={w} label={`${w}px`} active={width === w} onClick={() => setWidth(w)}>
             <span
               className="rounded-full bg-current"
-              style={{ width: Math.min(w + 2, 16), height: Math.min(w + 2, 16) }}
+              style={{ width: WIDTH_DOTS[i], height: WIDTH_DOTS[i] }}
             />
           </ToolbarButton>
         ))}
@@ -813,41 +1146,6 @@ function WhiteboardToolStrip({
 
 function Divider() {
   return <span className="mx-1 h-6 w-px shrink-0 bg-black/10 dark:bg-white/10" />;
-}
-
-/** Horizontal rule for vertical (side-rail) toolbars — Divider above is for horizontal rows. */
-function HDivider() {
-  return <span className="my-0.5 h-px w-full shrink-0 bg-black/10 dark:bg-white/10" />;
-}
-
-/** Full-width labeled button for a vertical side rail — there's room for a label there, unlike the square icon buttons in a horizontal row. */
-function WideToolbarButton({
-  children,
-  label,
-  danger,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode;
-  label: string;
-  danger?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
-        danger
-          ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
-          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
-      }`}
-    >
-      {children}
-      <span className="truncate">{label}</span>
-    </button>
-  );
 }
 
 function ToolbarButton({

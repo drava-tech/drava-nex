@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@platform/ui";
-import { BadgeCheck, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
+import { BookOpen, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 
@@ -57,7 +57,7 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="rounded-full hover:bg-transparent data-[state=open]:bg-transparent"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -90,9 +90,12 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <BadgeCheck />
-                Account
+              <DropdownMenuItem
+                onClick={() => window.open("/docs", "_blank", "noopener,noreferrer")}
+                className="cursor-pointer"
+              >
+                <BookOpen />
+                Docs
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
                 <UserCog />

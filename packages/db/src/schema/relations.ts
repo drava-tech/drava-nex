@@ -10,6 +10,17 @@ import {
   productSpecification,
   productMedia,
 } from "./products.js";
+import {
+  portfolioVertical,
+  portfolioCategory,
+  portfolioCategoryImage,
+  portfolioCategoryVideo,
+  portfolioProject,
+  portfolioProjectImage,
+  portfolioProjectVideo,
+  portfolioSettings,
+  company,
+} from "./portfolio.js";
 
 // ─── Auth Relations ───────────────────────────────────────────────────────────
 
@@ -40,6 +51,8 @@ export const experienceRelations = relations(experience, ({ one, many }) => ({
     relationName: "experienceUpdatedBy",
   }),
   types: many(experienceToType),
+  portfolioVerticals: many(portfolioVertical),
+  portfolioSettings: one(portfolioSettings),
 }));
 
 // ─── Experience Type Relations ────────────────────────────────────────────────
@@ -139,5 +152,77 @@ export const productMediaRelations = relations(productMedia, ({ one }) => ({
   media: one(mediaAsset, {
     fields: [productMedia.mediaId],
     references: [mediaAsset.id],
+  }),
+}));
+
+// ─── Portfolio Relations ───────────────────────────────────────────────────────
+
+export const portfolioVerticalRelations = relations(portfolioVertical, ({ one, many }) => ({
+  experience: one(experience, {
+    fields: [portfolioVertical.experienceId],
+    references: [experience.id],
+  }),
+  categories: many(portfolioCategory),
+}));
+
+export const portfolioCategoryRelations = relations(portfolioCategory, ({ one, many }) => ({
+  vertical: one(portfolioVertical, {
+    fields: [portfolioCategory.verticalId],
+    references: [portfolioVertical.id],
+  }),
+  images: many(portfolioCategoryImage),
+  videos: many(portfolioCategoryVideo),
+  projects: many(portfolioProject),
+}));
+
+export const portfolioCategoryImageRelations = relations(portfolioCategoryImage, ({ one }) => ({
+  category: one(portfolioCategory, {
+    fields: [portfolioCategoryImage.categoryId],
+    references: [portfolioCategory.id],
+  }),
+}));
+
+export const portfolioCategoryVideoRelations = relations(portfolioCategoryVideo, ({ one }) => ({
+  category: one(portfolioCategory, {
+    fields: [portfolioCategoryVideo.categoryId],
+    references: [portfolioCategory.id],
+  }),
+}));
+
+export const portfolioProjectRelations = relations(portfolioProject, ({ one, many }) => ({
+  category: one(portfolioCategory, {
+    fields: [portfolioProject.categoryId],
+    references: [portfolioCategory.id],
+  }),
+  company: one(company, {
+    fields: [portfolioProject.companyId],
+    references: [company.id],
+  }),
+  images: many(portfolioProjectImage),
+  videos: many(portfolioProjectVideo),
+}));
+
+export const portfolioProjectImageRelations = relations(portfolioProjectImage, ({ one }) => ({
+  project: one(portfolioProject, {
+    fields: [portfolioProjectImage.projectId],
+    references: [portfolioProject.id],
+  }),
+}));
+
+export const portfolioProjectVideoRelations = relations(portfolioProjectVideo, ({ one }) => ({
+  project: one(portfolioProject, {
+    fields: [portfolioProjectVideo.projectId],
+    references: [portfolioProject.id],
+  }),
+}));
+
+export const companyRelations = relations(company, ({ many }) => ({
+  projects: many(portfolioProject),
+}));
+
+export const portfolioSettingsRelations = relations(portfolioSettings, ({ one }) => ({
+  experience: one(experience, {
+    fields: [portfolioSettings.experienceId],
+    references: [experience.id],
   }),
 }));

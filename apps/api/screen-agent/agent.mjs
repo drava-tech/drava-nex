@@ -16,7 +16,7 @@
  */
 
 import { WebSocket } from 'ws';
-import { mouse, Point, screen, Button } from '@nut-tree-fork/nut-js';
+import { mouse, keyboard, Point, screen, Button, Key } from '@nut-tree-fork/nut-js';
 
 // Instant jumps instead of nut-js's default glide animation — a real
 // trackpad moves the cursor 1:1 with the drag, not on a delay.
@@ -25,6 +25,11 @@ mouse.config.mouseSpeed = 0;
 const WS_URL = process.env.SCREEN_AGENT_WS_URL || 'ws://ec-cms/ws/';
 const SECRET = process.env.BROADCAST_SECRET || '';
 const SCREEN_ID = process.env.SCREEN_ID || '';
+// Off by default: the per-move trace below fires on EVERY mouse-move message
+// (hundreds a second during a drag), and this process now logs to a file
+// rather than a console. Set SCREEN_AGENT_DEBUG=1 in .env to turn it on
+// while diagnosing, then turn it back off.
+const DEBUG = process.env.SCREEN_AGENT_DEBUG === '1';
 
 if (!SECRET) {
   console.error('[agent] BROADCAST_SECRET is not set — copy .env.example to .env and fill it in. Exiting.');
@@ -58,9 +63,29 @@ async function jiggleCursor() {
   }
 }
 
+// The connect-time jiggle above only primes the cursor once, at process
+// startup — but the same "Windows/Chrome hasn't redrawn the cursor sprite"
+// state can recur any time the real cursor sits still for a while (focus
+// changes, the driven app repainting over it, etc.), well after the agent
+// itself has been online and working for hours. Re-priming at the start of
+// every *fresh* drag (not every single move event, which would be wasteful
+// and could introduce visible jitter) covers that recurring case cheaply.
+const MOVE_IDLE_REPRIME_MS = 1_500;
+let lastMoveAt = 0;
+
+/** Per-tap wheel step for the touchpad's Zoom In/Out buttons, simulated as
+ * a Ctrl+scroll (the OS-standard zoom gesture) since nut-js has no direct
+ * "zoom" primitive. */
+const ZOOM_SCROLL_STEP = 3;
+
 async function handleCursorControl(msg) {
   try {
     if (msg.action === 'move' && typeof msg.dx === 'number' && typeof msg.dy === 'number') {
+      const now = Date.now();
+      if (now - lastMoveAt > MOVE_IDLE_REPRIME_MS) {
+        await jiggleCursor();
+      }
+      lastMoveAt = now;
       const pos = await mouse.getPosition();
       const width = await screen.width();
       const height = await screen.height();
@@ -73,11 +98,12 @@ async function handleCursorControl(msg) {
       );
       await mouse.setPosition(next);
       // Diagnostic: confirms move commands are actually arriving and
-      // landing on sane, changing coordinates — check this log during a
+      // landing on sane, changing coordinates — check agent.log during a
       // drag if the cursor still isn't visible on the TV despite clicks/
       // scroll working, to tell a functional bug from a pure OS/Chrome
-      // cursor-rendering visibility issue.
-      console.debug(`[agent] move -> (${next.x}, ${next.y})`);
+      // cursor-rendering visibility issue. Gated behind SCREEN_AGENT_DEBUG
+      // because it is per-move and would otherwise dominate the log.
+      if (DEBUG) console.debug(`[agent] move -> (${next.x}, ${next.y})`);
     } else if (msg.action === 'click') {
       await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {
@@ -85,6 +111,19 @@ async function handleCursorControl(msg) {
       if (amount === 0) return;
       if (msg.deltaY > 0) await mouse.scrollDown(amount);
       else await mouse.scrollUp(amount);
+    } else if (msg.action === 'scrollH' && typeof msg.deltaX === 'number') {
+      const amount = Math.round(Math.abs(msg.deltaX));
+      if (amount === 0) return;
+      if (msg.deltaX > 0) await mouse.scrollRight(amount);
+      else await mouse.scrollLeft(amount);
+    } else if (msg.action === 'zoom' && (msg.direction === 'in' || msg.direction === 'out')) {
+      await keyboard.pressKey(Key.LeftControl);
+      try {
+        if (msg.direction === 'in') await mouse.scrollUp(ZOOM_SCROLL_STEP);
+        else await mouse.scrollDown(ZOOM_SCROLL_STEP);
+      } finally {
+        await keyboard.releaseKey(Key.LeftControl);
+      }
     }
   } catch (err) {
     console.error('[agent] Failed to apply cursor control:', err);

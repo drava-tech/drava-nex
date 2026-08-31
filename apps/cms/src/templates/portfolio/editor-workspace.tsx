@@ -6,7 +6,13 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, Loader2, Check } from "lucide-react";
 import type { Experience } from "@platform/db";
 import { updateExperienceTemplateContent } from "@/actions/experience-actions";
-import { PortfolioFields, SectionFields } from "./editor-fields";
+import {
+  PortfolioFields,
+  SectionFields,
+  type EditableCard,
+  type EditableSection,
+  type EditablePortfolioContent,
+} from "./editor-fields";
 import {
   ScreenStage,
   PortfolioApp,
@@ -14,14 +20,11 @@ import {
   DEFAULT_TITLE_FONT_SIZE,
   DEFAULT_BUTTON_FONT_SIZE,
   DEFAULT_CARD_PADDING,
-  normalizeSections,
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
   GALLERY_EXPANDED_PCT_MIN,
   GALLERY_EXPANDED_PCT_MAX,
-  type OverviewCard,
   type PortfolioContent,
   type PortfolioGalleryStyle,
-  type PortfolioSection,
   type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
 
@@ -76,7 +79,7 @@ function NumberControl({
             value={value}
             disabled={disabled}
             onChange={(e) => onChange(clampNum(Number(e.target.value), min, max))}
-            className="w-16 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1 text-xs text-right text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-50"
+            className="w-16 bg-zinc-100 dark:bg-zinc-800 border border-[#432992] rounded-md px-2 py-1 text-xs text-right text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-50"
           />
           <span className="text-[10px] text-zinc-400">{unit}</span>
         </div>
@@ -94,16 +97,22 @@ export function PortfolioEditorWorkspace({
   initialContent,
 }: {
   experience: Experience;
-  initialContent: PortfolioContent;
+  initialContent: EditablePortfolioContent;
 }) {
   const router = useRouter();
-  const seed = initialContent?.overview?.cards?.length
+  // The relational tree (Section 14) always seeds real row ids; the
+  // DEFAULT_PORTFOLIO_CONTENT fallback (only hit for an experience with no
+  // portfolio rows yet at all) has none — its gallery-editing controls stay
+  // disabled until Phase 8's broader rewire creates real verticals/categories.
+  const seed: EditableCard[] = initialContent?.overview?.cards?.length
     ? initialContent.overview.cards
-    : DEFAULT_PORTFOLIO_CONTENT.overview.cards;
+    : (DEFAULT_PORTFOLIO_CONTENT.overview.cards as EditableCard[]);
 
-  const [cards, setCards] = useState<OverviewCard[]>(
-    seed.map((c) => ({ ...c, sections: normalizeSections(c.sections) }))
-  );
+  // No normalizeSections() here — it rebuilds section/project objects from
+  // scratch and doesn't carry the row ids this editor needs (see
+  // editor-fields.tsx); the relational seed already has exactly the fixed
+  // 3 verticals × 2 categories shape, so nothing needs filling in.
+  const [cards, setCards] = useState<EditableCard[]>(seed.map((c) => ({ ...c })));
   const [titleFontSize, setTitleFontSize] = useState<number>(
     initialContent?.overview?.titleFontSize ?? DEFAULT_TITLE_FONT_SIZE
   );
@@ -135,7 +144,7 @@ export function PortfolioEditorWorkspace({
     setGallery((g) => ({ ...g, ...patch }));
   };
 
-  const onChange = (index: number, key: keyof OverviewCard, value: string) => {
+  const onChange = (index: number, key: keyof EditableCard, value: string) => {
     setSaved(false);
     setCards((prev) => prev.map((c, idx) => (idx === index ? { ...c, [key]: value } : c)));
   };
@@ -143,20 +152,21 @@ export function PortfolioEditorWorkspace({
   const onSectionChange = (
     cardIndex: number,
     sectionIndex: number,
-    patch: Partial<PortfolioSection>
+    patch: Partial<EditableSection>
   ) => {
     setSaved(false);
     setCards((prev) =>
-      prev.map((c, i) =>
-        i !== cardIndex
-          ? c
-          : {
-              ...c,
-              sections: normalizeSections(c.sections).map((s, si) =>
-                si === sectionIndex ? { ...s, ...patch } : s
-              ),
-            }
-      )
+      prev.map((c, i) => {
+        if (i !== cardIndex) return c;
+        // Spreads the existing section as-is (not through normalizeSections)
+        // so categoryId and every project's row ids survive a plain field
+        // edit like typing in the category Name box.
+        const sections = c.sections ?? [];
+        return {
+          ...c,
+          sections: sections.map((s, si) => (si === sectionIndex ? { ...s, ...patch } : s)),
+        };
+      })
     );
   };
 
@@ -176,7 +186,7 @@ export function PortfolioEditorWorkspace({
   return (
     <div className="w-screen h-screen flex flex-col bg-zinc-100 dark:bg-zinc-950">
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-[#432992] bg-white dark:bg-zinc-900">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/experiences"
@@ -218,7 +228,7 @@ export function PortfolioEditorWorkspace({
 
       {/* Body: content panel + live preview */}
       <div className="flex-1 flex min-h-0">
-        <aside className="w-[400px] shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto p-4">
+        <aside className="w-[400px] shrink-0 border-r border-[#432992] bg-white dark:bg-zinc-900 overflow-y-auto p-4">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-3">
             Content
           </h2>
@@ -247,7 +257,7 @@ export function PortfolioEditorWorkspace({
               {/* Shown here rather than on the overview because this is where
                   gallery sections are configured. One set of values for every
                   gallery section, so they all stay visually identical. */}
-              <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
+              <div className="flex flex-col gap-4 rounded-xl border border-[#432992] p-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Gallery style (all gallery sections)
                 </h3>
@@ -310,7 +320,7 @@ export function PortfolioEditorWorkspace({
                       value={gallery.backgroundColor ?? DEFAULT_PORTFOLIO_GALLERY_STYLE.backgroundColor}
                       disabled={isPending}
                       onChange={(e) => updateGallery({ backgroundColor: e.target.value })}
-                      className="h-8 w-full cursor-pointer rounded-md border border-zinc-300 bg-transparent disabled:opacity-50 dark:border-zinc-700"
+                      className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
                     />
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5">
@@ -322,7 +332,7 @@ export function PortfolioEditorWorkspace({
                       value={gallery.textColor ?? DEFAULT_PORTFOLIO_GALLERY_STYLE.textColor}
                       disabled={isPending}
                       onChange={(e) => updateGallery({ textColor: e.target.value })}
-                      className="h-8 w-full cursor-pointer rounded-md border border-zinc-300 bg-transparent disabled:opacity-50 dark:border-zinc-700"
+                      className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
                     />
                   </div>
                 </div>
@@ -331,7 +341,7 @@ export function PortfolioEditorWorkspace({
           ) : (
             <>
               {/* Style — one set of values shared by all 3 cards */}
-              <div className="flex flex-col gap-4 mb-4 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">
+              <div className="flex flex-col gap-4 mb-4 rounded-xl border border-[#432992] p-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Style (all cards)
                 </h3>

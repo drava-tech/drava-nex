@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   DEFAULT_GALLERY_CONTENT,
@@ -20,11 +20,42 @@ import {
   type GalleryContent,
   type GalleryPhoto,
 } from "./content";
+import { useReplayableWindowEvent } from "../../lib/replayable-window-event";
 
 /** Matches the commit/settle feel of the portfolio split view. */
 const TRANSITION = "560ms cubic-bezier(0.22, 0.61, 0.36, 1)";
 /** The rearrange is slightly quicker than the width slide so it lands first. */
 const FAST = "420ms cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+/**
+ * Type taken from the site's own heading and body setup rather than fixed px,
+ * so the template matches it at whatever width it is rendered:
+ *
+ *   heading      text-3xl sm:text-2xl md:text-[32px] lg:text-[2.5rem]
+ *                font-extralight tracking-tight scale-x-110 origin-left
+ *                leading-none max-w-[90%]
+ *   description  text-xs xl:text-sm leading-[1.2] opacity-90
+ *
+ * `cqi` is the text column's own inline size, so both scale with the column
+ * instead of with a number someone typed. The figures are those rem sizes as a
+ * share of that column at the authored 1920 layout, where it measures ~570px:
+ * 40/570 ≈ 7%, 14/570 ≈ 2.45%. The clamp bounds are the reference's own — its
+ * smallest step at one end, the size it settles on from lg up at the other.
+ */
+const TITLE_SIZE = "clamp(1.5rem, 7cqi, 2.5rem)";
+const TITLE_WEIGHT = 200;
+const TITLE_TRACKING = "-0.025em";
+/** leading-none / leading-[1.2] — the line spacing has to match exactly. */
+const TITLE_LEADING = 1;
+const DESCRIPTION_LEADING = 1.2;
+/** The description's half of the same rule, in JS — see useFitFontSize. */
+const DESCRIPTION_CQI = 0.0245;
+const DESCRIPTION_MIN_PX = 12; // text-xs
+const DESCRIPTION_MAX_PX = 14; // text-sm
+
+/** Measuring has to happen before the browser paints; on the server there is no
+ *  layout to measure and useLayoutEffect would warn. */
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** The slots beside an expanded photo: every other photo, in its natural order. */
 const railFor = (expandedIndex: number) =>
@@ -115,9 +146,9 @@ export function GalleryView({
   links?: GalleryLink[];
   /**
    * Steps through sibling pages without leaving the layout — the portfolio
-   * fills this with the other companies in the same category. Prev/next and
-   * dots, wrapping at both ends, matching SlideshowPanel; nothing renders for a
-   * count of one, so a category with a single company looks untouched.
+   * fills this with the other companies in the same category. One arrow at each
+   * edge of the screen, wrapping at both ends; nothing renders for a count of
+   * one, so a category with a single company looks untouched.
    */
   pager?: GalleryPager;
 }) {
@@ -162,7 +193,69 @@ export function GalleryView({
   const showPager = (pager?.count ?? 0) > 1;
   const showLinks = (links?.length ?? 0) > 0;
   const isOpen = expanded !== null;
+
+  // Swipe-to-page, same destination as the edge PagerArrow buttons below —
+  // just a second way to reach them. Plain pointer tracking (no gesture
+  // library elsewhere in this package) with a movement threshold, same shape
+  // as screen-touchpad.tsx's drag-vs-tap handling. Only armed while there's
+  // actually somewhere to swipe to, and not while a photo is expanded
+  // (matches PagerArrow's own `hidden={isOpen}`) — no preventDefault, so a
+  // plain tap on a photo/link still reaches its own onClick untouched.
+  const swipeStartRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const SWIPE_THRESHOLD = 60;
+
+  const handleSwipePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pager || pager.count <= 1 || isOpen) return;
+    swipeStartRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  };
+
+  const handleSwipePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || start.id !== e.pointerId || !pager) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+    pager.onSelect(dx < 0 ? (pager.index + 1) % pager.count : (pager.index - 1 + pager.count) % pager.count);
+  };
+
+  const handleSwipePointerCancel = () => {
+    swipeStartRef.current = null;
+  };
   const openPhoto = expanded !== null ? photos[expanded] : undefined;
+
+  const arrowSize = Math.round(linkSize * 3.4);
+  // How far in from each edge the arrows sit — a hair off it, so they read as
+  // belonging to the screen rather than to the layout.
+  const arrowOffset = Math.round(gap * 0.25);
+  // ...and how much the grid gives up on each side to leave them that room.
+  // Only when there are arrows: a lone company keeps the full width. The title
+  // shrinks with it for free, being sized off the column rather than in px.
+  const sideInset = showPager ? arrowOffset + arrowSize + Math.round(gap * 0.5) : 0;
+
+  // The editor's px controls stay meaningful as a multiplier on the reference
+  // size — nudging the type up or down — rather than as an absolute that
+  // ignores how much room the column actually has.
+  const titleScale = titleSize / DEFAULT_TITLE_FONT_SIZE;
+  const descriptionScale = descriptionSize / DEFAULT_DESCRIPTION_FONT_SIZE;
+
+  // Sized off the column, then shrunk further if the copy still doesn't fit the
+  // room the heading leaves.
+  const [descriptionRef, fittedDescriptionSize] = useFitFontSize(descriptionScale, [
+    page.description,
+    page.title,
+    page.subtitle,
+    descriptionSize,
+    titleSize,
+    subtitleSize,
+    gap,
+    padding,
+    topInset,
+    showPager,
+    pager?.count,
+    showLinks,
+    links?.length,
+  ]);
 
   /**
    * Every change to what's open goes through here, and every one a person made
@@ -186,15 +279,10 @@ export function GalleryView({
     }
   };
 
-  useEffect(() => {
-    const onSetExpansion = (e: Event) => {
-      const detail = (e as CustomEvent<Partial<GalleryExpansion>>).detail;
-      setExpanded(detail?.expanded ?? null);
-      if (Array.isArray(detail?.railOrder)) setRailOrder(detail.railOrder);
-    };
-    window.addEventListener(EXPANSION_EVENT, onSetExpansion);
-    return () => window.removeEventListener(EXPANSION_EVENT, onSetExpansion);
-  }, []);
+  useReplayableWindowEvent<Partial<GalleryExpansion>>(EXPANSION_EVENT, (detail) => {
+    setExpanded(detail?.expanded ?? null);
+    if (Array.isArray(detail?.railOrder)) setRailOrder(detail.railOrder);
+  });
 
   /** Tap on a grid photo: open it, the rest fall into the rail in order. */
   const expand = (index: number) =>
@@ -221,10 +309,15 @@ export function GalleryView({
           margin: 0,
           // The rail is narrow — step the title down so it still fits on a
           // line or two instead of wrapping into a wall of text.
-          fontSize: railMode ? Math.round(titleSize * 0.62) : titleSize,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1.05,
+          fontSize: `calc(${TITLE_SIZE} * ${(railMode ? 0.62 : 1) * titleScale})`,
+          fontWeight: TITLE_WEIGHT,
+          letterSpacing: TITLE_TRACKING,
+          lineHeight: TITLE_LEADING,
+          // scale-x-110 origin-left, over max-w-[90%] — the widening is part of
+          // the face, not a size, so it survives every step of the clamp.
+          maxWidth: "90%",
+          transform: "scaleX(1.1)",
+          transformOrigin: "left",
           transition: `font-size ${FAST}`,
         }}
       >
@@ -248,6 +341,9 @@ export function GalleryView({
 
   return (
     <div
+      onPointerDown={handleSwipePointerDown}
+      onPointerUp={handleSwipePointerUp}
+      onPointerCancel={handleSwipePointerCancel}
       style={{
         position: "relative",
         display: "flex",
@@ -280,13 +376,23 @@ export function GalleryView({
         <div
           style={{
             position: "absolute",
-            inset: padding,
+            top: padding,
+            bottom: padding,
+            // Pulled in past the arrows rather than under them, so nothing has
+            // to overlap. The rail below keeps the plain margin — the arrows
+            // are gone by the time it shows.
+            left: padding + sideInset,
+            right: padding + sideInset,
             // Three equal columns: the feature photo spans columns 2–3, so its
             // left edge lands exactly on the middle photo's below it. That
             // shared vertical line is what makes the layout read as a grid.
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gridTemplateRows: "56fr 44fr",
+            // The links row is `auto` — it takes only the height it needs, and
+            // the photos split whatever is left in the same 56/44 ratio as
+            // before. No row at all for a company without other categories to
+            // cross to, so those pages look exactly as they did.
+            gridTemplateRows: showLinks ? "56fr 44fr auto" : "56fr 44fr",
             gap,
             opacity: isOpen ? 0 : 1,
             // Leaves quickly so the grid isn't seen squashing into the rail.
@@ -305,19 +411,26 @@ export function GalleryView({
               justifyContent: "flex-start",
               overflow: "hidden",
               paddingTop: topInset,
+              // What `cqi` in TITLE_SIZE resolves against: this column, not the
+              // viewport. Safe here because the column's width comes from the
+              // grid track, never from what's inside it.
+              containerType: "inline-size",
             }}
           >
             {heading(false)}
             {page.description ? (
               <p
+                ref={descriptionRef}
                 style={{
                   margin: `${gap}px 0 0`,
-                  fontSize: descriptionSize,
+                  fontSize: fittedDescriptionSize,
                   fontWeight: 400,
-                  lineHeight: 1.5,
-                  opacity: 0.85,
-                  // Allowed to shrink so a long paragraph clips itself rather
-                  // than shoving the link row out of the bottom of the cell.
+                  lineHeight: DESCRIPTION_LEADING,
+                  opacity: 0.9,
+                  // Takes the whole of the cell the heading doesn't want, which
+                  // is what useFitFontSize measures against. Still clips, but
+                  // only once the type has shrunk as far as it is allowed to.
+                  flex: "1 1 0",
                   minHeight: 0,
                   overflow: "hidden",
                 }}
@@ -325,69 +438,57 @@ export function GalleryView({
                 {page.description}
               </p>
             ) : null}
-
-            {showPager || showLinks ? (
-              <div
-                style={{
-                  // Both rows pinned to the foot of the cell rather than
-                  // trailing the paragraph, so they land in the same place on
-                  // every page regardless of how much copy sits above them.
-                  marginTop: "auto",
-                  paddingTop: gap,
-                  flexShrink: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: Math.round(gap * 0.5),
-                }}
-              >
-                {showPager ? (
-                  <PagerControl pager={pager!} size={linkSize} gap={Math.round(gap * 0.4)} />
-                ) : null}
-
-                {showLinks ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: Math.round(gap * 0.4),
-                    }}
-                  >
-                    {links!.map((link, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={link.onSelect}
-                        style={{
-                          appearance: "none",
-                          margin: 0,
-                          padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
-                          borderRadius: 999,
-                          // currentColor, not a fixed shade: the background and
-                          // text colour are both editable, and anything
-                          // hardcoded would disappear against one of the two.
-                          border: "1px solid currentColor",
-                          backgroundColor: "transparent",
-                          color: "inherit",
-                          fontFamily: "inherit",
-                          fontSize: linkSize,
-                          fontWeight: 700,
-                          letterSpacing: "0.04em",
-                          lineHeight: 1,
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                          // Secondary to the copy above it — same way the
-                          // description sits at 0.85 under the title.
-                          opacity: 0.75,
-                        }}
-                      >
-                        {link.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
+
+          {showLinks ? (
+            <div
+              style={{
+                // Its own row at the foot of the layout, under the photos —
+                // not trailing the paragraph — so it lands in the same place on
+                // every page regardless of how much copy sits above it.
+                gridColumn: "1 / 4",
+                gridRow: "3 / 4",
+                minWidth: 0,
+                paddingTop: Math.round(gap * 0.5),
+                display: "flex",
+                justifyContent: "center",
+                flexWrap: "wrap",
+                gap: Math.round(gap * 0.4),
+              }}
+            >
+              {links!.map((link, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={link.onSelect}
+                  style={{
+                    appearance: "none",
+                    margin: 0,
+                    padding: `${Math.round(linkSize * 0.6)}px ${Math.round(linkSize * 1.1)}px`,
+                    borderRadius: 999,
+                    // currentColor, not a fixed shade: the background and
+                    // text colour are both editable, and anything
+                    // hardcoded would disappear against one of the two.
+                    border: "1px solid currentColor",
+                    backgroundColor: "transparent",
+                    color: "inherit",
+                    fontFamily: "inherit",
+                    fontSize: linkSize,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                    // Secondary to the copy above it — same way the
+                    // description sits at 0.9 under the title.
+                    opacity: 0.75,
+                  }}
+                >
+                  {link.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <PhotoCell
             photo={photos[0]}
@@ -425,7 +526,16 @@ export function GalleryView({
             pointerEvents: isOpen ? "auto" : "none",
           }}
         >
-          <div style={{ flexShrink: 0, overflow: "hidden", paddingTop: topInset }}>
+          {/* Its own container, or `cqi` here would fall back to the viewport —
+              the rail is a sibling of the grid, not a child of its text cell. */}
+          <div
+            style={{
+              flexShrink: 0,
+              overflow: "hidden",
+              paddingTop: topInset,
+              containerType: "inline-size",
+            }}
+          >
             {heading(true)}
           </div>
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap }}>
@@ -493,15 +603,172 @@ export function GalleryView({
           </p>
         ) : null}
       </div>
+
+      {/* ─── Stepping between sibling pages ──────────────────────────────── */}
+      {showPager ? (
+        <>
+          <PagerArrow
+            side="left"
+            size={arrowSize}
+            offset={arrowOffset}
+            hidden={isOpen}
+            onSelect={() => pager!.onSelect((pager!.index - 1 + pager!.count) % pager!.count)}
+          />
+          <PagerArrow
+            side="right"
+            size={arrowSize}
+            offset={arrowOffset}
+            hidden={isOpen}
+            onSelect={() => pager!.onSelect((pager!.index + 1) % pager!.count)}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
 
 /**
- * One tappable photo — a cell of the collapsed grid, or a slot of the open
- * rail. Same element either way, so both react to a tap identically; only what
- * the tap means differs, which is the caller's `onSelect`.
+ * One page-step arrow, pinned to an edge of the whole layout rather than sitting
+ * in a control among the text. The two ends of the screen are the least
+ * ambiguous place to put "back" and "forward" on a wall — nothing else lives
+ * there, and neither one has to be found.
+ *
+ * Wrapping at both ends, matching SlideshowPanel, so a visitor can keep going in
+ * one direction forever rather than hitting a dead end and having to reverse.
  */
+function PagerArrow({
+  side,
+  size,
+  offset,
+  hidden,
+  onSelect,
+}: {
+  side: "left" | "right";
+  /** Diameter. The grid reserves this much room plus `offset` on each side. */
+  size: number;
+  /** Distance from its edge of the screen. */
+  offset: number;
+  /** True while a photo is expanded: it covers the layout these step through. */
+  hidden: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      type="button"
+      // The left half of the layout closes an expanded photo on click. Even
+      // faded out this button sits over it, so a stray tap must not do both.
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      aria-label={side === "left" ? "Previous" : "Next"}
+      style={{
+        position: "absolute",
+        [side]: offset,
+        top: "50%",
+        transform: "translateY(-50%)",
+        appearance: "none",
+        margin: 0,
+        padding: 0,
+        width: size,
+        height: size,
+        borderRadius: 999,
+        border: "1px solid currentColor",
+        backgroundColor: "transparent",
+        color: "inherit",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        opacity: hidden ? 0 : 0.75,
+        // Leaves with the grid it steps through, and comes back with it.
+        transition: `opacity ${FAST} ease`,
+        pointerEvents: hidden ? "none" : "auto",
+      }}
+    >
+      <Icon size={Math.round(size * 0.55)} />
+    </button>
+  );
+}
+
+/**
+ * The largest font size at which the text still fits its box, never above `max`.
+ *
+ * The description's slot is whatever height the title and the subtitle leave
+ * behind — it changes page to page — so one size either clips the copy or
+ * strands empty space under it. CSS has no "fit this paragraph in that space",
+ * so measure it.
+ *
+ * A binary search rather than scaling by the overflow ratio: line wrapping
+ * makes height a staircase, not a line, so a proportional guess overshoots.
+ * Roughly five reflows of one small paragraph, and only when the copy or the
+ * type scale actually changes.
+ *
+ * The ceiling is the column-proportional size, not a typed-in one, so this only
+ * ever takes type further down than the reference — never past it.
+ */
+function useFitFontSize(scale: number, deps: unknown[]) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [size, setSize] = useState(DESCRIPTION_MAX_PX);
+
+  useIsoLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // clamp(0.75rem, 2.45cqi, 0.875rem) worked out here rather than in CSS: the
+    // search below has to own font-size to probe with, and a CSS rule and an
+    // imperative override on the same property fight each other. Same formula,
+    // same result, measured off the column the paragraph actually got.
+    const max = Math.round(
+      clamp(el.clientWidth * DESCRIPTION_CQI, DESCRIPTION_MIN_PX, DESCRIPTION_MAX_PX) * scale
+    );
+    // Below this it stops being readable across a room, and clipping is the
+    // better failure — the same trade the reference makes by not going under
+    // text-xs at all.
+    const min = Math.max(9, Math.round(max * 0.6));
+    const best = largestFitting(min, max, (px) => {
+      el.style.fontSize = `${px}px`;
+      // The box is flex-sized to the space left over, and clips; overflowing it
+      // is exactly what "too big" means here.
+      return el.scrollHeight <= el.clientHeight;
+    });
+    // Left applied rather than cleared, so nothing paints at the probe size
+    // between here and the re-render that makes it React's value again.
+    el.style.fontSize = `${best}px`;
+    setSize(best);
+    // Deliberately the content and type scale only, NOT `expanded`: opening a
+    // photo animates this column's width over half a second, and a re-fit
+    // during that would size the paragraph against a box it is only passing
+    // through. The description is hidden while a photo is open anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return [ref, size] as const;
+}
+
+/**
+ * Biggest whole px in [min, max] for which `fits` holds, falling back to `min`
+ * when nothing does. `fits` is assumed monotone — true up to some size, false
+ * above it — which is what makes a measured probe cheap enough to run on a
+ * paragraph. Separated from the DOM so the search itself can be checked.
+ */
+export function largestFitting(min: number, max: number, fits: (px: number) => boolean): number {
+  let lo = min;
+  let hi = max;
+  let best = min;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (fits(mid)) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
 /**
  * Prev / dots / next for the sibling pages, sitting in the text column.
  *
@@ -514,8 +781,13 @@ export function GalleryView({
  * the text column beside the category links rather than over a photo, so they
  * take their colour from the text and stay legible whatever the editor sets the
  * background to.
+ *
+ * Not used internally by this file anymore (the standalone Gallery template's
+ * own pager is the edge-pinned `PagerArrow` below) — kept exported for the
+ * Portfolio video-grid gallery view, which sits outside this component and
+ * still wants the in-column prev/dots/next treatment beside its links row.
  */
-function PagerControl({
+export function PagerControl({
   pager,
   size,
   gap,
@@ -588,6 +860,11 @@ function PagerControl({
   );
 }
 
+/**
+ * One tappable photo — a cell of the collapsed grid, or a slot of the open
+ * rail. Same element either way, so both react to a tap identically; only what
+ * the tap means differs, which is the caller's `onSelect`.
+ */
 function PhotoCell({
   photo,
   index,
@@ -637,7 +914,18 @@ function PhotoCell({
           src={url}
           alt=""
           draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          // Pointer-transparent so the button is always what a tap lands on,
+          // never the picture inside it. An <img> is a target browsers like to
+          // attach their own behaviour to — drag, long-press menu, hover
+          // toolbars — any of which can take the tap and leave the photo simply
+          // not opening. SlideshowPanel's slides are inert for the same reason.
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            pointerEvents: "none",
+          }}
         />
       ) : (
         <span

@@ -21,7 +21,7 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo, onBac
   return (
     <div className="flex-1 w-full flex flex-col gap-6 select-none h-full">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-zinc-400/30">
+      <div className="flex items-center justify-between pb-4 border-b border-[#432992]">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
@@ -48,7 +48,7 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo, onBac
         {verticals.map((vertical) => (
           <div
             key={vertical.id}
-            className="bg-[#d6d6d6] dark:bg-zinc-900 border border-zinc-350 dark:border-zinc-800/80 rounded-2xl p-6 flex flex-col gap-6 shadow-sm h-full"
+            className="bg-[#d6d6d6] dark:bg-zinc-900 border border-[#432992] rounded-2xl p-6 flex flex-col gap-6 shadow-sm h-full"
           >
             {/* Title Section */}
             <h3 className="text-xl font-normal text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
@@ -56,7 +56,7 @@ export function VerticalsGrid({ verticals, onSelectVertical, onWatchVideo, onBac
             </h3>
 
             {/* Thumbnail Box (Non-clickable, no play button) */}
-            <div className="flex-1 min-h-[160px] bg-white/40 dark:bg-zinc-800/50 rounded-xl border border-zinc-350/40 dark:border-zinc-700/20 relative overflow-hidden flex items-center justify-center">
+            <div className="flex-1 min-h-[160px] bg-white/40 dark:bg-zinc-800/50 rounded-xl border border-[#432992] relative overflow-hidden flex items-center justify-center">
               <img
                 src={vertical.thumbnailUrl}
                 alt={vertical.title}

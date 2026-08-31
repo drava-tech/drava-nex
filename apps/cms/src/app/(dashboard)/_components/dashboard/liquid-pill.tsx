@@ -1,55 +1,28 @@
 import React from "react";
 import Link from "next/link";
-import {
-  LIQUID_BASE,
-  liquidGlowFromColor,
-  liquidGlowStyle,
-  type LiquidAccent,
-} from "./liquid-glass";
 
-// The bright streak across the top of the glass — the thing that sells the
-// "liquid" read. Sits above the fill, below the label.
-export function LiquidShine() {
-  return (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute inset-x-1 top-0 h-1/2 rounded-full bg-gradient-to-b from-white/35 to-transparent"
-    />
-  );
-}
+// Flat pill shell — no blur/shine/glow, just the violet border + hover lift.
+const PILL_SHELL =
+  "relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full border border-[#432992] bg-transparent transition-all duration-200 hover:-translate-y-0.5";
 
 interface LiquidPillProps {
   children: React.ReactNode;
-  accent?: LiquidAccent;
-  color?: string; // raw CSS color, overrides `accent` when set
   href?: string;
   className?: string;
 }
 
-// Polymorphic glass pill: renders as a real link when `href` is given,
-// otherwise a plain span (for static badges/chips).
-export function LiquidPill({ children, accent = "slate", color, href, className = "" }: LiquidPillProps) {
-  const classes = `${LIQUID_BASE} px-3.5 py-1.5 text-xs font-medium text-white ${className}`;
-  const style = color ? liquidGlowFromColor(color) : liquidGlowStyle(accent);
-
-  const inner = (
-    <>
-      <LiquidShine />
-      <span className="relative z-10 flex items-center gap-1.5">{children}</span>
-    </>
-  );
+// Polymorphic pill: renders as a real link when `href` is given, otherwise a
+// plain span (for static badges/chips).
+export function LiquidPill({ children, href, className = "" }: LiquidPillProps) {
+  const classes = `${PILL_SHELL} px-3.5 py-1.5 text-xs font-medium text-white ${className}`;
 
   if (href) {
     return (
-      <Link href={href} className={classes} style={style}>
-        {inner}
+      <Link href={href} className={classes}>
+        {children}
       </Link>
     );
   }
 
-  return (
-    <span className={classes} style={style}>
-      {inner}
-    </span>
-  );
+  return <span className={classes}>{children}</span>;
 }

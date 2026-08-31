@@ -23,6 +23,16 @@ export const WHITEBOARD_COLORS = [
 /** Shared stroke-width presets so the CMS toolbar and the TV's on-screen controls offer the same sizes. */
 export const WHITEBOARD_WIDTHS = [2, 4, 8, 16];
 
+/**
+ * WHITEBOARD_WIDTHS values are calibrated against a canvas this wide — used
+ * to scale stroke.width by whichever canvas is actually being drawn onto
+ * (see applyStrokeStyle). Without this, a "4px" line looks proportionally
+ * right on the operator's own browser window but reads as a hairline on a
+ * TV whose canvas is several times wider, so the TV never actually matched
+ * what was drawn in the CMS.
+ */
+const WIDTH_REFERENCE_CANVAS_SIZE = 1200;
+
 /** Tailwind background class for a board surface — shared so the TV backdrop matches the operator's board exactly. */
 export function whiteboardSurfaceClassName(surface: WhiteboardSurface): string {
   switch (surface) {
@@ -73,10 +83,11 @@ function denormalize(point: WhiteboardPoint, width: number, height: number): Whi
   return { x: point.x * width, y: point.y * height };
 }
 
-export function applyStrokeStyle(ctx: CanvasRenderingContext2D, stroke: WhiteboardStroke) {
+/** `canvasWidth` is the CSS pixel width of the canvas being drawn onto — stroke.width scales against it (see WIDTH_REFERENCE_CANVAS_SIZE) so the same stroke reads the same relative thickness on every viewer, not just the one it was drawn on. */
+export function applyStrokeStyle(ctx: CanvasRenderingContext2D, stroke: WhiteboardStroke, canvasWidth: number) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.lineWidth = stroke.width;
+  ctx.lineWidth = Math.max(1, stroke.width * (canvasWidth / WIDTH_REFERENCE_CANVAS_SIZE));
   if (stroke.tool === "eraser") {
     // Punch through what's already drawn rather than painting over it, so the
     // eraser works whatever the board colour is.
@@ -106,7 +117,7 @@ export function drawWhiteboardStroke(
   const end = denormalize(rawEnd, width, height);
 
   ctx.save();
-  applyStrokeStyle(ctx, stroke);
+  applyStrokeStyle(ctx, stroke, width);
   ctx.beginPath();
 
   switch (stroke.tool) {

@@ -1,0 +1,18 @@
+Category,Feature,Status,Notes
+Content type,Video,Works,Native video tag; hardware decode is BrightSign's core strength
+Content type,Image,Works,Plain img tag
+Content type,Stream,Works,Plain video tag pointed at a stream URL
+Content type,HTML (PDFs/Slides/Drive/YouTube/web pages),Works,Standard sandboxed iframe
+Template,Portfolio,Works,Image/video/text only
+Template,Gallery,Works,Image/video/text only
+Template,Product Showcase,Works,Detection runs on a separate GPU vision box; screen only receives a WS push and renders
+Template,Object Recognition,Works,Same as above - display-only; no local camera needed on the BrightSign unit
+Core,Remote content switching (CMS reassigns an experience),Works,Pure WebSocket push; screen re-renders itself
+Template,Live Stream,Needs testing,Decodes via WebCodecs VideoDecoder (Chromium-only) - unconfirmed on BrightSign's embedded engine
+Template,Flight Simulation (Flight Garden),Needs testing,Full WebGL 3D scene - unconfirmed if the GPU handles it at framerate
+Template,Welcome template spoken voice,Needs testing,Uses speechSynthesis/TTS voices - embedded browsers often lack these; fails silently if missing
+Remote control,Touchpad (cursor move/click/scroll),Does not work,Needs a native agent (Node.js + nut-js) running on the exact PC driving the display - no such thing exists on BrightSign
+Remote control,System audio (volume/mute),Does not work,Native .NET helper tied to one physical PC's sound hardware - can't be relocated to the server or to BrightSign
+Touch,On-screen long-press content picker,Does not work,Needs a touchscreen on the display itself; XT1145 has none
+Touch,Drawing on the Whiteboard overlay (locally),Does not work,Same touch requirement - strokes broadcast from elsewhere still display fine as a passive viewer
+Deployment,Hostname resolution (ec-cms),Needs testing,nginx only accepts Host header ec-cms - raw IP is rejected; unconfirmed whether BrightSign (non-Windows) resolves it via the office router's DNS

@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tool
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH_MOBILE = "16rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -146,10 +146,10 @@ const Sidebar = React.forwardRef<
             state === "collapsed" && collapsible === "offcanvas"
               ? 0
               : state === "collapsed" && collapsible === "icon"
-              ? variant === "floating" || variant === "inset"
-                ? `calc(var(--sidebar-width-icon) + 1rem)`
-                : "var(--sidebar-width-icon)"
-              : "var(--sidebar-width)",
+                ? variant === "floating" || variant === "inset"
+                  ? `calc(var(--sidebar-width-icon) + 1rem)`
+                  : "var(--sidebar-width-icon)"
+                : "var(--sidebar-width)",
           transition: "width 200ms linear",
         }}
         className={cn(
@@ -174,8 +174,8 @@ const Sidebar = React.forwardRef<
               ? "left-[calc(var(--sidebar-width)*-1)]"
               : "left-0"
             : state === "collapsed" && collapsible === "offcanvas"
-            ? "right-[calc(var(--sidebar-width)*-1)]"
-            : "right-0",
+              ? "right-[calc(var(--sidebar-width)*-1)]"
+              : "right-0",
           variant === "floating" || variant === "inset"
             ? "p-2"
             : "group-data-[side=left]:border-r group-data-[side=right]:border-l",
@@ -185,7 +185,8 @@ const Sidebar = React.forwardRef<
       >
         <div
           data-sidebar="sidebar"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+          className="flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+          style={{ background: "transparent" }}
         >
           {children}
         </div>

@@ -30,6 +30,17 @@ export const screen = pgTable(
       () => mediaAsset.id,
       { onDelete: "set null" }
     ),
+    // Ordered list of media asset ids for a multi-item "queue" push (Email
+    // Media bulk-select → Next/Prev on one screen) — null when nothing
+    // queued. When set, currentMediaAssetId always mirrors
+    // currentQueueMediaIds[currentQueueIndex], so every existing single-item
+    // consumer (getScreenContent, isAlreadyShowing, isScreenIdle, listScreens)
+    // keeps working unmodified — the display side never knows a queue is
+    // involved. Cleared (both null) by any non-queue setScreenMedia/
+    // setScreenExperience call, so a stale queue can't linger and produce a
+    // wrong "N of M" once the admin pushes something else.
+    currentQueueMediaIds: jsonb("current_queue_media_ids").$type<string[] | null>(),
+    currentQueueIndex: integer("current_queue_index"),
     // Fallback video/image shown when nothing is currently assigned (and once a
     // camera-detection takeover ends with no other assignment to fall back to).
     defaultMediaAssetId: text("default_media_asset_id").references(
@@ -51,13 +62,6 @@ export const screen = pgTable(
     // (not just an in-memory WS relay) so a screen that reconnects mid-stop
     // (power cycle, network blip, API restart) comes back up still black.
     blanked: boolean("blanked").notNull().default(false),
-    // Master interactivity switch, pushed live via SCREEN_ENABLE_CONTROLS/
-    // SCREEN_DISABLE_CONTROLS (see gateway.ts's screenInteractionEnabledCache).
-    // Currently unconsumed on the display side — its only renderer
-    // (WebpageRenderer/browser-render) was removed — kept as a live per-screen
-    // flag for a future consumer. Independent of `blanked`: content stays
-    // visible when this is false, it just can't be clicked/scrolled/typed into.
-    interactionEnabled: boolean("interaction_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

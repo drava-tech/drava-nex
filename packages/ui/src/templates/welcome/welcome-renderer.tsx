@@ -47,16 +47,22 @@ function useTypewriter(text: string, startDelayMs: number): { shown: string; don
 }
 
 /** Full-screen greeting: headline + tagline over a dark gradient, with an
- * optional looping video beneath it. Title/subtitle type out letter by
+ * optional video beneath it that plays once and holds on its last frame
+ * (no loop) once triggered. Title/subtitle type out letter by
  * letter rather than appearing all at once. `speak` (opt-in, off by default)
  * reads the text aloud via the browser's speech synthesis — callers must
  * gate this to the real TV only, never a CMS preview/mirror. */
 export function WelcomeRenderer({
   content,
   speak = false,
+  preview = false,
 }: {
   content?: WelcomeContent;
   speak?: boolean;
+  /** True for any CMS-side embed of this screen (editor live preview, Screens
+   * control page, Live Control popup, ...) — audio must only ever come out of
+   * the real TV, same contract as VideoRenderer.tsx's `preview` prop. */
+  preview?: boolean;
 }) {
   const title = content?.title || "Welcome to Tusker Digital Experience Center";
   const subtitle = content?.subtitle;
@@ -67,33 +73,63 @@ export function WelcomeRenderer({
   const typedSubtitle = useTypewriter(subtitle ?? "", subtitleDelay);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Unmuted autoplay is blocked by default outside kiosk mode (real kiosk TVs
-  // launch with --autoplay-policy=no-user-gesture-required, per
-  // .doc/device-setup.md, so they never hit this). Without this fallback the
-  // video branch below has nothing else to show, so a blocked autoplay reads
-  // as "Welcome isn't playing" — every other template always renders
-  // something regardless of one asset's state, this was the one exception.
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  // Default to unmuted: the kiosk's WebView2 host launches with
+  // --autoplay-policy=no-user-gesture-required (tools/main-screen-kiosk/
+  // MainWindow.xaml.cs), so the real TV can autoplay with sound with no
+  // gesture needed. The `autoPlay` attribute can't surface a blocked-playback
+  // promise rejection, though, so the effect below calls play() explicitly —
+  // on any viewer WITHOUT that flag (a plain browser previewing this
+  // experience in the CMS, say), the rejection flips this to muted and the
+  // tap-to-unmute button below becomes the fallback. Same contract as
+  // VideoRenderer.tsx, minus the unattended-kiosk assumption — this template
+  // keeps the button since a muted fallback here does have a real click path.
+  const [muted, setMuted] = useState(preview);
+  // A videoUrl pointing at a deleted/missing asset (e.g. removed from the
+  // Media Library after being saved here) would otherwise fail to load
+  // silently — the <video> element just sits there black with nothing on
+  // screen. Falls back to the headline/subtitle branch below instead.
+  // Reset whenever the url itself changes, so a fresh, valid video gets a
+  // clean retry rather than staying stuck on a previous failure.
+  const [videoFailed, setVideoFailed] = useState(false);
+  useEffect(() => {
+    setVideoFailed(false);
+    setMuted(preview);
+  }, [videoUrl, preview]);
 
   useEffect(() => {
-    if (!videoUrl) return;
-    setAutoplayBlocked(false);
+    // A CMS-side embed never attempts unmuted playback at all — skipping
+    // straight past the play()/catch dance below means it also never trips
+    // the fallback-to-muted state, so there's nothing for the tap-to-unmute
+    // button to react to and it correctly never renders in preview.
+    if (preview) return;
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => setAutoplayBlocked(true));
-  }, [videoUrl]);
+    video.play().catch(() => {
+      if (!video.muted) {
+        video.muted = true;
+        setMuted(true);
+        video.play().catch(() => {});
+      }
+    });
+  }, [videoUrl, preview]);
 
-  const handleTapToPlay = () => {
-    videoRef.current
-      ?.play()
-      .then(() => setAutoplayBlocked(false))
-      .catch(() => setAutoplayBlocked(true));
+  const handleUnmute = () => {
+    if (preview) return;
+    setMuted(false);
+    // A muted-autoplaying video can visually stall right when unmuted on some
+    // browsers/TV webviews — nudge it to keep playing under the same click
+    // that just granted the gesture, same as VideoRenderer's assumption that
+    // play() succeeds once there's real user interaction behind it.
+    videoRef.current?.play().catch(() => {});
   };
 
   useEffect(() => {
     // A full-screen video already carries its own audio — narrating the
-    // headline over it would just talk over the video's own sound.
-    if (!speak || videoUrl || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // headline over it would just talk over the video's own sound. A failed
+    // video falls back to the text branch below, so it should speak same as
+    // if no video had been set at all.
+    const showingVideo = videoUrl && !videoFailed;
+    if (!speak || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     let cancelled = false;
@@ -147,61 +183,57 @@ export function WelcomeRenderer({
       synth.cancel();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speak, title, subtitle]);
+  }, [speak, title, subtitle, videoFailed]);
 
   // A video takes over the whole screen on its own — no headline, subtitle,
   // gradient, or padding around it, just the video edge-to-edge.
-  if (videoUrl) {
+  if (videoUrl && !videoFailed) {
     return (
       <div style={{ width: "100vw", height: "100vh", overflow: "hidden", background: "#000", position: "relative" }}>
         <video
+          key={videoUrl}
           ref={videoRef}
           src={videoUrl}
+          // No `autoPlay` attribute: the effect above already calls play()
+          // explicitly. Having BOTH triggers the video's own autoplay start
+          // *and* our imperative play() call as two separate play requests —
+          // the browser treats the second as interrupting the first, which is
+          // what caused the ~1s-in stutter (silent and invisible while the
+          // video was always muted; audible now that it plays with sound).
+          muted={muted}
+          preload="auto"
           playsInline
+          onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-        {autoplayBlocked && (
+        {muted && !preview && (
           <button
-            onClick={handleTapToPlay}
+            onClick={handleUnmute}
             style={{
               position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
+              right: "3vw",
+              bottom: "3vh",
+              width: "3.4vw",
+              height: "3.4vw",
+              minWidth: "44px",
+              minHeight: "44px",
+              borderRadius: "50%",
+              background: "rgba(0,0,0,0.45)",
+              border: "1px solid rgba(255,255,255,0.4)",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(0,0,0,0.35)",
-              border: "none",
-              cursor: "pointer",
               padding: 0,
             }}
-            aria-label="Play video"
+            aria-label="Turn on sound"
+            title="Turn on sound"
           >
-            <span
-              style={{
-                width: "6vw",
-                height: "6vw",
-                minWidth: "56px",
-                minHeight: "56px",
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.9)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span
-                style={{
-                  marginLeft: "0.35em",
-                  width: 0,
-                  height: 0,
-                  borderTop: "1.4em solid transparent",
-                  borderBottom: "1.4em solid transparent",
-                  borderLeft: "2.2em solid #111",
-                }}
-              />
-            </span>
+            <svg width="45%" height="45%" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <path d="M11 5 6 9H2v6h4l5 4V5Z" fill="#fff" stroke="none" />
+              <line x1="23" y1="9" x2="17" y2="15" strokeLinecap="round" />
+              <line x1="17" y1="9" x2="23" y2="15" strokeLinecap="round" />
+            </svg>
           </button>
         )}
       </div>

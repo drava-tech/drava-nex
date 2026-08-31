@@ -42,6 +42,13 @@ export function useScreenWebSocket({
   onCameraStatusUpdateRef.current = onCameraStatusUpdate;
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
+  // True once this hook has sent its first REGISTER. Persists across the
+  // reconnect loop below (never a dep of `connect`) so only the very first
+  // REGISTER of this JS context's lifetime — i.e. a real kiosk process
+  // (re)start, since a page load/navigation always creates a fresh context —
+  // carries freshLaunch: true. An ordinary reconnect after a network blip
+  // within the same page load must NOT look like a fresh launch.
+  const hasRegisteredRef = useRef(false);
 
   const connect = useCallback(() => {
     const resolved = resolveBrowserWsUrl(wsUrl);
@@ -52,7 +59,13 @@ export function useScreenWebSocket({
 
     ws.onopen = () => {
       setStatus("connected");
-      const reg: WsClientMessage = { type: "REGISTER", screenId, preview };
+      const reg: WsClientMessage = {
+        type: "REGISTER",
+        screenId,
+        preview,
+        freshLaunch: !hasRegisteredRef.current,
+      };
+      hasRegisteredRef.current = true;
       ws.send(JSON.stringify(reg));
     };
 

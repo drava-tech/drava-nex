@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Check, Search, Image as ImageIcon, Video, Loader2, Star } from "lucide-react";
+import { X, Check, Search, Image as ImageIcon, Video, Loader2, Star, LayoutTemplate } from "lucide-react";
 import type { WsContent } from "@platform/types";
 
 interface MediaItem {
@@ -13,7 +13,19 @@ interface MediaItem {
   date: string;
 }
 
+/** One "Recently Opened" entry — either a media asset or an experience. */
+interface RecentContentItem {
+  id: string;
+  kind: "media" | "experience";
+  name: string;
+  type: string;
+  url: string | null;
+  size: string;
+  date: string;
+}
+
 interface ScreenAssignmentPickerProps {
+  screenId: string;
   screenName: string;
   currentContentLabel?: string;
   currentDefaultMediaAssetId?: string | null;
@@ -23,7 +35,141 @@ interface ScreenAssignmentPickerProps {
   onClose: () => void;
 }
 
+function formatFileSize(bytes: number | null): string {
+  if (bytes === null) return "";
+  return bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatPushedAt(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+}
+
+/** One media thumbnail card — shared by the Files and Recently Opened tabs. */
+function MediaCard({
+  media,
+  isActive,
+  isDefault,
+  onSelect,
+  onSetDefault,
+}: {
+  media: MediaItem;
+  isActive: boolean;
+  isDefault: boolean;
+  onSelect: () => void;
+  onSetDefault?: (item: { id: string; name: string }) => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
+        ${
+          isActive
+            ? "border-[#432992] bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
+            : "border-[#432992] hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
+        }`}
+    >
+      {/* Thumbnail preview */}
+      <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
+        {media.type === "video" ? (
+          <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+        ) : (
+          <img
+            src={media.url}
+            alt={media.name}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+        )}
+        {/* Badge tag */}
+        <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
+          {media.type === "video" ? <Video className="w-2.5 h-2.5" /> : <ImageIcon className="w-2.5 h-2.5" />}
+          {media.type}
+        </div>
+        {/* Set-as-default toggle */}
+        {onSetDefault && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSetDefault({ id: media.id, name: media.name });
+            }}
+            title={isDefault ? "Default for this screen" : "Set as default"}
+            className={`absolute top-2 left-2 p-1 rounded-full backdrop-blur-sm transition-colors ${
+              isDefault
+                ? "bg-amber-400 text-amber-950"
+                : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
+            }`}
+          >
+            <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
+          </div>
+        )}
+      </div>
+
+      {/* Title and metadata */}
+      <div className="p-3 w-full flex flex-col gap-0.5">
+        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full" title={media.name}>
+          {media.name}
+        </h4>
+        <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+          <span>{media.size}</span>
+          <span>{media.date}</span>
+        </div>
+      </div>
+
+      {isActive && (
+        <div className="absolute top-2.5 right-2.5 p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md">
+          <Check className="h-2.5 w-2.5 shrink-0" />
+        </div>
+      )}
+    </button>
+  );
+}
+
+/** Recently-opened card for an experience — same shape/sizing as MediaCard
+ * so the two can sit side by side in the same grid, but with a placeholder
+ * icon instead of a thumbnail (experiences have no direct asset URL). */
+function ExperienceRecentCard({
+  item,
+  isActive,
+  onSelect,
+}: {
+  item: { id: string; name: string };
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
+        ${
+          isActive
+            ? "border-[#432992] bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
+            : "border-[#432992] hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
+        }`}
+    >
+      <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
+        <LayoutTemplate className="w-6 h-6 text-zinc-400 dark:text-zinc-600" />
+        <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
+          Experience
+        </div>
+      </div>
+      <div className="p-3 w-full flex flex-col gap-0.5">
+        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full" title={item.name}>
+          {item.name}
+        </h4>
+      </div>
+      {isActive && (
+        <div className="absolute top-2.5 right-2.5 p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md">
+          <Check className="h-2.5 w-2.5 shrink-0" />
+        </div>
+      )}
+    </button>
+  );
+}
+
 export function ScreenAssignmentPicker({
+  screenId,
   screenName,
   currentContentLabel,
   currentDefaultMediaAssetId,
@@ -32,10 +178,11 @@ export function ScreenAssignmentPicker({
   onSetDefault,
   onClose,
 }: ScreenAssignmentPickerProps) {
-  const [activeTab, setActiveTab] = useState<"experiences" | "files">("experiences");
+  const [activeTab, setActiveTab] = useState<"experiences" | "files" | "recent">("experiences");
   const [searchQuery, setSearchQuery] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [recentItems, setRecentItems] = useState<RecentContentItem[]>([]);
 
   useEffect(() => {
     if (activeTab === "files" && mediaItems.length === 0) {
@@ -54,6 +201,33 @@ export function ScreenAssignmentPicker({
     }
   }, [activeTab, mediaItems.length]);
 
+  const [loadingRecentItems, setLoadingRecentItems] = useState(false);
+
+  // Per-screen "recently pushed to this screen" shortlist (server-recorded,
+  // capped at 5 server-side — see getRecentContentForScreen; covers both
+  // media and experience pushes) — reloaded whenever the tab is opened or
+  // the picker is pointed at a different screen.
+  useEffect(() => {
+    if (activeTab !== "recent") return;
+    setLoadingRecentItems(true);
+    fetch(`/api/screens/${screenId}/recent-content`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        const items: RecentContentItem[] = (data.items || []).map((item: any) => ({
+          id: item.id,
+          kind: item.kind,
+          name: item.name,
+          type: item.type,
+          url: item.url,
+          size: formatFileSize(item.sizeBytes),
+          date: formatPushedAt(item.pushedAt),
+        }));
+        setRecentItems(items);
+      })
+      .catch((err) => console.error("Failed to load recent content for screen:", err))
+      .finally(() => setLoadingRecentItems(false));
+  }, [activeTab, screenId]);
+
   const handleSelectExperience = (item: { id: string; title: string }) => {
     onAssign({
       id: item.id,
@@ -66,10 +240,18 @@ export function ScreenAssignmentPicker({
   const handleSelectMedia = (item: MediaItem) => {
     onAssign({
       id: item.id, // media_asset id — the screen points straight at it
-      type: item.type as "video" | "image",
+      // Files tab is filtered to just video/image, but Recently Opened
+      // surfaces whatever kind was actually pushed — anything else
+      // (document/presentation/sheet/word/youtube/drive/link) is wire-typed
+      // "html" once it reaches a screen (see mediaAssetToWsContent), so tag
+      // it the same way here rather than lying that it's a video/image.
+      type: item.type === "video" || item.type === "image" ? item.type : "html",
       source: item.url,
       title: item.name,
     });
+    // The server records this push (setScreenMedia → recordScreenMediaPush),
+    // so the "Recently Opened" tab will pick it up next time it's opened —
+    // no client-side bookkeeping needed here.
   };
 
   const filteredExperiences = experiences.filter((exp) =>
@@ -79,6 +261,18 @@ export function ScreenAssignmentPicker({
   const filteredMedia = mediaItems.filter((media) =>
     media.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const filteredRecentItems = recentItems.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSelectRecent = (item: RecentContentItem) => {
+    if (item.kind === "experience") {
+      handleSelectExperience({ id: item.id, title: item.name });
+    } else {
+      handleSelectMedia({ id: item.id, name: item.name, type: item.type, url: item.url ?? "", size: item.size, date: item.date });
+    }
+  };
 
   return (
     <div
@@ -90,7 +284,7 @@ export function ScreenAssignmentPicker({
 
       {/* Dialog Panel */}
       <div
-        className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden transition-all transform scale-100"
+        className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -141,6 +335,19 @@ export function ScreenAssignmentPicker({
             >
               Files (Media)
             </button>
+            <button
+              onClick={() => {
+                setActiveTab("recent");
+                setSearchQuery("");
+              }}
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-semibold rounded-full uppercase tracking-wider transition-all duration-200 ${
+                activeTab === "recent"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-350"
+              }`}
+            >
+              Recently Opened
+            </button>
           </div>
 
           {/* Search bar */}
@@ -153,7 +360,9 @@ export function ScreenAssignmentPicker({
               placeholder={
                 activeTab === "experiences"
                   ? "Search experiences..."
-                  : "Search files..."
+                  : activeTab === "recent"
+                    ? "Search recently opened..."
+                    : "Search files..."
               }
               className="w-full h-9 pl-9 pr-4 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-transparent focus:bg-white dark:focus:bg-zinc-905 focus:border-zinc-300 dark:focus:border-zinc-750 transition-all text-xs outline-none text-zinc-800 dark:text-zinc-200"
             />
@@ -178,8 +387,8 @@ export function ScreenAssignmentPicker({
                       className={`relative flex flex-col items-start justify-end rounded-2xl border p-4 h-24 transition-all duration-200 text-left overflow-hidden group
                         ${
                           isActive
-                            ? "border-zinc-900 dark:border-zinc-300 bg-zinc-100 dark:bg-zinc-800/80 shadow-md"
-                            : "border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
+                            ? "border-[#432992] bg-zinc-100 dark:bg-zinc-800/80 shadow-md"
+                            : "border-[#432992] bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50"
                         }`}
                     >
                       <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 transition-colors group-hover:text-zinc-500">
@@ -198,7 +407,7 @@ export function ScreenAssignmentPicker({
                 })
               )}
             </div>
-          ) : (
+          ) : activeTab === "files" ? (
             /* Media Files Tab */
             <div className="w-full">
               {loadingMedia ? (
@@ -216,89 +425,57 @@ export function ScreenAssignmentPicker({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {filteredMedia.map((media) => {
-                    const isActive = currentContentLabel === media.name;
-                    const isDefault = currentDefaultMediaAssetId === media.id;
-                    return (
-                      <button
-                        key={media.id}
-                        onClick={() => handleSelectMedia(media)}
-                        className={`relative flex flex-col bg-zinc-50 dark:bg-[#111] rounded-2xl border transition-all duration-300 overflow-hidden text-left group
-                          ${
-                            isActive
-                              ? "border-zinc-900 dark:border-zinc-300 bg-zinc-100 dark:bg-zinc-900 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10 shadow-lg"
-                              : "border-zinc-200 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/25 hover:shadow-md"
-                          }`}
-                      >
-                        {/* Thumbnail preview */}
-                        <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-zinc-200/50 dark:border-white/5">
-                          {media.type === "video" ? (
-                            <video
-                              src={media.url}
-                              className="w-full h-full object-cover"
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <img
-                              src={media.url}
-                              alt={media.name}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              loading="lazy"
-                            />
-                          )}
-                          {/* Badge tag */}
-                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
-                            {media.type === "video" ? (
-                              <Video className="w-2.5 h-2.5" />
-                            ) : (
-                              <ImageIcon className="w-2.5 h-2.5" />
-                            )}
-                            {media.type}
-                          </div>
-                          {/* Set-as-default toggle */}
-                          {onSetDefault && (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSetDefault({ id: media.id, name: media.name });
-                              }}
-                              title={isDefault ? "Default for this screen" : "Set as default"}
-                              className={`absolute top-2 left-2 p-1 rounded-full backdrop-blur-sm transition-colors ${
-                                isDefault
-                                  ? "bg-amber-400 text-amber-950"
-                                  : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
-                              }`}
-                            >
-                              <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Title and metadata */}
-                        <div className="p-3 w-full flex flex-col gap-0.5">
-                          <h4
-                            className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full"
-                            title={media.name}
-                          >
-                            {media.name}
-                          </h4>
-                          <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
-                            <span>{media.size}</span>
-                            <span>{media.date}</span>
-                          </div>
-                        </div>
-
-                        {isActive && (
-                          <div className="absolute top-2.5 right-2.5 p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md">
-                            <Check className="h-2.5 w-2.5 shrink-0" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {filteredMedia.map((media) => (
+                    <MediaCard
+                      key={media.id}
+                      media={media}
+                      isActive={currentContentLabel === media.name}
+                      isDefault={currentDefaultMediaAssetId === media.id}
+                      onSelect={() => handleSelectMedia(media)}
+                      onSetDefault={onSetDefault}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Recently Opened Tab — up to 5 pieces of content (media or
+               experience) most recently pushed to this screen (server-capped) */
+            <div className="w-full">
+              {loadingRecentItems ? (
+                <div className="flex flex-col items-center justify-center py-20 text-zinc-400 gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+                  <p className="text-xs">Loading recently opened...</p>
+                </div>
+              ) : filteredRecentItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+                  <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                    {searchQuery
+                      ? `No recently opened content matches "${searchQuery}"`
+                      : "Nothing has been pushed to this screen yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {filteredRecentItems.map((item) =>
+                    item.kind === "experience" ? (
+                      <ExperienceRecentCard
+                        key={`experience:${item.id}`}
+                        item={item}
+                        isActive={currentContentLabel === item.name}
+                        onSelect={() => handleSelectRecent(item)}
+                      />
+                    ) : (
+                      <MediaCard
+                        key={`media:${item.id}`}
+                        media={{ id: item.id, name: item.name, type: item.type, url: item.url ?? "", size: item.size, date: item.date }}
+                        isActive={currentContentLabel === item.name}
+                        isDefault={currentDefaultMediaAssetId === item.id}
+                        onSelect={() => handleSelectRecent(item)}
+                        onSetDefault={onSetDefault}
+                      />
+                    )
+                  )}
                 </div>
               )}
             </div>

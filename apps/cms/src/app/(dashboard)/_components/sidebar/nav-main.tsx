@@ -9,6 +9,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
     SidebarGroup,
+    SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
@@ -16,6 +17,7 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from "@platform/ui"
+import { panelBorderStyle, ACTIVE_NAV_BACKGROUND } from "@/app/(dashboard)/_components/dashboard/liquid-glass"
 
 export function NavMain({
     items,
@@ -35,7 +37,7 @@ export function NavMain({
 
     return (
         <SidebarGroup>
-            {/* <SidebarGroupLabel>Platform</SidebarGroupLabel> */}
+            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => {
                     const isItemActive = item.url === "/" ? pathname === "/" : pathname?.startsWith(item.url)
@@ -50,9 +52,14 @@ export function NavMain({
                             >
                                 <SidebarMenuItem>
                                     <CollapsibleTrigger asChild>
-                                        <SidebarMenuButton tooltip={item.title} isActive={isItemActive}>
-                                            {item.icon && <item.icon />}
-                                            <span className="text-base">{item.title}</span>
+                                        <SidebarMenuButton
+                                            tooltip={item.title}
+                                            isActive={isItemActive}
+                                            className={isItemActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
+                                            style={isItemActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                                        >
+                                            {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
+                                            <span className="text-base ml-2.5">{item.title}</span>
                                             <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
@@ -77,12 +84,20 @@ export function NavMain({
                         )
                     }
 
+                    const isThisActive = isItemActive || item.isActive
+
                     return (
                         <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild tooltip={item.title} isActive={isItemActive || item.isActive}>
+                            <SidebarMenuButton
+                                asChild
+                                tooltip={item.title}
+                                isActive={isThisActive}
+                                className={isThisActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
+                                style={isThisActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                            >
                                 <Link href={item.url}>
-                                    {item.icon && <item.icon />}
-                                    <span className="text-base">{item.title}</span>
+                                    {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
+                                    <span className="text-base ml-1">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

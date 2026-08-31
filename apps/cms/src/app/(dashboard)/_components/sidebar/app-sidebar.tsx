@@ -7,20 +7,21 @@ import { NavUser } from "./nav-user";
 import {
   LayoutDashboard,
   Monitor,
-  SquareTerminal,
-  Users,
   Film,
-  Mail,
   Cpu,
-  Package,
   ScanFace,
   PenTool,
   Settings2,
+  Send,
+  // SquareTerminal,
+  // Globe,
 } from "lucide-react";
+import Image from "next/image";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarHeader,
   SidebarRail,
   SidebarGroup,
   SidebarMenu,
@@ -38,34 +39,23 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
-    title: "Experiences",
-    url: "/experiences",
-    icon: SquareTerminal,
-    roles: ["ADMIN"] as string[],
+    title: "Broadcast",
+    url: "/broadcast",
+    icon: Send,
+    roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
   // {
-  //   title: "Experience 2",
-  //   url: "/experiences2",
-  //   icon: Sparkles,
-  //   roles: ["ADMIN"] as string[]
-  // },
-  {
-    title: "Products",
-    url: "/products",
-    icon: Package,
-    roles: ["ADMIN"] as string[],
-  },
-  // {
-  //   title: "Environment 4",
-  //   url: "/environment4",
-  //   icon: Cpu,
+  //   title: "Experiences",
+  //   url: "/experiences",
+  //   icon: SquareTerminal,
   //   roles: ["ADMIN"] as string[],
+  //   guestModeVisible: true,
   // },
   // {
-  //   title: "Environment 6",
-  //   url: "/environment6",
-  //   icon: Cpu,
+  //   title: "Products",
+  //   url: "/products",
+  //   icon: Package,
   //   roles: ["ADMIN"] as string[],
   // },
   {
@@ -82,18 +72,25 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
+  // {
+  //   title: "Browser",
+  //   url: "/browser",
+  //   icon: Globe,
+  //   roles: ["ADMIN", "GUEST"] as string[],
+  //   guestModeVisible: true,
+  // },
   {
     title: "Whiteboards",
     url: "/whiteboards",
     icon: PenTool,
     roles: ["ADMIN", "GUEST"] as string[],
   },
-  {
-    title: "Users",
-    url: "/users",
-    icon: Users,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Users",
+  //   url: "/users",
+  //   icon: Users,
+  //   roles: ["ADMIN"] as string[],
+  // },
   {
     title: "Visitors",
     url: "/visitors",
@@ -106,12 +103,6 @@ const ALL_NAV = [
     icon: Film,
     roles: ["ADMIN"] as string[],
     guestModeVisible: true,
-  },
-  {
-    title: "Email Media",
-    url: "/media/email",
-    icon: Mail,
-    roles: ["ADMIN"] as string[],
   },
   {
     title: "Settings",
@@ -155,6 +146,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className="h-20 items-center justify-center px-4 py-3 group-data-[collapsible=icon]:hidden">
+        <div className="relative aspect-[2386/859] w-35">
+          <Image src="/Logo.png" alt="Logo" fill className="object-contain" priority sizes="140px" />
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         {isPending ? (
           <SidebarGroup>

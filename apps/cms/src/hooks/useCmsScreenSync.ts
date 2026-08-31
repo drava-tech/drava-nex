@@ -23,6 +23,7 @@ export interface DoorEventMessage {
 interface UseCmsScreenSyncOptions {
   onScreenUpdated?: (screenId: string, content: WsContent) => void;
   onActiveScreensUpdated?: (activeScreenIds: string[]) => void;
+  onMediaLibraryUpdated?: () => void;
   onCameraStatusUpdated?: (status: CameraStatusUpdate) => void;
   onVisitorDetected?: (visitor: VisitorDetectedEvent) => void;
   onDoorEvent?: (event: DoorEventMessage) => void;
@@ -32,6 +33,7 @@ interface UseCmsScreenSyncOptions {
 export function useCmsScreenSync({
   onScreenUpdated,
   onActiveScreensUpdated,
+  onMediaLibraryUpdated,
   onCameraStatusUpdated,
   onVisitorDetected,
   onDoorEvent,
@@ -45,6 +47,8 @@ export function useCmsScreenSync({
   
   const onActiveScreensUpdatedRef = useRef(onActiveScreensUpdated);
   onActiveScreensUpdatedRef.current = onActiveScreensUpdated;
+  const onMediaLibraryUpdatedRef = useRef(onMediaLibraryUpdated);
+  onMediaLibraryUpdatedRef.current = onMediaLibraryUpdated;
   const onCameraStatusUpdatedRef = useRef(onCameraStatusUpdated);
   onCameraStatusUpdatedRef.current = onCameraStatusUpdated;
   const onVisitorDetectedRef = useRef(onVisitorDetected);
@@ -78,6 +82,8 @@ export function useCmsScreenSync({
         onScreenUpdatedRef.current?.(msg.screenId, msg.content);
       } else if (msg.type === "ACTIVE_SCREENS_LIST") {
         onActiveScreensUpdatedRef.current?.(msg.activeScreenIds);
+      } else if (msg.type === "MEDIA_LIBRARY_UPDATED") {
+        onMediaLibraryUpdatedRef.current?.();
       } else if (msg.type === "CAMERA_STATUS_UPDATE") {
         onCameraStatusUpdatedRef.current?.(msg);
       } else if (msg.type === "VISITOR_DETECTED") {

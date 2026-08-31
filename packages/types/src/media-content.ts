@@ -60,6 +60,9 @@ export const SLIDES_VIEWER_PATH = "/display/slides";
 /** Path of the CMS-hosted Word-document viewer (see apps/cms/src/app/display/word). */
 export const WORD_VIEWER_PATH = "/display/word";
 
+/** Path of the CMS-hosted PDF viewer (see apps/cms/src/app/display/pdf). */
+export const PDF_VIEWER_PATH = "/display/pdf";
+
 function safeUrl(raw: string): URL | null {
   try {
     return new URL(raw.trim());
@@ -310,10 +313,14 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
 
   switch (type) {
     case "document":
-      // Browsers render PDFs natively in an iframe. These are PDF Open
-      // Parameters — on a screen we hide the toolbar so it reads as content,
-      // not as a document someone left open.
-      return kiosk ? `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH` : `${url}#view=FitH`;
+      // Our own PDF.js viewer rather than the browser's built-in one. That
+      // one is a privileged extension desktop Chrome ships but embedded
+      // signage engines often omit; it refuses to run sandboxed; and it
+      // exposes no readable page/zoom state, so it can neither be driven
+      // remotely (a screen with no native agent has no other way to zoom)
+      // nor resumed where it was left. Same reasoning as sheet/slides/word
+      // below — no kiosk variant, since the viewer owns its own chrome.
+      return `${PDF_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 
     case "sheet":
       // Rendered by our own client-side viewer rather than a hosted Office/
@@ -323,9 +330,9 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
 
     case "presentation":
       // Same reasoning as "sheet" above — our own client-side renderer rather
-      // than a hosted Office viewer. On a screen there's nobody to click
-      // through the deck, so kiosk mode hides the controls and auto-advances.
-      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}${kiosk ? "&kiosk=1" : ""}`;
+      // than a hosted Office viewer. Navigation is always manual (prev/next
+      // overlay + arrow keys), so there's no kiosk variant to opt into here.
+      return `${SLIDES_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 
     case "word":
       // Same reasoning again — converted to HTML in-browser (mammoth) rather
@@ -338,14 +345,24 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
       if (!id) return url;
       const params = new URLSearchParams({ rel: "0", modestbranding: "1", playsinline: "1" });
       if (kiosk) {
-        // Autoplay may be blocked by browsers unless launched with specific flags
-        // (e.g., --autoplay-policy=no-user-gesture-required).
-        // ponytail: assuming kiosk environment allows unmuted autoplay.
+        // Unlike a same-origin <video>, YouTube's player negotiates autoplay
+        // itself — it doesn't just inherit the host browser's
+        // --autoplay-policy flag the way a plain <video> does. Requesting
+        // unmuted autoplay left it to attempt-then-silently-recover on its
+        // own, which is what produced the startup stutter (a chunk of audio
+        // dropped right as it corrected itself). Starting muted like every
+        // other provider here is deterministic; HtmlRenderer then calls the
+        // IFrame Player API's unMute() once the player reports ready, which
+        // is one clean call instead of that internal retry.
         // `loop` additionally requires `playlist` to be the same id.
         params.set("autoplay", "1");
+        params.set("mute", "1");
         params.set("controls", "0");
         params.set("loop", "1");
         params.set("playlist", id);
+        // Lets HtmlRenderer drive the player via postMessage (unMute(),
+        // setPlaybackQuality()) once it's ready.
+        params.set("enablejsapi", "1");
       }
       return `https://www.youtube.com/embed/${id}?${params.toString()}`;
     }

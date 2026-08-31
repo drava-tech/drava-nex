@@ -74,6 +74,36 @@ export async function getActiveScreens(): Promise<string[]> {
   return [];
 }
 
+/** screenId -> whiteboard_document id, for every screen a saved whiteboard is
+ * currently being live-pushed to — lets the /screens list's "Control" button
+ * redirect straight into that same live session (/whiteboards/<id>/live/<screenId>)
+ * instead of the generic per-screen control page. */
+export async function getActiveWhiteboardSessions(): Promise<Record<string, string>> {
+  await requireGuestOrAdmin();
+  const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
+
+  try {
+    const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      return data.activeWhiteboards ?? {};
+    }
+  } catch (err) {
+    console.error("[remote] getActiveWhiteboardSessions failed", err);
+  }
+  return {};
+}
+
+/** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen. */
+export async function setScreenWhiteboardSession(screenId: string, documentId: string | null): Promise<void> {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/whiteboard-session`, {
+    method: "POST",
+    body: JSON.stringify({ documentId }),
+  });
+  if (!res.ok) console.error("[remote] setScreenWhiteboardSession failed", res.error);
+}
+
 /**
  * Assign a media-library asset to a screen (points the screen straight at the
  * asset), or clear the current assignment with null so it falls back to the
@@ -88,6 +118,41 @@ export async function assignMedia(screenId: string, mediaAssetId: string | null)
   if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
+}
+
+/**
+ * Push an ordered list of media assets to a screen as a queue — the screen's
+ * current item becomes the one at startIndex (default 0). The full list is
+ * recorded server-side so advanceScreenQueue (Next/Prev) can step through it
+ * later, surviving CMS reloads and staying in sync across multiple open
+ * control panels.
+ */
+export async function assignMediaQueue(screenId: string, mediaAssetIds: string[], startIndex = 0) {
+  await requireGuestOrAdmin();
+  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media-queue`, {
+    method: "POST",
+    body: JSON.stringify({ mediaAssetIds, startIndex }),
+  });
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+}
+
+/**
+ * Step a screen's active queue forward/back one item. Returns the new 0-based
+ * index — the DB stays authoritative; this is only handed back to the caller
+ * (LiveControlDialog) to update its local "N of M" display.
+ */
+export async function advanceScreenQueue(screenId: string, direction: "next" | "prev"): Promise<number> {
+  await requireGuestOrAdmin();
+  const res = await apiFetch<{ queueIndex: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/queue/navigate`,
+    { method: "POST", body: JSON.stringify({ direction }) }
+  );
+  if (!res.ok) throw new Error(res.error.message);
+  revalidatePath("/screens");
+  revalidatePath("/");
+  return res.data.queueIndex;
 }
 
 /** Set (or clear with null) a screen's default/fallback video, shown when nothing else is assigned. */
@@ -114,17 +179,6 @@ export async function setScreenBlanked(screenId: string, blanked: boolean) {
   revalidatePath("/");
 }
 
-/** Enable/disable interactivity (click/scroll/type) everywhere this screen is rendered. */
-export async function setScreenInteractionEnabled(screenId: string, enabled: boolean) {
-  await requireGuestOrAdmin();
-  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/interaction`, {
-    method: "POST",
-    body: JSON.stringify({ enabled }),
-  });
-  if (!res.ok) throw new Error(res.error.message);
-  revalidatePath("/screens");
-  revalidatePath("/");
-}
 
 export async function resetDetection(screenId: string) {
   await requireAdmin();

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PortfolioApp } from "./portfolio-app";
+import { useReplayableWindowEvent } from "../../lib/replayable-window-event";
 import type { PortfolioContent, PortfolioViewState } from "./content";
 
 /**
@@ -36,26 +37,21 @@ export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
     );
   };
 
-  useEffect(() => {
-    const onSetView = (e: Event) => {
-      const detail = (e as CustomEvent<{
-        cardIndex?: number | null;
-        sectionIndex?: number | null;
-        projectIndex?: number | null;
-        splitView?: boolean;
-        cameFromSplit?: boolean;
-      }>).detail;
-      setView({
-        cardIndex: detail?.cardIndex ?? null,
-        sectionIndex: detail?.sectionIndex ?? null,
-        projectIndex: detail?.projectIndex ?? null,
-        splitView: detail?.splitView,
-        cameFromSplit: detail?.cameFromSplit,
-      });
-    };
-    window.addEventListener("portfolio-set-view", onSetView);
-    return () => window.removeEventListener("portfolio-set-view", onSetView);
-  }, []);
+  useReplayableWindowEvent<{
+    cardIndex?: number | null;
+    sectionIndex?: number | null;
+    projectIndex?: number | null;
+    splitView?: boolean;
+    cameFromSplit?: boolean;
+  }>("portfolio-set-view", (detail) => {
+    setView({
+      cardIndex: detail?.cardIndex ?? null,
+      sectionIndex: detail?.sectionIndex ?? null,
+      projectIndex: detail?.projectIndex ?? null,
+      splitView: detail?.splitView,
+      cameFromSplit: detail?.cameFromSplit,
+    });
+  });
 
   return <PortfolioApp content={content} view={view} onNavigate={navigate} />;
 }
