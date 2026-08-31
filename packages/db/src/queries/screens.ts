@@ -6,6 +6,7 @@ import { screen } from "../schema/screens.js";
 import { experience } from "../schema/projects.js";
 import { mediaAsset } from "../schema/media.js";
 import { getPortfolioTree } from "./portfolio.js";
+import { recordScreenMediaPush, recordScreenExperiencePush } from "./screen-content-history.js";
 
 /**
  * Screen ↔ content data access. This is the single source of truth for
@@ -259,6 +260,9 @@ export async function setScreenExperience(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-null isn't a "push" — nothing to log.
+  if (experienceId) await recordScreenExperiencePush(screenId, experienceId);
 }
 
 /** Assign a media asset (or clear with null). Clears any experience assignment. */
@@ -278,6 +282,9 @@ export async function setScreenMedia(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  // A clear-to-default (null) isn't a "push" — nothing to log.
+  if (mediaAssetId) await recordScreenMediaPush(screenId, mediaAssetId);
 }
 
 /**
@@ -308,6 +315,8 @@ export async function setScreenMediaQueue(
       updatedAt: new Date(),
     })
     .where(eq(screen.screenId, screenId));
+
+  await Promise.all(mediaAssetIds.map((id) => recordScreenMediaPush(screenId, id)));
 }
 
 /**
@@ -412,6 +421,57 @@ export async function getScreenBlanked(screenId: string): Promise<boolean> {
  * Used to decide whether an unlock event should take over the screen (only
  * when idle) without interrupting real assigned content.
  */
+/**
+ * Clear every screen's live state back to idle — assigned content, the
+ * blanked (black-screen) overlay, and any whiteboard overlay. Run once at API
+ * boot (see apps/api/src/index.ts) so a server restart doesn't resume
+ * whatever was last assigned; every in-memory cache in the WS gateway
+ * (screenRegistry, contentCache, whiteboardStateCache, screenTakeover) starts
+ * empty on a fresh process anyway, so the DB row is the only thing that would
+ * otherwise keep old content alive across a restart. Does not touch
+ * defaultMediaAssetId — that's the configured idle fallback itself.
+ */
+export async function resetAllScreensToIdle(): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(isNull(screen.deletedAt));
+}
+
+/**
+ * Same as resetAllScreensToIdle but scoped to one screen — see there for the
+ * full column-set rationale. Used by the WS gateway's REGISTER handler when
+ * a screen's own kiosk process just (re)started (see freshLaunch on
+ * WsClientMessage), so a stale in-memory contentCache entry plus a DB row
+ * that still points at old content doesn't get replayed to it.
+ */
+export async function resetScreenToIdle(screenId: string): Promise<void> {
+  await db
+    .update(screen)
+    .set({
+      currentContentKind: null,
+      currentExperienceId: null,
+      currentMediaAssetId: null,
+      currentQueueMediaIds: null,
+      currentQueueIndex: null,
+      blanked: false,
+      whiteboardActive: false,
+      whiteboardState: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(screen.screenId, screenId));
+}
+
 export async function isScreenIdle(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({

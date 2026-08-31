@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power } from "lucide-react";
+import Link from "next/link";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
+import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
@@ -11,36 +13,27 @@ import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-tou
 import { ScreenAssignmentPicker } from "@/app/(dashboard)/screens/_components/screens-assignment-picker";
 import type { WsContent } from "@platform/types";
 
+/** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
+const VOLUME_STEP = 5;
+
 interface LiveScreenSurfaceProps {
   screenId: string;
   screenName: string;
   initialBlanked?: boolean;
-  /** When the screen's current content is a page/embed (link, YouTube, Drive,
-   * PDF, sheet, deck...), shows the blank OS-cursor touchpad instead of
-   * tap-on-mirror — see LiveControlDialog and ScreenTouchpad. */
   initialShowTouchpad?: boolean;
-  /** Present only for a queue push (Media multi-select) — renders the
-   * "Item N of M" nav pill and enables Next/Prev. */
   queueMediaIds?: string[];
   initialQueueIndex?: number;
-  /** Present only when this screen should offer a "Change content" picker —
-   * /screens/:screenId has one, /media/live/:deviceId intentionally doesn't
-   * (reassigning away would orphan the queue that page exists to show). */
   changeContent?: {
     experiences: { id: string; title: string; coverImage?: string | null }[];
     defaultMediaAssetId?: string | null;
     defaultMediaName?: string | null;
-  };
+  }
+  /** Whatever's actually live on the screen right now, so re-picking the same
+   * content can be skipped as a no-op — see handleAssign. */
+  initialContent?: { id: string; type: string } | null;
+  backHref?: string;
 }
 
-/**
- * Full-page interactive control for one screen — shared by /screens/:screenId
- * and /media/live/:deviceId, which were previously two byte-identical copies
- * of this exact JSX (ScreenControlView and MediaLiveView). The big surface is
- * the live screen player (touch to explore, or the OS-cursor touchpad for
- * page content); interactions relay to every client of the screen so the TV
- * stays in sync.
- */
 export function LiveScreenSurface({
   screenId,
   screenName,
@@ -49,15 +42,19 @@ export function LiveScreenSurface({
   queueMediaIds,
   initialQueueIndex = 0,
   changeContent,
+  initialContent = null,
+  backHref,
 }: LiveScreenSurfaceProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
   const [maximizing, setMaximizing] = useState(false);
   const [closingApp, setClosingApp] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: changeContent?.defaultMediaAssetId ?? null,
     name: changeContent?.defaultMediaName ?? null,
   });
+  const [currentContent, setCurrentContent] = useState(initialContent);
 
   const {
     online,
@@ -79,21 +76,44 @@ export function LiveScreenSurface({
     initialShowTouchpad,
     queueMediaIds,
     initialQueueIndex,
+    // Keep the no-op check in handleAssign honest: without this, currentContent
+    // only ever reflects pushes made from THIS panel, so a reset-to-idle, a
+    // queue step, or another admin tab would leave it pointing at content
+    // that is no longer live — and re-picking that content would be
+    // misread as a redundant push and silently dropped.
+    onContentUpdated: setCurrentContent,
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
 
+  // Same office-wide system audio endpoint as the touchpad's volume row and
+  // the Environment Control Audio tile — one physical PC's speakers,
+  // independent of whatever content is assigned, so it's always visible here
+  // regardless of what's live.
+  const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
+
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
-    if (content.type === "video" || content.type === "image") {
-      await assignMedia(screenId, content.id);
-    } else {
+    // Re-picking whatever's already live is a no-op on the real screen (its
+    // player dedupes by content key), so skip the round trip entirely and
+    // leave the screen exactly where it is rather than re-pushing it back to
+    // its own remembered position. Reliable only because onContentUpdated
+    // above keeps currentContent tracking the real live content.
+    if (currentContent?.id === content.id && currentContent?.type === content.type) return;
+    setCurrentContent({ id: content.id, type: content.type });
+    // "experience" is the one type the picker's Experiences tab ever sends;
+    // every other type (video/image from Files, or any other media kind —
+    // document/presentation/sheet/word/youtube/drive/link — surfaced by
+    // Recently Opened) is a media asset id, so treat "experience" as the
+    // special case rather than allowlisting just video/image, which used to
+    // be the only two kinds this picker could ever produce.
+    if (content.type === "experience") {
       await assignExperience(screenId, content.id);
+    } else {
+      await assignMedia(screenId, content.id);
     }
   };
 
-  // Only take effect on the physical TV — a no-op there if it's a regular
-  // browser tab rather than the LobbyKiosk WebView2 host (see LiveScreenPlayer).
   const handleMinimize = async () => {
     setMinimizing(true);
     try {
@@ -103,9 +123,6 @@ export function LiveScreenSurface({
     }
   };
 
-  // Brings the kiosk app back to fullscreen after a remote Minimize (or if
-  // someone minimized it by hand on the TV's PC) — a no-op there if it's a
-  // regular browser tab rather than the LobbyKiosk WebView2 host.
   const handleMaximize = async () => {
     setMaximizing(true);
     try {
@@ -115,8 +132,15 @@ export function LiveScreenSurface({
     }
   };
 
-  // Exits the kiosk app entirely — it won't come back until someone relaunches
-  // it or the TV's PC reboots/logs in again (Startup shortcut), so confirm first.
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      await sendRemoteCommand(screenId, "RELOAD");
+    } finally {
+      setReloading(false);
+    }
+  };
+
   const handleCloseApp = async () => {
     if (!window.confirm(`Close the kiosk app on "${screenName}"? It won't reopen until the TV is relaunched or rebooted.`)) {
       return;
@@ -140,17 +164,19 @@ export function LiveScreenSurface({
   };
 
   return (
-    // h-full, not flex-1 — the parent scroll region (dashboard-layout-client's
-    // overflow-y-auto div) is a plain block container, not a flex container,
-    // so flex-1 here has nothing to grow against and this would otherwise
-    // shrink to its content height. The screen mirror below masks that (it
-    // sizes itself from aspect-[16/9], independent of ancestor height), but
-    // the touchpad has no aspect ratio and needs a real height chain to fill
-    // the screen instead of collapsing to just its own button bar.
     <div className="flex h-full min-h-0 flex-col p-4 gap-4 bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Action bar */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
+          {backHref && (
+            <Link
+              href={backHref}
+              aria-label="Back"
+              className="flex items-center justify-center rounded-xl p-2 text-zinc-500 transition-colors hover:bg-zinc-500/10 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
           <span
             className={`flex items-center gap-1.5 px-1 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${online
               ? "bg-green-500/10 text-green-600 dark:text-green-400"
@@ -195,11 +221,6 @@ export function LiveScreenSurface({
               </button>
             </div>
           )}
-
-          {/* <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-            {showTouchpad ? "· drag the pad below to drive the cursor on the TV" : "· touch to explore — mirrored on the TV in realtime"}
-          </span> */}
-          {/* // for testing */}
         </div>
         <div className="flex items-center gap-2">
           {SCREEN_TO_CAMERA[screenId] && (
@@ -232,6 +253,14 @@ export function LiveScreenSurface({
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
           </button>
           <button
+            onClick={handleReload}
+            disabled={reloading}
+            title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Refresh"}
+          </button>
+          <button
             onClick={handleMinimize}
             disabled={minimizing}
             title="Minimize the kiosk app on the TV's PC, revealing its desktop"
@@ -255,6 +284,43 @@ export function LiveScreenSurface({
           >
             <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
           </button>
+
+          {/* Volume cluster — always rendered, independent of what content is
+              live (video, image, experience, or the touchpad), since it
+              drives the PC's system audio rather than any one piece of
+              content. */}
+          <div className="flex items-center gap-0.5 rounded-xl bg-zinc-500/10 px-1 py-1">
+            <button
+              onClick={() => adjustVolume(-VOLUME_STEP)}
+              title="Decrease volume"
+              aria-label="Decrease volume"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={toggleMute}
+              title={muted ? "Unmute" : "Mute"}
+              aria-label={muted ? "Unmute" : "Mute"}
+              aria-pressed={muted}
+              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${muted
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-zinc-500 hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+                }`}
+            >
+              {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              {muted ? "Muted" : `${volume}%`}
+            </button>
+            <button
+              onClick={() => adjustVolume(VOLUME_STEP)}
+              title="Increase volume"
+              aria-label="Increase volume"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           {changeContent && (
             <button
               onClick={() => setShowPicker(true)}
@@ -286,6 +352,7 @@ export function LiveScreenSurface({
 
       {changeContent && showPicker && (
         <ScreenAssignmentPicker
+          screenId={screenId}
           screenName={screenName}
           experiences={changeContent.experiences}
           currentDefaultMediaAssetId={currentDefault.id}

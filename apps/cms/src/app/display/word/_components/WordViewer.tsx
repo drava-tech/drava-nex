@@ -2,18 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-
-/** Only same-origin/relative sources are loadable — anything else fails CORS anyway. */
-function resolveSource(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
+import { Centered, resolveSource } from "../../_components/viewer-common";
 
 export function WordViewer() {
   const params = useSearchParams();
@@ -102,14 +91,6 @@ export function WordViewer() {
         }
         .word-doc th { font-weight: 600; background: rgba(255, 255, 255, 0.05); }
       `}</style>
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[#0a0a0a] p-8 text-center">
-      <p className={`text-lg ${tone === "error" ? "text-red-400" : "text-zinc-400"}`}>{children}</p>
     </div>
   );
 }

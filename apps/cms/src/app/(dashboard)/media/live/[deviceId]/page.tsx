@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getScreenLiveRow, getScreenContent } from "@platform/db";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
+import { getExperiences } from "@/actions/project-actions";
 import { LiveScreenSurface } from "@/components/live-screen-surface";
 
 interface PageProps {
@@ -22,7 +23,7 @@ export default async function MediaLivePage({ params }: PageProps) {
   const row = await getScreenLiveRow(deviceId);
   if (!row) notFound();
 
-  const content = await getScreenContent(deviceId);
+  const [experiences, content] = await Promise.all([getExperiences(), getScreenContent(deviceId)]);
 
   return (
     <LiveScreenSurface
@@ -32,6 +33,11 @@ export default async function MediaLivePage({ params }: PageProps) {
       initialShowTouchpad={content?.type === "html"}
       queueMediaIds={row.currentQueueMediaIds ?? undefined}
       initialQueueIndex={row.currentQueueIndex ?? undefined}
+      changeContent={{
+        experiences,
+        defaultMediaAssetId: row.defaultMediaAssetId,
+        defaultMediaName: row.defaultMediaName,
+      }}
     />
   );
 }

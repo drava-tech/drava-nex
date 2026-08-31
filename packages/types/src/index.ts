@@ -235,16 +235,20 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll';
+      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
       dx?: number;
       dy?: number;
       deltaY?: number;
+      /** Horizontal scroll delta, for action 'scrollH'. */
+      deltaX?: number;
+      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
+      direction?: 'in' | 'out';
       /** Which physical button a 'click' simulates — omitted means 'left'. */
       button?: 'left' | 'right';
     };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string; preview?: boolean }
+  | { type: 'REGISTER'; screenId: string; preview?: boolean; freshLaunch?: boolean }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)
@@ -285,10 +289,14 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll';
+      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
       dx?: number;
       dy?: number;
       deltaY?: number;
+      /** Horizontal scroll delta, for action 'scrollH'. */
+      deltaX?: number;
+      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
+      direction?: 'in' | 'out';
       button?: 'left' | 'right';
     };
 

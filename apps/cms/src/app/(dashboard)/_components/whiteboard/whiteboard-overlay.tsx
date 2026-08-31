@@ -158,6 +158,14 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
   const [pushTarget, setPushTarget] = useState<{ screenId: string; screenName: string; isOnline: boolean } | null>(
     null
   );
+  // Mirrors pushTarget for the mount-once onDocumentClick listener below,
+  // which — like dirtyRef above — needs the current value without pushTarget
+  // in its effect deps (that would tear down and reattach the listener on
+  // every push/stop instead of once).
+  const pushTargetRef = useRef(pushTarget);
+  useEffect(() => {
+    pushTargetRef.current = pushTarget;
+  }, [pushTarget]);
   const sendRef = useRef<(command: string, value?: unknown) => void>(() => {});
   const senderIdRef = useRef(createWhiteboardSenderId());
 
@@ -539,12 +547,27 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
   // (new tab, etc.) and clicks outside any link pass through untouched.
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
-      if (!dirtyRef.current) return;
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const anchor = (e.target as HTMLElement | null)?.closest("a[href]") as HTMLAnchorElement | null;
       if (!anchor || (anchor.target && anchor.target !== "_self")) return;
       const href = anchor.getAttribute("href");
       if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+      if (!dirtyRef.current) {
+        // No unsaved strokes to confirm, but a still-live push must not be
+        // abandoned here — without this, the screen keeps its "active
+        // whiteboard" flag (getActiveWhiteboardDocuments) with nobody driving
+        // it, and the /screens list's "Control" button keeps redirecting back
+        // into this now-dead session instead of the screen's actual content.
+        const target = pushTargetRef.current;
+        if (target) {
+          send(WHITEBOARD_STOP);
+          setScreenWhiteboardSession(target.screenId, null).catch((err) =>
+            console.error("Failed to clear live whiteboard session:", err)
+          );
+          setPushTarget(null);
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       setPendingNavHref(href);

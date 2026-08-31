@@ -40,6 +40,7 @@ import {
   cn,
 } from "@platform/ui";
 import { isLinkMediaType, parseYouTubeId } from "@platform/types";
+import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
 
@@ -542,37 +543,15 @@ export default function MediaPage() {
                 <ChevronDown className={`h-3.5 w-3.5 ${dateFrom || dateTo ? "text-white" : "text-zinc-400"}`} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64 p-3">
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">From</label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    max={dateTo || undefined}
-                    className="h-9 px-2 rounded-lg border border-[#432992] bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">To</label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    min={dateFrom || undefined}
-                    className="h-9 px-2 rounded-lg border border-[#432992] bg-white dark:bg-[#111] text-sm outline-none focus:border-blue-500 dark:text-white"
-                  />
-                </div>
-                {(dateFrom || dateTo) && (
-                  <button
-                    onClick={() => { setDateFrom(""); setDateTo(""); }}
-                    className="self-start text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:underline"
-                  >
-                    Clear dates
-                  </button>
-                )}
-              </div>
+            <DropdownMenuContent align="start" className="p-3">
+              <DateRangeCalendar
+                from={dateFrom}
+                to={dateTo}
+                onChange={(from, to) => {
+                  setDateFrom(from);
+                  setDateTo(to);
+                }}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

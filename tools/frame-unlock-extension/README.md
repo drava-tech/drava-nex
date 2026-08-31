@@ -18,6 +18,15 @@ load on the server.
 
 ## Install (per machine)
 
+On the signage kiosk (`tools/main-screen-kiosk`), this is now **installed
+automatically** at startup — `MainWindow.xaml.cs` loads this folder straight
+into its own WebView2 profile, no manual step needed there. See
+[`../main-screen-kiosk/README.md`](../main-screen-kiosk/README.md#frame-unlock-extension).
+
+The manual steps below are still how you'd install this into a regular
+desktop Chrome/Edge tab — e.g. to test the CMS Browser page or the Media
+Library preview modal from your own machine before pushing to a screen.
+
 1. Open `chrome://extensions`
 2. Turn on **Developer mode** (top right)
 3. Click **Load unpacked**

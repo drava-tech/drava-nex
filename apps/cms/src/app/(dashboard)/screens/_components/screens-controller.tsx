@@ -204,6 +204,7 @@ export function ScreensController({
     <>
       {pickerTarget && (
         <ScreenAssignmentPicker
+          screenId={pickerTarget.id}
           screenName={pickerTarget.name}
           currentContentLabel={pickerTarget.contentLabel}
           experiences={experiences}
@@ -224,7 +225,7 @@ export function ScreensController({
           {/* Drag & Publish + Add screen row */}
           <div className="flex items-center justify-end gap-2 mb-6">
             <button
-              onClick={() => router.push("/push")}
+              onClick={() => router.push("/broadcast")}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 text-xs font-bold tracking-wider uppercase transition-colors"
             >
               <Send className="h-3.5 w-3.5" />
@@ -314,7 +315,10 @@ export function ScreensController({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer gap-2 py-1 text-destructive focus:text-destructive"
-                              onSelect={() => removeScreen(screen.id).then(() => router.refresh())}
+                              onSelect={() => {
+                                if (!confirm(`Remove "${screen.name}"? This cannot be undone.`)) return;
+                                removeScreen(screen.id).then(() => router.refresh());
+                              }}
                             >
                               <Trash2 className="h-4 w-4" /> Remove screen
                             </DropdownMenuItem>

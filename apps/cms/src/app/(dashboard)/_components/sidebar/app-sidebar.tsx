@@ -13,6 +13,7 @@ import {
   PenTool,
   Settings2,
   Send,
+  // SquareTerminal,
   // Globe,
 } from "lucide-react";
 import Image from "next/image";
@@ -36,6 +37,13 @@ const ALL_NAV = [
     url: "/",
     icon: LayoutDashboard,
     roles: ["ADMIN", "GUEST"] as string[],
+  },
+  {
+    title: "Broadcast",
+    url: "/broadcast",
+    icon: Send,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
   },
   // {
   //   title: "Experiences",
@@ -61,13 +69,6 @@ const ALL_NAV = [
     title: "Screens",
     url: "/screens",
     icon: Monitor,
-    roles: ["ADMIN", "GUEST"] as string[],
-    guestModeVisible: true,
-  },
-  {
-    title: "Broadcast",
-    url: "/push",
-    icon: Send,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CirclePlay } from "lucide-react";
 import {
   DEFAULT_PORTFOLIO_CONTENT,
@@ -11,6 +11,7 @@ import {
   type PortfolioContent,
 } from "../content";
 import { VideoPopup } from "../components/video-popup";
+import { useReplayableWindowEvent } from "../../../lib/replayable-window-event";
 
 /** Per-card neon accent, cycling purple/pink/cyan across the 3 columns. */
 const ACCENTS = ["#e040fb", "#ec407a", "#26c6da"];
@@ -79,15 +80,9 @@ export function OverviewView({
 
   // Apply video changes pushed from other clients of this screen (relayed by
   // the shell as a `portfolio-set-video` window event). Apply without re-emitting.
-  useEffect(() => {
-    const onSetVideo = (e: Event) => {
-      const detail = (e as CustomEvent<{ videoUrl?: string | null }>).detail;
-      applyVideo(detail?.videoUrl ?? null, { emit: false });
-    };
-    window.addEventListener("portfolio-set-video", onSetVideo);
-    return () => window.removeEventListener("portfolio-set-video", onSetVideo);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useReplayableWindowEvent<{ videoUrl?: string | null }>("portfolio-set-video", (detail) => {
+    applyVideo(detail?.videoUrl ?? null, { emit: false });
+  });
 
   const glassRestBackground = "linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%)";
 

@@ -19,6 +19,25 @@ export function SlideshowPanel({ images, frameless = false }: { images: string[]
   // Clamp when the image list shrinks (e.g. edited live in the workspace preview).
   const safeIndex = images.length ? Math.min(index, images.length - 1) : 0;
 
+  // Only the active slide + its immediate neighbors actually fetch — a
+  // slideshow can have many images, and loading every one of them upfront
+  // regardless of which is showing was competing for bandwidth with the one
+  // slide that's actually visible. Once an index has loaded it stays loaded
+  // (revisiting an earlier slide shouldn't re-fetch it), and the neighbors
+  // are preloaded ahead of time so Prev/Next still crossfades instantly.
+  const [loadedIndices, setLoadedIndices] = useState<Set<number>>(() => new Set([0]));
+  useEffect(() => {
+    if (!images.length) return;
+    setLoadedIndices((prev) => {
+      const next = new Set(prev);
+      const before = next.size;
+      next.add(safeIndex);
+      next.add((safeIndex + 1) % images.length);
+      next.add((safeIndex - 1 + images.length) % images.length);
+      return next.size === before ? prev : next;
+    });
+  }, [safeIndex, images.length]);
+
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", onChange);
@@ -72,26 +91,32 @@ export function SlideshowPanel({ images, frameless = false }: { images: string[]
         boxShadow: flat ? "none" : "0 12px 40px rgba(0,0,0,0.18)",
       }}
     >
-      {/* Slides — all stacked, crossfade + slight zoom on the active one */}
-      {images.map((url, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={`${i}-${url}`}
-          src={url}
-          alt={`Slide ${i + 1}`}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: isFullscreen ? "contain" : "cover",
-            opacity: i === safeIndex ? 1 : 0,
-            transform: i === safeIndex ? "scale(1)" : "scale(1.03)",
-            transition: "opacity 500ms ease, transform 700ms ease",
-            pointerEvents: "none",
-          }}
-        />
-      ))}
+      {/* Slides — all stacked, crossfade + slight zoom on the active one.
+          Only loaded (current ± neighbor) slides get a real `src`; the rest
+          are the same absolutely-positioned box with nothing to fetch yet. */}
+      {images.map((url, i) =>
+        loadedIndices.has(i) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`${i}-${url}`}
+            src={url}
+            alt={`Slide ${i + 1}`}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: isFullscreen ? "contain" : "cover",
+              opacity: i === safeIndex ? 1 : 0,
+              transform: i === safeIndex ? "scale(1)" : "scale(1.03)",
+              transition: "opacity 500ms ease, transform 700ms ease",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <div key={`${i}-${url}`} style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }} />
+        )
+      )}
 
       {/* Fullscreen toggle */}
       <button

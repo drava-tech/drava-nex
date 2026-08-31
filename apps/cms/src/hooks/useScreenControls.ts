@@ -22,6 +22,13 @@ interface UseScreenControlsOptions {
    */
   queueMediaIds?: string[];
   initialQueueIndex?: number;
+  /**
+   * Called with whatever content this screen switched to, from ANY source —
+   * this control panel, another admin tab, a queue step, a reset to idle, or
+   * a kiosk relaunch. Lets a caller keep its own notion of "what's live"
+   * honest instead of trusting a page-load snapshot.
+   */
+  onContentUpdated?: (content: { id: string; type: string }) => void;
 }
 
 /**
@@ -38,6 +45,7 @@ export function useScreenControls({
   initialShowTouchpad = false,
   queueMediaIds,
   initialQueueIndex = 0,
+  onContentUpdated,
 }: UseScreenControlsOptions) {
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
@@ -59,6 +67,7 @@ export function useScreenControls({
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
       setShowTouchpad(content.type === "html");
+      onContentUpdated?.({ id: content.id, type: content.type });
       // Keeps the "N of M" counter in sync across every open control panel
       // (another tab, a second admin) — derived from the live content id
       // rather than a bespoke WS message.

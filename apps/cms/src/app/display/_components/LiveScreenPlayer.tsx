@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
-import { cn } from "@platform/ui";
+import { cn, dispatchReplayableEvent } from "@platform/ui";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
@@ -52,7 +53,11 @@ function toWsContent(c: Content): WsContent {
 function toDisplayContent(ws: WsContent): Content {
   switch (ws.type) {
     case "video":
-      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? true };
+      // Only the idle/default-fallback video explicitly asks to stay silent
+      // (packages/db/src/queries/screens.ts) — anything pushed to a screen
+      // on purpose (assignMedia) carries no `muted` at all, so it should
+      // default to playing with audio, not silently.
+      return { id: ws.id, type: "video", source: ws.source, loop: ws.loop ?? true, muted: ws.muted ?? false };
     case "image":
       return { id: ws.id, type: "image", source: ws.source };
     case "html":
@@ -119,6 +124,15 @@ export function LiveScreenPlayer({
   );
 
   const handleCommand = useCallback((command: string, value?: any) => {
+    // Commands a framed viewer owns are ALSO republished for HtmlRenderer to
+    // relay into its iframe (a separate JS realm the branches below can't
+    // reach). Deliberately not an `else if` — NEXT_PAGE/PREV_PAGE must keep
+    // reaching ExperienceDisplay below as well. Replayable so a viewer whose
+    // iframe is still loading catches up (see the bridge's ready handshake).
+    if (isFrameForwardedCommand(command)) {
+      dispatchReplayableEvent(frameCommandEvent(command), value);
+    }
+
     if (command === "RELOAD") {
       window.location.reload();
     } else if (command === "MUTE" || command === "UNMUTE") {
@@ -132,19 +146,23 @@ export function LiveScreenPlayer({
       });
       window.dispatchEvent(event);
     } else if (command === "SET_SLIDE") {
-      const event = new CustomEvent("screen-set-slide", {
-        detail: { slideIndex: Number(value) },
-      });
-      window.dispatchEvent(event);
+      // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
+      // can receive this before ExperienceDisplay's listener has mounted —
+      // see replayable-window-event.ts.
+      dispatchReplayableEvent("screen-set-slide", { slideIndex: Number(value) });
     } else if (command === "SET_PORTFOLIO_VIEW") {
       // Inbound portfolio view change from another client of this screen.
-      window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
+      // Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("portfolio-set-view", value);
     } else if (command === "SET_PORTFOLIO_VIDEO") {
-      window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+      dispatchReplayableEvent("portfolio-set-video", value);
     } else if (command === "SET_GALLERY_VIEW") {
       // Which gallery photo is expanded — a tap on a control tablet has to open
-      // the same photo on the wall.
-      window.dispatchEvent(new CustomEvent("gallery-set-view", { detail: value }));
+      // the same photo on the wall. Replayable — see comment on SET_SLIDE above.
+      dispatchReplayableEvent("gallery-set-view", value);
+    } else if (command === "SET_FILM_VIEW") {
+      // Films page grid/player + which film — replayable, same reason as above.
+      dispatchReplayableEvent("film-set-view", value);
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {

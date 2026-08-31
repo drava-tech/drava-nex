@@ -13,8 +13,13 @@ import {
   Maximize,
   Minimize,
   Loader2,
+  Minus,
+  Plus,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
+import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
@@ -23,6 +28,9 @@ import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-tou
 import { ScreenAssignmentPicker } from "@/app/(dashboard)/screens/_components/screens-assignment-picker";
 import { LiveScreenSwitcher, type LiveScreenOption } from "./live-screen-switcher";
 import type { WsContent } from "@platform/types";
+
+/** Per-tap step for the dock's volume -/+ buttons — see screen-touchpad.tsx. */
+const VOLUME_STEP = 5;
 
 interface LiveExperienceControlViewProps {
   experienceId: string;
@@ -35,6 +43,9 @@ interface LiveExperienceControlViewProps {
   initialQueueMediaIds?: string[];
   initialQueueIndex?: number;
   liveScreens: LiveScreenOption[];
+  /** Whatever's actually live on the screen right now, so re-picking the
+   * same content can be skipped as a no-op — see handleAssign. */
+  initialContent?: { id: string; type: string } | null;
 }
 
 /**
@@ -57,9 +68,11 @@ export function LiveExperienceControlView({
   initialQueueMediaIds,
   initialQueueIndex = 0,
   liveScreens,
+  initialContent = null,
 }: LiveExperienceControlViewProps) {
   const router = useRouter();
   const [showPicker, setShowPicker] = useState(false);
+  const [currentContent, setCurrentContent] = useState(initialContent);
   const mirrorFrameRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -116,8 +129,20 @@ export function LiveExperienceControlView({
 
   const hasQueue = Boolean(initialQueueMediaIds && initialQueueMediaIds.length > 0);
 
+  // Same office-wide system audio endpoint as the screen touchpad's volume
+  // row (screen-touchpad.tsx) and the Environment Control Audio tile — one
+  // physical PC's speakers, independent of whatever content is assigned, so
+  // this stays visible and functional no matter what's live on the screen.
+  const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
+
   const handleAssign = async (content: WsContent) => {
     setShowPicker(false);
+    // Re-picking whatever's already live is a no-op on the real screen (its
+    // player dedupes by content key) — skip the push so it doesn't wipe the
+    // gateway's in-template view-state cache for nothing (see
+    // apps/api/src/ws/gateway.ts's viewStateCache.delete on every push).
+    if (currentContent?.id === content.id && currentContent?.type === content.type) return;
+    setCurrentContent({ id: content.id, type: content.type });
     if (content.type === "video" || content.type === "image") {
       await assignMedia(deviceId, content.id);
       // No experience applies anymore — this page can't represent that state.
@@ -296,6 +321,41 @@ export function LiveExperienceControlView({
                 onClick={toggleFullscreen}
               />
             )}
+
+            {/* Volume cluster — always rendered, independent of what content
+                is live (video, image, experience, or the touchpad), since it
+                drives the PC's system audio rather than any one piece of
+                content. */}
+            <div className="flex items-center gap-0.5 rounded-xl bg-white/5 px-1 py-1 md:gap-1">
+              <button
+                onClick={() => adjustVolume(-VOLUME_STEP)}
+                title="Decrease volume"
+                aria-label="Decrease volume"
+                className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white md:p-2"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                onClick={toggleMute}
+                title={muted ? "Unmute" : "Mute"}
+                aria-label={muted ? "Unmute" : "Mute"}
+                aria-pressed={muted}
+                className={`flex min-w-[2.5rem] items-center justify-center gap-1 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors md:min-w-[3.5rem] md:p-2 ${
+                  muted ? "text-red-400 hover:bg-red-500/10" : "text-white/60 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                <span className="hidden sm:inline">{muted ? "Muted" : `${volume}%`}</span>
+              </button>
+              <button
+                onClick={() => adjustVolume(VOLUME_STEP)}
+                title="Increase volume"
+                aria-label="Increase volume"
+                className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white md:p-2"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Right cluster */}
@@ -321,6 +381,7 @@ export function LiveExperienceControlView({
 
       {showPicker && (
         <ScreenAssignmentPicker
+          screenId={deviceId}
           screenName={screenName}
           experiences={experiences}
           onAssign={handleAssign}

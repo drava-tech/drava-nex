@@ -159,7 +159,7 @@ export function WelcomeEditorWorkspace({
 
         <main className="min-w-0 flex-1 bg-zinc-200 p-6 dark:bg-zinc-900/40">
           <ScreenStage variant="fit-width">
-            <WelcomeRenderer content={content} />
+            <WelcomeRenderer content={content} preview />
           </ScreenStage>
         </main>
       </div>

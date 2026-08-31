@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useInView } from "@platform/ui";
 import { screenMirrorUrl } from "@/lib/screen-url";
 
 /**
@@ -29,26 +29,8 @@ export function ScreenMirror({
    * only starts once the user clicks into the full Control view. */
   loadStream?: boolean;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!loadStream) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          // Resolve client-side (reads window.location) and mount the iframe.
-          setSrc(screenMirrorUrl(screenId));
-          io.disconnect();
-        }
-      },
-      { rootMargin: "150px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [screenId, loadStream]);
+  const [ref, inView] = useInView<HTMLDivElement>("150px");
+  const shouldMount = loadStream && inView;
 
   return (
     <div ref={ref} className={`absolute inset-0 w-full h-full ${loadStream ? "bg-zinc-950" : ""}`}>
@@ -62,9 +44,9 @@ export function ScreenMirror({
           </span>
         </div>
       )}
-      {!loadStream ? null : src ? (
+      {!loadStream ? null : shouldMount ? (
         <iframe
-          src={src}
+          src={screenMirrorUrl(screenId)}
           title={title ?? `Screen ${screenId}`}
           scrolling="no"
           className="absolute inset-0 w-full h-full border-0"

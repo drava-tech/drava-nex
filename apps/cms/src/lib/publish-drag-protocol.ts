@@ -18,7 +18,11 @@ export interface PublishDragStartPayload {
   cardId: string;
   title: string;
   thumbnail: string | null;
-  type: "experience" | "image" | "video";
+  /** "experience" | "image" | "video" | "document" | "sheet" | "presentation" | "word" —
+   * untyped here since only "image"/"video" get a real live preview on the
+   * display side (PublishDragOverlay); everything else falls back to a plain
+   * panel with no attempted (and broken) <img>/<video>. */
+  type: string;
 }
 
 export interface PublishDragProgressPayload {

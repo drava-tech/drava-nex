@@ -31,6 +31,25 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     };
   }, [preview]);
 
+  // The `autoPlay` attribute below can't surface a blocked-playback promise
+  // rejection — if the browser blocks unmuted autoplay (kiosk host missing
+  // the --autoplay-policy flag, or any other viewer without it), the element
+  // just sits frozen on its first frame with no error anywhere. This calls
+  // play() explicitly so a rejection can be caught, falling back to muted
+  // playback so the video still plays instead of staying dead. No "tap to
+  // unmute" affordance: this is an unattended kiosk display, nobody's there
+  // to click it (unlike welcome-renderer.tsx, which has a real click path).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => {
+      if (!video.muted) {
+        video.muted = true;
+        video.play().catch(() => {});
+      }
+    });
+  }, [content.source]);
+
   if (!content.source) {
     return (
       <ErrorOverlay message="Video source is missing from the content configuration." />
