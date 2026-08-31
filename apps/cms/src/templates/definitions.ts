@@ -9,13 +9,18 @@ import { ProductShowcaseLayout } from "./product-showcase/product-showcase-layou
 import { ProductShowcaseEditorWorkspace } from "./product-showcase/editor-workspace";
 import { WelcomeLayout } from "./welcome/welcome-layout";
 import { WelcomeEditorWorkspace } from "./welcome/editor-workspace";
+import { ObjectRecognitionLayout } from "./object-recognition/object-recognition-layout";
 import { FlightSimulationLayout } from "./flight-simulation/flight-simulation-layout";
 import { FlightSimulationEditorWorkspace } from "./flight-simulation/editor-workspace";
+import { GalleryLayout } from "./gallery/gallery-layout";
+import { GalleryEditorWorkspace } from "./gallery/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
 import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
+import { DEFAULT_OBJECT_RECOGNITION_CONTENT } from "@platform/ui/templates/object-recognition";
 import { DEFAULT_FLIGHT_SIMULATION_CONTENT } from "@platform/ui/templates/flight-simulation";
+import { DEFAULT_GALLERY_CONTENT } from "@platform/ui/templates/gallery";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -64,12 +69,27 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     defaultContent: DEFAULT_WELCOME_CONTENT,
     Workspace: WelcomeEditorWorkspace,
   },
+  "object-recognition": {
+    key: "object-recognition",
+    label: TEMPLATE_LABELS["object-recognition"],
+    Layout: ObjectRecognitionLayout,
+    defaultContent: DEFAULT_OBJECT_RECOGNITION_CONTENT,
+    // No Workspace — nothing is authored here, content is pushed live by the
+    // mat camera (see apps/api/src/ws/gateway.ts's applyMatInventoryUpdate).
+  },
   "flight-simulation": {
     key: "flight-simulation",
     label: TEMPLATE_LABELS["flight-simulation"],
     Layout: FlightSimulationLayout,
     defaultContent: DEFAULT_FLIGHT_SIMULATION_CONTENT,
     Workspace: FlightSimulationEditorWorkspace,
+  },
+  gallery: {
+    key: "gallery",
+    label: TEMPLATE_LABELS.gallery,
+    Layout: GalleryLayout,
+    defaultContent: DEFAULT_GALLERY_CONTENT,
+    Workspace: GalleryEditorWorkspace,
   },
 };
 

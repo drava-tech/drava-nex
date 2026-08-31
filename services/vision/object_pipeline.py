@@ -76,9 +76,14 @@ class _Stabilizer:
             self.last_candidate_inventory = candidate_inventory
             self.candidate_since = now
 
+        # No `bool(candidate_inventory)` gate here — an empty mat that's held
+        # steady for INVENTORY_STABLE_SECONDS is just as valid a stable state
+        # as a non-empty one, and must be able to emit too. Without this, once
+        # any inventory was ever confirmed, removing every item from the mat
+        # could never be reported (an empty dict is falsy), leaving the CMS
+        # stuck showing stale contents after the mat was actually cleared.
         is_ready = (
-            bool(candidate_inventory)
-            and self.candidate_since is not None
+            self.candidate_since is not None
             and now - self.candidate_since >= INVENTORY_STABLE_SECONDS
         )
         return candidate_inventory, is_ready
@@ -90,7 +95,6 @@ class ObjectPipeline:
         self._engine = ObjectEngine(cfg)
         self._events = Events(cfg)
         self._stabilizer = _Stabilizer()
-        self._last_scores: dict[str, float] = {}
         self._mat_polygon_norm = None
         self._running = False
         self._frames = 0
@@ -107,20 +111,11 @@ class ObjectPipeline:
         # Latticelane recognise scripts make (best-per-class after NMS).
         frame_counts: dict[str, int] = {d.detection_label: 1 for d in dets}
 
-        # Best score per label this frame, carried through to the API so its
-        # DETECTION_MIN_CONFIDENCE gate sees the model's real confidence rather
-        # than a fabricated 1.0. Only used for labels that survive stabilization.
-        for d in dets:
-            prev = self._last_scores.get(d.detection_label, 0.0)
-            self._last_scores[d.detection_label] = max(prev, d.score)
-
         inventory, is_ready = self._stabilizer.update(frame_counts)
         if is_ready and inventory != self._stabilizer.emitted_inventory:
-            scores = {label: round(self._last_scores.get(label, 0.0), 4) for label in inventory}
-            self._events.emit_inventory(self._cfg.camera_id, inventory, scores)
+            self._events.emit_inventory(self._cfg.camera_id, inventory)
             self._stabilizer.emitted_inventory = inventory
-            self._last_scores = {}
-            log.info("[object_pipeline] inventory update: %s (scores %s)", inventory, scores)
+            log.info("[object_pipeline] inventory update: %s", inventory)
 
     def run(self) -> None:
         self._engine.load()
@@ -164,6 +159,17 @@ class ObjectPipeline:
                     fps = self._frames / elapsed
                     log.info("[object_pipeline] %.1f fps", fps)
                     self._events.emit_status(self._cfg.camera_id, "detecting", fps)
+                    # Re-send the current confirmed state even when it hasn't
+                    # changed. emit_inventory in _step only fires on change,
+                    # so a state that's been stable for a while would
+                    # otherwise never reach the API again — meaning an API
+                    # restart (which drops its in-memory "latest known mat
+                    # state") could go stale until the mat next physically
+                    # changes. This bounds that staleness to ~10s instead.
+                    if self._stabilizer.emitted_inventory is not None:
+                        self._events.emit_inventory(
+                            self._cfg.camera_id, self._stabilizer.emitted_inventory
+                        )
                     self._frames = 0
                     last_stats = now
         finally:

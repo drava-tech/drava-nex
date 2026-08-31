@@ -134,6 +134,34 @@
       "when": 1784020305829,
       "tag": "0018_screen_blanked",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784020305830,
+      "tag": "0019_gmail_ingest",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784020305831,
+      "tag": "0020_media_email_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784020305832,
+      "tag": "0021_media_pending_save",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784020305833,
+      "tag": "0022_screen_interaction_enabled",
+      "breakpoints": true
     }
   ]
 }

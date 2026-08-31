@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Camera, Wifi, WifiOff, Layers, RotateCcw, Ban, Play } from "lucide-react";
+import { Camera, Wifi, WifiOff, Layers, RotateCcw, Ban, Play, Lock, Unlock } from "lucide-react";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { assignExperience, assignMedia, assignDefaultMedia, resetDetection, setScreenBlanked } from "@/actions/screen-actions";
+import { assignExperience, assignMedia, assignDefaultMedia, resetDetection, setScreenBlanked, setScreenInteractionEnabled } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { ScreenMirror } from "./screen-mirror";
+import { ScreenTouchpad } from "./screen-touchpad";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import type { CameraStatusUpdate, WsContent } from "@platform/types";
 
@@ -16,6 +17,11 @@ interface ScreenControlViewProps {
   defaultMediaAssetId?: string | null;
   defaultMediaName?: string | null;
   initialBlanked?: boolean;
+  initialInteractionEnabled?: boolean;
+  /** When the screen's current content is a page/embed (link, YouTube, Drive,
+   * PDF, sheet, deck...), shows the blank OS-cursor touchpad instead of
+   * tap-on-mirror — see LiveControlDialog and ScreenTouchpad. */
+  initialShowTouchpad?: boolean;
 }
 
 /**
@@ -30,6 +36,8 @@ export function ScreenControlView({
   defaultMediaAssetId = null,
   defaultMediaName = null,
   initialBlanked = false,
+  initialInteractionEnabled = true,
+  initialShowTouchpad = false,
 }: ScreenControlViewProps) {
   const [showPicker, setShowPicker] = useState(false);
   const [online, setOnline] = useState(false);
@@ -38,6 +46,9 @@ export function ScreenControlView({
   const [resettingToIdle, setResettingToIdle] = useState(false);
   const [blanked, setBlanked] = useState(initialBlanked);
   const [togglingBlank, setTogglingBlank] = useState(false);
+  const [interactionEnabled, setInteractionEnabled] = useState(initialInteractionEnabled);
+  const [togglingInteraction, setTogglingInteraction] = useState(false);
+  const [showTouchpad, setShowTouchpad] = useState(initialShowTouchpad);
   const [currentDefault, setCurrentDefault] = useState<{ id: string | null; name: string | null }>({
     id: defaultMediaAssetId,
     name: defaultMediaName,
@@ -81,8 +92,29 @@ export function ScreenControlView({
     }
   };
 
+  const handleToggleInteraction = async () => {
+    const next = !interactionEnabled;
+    setTogglingInteraction(true);
+    setInteractionEnabled(next);
+    try {
+      await setScreenInteractionEnabled(screenId, next);
+    } catch (err) {
+      console.error("Failed to toggle screen interaction state:", err);
+      setInteractionEnabled(!next);
+    } finally {
+      setTogglingInteraction(false);
+    }
+  };
+
   useCmsScreenSync({
-    onScreenUpdated: () => {},
+    // Keep the touchpad in sync with whatever's actually assigned now, not
+    // just what was live at page load — e.g. reassigning to a video should
+    // drop back to the regular interactive mirror, and pushing a new link
+    // should switch into touchpad mode.
+    onScreenUpdated: (updatedScreenId, content) => {
+      if (updatedScreenId !== screenId) return;
+      setShowTouchpad(content.type === "html");
+    },
     onActiveScreensUpdated: (ids) => setOnline(ids.includes(screenId)),
     onCameraStatusUpdated: (status) => {
       if (status.screenId === screenId) setCameraStatus(status);
@@ -136,7 +168,7 @@ export function ScreenControlView({
             </span>
           )}
           <span className="hidden md:inline text-[10px] text-zinc-400 dark:text-zinc-600 font-medium">
-            · touch to explore — mirrored on the TV in realtime
+            {showTouchpad ? "· drag the pad below to drive the cursor on the TV" : "· touch to explore — mirrored on the TV in realtime"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -171,6 +203,23 @@ export function ScreenControlView({
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
           </button>
           <button
+            onClick={handleToggleInteraction}
+            disabled={togglingInteraction}
+            title={
+              interactionEnabled
+                ? "Disable controls — nobody can click/scroll/type into this screen"
+                : "Enable controls — allow touch/click/scroll/type on this screen"
+            }
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
+              interactionEnabled
+                ? "border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+                : "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {interactionEnabled ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+            {togglingInteraction ? "..." : interactionEnabled ? "Controls On" : "Controls Off"}
+          </button>
+          <button
             onClick={() => setShowPicker(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 text-[10px] font-bold uppercase tracking-wider transition-colors"
           >
@@ -179,12 +228,23 @@ export function ScreenControlView({
         </div>
       </div>
 
-      {/* Big interactive screen */}
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden">
-          <ScreenMirror screenId={screenId} title={screenName} interactive />
+      {showTouchpad ? (
+        // No preview — a blank touchpad that drives the REAL OS cursor on the
+        // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
+        // mirrored preview of the page.
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-zinc-800 dark:border-zinc-900 shadow-2xl overflow-hidden">
+            <ScreenTouchpad screenId={screenId} />
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Big interactive screen */
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-zinc-800 dark:border-zinc-900 shadow-2xl bg-zinc-950 overflow-hidden">
+            <ScreenMirror screenId={screenId} title={screenName} interactive />
+          </div>
+        </div>
+      )}
 
       {showPicker && (
         <ScreenAssignmentPicker

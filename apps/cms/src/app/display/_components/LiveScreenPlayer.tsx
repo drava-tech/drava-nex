@@ -14,6 +14,7 @@ import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
 import { BlackoutOverlay } from "./BlackoutOverlay";
+import { FiveTapCorner } from "./FiveTapCorner";
 import {
   WHITEBOARD_START,
   WHITEBOARD_STOP,
@@ -113,6 +114,10 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("portfolio-set-view", { detail: value }));
     } else if (command === "SET_PORTFOLIO_VIDEO") {
       window.dispatchEvent(new CustomEvent("portfolio-set-video", { detail: value }));
+    } else if (command === "SET_GALLERY_VIEW") {
+      // Which gallery photo is expanded — a tap on a control tablet has to open
+      // the same photo on the wall.
+      window.dispatchEvent(new CustomEvent("gallery-set-view", { detail: value }));
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {
@@ -137,8 +142,14 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
       window.dispatchEvent(new CustomEvent("screen-unblank"));
+    } else if (command === "EXIT_FULLSCREEN" && !preview) {
+      // Remote escape hatch (5-tap on a CMS mirror). Ignored by mirrors so the
+      // gateway's echo-to-sender doesn't drop the operator's own tab out of
+      // fullscreen too. exitFullscreen needs no user gesture; requestFullscreen
+      // does, which is why there's no remote "enter".
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     }
-  }, []);
+  }, [preview]);
 
   // ponytail: sendRaw was only used by the (now-disconnected) browser detection
   // hook to emit CAMERA_/PRODUCT_ events. Restore it here when re-enabling.
@@ -149,6 +160,21 @@ export function LiveScreenPlayer({
     wsUrl,
     preview,
   });
+
+  // Five taps in the top-left corner: on the TV, toggle fullscreen locally; on
+  // a CMS mirror, relay it so the TV exits instead of the operator's own tab.
+  const handleFiveTaps = useCallback(() => {
+    if (preview) {
+      sendInteraction("EXIT_FULLSCREEN");
+    } else if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      // ponytail: only exits fullscreen this page entered itself. F11 browser
+      // fullscreen and `msedge --kiosk` are invisible to JS — launch the
+      // display windowed and let this gesture own fullscreen instead.
+      void document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, [preview, sendInteraction]);
 
   const [debugMode, setDebugMode] = useState(false);
   useEffect(() => {
@@ -249,6 +275,9 @@ export function LiveScreenPlayer({
       </div>
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />
+      {/* Only the html renderer puts content in a cross-origin iframe, where a
+          document listener would never see the taps. */}
+      <FiveTapCorner onTrigger={handleFiveTaps} overlay={displayContent.type === "html"} />
       {runServer && debugMode && (
         <DetectionDebugOverlay
           stream={serverDetection.stream}

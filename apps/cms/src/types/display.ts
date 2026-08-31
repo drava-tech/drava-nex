@@ -54,7 +54,12 @@ export interface ExperienceContent extends BaseContent {
   templateContent?: Record<string, unknown>;
 }
 
-export type Content = VideoContent | ImageContent | HtmlContent | StreamContent | ExperienceContent;
+export type Content =
+  | VideoContent
+  | ImageContent
+  | HtmlContent
+  | StreamContent
+  | ExperienceContent;
 
 export interface ContentsConfig {
   contents: Content[];
@@ -65,4 +70,5 @@ export interface ContentsConfig {
 export interface DisplayConfig {
   screen: Screen;
   content: Content;
+  interactionEnabled: boolean;
 }

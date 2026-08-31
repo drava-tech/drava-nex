@@ -2,10 +2,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import {
   getScreenContent,
+  getScreenIdsByTemplateKey,
   setScreenExperience,
   getScreenWhiteboardState,
   setScreenWhiteboardState,
   getScreenBlanked,
+  getScreenInteractionEnabled,
   verifyApiKey,
   scopeSatisfies,
 } from '@platform/db';
@@ -32,9 +34,11 @@ import type {
   BroadcastRequest,
   StreamFormat,
   AudioStatus,
+  MatInventoryDisplayItem,
 } from '@platform/types';
 import { getCameraScreen } from '../lib/camera-map.js';
 import { resolveDetectedProduct } from '../services/detection.js';
+import { resolveMatInventory } from '../services/inventory.js';
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Per-screen WebSocket connections (one screen can have multiple tabs/devices)
@@ -61,8 +65,27 @@ const whiteboardStateCache = new Map<string, WhiteboardSyncState>();
 // is checked (and DB-backed-up) on REGISTER so a screen that reconnects while
 // stopped comes back up still black, not showing its assigned content again.
 const screenBlankedCache = new Map<string, boolean>();
+// Master interactivity switch per screen — same survives-a-reconnect need as
+// screenBlankedCache. Pushed to every renderer of this screen (the physical
+// TV or a CMS mirror/popup) via SCREEN_ENABLE_CONTROLS/SCREEN_DISABLE_CONTROLS
+// — currently unconsumed on the display side (no renderer gates on it since
+// WebpageRenderer/browser-render was removed); kept as a live per-screen flag
+// for a future consumer rather than torn out with that removal.
+const screenInteractionEnabledCache = new Map<string, boolean>();
 // Tracks active camera product takeovers (screenId -> detectionLabel)
 const screenTakeover = new Map<string, string>();
+// Tracks the current mat-inventory takeover per screen (screenId -> detectionLabel -> count),
+// the multi-item counterpart to screenTakeover above. Drives the "Object
+// Recognition" experience template (see applyMatInventoryUpdate below).
+const screenMatInventory = new Map<string, Record<string, number>>();
+// The single current mat state, independent of which screen(s) happen to have
+// the experience assigned right now. experience.templateContent in the DB is
+// never the live source of truth for this template (see content.ts) — it's
+// only ever the sample/default the CMS falls back to. So a screen that's
+// freshly assigned "Object Recognition" (or reconnects before the next
+// physical change on the mat) needs this to show current reality immediately,
+// instead of stale/default content until the mat happens to change again.
+let latestObjectRecognitionItems: MatInventoryDisplayItem[] | null = null;
 const cameraStatusCache = new Map<string, CameraStatusUpdate>();
 const cameraHeartbeatTimers = new Map<string, NodeJS.Timeout>();
 const CAMERA_HEARTBEAT_TIMEOUT_MS = 15_000;
@@ -88,6 +111,17 @@ const streamCache = new Map<string, StreamCacheEntry>();
 // single expected connection; a fresh registration supersedes any stale one.
 let audioBridge: WebSocket | null = null;
 let audioStatusCache: AudioStatus = { volume: 50, muted: false, device: 'Unknown Device' };
+
+// ─── Native screen agents ────────────────────────────────────────────────────
+// apps/api/screen-agent/agent.mjs runs on the Windows PC that physically
+// drives one screen's TV (alongside its kiosk Chrome) and registers itself
+// here, keyed by screenId — unlike audioBridge there can be many of these,
+// one per screen, since each screen has its own PC. A CMS tablet's
+// CURSOR_CONTROL is forwarded verbatim to whichever agent is registered for
+// that screenId, which then simulates the real OS-level mouse move/click/
+// scroll — no video/screenshot ever flows through this map, only tiny
+// control messages.
+const screenAgentRegistry = new Map<string, WebSocket>();
 
 export function sendAudioCommand(
   action: 'set-volume' | 'set-mute' | 'toggle-mute',
@@ -145,6 +179,12 @@ export function sendCommandToScreen(screenId: string, command: string, value?: a
 export function setScreenBlankState(screenId: string, blanked: boolean): void {
   screenBlankedCache.set(screenId, blanked);
   sendCommandToScreen(screenId, blanked ? 'SCREEN_BLANK' : 'SCREEN_UNBLANK');
+}
+
+/** Enable/disable interactivity for a screen everywhere it's rendered, live. */
+export function setScreenInteractionState(screenId: string, enabled: boolean): void {
+  screenInteractionEnabledCache.set(screenId, enabled);
+  sendCommandToScreen(screenId, enabled ? 'SCREEN_ENABLE_CONTROLS' : 'SCREEN_DISABLE_CONTROLS');
 }
 
 export function broadcastActiveScreensToCms() {
@@ -267,6 +307,19 @@ export function getContentCache(screenId: string): WsContent | undefined {
   return contentCache.get(screenId);
 }
 
+/**
+ * Drop a screen's active product-detection takeover flag without re-fetching
+ * or re-broadcasting content — the caller (an explicit CMS assignment) is
+ * about to push fresh content itself. Without this, a takeover armed before
+ * the assignment lingers and a subsequent PRODUCT_LOST would still treat that
+ * old detection as authoritative (harmlessly, since it re-reads the DB — but
+ * more importantly a screen with an active takeover shouldn't look "stuck"
+ * to camera state that's no longer relevant to what the admin just chose).
+ */
+export function clearTakeoverFlag(screenId: string): void {
+  screenTakeover.delete(screenId);
+}
+
 export async function resetScreenTakeover(screenId: string): Promise<boolean> {
   if (screenTakeover.get(screenId)) {
     screenTakeover.delete(screenId);
@@ -298,6 +351,24 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
     return true;
   }
   return false;
+}
+
+/** Push a CONTENT_UPDATE to a screen's live sockets + notify CMS/UE watchers. */
+function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
+  contentCache.set(screenId, content);
+  viewStateCache.delete(screenId);
+
+  const update: WsServerMessage = { type: 'CONTENT_UPDATE', screenId, content, timestamp: Date.now() };
+  const frame = JSON.stringify(update);
+  const sockets = screenRegistry.get(screenId);
+  if (sockets) {
+    for (const sock of sockets) {
+      if (sock.readyState === WebSocket.OPEN) sock.send(frame);
+    }
+  }
+
+  broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
+  emitScreenContentChanged(screenId, content);
 }
 
 /**
@@ -357,28 +428,7 @@ export async function applyProductDetection(input: {
   // label must not clear someone else's screen.
   screenTakeover.set(screenId, input.label);
 
-  contentCache.set(screenId, content);
-  viewStateCache.delete(screenId);
-
-  const update: WsServerMessage = {
-    type: 'CONTENT_UPDATE',
-    screenId,
-    content,
-    timestamp: Date.now(),
-  };
-  const frame = JSON.stringify(update);
-
-  const sockets = screenRegistry.get(screenId);
-  if (sockets) {
-    for (const sock of sockets) {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(frame);
-      }
-    }
-  }
-
-  broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
-  emitScreenContentChanged(screenId, content);
+  pushContentUpdateToScreen(screenId, content);
   broadcastToUe({
     type: 'PRODUCT_DETECTED',
     cameraId: input.cameraId,
@@ -408,6 +458,102 @@ export async function clearProductDetection(input: {
 
   if (screenTakeover.get(screenId) !== input.label) return false;
   return resetScreenTakeover(screenId);
+}
+
+/**
+ * Applies a full mat-inventory snapshot (services/vision's dedicated-camera
+ * OBJECT worker, via POST /api/internal/vision-event) to whichever screen the
+ * camera maps to. Multi-item counterpart to applyProductDetection above —
+ * this one is called from routes/internal.ts, not a screen's own WS
+ * connection, since the Python service talks HTTP, not a screen socket.
+ */
+export async function applyMatInventoryUpdate(cameraId: string, rawItems: unknown): Promise<void> {
+  const resolution = await resolveMatInventory({ cameraId, items: rawItems });
+  if (!resolution.resolved) return;
+
+  // Tracked regardless of whether any screen has this experience assigned
+  // right now, so whichever screen gets assigned it next (even with the mat
+  // otherwise unchanged) picks up current reality immediately — see
+  // getLiveObjectRecognitionContent.
+  latestObjectRecognitionItems = resolution.items;
+
+  // Destination isn't a fixed camera->screen env mapping — it's whichever
+  // screen(s) currently have the "Object Recognition" experience pushed to
+  // them via the CMS (ExperiencePreviewModal's screen picker), same as any
+  // other experience. Pick a different screen in the CMS and the mat feed
+  // follows it there; push to none and the feed just has nowhere to go.
+  const targetScreenIds = await getScreenIdsByTemplateKey('object-recognition');
+  if (targetScreenIds.length === 0) return;
+
+  const inventoryRecord: Record<string, number> = {};
+  for (const item of resolution.items) inventoryRecord[item.detectionLabel] = item.count;
+
+  for (const screenId of targetScreenIds) {
+    if (resolution.items.length === 0) {
+      // Empty mat — clear any active takeover and fall back to the screen's
+      // assigned content, same as PRODUCT_LOST does for the single-item path.
+      // If the screen has nothing else assigned, there's no fallback to
+      // revert to — push an explicit empty object-recognition state instead
+      // of leaving pushContentUpdateToScreen uncalled, which would otherwise
+      // leave contentCache (and every future WELCOME) stuck on the last
+      // nonempty inventory forever, even after the mat was actually cleared.
+      if (screenMatInventory.has(screenId)) {
+        screenMatInventory.delete(screenId);
+        const content = await getScreenContent(screenId);
+        pushContentUpdateToScreen(
+          screenId,
+          content ?? {
+            id: `object-recognition-${screenId}`,
+            type: 'experience',
+            source: '',
+            title: 'Object Recognition',
+            templateKey: 'object-recognition',
+            templateContent: { 'object-recognition': { items: [] } },
+          }
+        );
+      }
+      broadcastToCms({ type: 'INVENTORY_UPDATE', cameraId, screenId, items: [], timestamp: Date.now() });
+      continue;
+    }
+
+    const content: WsContent = {
+      id: `object-recognition-${screenId}`,
+      type: 'experience',
+      source: '',
+      title: 'Object Recognition',
+      templateKey: 'object-recognition',
+      templateContent: { 'object-recognition': { items: resolution.items } },
+    };
+
+    screenMatInventory.set(screenId, inventoryRecord);
+    pushContentUpdateToScreen(screenId, content);
+    broadcastToCms({ type: 'INVENTORY_UPDATE', cameraId, screenId, items: resolution.items, timestamp: Date.now() });
+  }
+
+  if (resolution.items.length > 0) {
+    broadcastToUe({ type: 'INVENTORY_UPDATE', cameraId, items: resolution.items, timestamp: Date.now() });
+  }
+}
+
+/**
+ * The live mat state, wired to a specific screen's content shape — or null if
+ * no detection has ever come through yet (nothing to override with). Used
+ * wherever a screen's "Object Recognition" content would otherwise fall back
+ * to the experience's stale/default DB row (routes/screens.ts's
+ * pushScreenContent on fresh assignment; REGISTER's DB-fallback path on
+ * reconnect) — real detections still win once they occur, this only fills
+ * the gap before the first one after (re)assignment.
+ */
+export function getLiveObjectRecognitionContent(screenId: string): WsContent | null {
+  if (latestObjectRecognitionItems === null) return null;
+  return {
+    id: `object-recognition-${screenId}`,
+    type: 'experience',
+    source: '',
+    title: 'Object Recognition',
+    templateKey: 'object-recognition',
+    templateContent: { 'object-recognition': { items: latestObjectRecognitionItems } },
+  };
 }
 
 export function getConnectedScreenIds(): string[] {
@@ -440,6 +586,8 @@ export function createGateway(): WebSocketServer {
     let isCmsClient = false;
     let isUeClient = false;
     let isAudioBridge = false;
+    let isScreenAgent = false;
+    let agentScreenId: string | null = null;
     const reqUrl = _req.url ?? '';
     // Live-stream roles for this socket
     let publishingStreamId: string | null = null;
@@ -570,17 +718,49 @@ export function createGateway(): WebSocketServer {
               .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
           };
 
+          // If controls were disabled for this screen, replay that for the
+          // newly (re)connected client too — same reconnect-resilience need as
+          // blanked. Only the disabled case needs an explicit push (default is
+          // enabled, so a never-toggled screen sends nothing).
+          const replayInteractionState = () => {
+            const cachedEnabled = screenInteractionEnabledCache.get(sid);
+            if (cachedEnabled !== undefined) {
+              if (cachedEnabled === false && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
+              }
+              return;
+            }
+            // Not in memory (e.g. right after an API restart) — fall back to DB.
+            void getScreenInteractionEnabled(sid)
+              .then((enabled) => {
+                screenInteractionEnabledCache.set(sid, enabled);
+                if (!enabled && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'SCREEN_COMMAND', command: 'SCREEN_DISABLE_CONTROLS', timestamp: Date.now() }));
+                }
+              })
+              .catch((err) => console.error('[gateway] Interaction-state lookup failed for', sid, err));
+          };
+
           const cached = contentCache.get(sid);
           if (cached) {
             sendWelcome(cached);
             replayViewState();
             replayWhiteboardState();
             replayBlankState();
+            replayInteractionState();
           } else {
             // Cache is empty (e.g. right after an API restart). Fall back to the
             // authoritative DB so the screen syncs to current content on connect
             // instead of staying on stale page-load content.
-            void getScreenContent(sid).then((content) => {
+            void getScreenContent(sid).then((dbContent) => {
+              // Same DB-is-never-live-truth gap as pushScreenContent — an
+              // API restart wipes this in-memory cache, so without this a
+              // reconnecting object-recognition screen would show the
+              // stale/default DB row until the mat next changes.
+              const content =
+                dbContent?.templateKey === 'object-recognition'
+                  ? getLiveObjectRecognitionContent(sid) ?? dbContent
+                  : dbContent;
               if (content) {
                 contentCache.set(sid, content);
                 sendWelcome(content);
@@ -588,6 +768,7 @@ export function createGateway(): WebSocketServer {
               }
               replayWhiteboardState();
               replayBlankState();
+              replayInteractionState();
             }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
           }
           break;
@@ -612,6 +793,19 @@ export function createGateway(): WebSocketServer {
           // for command/status relay, not the other way around).
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'AUDIO_STATUS_UPDATE', ...audioStatusCache } satisfies WsCmsMessage));
+          }
+          // Send current screen-agent connectivity so a freshly-opened control
+          // page immediately knows which screens already have a live agent.
+          for (const agentScreenIdKey of screenAgentRegistry.keys()) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(
+                JSON.stringify({
+                  type: 'SCREEN_AGENT_STATUS',
+                  screenId: agentScreenIdKey,
+                  connected: true,
+                } satisfies WsCmsMessage)
+              );
+            }
           }
           break;
         }
@@ -643,6 +837,52 @@ export function createGateway(): WebSocketServer {
           broadcastToCms({ type: 'AUDIO_STATUS_UPDATE', ...audioStatusCache });
           break;
         }
+
+        case 'SCREEN_AGENT_REGISTER': {
+          const expected = process.env['BROADCAST_SECRET'];
+          if (!expected || msg.secret !== expected) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'SCREEN_AGENT_REGISTER_NACK', reason: 'unauthorized' } satisfies WsServerMessage));
+            }
+            ws.close();
+            break;
+          }
+          // A fresh registration for the same screenId supersedes any stale one
+          // (e.g. agent restart).
+          const existing = screenAgentRegistry.get(msg.screenId);
+          if (existing && existing !== ws && existing.readyState === WebSocket.OPEN) {
+            existing.close();
+          }
+          isScreenAgent = true;
+          agentScreenId = msg.screenId;
+          screenAgentRegistry.set(msg.screenId, ws);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'SCREEN_AGENT_REGISTER_ACK' } satisfies WsServerMessage));
+          }
+          broadcastToCms({ type: 'SCREEN_AGENT_STATUS', screenId: msg.screenId, connected: true });
+          break;
+        }
+
+        // A CMS tablet's touchpad driving the OS cursor on whichever PC is
+        // registered for this screenId — forwarded verbatim to that agent.
+        // No caller waits on an ack, so a missing agent just drops it.
+        case 'CURSOR_CONTROL': {
+          const agent = screenAgentRegistry.get(msg.screenId);
+          if (agent && agent.readyState === WebSocket.OPEN) {
+            agent.send(
+              JSON.stringify({
+                type: 'CURSOR_CONTROL',
+                action: msg.action,
+                dx: msg.dx,
+                dy: msg.dy,
+                deltaY: msg.deltaY,
+                button: msg.button,
+              } satisfies WsServerMessage)
+            );
+          }
+          break;
+        }
+
 
         case 'UE_REGISTER': {
           // Unreal Engine / automation subscribes to the event channel. Auth is an
@@ -864,6 +1104,10 @@ export function createGateway(): WebSocketServer {
         audioBridge = null;
         // Leave audioStatusCache as last-known-good rather than resetting to
         // the generic fallback — the CMS shows stale-but-plausible numbers.
+      }
+      if (isScreenAgent && agentScreenId && screenAgentRegistry.get(agentScreenId) === ws) {
+        screenAgentRegistry.delete(agentScreenId);
+        broadcastToCms({ type: 'SCREEN_AGENT_STATUS', screenId: agentScreenId, connected: false });
       }
       // Publisher gone → drop its cache and tell subscribers the stream stopped.
       if (publishingStreamId && streamPublishers.get(publishingStreamId) === ws) {

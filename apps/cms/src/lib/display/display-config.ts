@@ -61,7 +61,7 @@ export async function resolveDisplayConfig(screenId: string): Promise<DisplayCon
     );
   }
 
-  const data = (await res.json()) as { content: WsContent | null };
+  const data = (await res.json()) as { content: WsContent | null; interactionEnabled?: boolean };
   if (!data.content) {
     throw new DisplayConfigError(
       `No content assigned to screen "${screenId}"`,
@@ -72,6 +72,7 @@ export async function resolveDisplayConfig(screenId: string): Promise<DisplayCon
   return {
     screen: { screenId, screenName: screenId, contentId: "" },
     content: wsContentToDisplayContent(data.content),
+    interactionEnabled: data.interactionEnabled ?? true,
   };
 }
 

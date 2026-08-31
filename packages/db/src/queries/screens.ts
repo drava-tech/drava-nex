@@ -141,6 +141,31 @@ export async function getScreenContent(screenId: string): Promise<WsContent | nu
   return null;
 }
 
+/**
+ * All screens currently assigned an experience with the given templateKey —
+ * i.e. whichever screen(s) an admin picked via "Push to screen" in the CMS.
+ * Used by live-detection takeover routing (the mat camera's object-recognition
+ * feed) so the destination screen is chosen in the CMS UI rather than fixed to
+ * one screen by a camera-id env mapping.
+ */
+export async function getScreenIdsByTemplateKey(templateKey: string): Promise<string[]> {
+  const rows = await db
+    .select({ screenId: screen.screenId })
+    .from(screen)
+    .innerJoin(
+      experience,
+      and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
+    .where(
+      and(
+        eq(screen.currentContentKind, "experience"),
+        eq(experience.templateKey, templateKey),
+        isNull(screen.deletedAt)
+      )
+    );
+  return rows.map((r) => r.screenId);
+}
+
 export async function screenExists(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({ screenId: screen.screenId })
@@ -263,6 +288,23 @@ export async function getScreenBlanked(screenId: string): Promise<boolean> {
     .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
     .limit(1);
   return row?.blanked ?? false;
+}
+
+/** Enable/disable click/scroll/type everywhere this screen renders — see `screen.interactionEnabled`. */
+export async function setScreenInteractionEnabled(screenId: string, enabled: boolean): Promise<void> {
+  await db
+    .update(screen)
+    .set({ interactionEnabled: enabled, updatedAt: new Date() })
+    .where(eq(screen.screenId, screenId));
+}
+
+export async function getScreenInteractionEnabled(screenId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ interactionEnabled: screen.interactionEnabled })
+    .from(screen)
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row?.interactionEnabled ?? true;
 }
 
 /**

@@ -73,7 +73,7 @@ class Events:
 
     def emit_product(self, camera_id: str, label: str, confidence: float) -> None:
         # Unused today: product detection runs in the browser (frames → the
-        # /vision/ws YOLO server in object_detection/), and the browser emits
+        # /vision/ws YOLO server in services/product-vision/), and the browser emits
         # PRODUCT_DETECTED straight over the screen WebSocket. Kept because the
         # API handles this event for real (routes/internal.ts →
         # gateway.applyProductDetection) — a headless emitter would work, it
@@ -89,6 +89,15 @@ class Events:
         # same label, restoring the screen's assigned content.
         self._enqueue({
             "type": "PRODUCT_LOST", "cameraId": camera_id, "label": label,
+        })
+
+    def emit_inventory(self, camera_id: str, items: dict[str, int]) -> None:
+        # Full current mat contents (not a delta) — object_pipeline.py only calls
+        # this once the stabilizer holds a mix steady, so each call is a
+        # complete, ready-to-display snapshot.
+        self._enqueue({
+            "type": "INVENTORY_UPDATE", "cameraId": camera_id,
+            "items": [{"detectionLabel": label, "count": count} for label, count in items.items()],
         })
 
     def _run(self) -> None:

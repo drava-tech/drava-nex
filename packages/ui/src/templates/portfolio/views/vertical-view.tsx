@@ -1,29 +1,80 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { normalizeSections, type OverviewCard } from "../content";
+import {
+  normalizeSections,
+  newPortfolioProject,
+  type OverviewCard,
+  type PortfolioGalleryStyle,
+} from "../content";
+import type { GalleryLink } from "../../gallery/gallery-view";
 import { SlideshowPanel } from "../components/slideshow-panel";
 import { FilmsPanel } from "../components/films-panel";
+import { GallerySectionView } from "./gallery-section-view";
 
 /**
  * Vertical page — shown at `/<vertical-slug>[/<section-slug>]`: the active
- * section's content (image slideshow or videos grid) fills the whole screen;
- * the back button and title float on top under a gradient scrim. First
- * section is active by default.
+ * section's content fills the whole screen; the back button and title float on
+ * top under a gradient scrim. First section is active by default.
  * Authored in real 1920×1080 px (inside ScreenStage).
+ *
+ * "gallery" sections render their own full-bleed layout (text beside four
+ * expandable photos) and bring their own back button, so they return early
+ * rather than sit under the scrim — that header is built for a dark slideshow
+ * and would be invisible over the gallery's light background.
  */
 export function VerticalView({
   card,
   activeSectionIndex,
+  activeProjectIndex = 0,
+  galleryStyle,
+  links,
+  onOpenProject,
   onBack,
 }: {
   card: OverviewCard;
   activeSectionIndex: number;
+  /** Which company's project a gallery section is showing. */
+  activeProjectIndex?: number;
+  /** Shared by every gallery section — see PortfolioContent.gallery. */
+  galleryStyle?: PortfolioGalleryStyle;
+  /** Cross-category jumps for the showing company, computed by PortfolioApp. */
+  links?: GalleryLink[];
+  /** Moves to another company in the SAME category, staying on this layout. */
+  onOpenProject?: (projectIndex: number) => void;
   onBack: () => void;
 }) {
   const sections = normalizeSections(card.sections);
   const active = Math.min(Math.max(activeSectionIndex, 0), sections.length - 1);
   const section = sections[active]!;
+
+  if (section.type === "gallery") {
+    const projects = section.projects ?? [];
+    // An out-of-range index — a link followed after the target was deleted, or
+    // WS state that outlived a content edit — falls back to the first project
+    // rather than blanking the page, matching how `active` clamps above.
+    const project = projects[activeProjectIndex] ?? projects[0] ?? newPortfolioProject();
+    return (
+      <GallerySectionView
+        section={section}
+        project={project}
+        style={galleryStyle}
+        links={links}
+        pager={
+          onOpenProject
+            ? {
+                // Clamped to what's really there, so the dots can't outlive a
+                // company being deleted while the page is open.
+                index: Math.min(activeProjectIndex, projects.length - 1),
+                count: projects.length,
+                onSelect: onOpenProject,
+              }
+            : undefined
+        }
+        onBack={onBack}
+      />
+    );
+  }
 
   return (
     <div className="w-full h-full relative" style={{ background: "#141414", overflow: "hidden" }}>

@@ -1,0 +1,14 @@
+{
+  "name": "screen-agent",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Native Windows agent that drives the real OS mouse cursor on a screen's kiosk PC, from a CMS tablet touchpad — see apps/cms screen-touchpad.tsx.",
+  "scripts": {
+    "start": "node --env-file=.env agent.mjs"
+  },
+  "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.0",
+    "ws": "^8.18.0"
+  }
+}

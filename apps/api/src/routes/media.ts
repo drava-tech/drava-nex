@@ -3,14 +3,15 @@ import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, listPendingMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
+import { runGmailLoad } from "../services/gmail-ingest.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
 // (see infra/docker/docker-compose.yml) and are served at /media/* by
 // mediaFilesRouter below — nginx proxies /media/ here, not to the CMS.
-const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
+export const UPLOAD_DIR = process.env["UPLOAD_DIR"] ?? path.join(process.cwd(), "../../apps/cms/public/media");
 
 // Static "seed" assets baked into the repo (default template imagery, demo
 // video) — in dev this is the SAME folder as UPLOAD_DIR above, but in Docker
@@ -47,10 +48,16 @@ const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
     mimes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     exts: [".pptx"],
   },
+  // Legacy binary .doc is excluded for the same reason — the word viewer
+  // (apps/cms/src/app/display/word) uses mammoth, which only reads .docx.
+  word: {
+    mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    exts: [".docx"],
+  },
 };
 
 /** Classify an upload by extension + MIME against the allowlist; null = rejected. */
-function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
+export function classifyUpload(fileName: string, mime: string): { type: string; ext: string } | null {
   const ext = path.extname(fileName).toLowerCase();
   const mimeLower = (mime || "").toLowerCase();
   for (const [type, rule] of Object.entries(ALLOWED)) {
@@ -71,7 +78,11 @@ function toMediaItem(a: MediaAsset) {
   const date = new Date(a.createdAt).toLocaleDateString("en-US", {
     month: "short", day: "2-digit", year: "numeric",
   });
-  return { id: a.id, name: a.name, type: a.type, url: a.url, size, date };
+  return {
+    id: a.id, name: a.name, type: a.type, url: a.url, size, date,
+    source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
+    pendingSave: a.pendingSave,
+  };
 }
 
 function getMimeType(filePath: string): string {
@@ -88,6 +99,7 @@ function getMimeType(filePath: string): string {
     ".xls": "application/vnd.ms-excel",
     ".csv": "text/csv",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     // 3D template assets (see STATIC_ASSET_DIRS below).
     ".glb": "model/gltf-binary",
     ".gltf": "model/gltf+json",
@@ -101,13 +113,42 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets
+// GET /api/media — list all media assets. ?source=gmail filters to just the
+// email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
-    const assets = await listMediaAssets();
+    const source = c.req.query("source");
+    const assets = await listMediaAssets(source ? { source } : undefined);
     return c.json({ media: assets.map(toMediaItem) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
+  }
+});
+
+// --- Email media (on-demand Gmail load) ---
+
+// POST /api/media/gmail/load — triggered by the "Load last 2 days" button
+// (apps/cms .../media/email/page.tsx). Not a background job: nothing touches
+// the mailbox except when this is called. See services/gmail-ingest.ts.
+mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
+  try {
+    const result = await runGmailLoad(2);
+    return c.json({ success: true, added: result.added });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to load email" }, 503);
+  }
+});
+
+// GET /api/media/gmail/pending — the temporary review queue: gmail-sourced
+// rows created by a load but not yet saved (see pendingSave). Deliberately a
+// separate admin-only endpoint rather than a query param on GET / above,
+// which stays guest-accessible and must never leak unreviewed rows.
+mediaRouter.get("/gmail/pending", requireAdmin, async (c) => {
+  try {
+    const assets = await listPendingMediaAssets("gmail");
+    return c.json({ media: assets.map(toMediaItem) });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to list pending email media" }, 500);
   }
 });
 
@@ -116,6 +157,8 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
 // POST /api/media/link — register a pasted URL (YouTube, Drive, or any
 // embeddable page) as a media asset. Same row shape as an upload, just with an
 // absolute url and no file on disk, so screens/preview/push all work unchanged.
+// pendingSave: true (used by the Browser tool's ad-hoc push) hides the row
+// from the Media Library listing until explicitly saved via POST /:id/save.
 mediaRouter.post("/link", requireAdmin, async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
@@ -127,6 +170,7 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
 
     const customName = typeof body?.name === "string" ? body.name.trim() : "";
     const name = (customName || classified.name).slice(0, 200);
+    const pendingSave = body?.pendingSave === true;
 
     const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
 
@@ -134,12 +178,28 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
       type: classified.type,
       url: classified.url,
       name,
+      pendingSave,
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
 
     return c.json({ success: true, media: toMediaItem(asset) });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to add link" }, 500);
+  }
+});
+
+// POST /api/media/:id/save — confirms an ad-hoc pushed link is worth keeping,
+// making it show up in the Media Library from now on.
+mediaRouter.post("/:id/save", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    if (!id) return c.json({ error: "Missing id" }, 400);
+    const asset = await getMediaAsset(id);
+    if (!asset) return c.json({ error: "Media item not found" }, 404);
+    await markMediaSaved(id);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to save media" }, 500);
   }
 });
 

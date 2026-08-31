@@ -25,8 +25,7 @@ This file is **gitignored** — it must never be committed. Copy `.env.example` 
 | Variable | Default | Notes |
 |---|---|---|
 | `API_PORT` | `4000` | Hono server listen port |
-| `CMS_PORT` | `3000` | Next.js CMS listen port |
-| `SCREENS_PORT` | `3001` | Next.js Screens listen port |
+| `CMS_PORT` | `3000` | Next.js CMS listen port — serves the admin dashboard **and** `/display` |
 
 ### Next.js Public URLs (baked in at build time)
 | Variable | Docker value | Local dev value |
@@ -34,7 +33,7 @@ This file is **gitignored** — it must never be committed. Copy `.env.example` 
 | `NEXT_PUBLIC_API_URL` | `/api` (relative) | `http://localhost:4000/api` |
 | `NEXT_PUBLIC_WS_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
 | `NEXT_PUBLIC_WS_GATEWAY_URL` | `/ws` (relative) | `ws://localhost:4000/ws` |
-| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `/display` (screens image only) | *(unset → app at root on :3001)* |
+| `NEXT_PUBLIC_SCREENS_URL` | `/display` (relative) | `/display` — override only to point at a different origin (`apps/cms/src/lib/screen-url.ts`) |
 
 Docker bakes **relative** paths so one build works for any host/IP; clients resolve them against
 `window.location`. These are `NEXT_PUBLIC_*` — embedded into the JS bundle at `docker compose
@@ -44,12 +43,18 @@ build` time, so changing them needs a rebuild.
 | Variable | Example | Notes |
 |---|---|---|
 | `BROADCAST_SECRET` | `<32-byte hex>` | Shared secret the CMS sends (`x-broadcast-secret`) when POSTing to the API `/api/internal/broadcast`; must match on both sides |
-| `INTERNAL_API_URL` | `http://api:4000` | Server-side base URL the CMS **and** screens use to reach the API by service name (`http://localhost:4000` in local dev) |
-| `CORS_ORIGIN` | `http://ec-cms,http://localhost` | Comma-separated allowed origins for the API |
-| `BETTER_AUTH_URL` | `http://ec-cms` | Base URL for better-auth (CMS login/session) |
+| `INTERNAL_API_URL` | `http://api:4000` | Server-side base URL the CMS uses to reach the API by service name (`http://localhost:4000` in local dev) |
+| `CORS_ORIGIN` | `https://ec-cms,https://192.168.1.250` | Comma-separated allowed origins for the API. Defaults to **only** `http://localhost:3000` when unset |
+| `BETTER_AUTH_URL` | `https://ec-cms` | Base URL for better-auth — becomes both `baseURL` and the first entry of `trustedOrigins` (`apps/cms/src/lib/auth.ts`) |
 | `BETTER_AUTH_SECRET` | `<hex>` | Session signing secret (each dev generates their own) |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | `http://ec-cms` | Trusted origins for auth |
-| `CONFIG_DIR` | `/app/apps/screens/public/config` | Docker-only mount path the API can read (legacy config dir) |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | `https://192.168.1.250,https://ec-cms` | Additional trusted origins, comma-separated — list every origin a device will use |
+
+> **The auth origins must be `https://` on a LAN deployment.** Nginx 301-redirects `/` and
+> `/api/auth/*` to https, and better-auth issues `Secure` / `__Secure-` cookies that browsers
+> silently drop over plain http. An `http://` value here produces a login that appears to
+> succeed and then bounces straight back to `/login`. `.env.example` ships `http://localhost`,
+> which is correct for **local dev only** — it must be changed for the deployed host.
+> See [`device-setup.md`](./device-setup.md) §4.3.
 
 ### MQTT Broker
 | Variable | Docker value | Local dev value |
@@ -59,16 +64,27 @@ build` time, so changing them needs a rebuild.
 | `MQTT_PORT` | `1883` | `1883` |
 | `MQTT_WS_PORT` | `9001` | `9001` |
 
-### Screen Player
-| Variable | Example | Notes |
-|---|---|---|
-| `SCREEN_ID` | `screen_experience_center_01` | Unique identifier for the screen instance |
-
 ### File Storage
 | Variable | Value | Notes |
 |---|---|---|
 | `UPLOAD_DIR` | `/data/uploads` | Container path — bind-mounted from `E:\EC\cms-platform-data\uploads` |
 | `LOG_DIR` | `/data/logs` | Container path — bind-mounted from `E:\EC\cms-platform-data\logs` |
+
+### Obsolete — no longer read by any code
+
+The TV player used to be a separate `screens` Next.js app on port `3001`. It is now a route
+inside the CMS app (`apps/cms/src/app/display/[screenId]`), so these are dead — earlier versions
+of this document listed them as live:
+
+| Variable | Was | Still in `.env.example`? |
+|---|---|---|
+| `SCREEN_ID` | Per-instance screen identifier; the id now comes from the URL path | **Yes** (line 36) — safe to delete |
+| `SCREENS_PORT` | Listen port of the removed screens app | No |
+| `NEXT_PUBLIC_SCREENS_BASE_PATH` | `basePath` of the removed screens app | No |
+| `CONFIG_DIR` | Mount path into the removed screens app's `public/config` | No |
+
+`NEXT_PUBLIC_SCREENS_URL` is **not** obsolete — it is still read by
+`apps/cms/src/lib/screen-url.ts` and ships in `.env.example`.
 
 ---
 
@@ -88,8 +104,13 @@ When running **local dev** (apps run on Windows, no Docker for app services):
 
 ## 3. How Variables Are Injected
 
-- **Docker Compose services** — all use `env_file: ../../.env` in `docker-compose.yml`
-- **Next.js build-time vars** — `ARG NEXT_PUBLIC_API_URL` → `ENV NEXT_PUBLIC_API_URL=...` in Dockerfiles
+- **Docker Compose services** — the `api` and `cms` services load `env_file: ../../.env.production`,
+  and compose itself is invoked with `--env-file ../../.env` for `${VAR}` interpolation inside
+  `docker-compose.yml`. Two different files: `.env` feeds the compose file, `.env.production`
+  feeds the containers. Both are gitignored.
+- **Next.js build-time vars** — `ARG NEXT_PUBLIC_API_URL` → `ENV NEXT_PUBLIC_API_URL=...` in
+  Dockerfiles, also passed as `build.args` in `docker-compose.yml`. Because they're baked into
+  the JS bundle, changing one needs a **rebuild**, not just a restart.
 - **Local dev** — the `packages/db` client auto-crawls up to the repo root `.env` as a fallback if `DATABASE_URL` is not set in the process environment
 
 ---

@@ -44,12 +44,11 @@ import {
 } from "@platform/ui";
 import { CreateProjectModal } from "./create-project-modal";
 import { EditExperienceModal } from "./edit-experience-modal";
-import { PushToScreenDialog, type ScreenRow } from "./push-to-screen-dialog";
-import { LiveControlDialog, type LiveScreen } from "./live-control-dialog";
-import { ExperiencePreviewModal } from "./experience-preview-modal";
-import { ControlChooserDialog } from "./control-chooser-dialog";
+import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
+import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
+import { assignExperience } from "@/actions/screen-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS } from "@/lib/templates";
 import type { Experience } from "@platform/db";
 
@@ -111,8 +110,6 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
   const [showControlDialog, setShowControlDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [pendingControlScreens, setPendingControlScreens] = useState<LiveScreen[] | null>(null);
-  const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: proj.id, disabled: !dragEnabled });
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -435,73 +432,49 @@ function SortableCard({ proj, index, isAdmin, dragEnabled = false, onDelete, scr
     {showControlDialog && (
       <LiveControlDialog
         experienceName={proj.name}
-        screens={
-          pendingControlScreens ??
-          assignedScreens.map((s) => ({
-            screenId: s.screenId,
-            screenName: s.screenName,
-            isOnline: activeScreenIds.has(s.screenId),
-          }))
-        }
+        screens={assignedScreens.map((s) => ({
+          screenId: s.screenId,
+          screenName: s.screenName,
+          isOnline: activeScreenIds.has(s.screenId),
+        }))}
         allScreens={allScreensForControl}
-        onClose={() => {
-          setShowControlDialog(false);
-          setPendingControlScreens(null);
-        }}
+        onClose={() => setShowControlDialog(false)}
       />
     )}
+    {/* Long-press "Push to screen" — same shared popup as the tap preview
+        below, just without a preview pane. */}
     {showPushDialog && (
-      <PushToScreenDialog
-        experienceName={proj.name}
-        experienceId={proj.id}
-        screens={screens}
-        activeScreenIds={activeScreenIds}
-        onClose={() => setShowPushDialog(false)}
-        onPushed={(screenIds) => {
-          const pushed = screens
-            .filter((s) => screenIds.includes(s.screenId))
-            .map((s) => ({
-              screenId: s.screenId,
-              screenName: s.screenName,
-              isOnline: activeScreenIds.has(s.screenId),
-            }));
-          setShowPushDialog(false);
-          // One screen: go straight to its control panel. Multiple: ask which
-          // one to control first (control mirrors one screen at a time).
-          if (pushed.length === 1) {
-            setPendingControlScreens(pushed);
-            setShowControlDialog(true);
-          } else {
-            setChooserScreens(pushed);
-          }
-        }}
-      />
-    )}
-    {chooserScreens && (
-      <ControlChooserDialog
+      <PushToScreenModal
         contentName={proj.name}
-        screens={chooserScreens}
-        onChoose={(screen) => {
-          setChooserScreens(null);
-          setPendingControlScreens([screen]);
-          setShowControlDialog(true);
-        }}
-        // Dismissing the chooser shouldn't discard the push — go back to the
-        // push dialog, the previous step in this flow.
-        onClose={() => {
-          setChooserScreens(null);
-          setShowPushDialog(true);
-        }}
+        onPush={(screenId) => assignExperience(screenId, proj.id)}
+        isAlreadyShowing={(s) =>
+          s.currentContentKind === "experience" && s.currentExperienceId === proj.id
+        }
+        onClose={() => setShowPushDialog(false)}
       />
     )}
+    {/* Tap = preview + push combined. */}
     {showPreviewModal && (
-      <ExperiencePreviewModal
-        experienceId={proj.id}
-        experienceName={proj.name}
-        slug={proj.slug}
-        templateKey={proj.templateKey}
-        screens={screens}
-        activeScreenIds={activeScreenIds}
+      <PushToScreenModal
+        contentName={proj.name}
+        preview={
+          proj.templateKey ? (
+            <iframe
+              key={proj.slug}
+              src={`/preview/experiences/${proj.slug}`}
+              title={proj.name}
+              className="h-full w-full border-0 bg-black"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+              allow="autoplay; encrypted-media; fullscreen"
+            />
+          ) : (
+            <p className="px-8 text-center text-sm text-white/50">No template assigned to this experience.</p>
+          )
+        }
+        onPush={(screenId) => assignExperience(screenId, proj.id)}
+        isAlreadyShowing={(s) =>
+          s.currentContentKind === "experience" && s.currentExperienceId === proj.id
+        }
         onClose={() => setShowPreviewModal(false)}
       />
     )}

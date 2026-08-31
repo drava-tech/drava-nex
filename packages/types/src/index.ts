@@ -18,7 +18,9 @@ export const TEMPLATE_KEYS = [
   "live-stream",
   "product-showcase",
   "welcome",
+  "object-recognition",
   "flight-simulation",
+  "gallery",
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
@@ -212,7 +214,24 @@ export type WsServerMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER_ACK' }
   | { type: 'AUDIO_BRIDGE_REGISTER_NACK'; reason: string }
   // Sent only to the registered native audio-bridge socket (apps/api/audio-helper/bridge.mjs).
-  | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean };
+  | { type: 'AUDIO_COMMAND'; action: 'set-volume' | 'set-mute' | 'toggle-mute'; value?: number | boolean }
+  // Native screen-agent relay (apps/api/screen-agent/agent.mjs) — one agent
+  // registers per screenId (it runs on the Windows PC physically driving that
+  // screen's TV). ACK/NACK go only to the registering socket; CURSOR_CONTROL
+  // here is the gateway's relay of a CMS tablet's CURSOR_CONTROL client
+  // message (below), sent only to whichever agent is registered for that
+  // screenId, so it can simulate the real OS-level mouse input.
+  | { type: 'SCREEN_AGENT_REGISTER_ACK' }
+  | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
+  | {
+      type: 'CURSOR_CONTROL';
+      action: 'move' | 'click' | 'scroll';
+      dx?: number;
+      dy?: number;
+      deltaY?: number;
+      /** Which physical button a 'click' simulates — omitted means 'left'. */
+      button?: 'left' | 'right';
+    };
 
 export type WsClientMessage =
   | { type: 'REGISTER'; screenId: string; preview?: boolean }
@@ -243,7 +262,29 @@ export type WsClientMessage =
   | { type: 'AUDIO_BRIDGE_REGISTER'; secret: string }
   // Bridge reports current OS volume/mute/device after every change (both
   // CMS-initiated and externally-initiated, e.g. the Windows tray).
-  | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus);
+  | ({ type: 'AUDIO_BRIDGE_STATUS' } & AudioStatus)
+  // Native screen-agent (apps/api/screen-agent/agent.mjs) registers itself for
+  // one screenId — it runs on the Windows PC physically driving that screen's
+  // TV and simulates real OS-level mouse input there, so remote control works
+  // for whatever's actually on screen (a browser tab, YouTube, anything else)
+  // with no app-specific plumbing. Auth mirrors AUDIO_BRIDGE_REGISTER
+  // (BROADCAST_SECRET), but keyed per-screenId rather than a single global
+  // connection, since each screen has its own PC.
+  | { type: 'SCREEN_AGENT_REGISTER'; screenId: string; secret: string }
+  // A CMS control-pad drives the OS cursor on whichever PC is registered for
+  // this screenId — relative motion (dx/dy), a click at the current OS cursor
+  // position (optionally 'right' for a right-click, e.g. a trackpad's right
+  // button), or a scroll (deltaY). Dropped silently if no agent is
+  // registered for the screen — trackpad deltas are fire-and-forget.
+  | {
+      type: 'CURSOR_CONTROL';
+      screenId: string;
+      action: 'move' | 'click' | 'scroll';
+      dx?: number;
+      dy?: number;
+      deltaY?: number;
+      button?: 'left' | 'right';
+    };
 
 /**
  * Events the gateway pushes to subscribed Unreal Engine / automation clients
@@ -256,7 +297,10 @@ export type WsUeEvent =
   | { type: 'LIGHT_STATE_CHANGED'; deviceId: string; state: Record<string, unknown>; timestamp: number }
   | { type: 'DEVICE_STATUS_CHANGED'; deviceId: string; status: string; timestamp: number }
   | { type: 'SCREEN_CONTENT_CHANGED'; screenId: string; content: WsContent; timestamp: number }
-  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number };
+  | { type: 'PRODUCT_DETECTED'; cameraId: string; label: string; confidence: number; productId?: string; timestamp: number }
+  // Full current mat contents (services/vision OBJECT worker) — a snapshot, not
+  // a single best guess like PRODUCT_DETECTED above.
+  | { type: 'INVENTORY_UPDATE'; cameraId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number };
 
 export type WsCmsMessage =
   | { type: 'SCREEN_UPDATED'; screenId: string; content: WsContent; source: 'screen' | 'cms' }
@@ -267,6 +311,10 @@ export type WsCmsMessage =
   // internal event relay (POST /api/internal/vision-event). `name` may be ""
   // (the CMS already has it from the initial GET /api/visitors load).
   | { type: 'VISITOR_DETECTED'; uuid: string; name: string; isNew: boolean; lastSeen: string; hasImage: boolean }
+  // Full current mat contents, resolved to catalogue products. Emitted by
+  // services/vision's OBJECT worker via the internal event relay (POST
+  // /api/internal/vision-event) — drives live admin-facing mat-contents views.
+  | { type: 'INVENTORY_UPDATE'; cameraId: string; screenId: string; items: import('./products.js').MatInventoryDisplayItem[]; timestamp: number }
   // Door lock state changed (manual toggle via the CMS) — drives the live
   // Door Lock panel. Emitted directly from apps/api/src/routes/door-events.ts.
   | { type: 'DOOR_EVENT'; id: string; lockId: string; action: 'locked' | 'unlocked'; createdAt: string; total: number }
@@ -281,7 +329,12 @@ export type WsCmsMessage =
   // An IR device changed — a CMS command was applied (state echoed back), or the
   // IR ingest observed the CrabController bridge going online/offline (status).
   // Drives the live Climate panel + Remotes overlay in Environment Control.
-  | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string };
+  | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string }
+  // A screen's native screen-agent (apps/api/screen-agent) connected or
+  // disconnected — drives the "Agent not connected" hint on the tablet
+  // touchpad (see useScreenCursorControl). Broadcast on register/disconnect,
+  // and replayed for every currently-connected screenId on CMS_REGISTER.
+  | { type: 'SCREEN_AGENT_STATUS'; screenId: string; connected: boolean };
 
 export interface BroadcastRequest {
   screenId: string;

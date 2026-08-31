@@ -5,6 +5,7 @@ import {
   FlightSimulationRenderer,
   readFlightSimulationContent,
 } from "@platform/ui/templates/flight-simulation";
+import { GalleryRenderer, readGalleryContent } from "@platform/ui/templates/gallery";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -12,18 +13,27 @@ import { HtmlRenderer } from "./HtmlRenderer";
 import { StreamRenderer } from "./StreamRenderer";
 import { LiveStreamRenderer } from "./LiveStreamRenderer";
 import { ProductShowcaseRenderer } from "./ProductShowcaseRenderer";
+import { ObjectRecognitionRenderer } from "./ObjectRecognitionRenderer";
 import { ExperienceDisplay } from "./ExperienceDisplay";
 
-export function ContentRenderer({ content, screenId, preview }: { content: Content; screenId?: string; preview?: boolean }) {
+export function ContentRenderer({
+  content,
+  screenId,
+  preview,
+}: {
+  content: Content;
+  screenId?: string;
+  preview?: boolean;
+}) {
   switch (content.type) {
     case "video":
-      return <VideoRenderer content={content} />;
+      return <VideoRenderer content={content} preview={preview} />;
     case "image":
       return <ImageRenderer content={content} />;
     case "html":
-      return <HtmlRenderer content={content} />;
+      return <HtmlRenderer content={content} preview={preview} />;
     case "stream":
-      return <StreamRenderer content={content} />;
+      return <StreamRenderer content={content} preview={preview} />;
     case "experience": {
       // An experience assigned a code-defined template renders that template
       // full-screen (the authored content). Without a template, fall back to the
@@ -42,6 +52,9 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
       if (content.templateKey === "product-showcase") {
         return <ProductShowcaseRenderer content={content} preview={preview} />;
       }
+      if (content.templateKey === "object-recognition") {
+        return <ObjectRecognitionRenderer content={content} preview={preview} />;
+      }
       if (content.templateKey === "welcome") {
         const welcome = readWelcomeContent(content.templateContent);
         return <WelcomeRenderer content={welcome ?? undefined} speak={!preview} />;
@@ -51,6 +64,10 @@ export function ContentRenderer({ content, screenId, preview }: { content: Conte
         // The scene fills the screen itself (camera-fitted, resolution
         // independent) — no ScreenStage, which would letterbox and rescale it.
         return <FlightSimulationRenderer content={flight} />;
+      }
+      if (content.templateKey === "gallery") {
+        const gallery = readGalleryContent(content.templateContent);
+        return <GalleryRenderer content={gallery ?? undefined} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

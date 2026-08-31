@@ -8,7 +8,9 @@ import { readPortfolioContent } from "@platform/ui/templates/portfolio";
 import { readLiveStreamContent } from "@platform/ui/templates/live-stream";
 import { readProductShowcaseContent } from "@platform/ui/templates/product-showcase";
 import { readWelcomeContent } from "@platform/ui/templates/welcome";
+import { readObjectRecognitionContent } from "@platform/ui/templates/object-recognition";
 import { readFlightSimulationContent } from "@platform/ui/templates/flight-simulation";
+import { readGalleryContent } from "@platform/ui/templates/gallery";
 
 /**
  * Per-template reader for the experience's saved content slice. Table-driven so
@@ -24,7 +26,9 @@ const CONTENT_READERS: Record<
   "live-stream": readLiveStreamContent,
   "product-showcase": readProductShowcaseContent,
   welcome: readWelcomeContent,
+  "object-recognition": readObjectRecognitionContent,
   "flight-simulation": readFlightSimulationContent,
+  gallery: readGalleryContent,
 };
 
 interface EditPageProps {
