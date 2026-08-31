@@ -3,43 +3,78 @@
    ============================================================= */
 
 .fg-root {
-  --bg:            #05070a;
+  --bg: #05070a;
 
-  --glass:         rgba(10, 16, 22, 0.58);
-  --glass-hi:      rgba(255, 255, 255, 0.055);
-  --stroke:        rgba(255, 255, 255, 0.10);
-  --stroke-soft:   rgba(255, 255, 255, 0.055);
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.85);
 
-  --text:          #e9eff3;
-  --muted:         rgba(233, 239, 243, 0.52);
-  --faint:         rgba(233, 239, 243, 0.30);
+  /* Glass for the small cards that float over the artwork — the terminal
+     captions and the hover tooltip.
 
-  --cyan:          #62dcff;
-  --amber:         #ffc46b;
-  --soft-white:    rgba(255, 255, 255, 0.82);
+     Same 10-15% white as --glass: these read as glass because the
+     backdrop-filter tints them with the garden underneath, not because they
+     are a white fill. An opaque fill was the first thing tried here and it
+     looked like a sticker, not like the sidebar.
 
-  --radius:        16px;
-  --radius-sm:     10px;
+     They need their own filter because the panel's cannot survive being
+     moved: --blur's saturate(150%) and brightness(1.05) are tuned for the
+     bright, near-neutral corner the sidebar happens to occupy. A caption
+     sits over dark moss, where that same filter renders a dim, strongly
+     green card. Dropping saturation and lifting brightness lands the card's
+     rendered surface on rgb(217,224,210) — the sidebar's own rgb(222,223,221)
+     — while keeping it genuinely see-through. */
+  --glass-card: rgba(255, 255, 255, 0.15);
+  --blur-card: blur(26px) saturate(35%) brightness(1.8);
+  --stroke: rgba(15, 23, 32, 0.12);
+  --stroke-soft: rgba(15, 23, 32, 0.07);
 
-  --shadow:        0 24px 60px -20px rgba(0, 0, 0, 0.85),
-                   0 2px 10px -2px rgba(0, 0, 0, 0.6);
+  /* Panel ink. These sit on thin glass over a bright, moving garden, so
+     low-alpha greys wash out — the plate keeps shifting underneath them.
+     Kept as three steps so the hierarchy (content > label > count) still
+     reads, just with every step opaque enough to hold against the video. */
+  --text: #141a21;
+  --muted: rgba(20, 26, 33, 0.86);
+  --faint: rgba(20, 26, 33, 0.66);
 
-  --pad:           16px;
-  --blur:          blur(22px) saturate(140%);
+  --cyan: #62dcff;
+  --amber: #ffc46b;
+  --soft-white: rgba(255, 255, 255, 0.82);
+
+  --cyan-panel: #0b7594;
+  --amber-panel: #a3620f;
+  --mint-panel: #1f7a4d;
+  --red-panel: #b3261e;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85),
+    0 2px 10px -2px rgba(0, 0, 0, 0.6);
+
+  --pad: 16px;
+  --blur: blur(26px) saturate(150%) brightness(1.05);
 
   --font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
-          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: "SF Mono", "JetBrains Mono", ui-monospace, "Cascadia Mono",
-          "Roboto Mono", Menlo, Consolas, monospace;
+    "Roboto Mono", Menlo, Consolas, monospace;
 
   /* HUD layout variables for desktop */
   --hud-padding: clamp(14px, 2.2vw, 28px);
-  --hud-gap: 20px;
-  --left-col-width: clamp(220px, 18vw, 280px);
-  --right-col-width: clamp(240px, 20vw, 300px);
+  --panel-width: clamp(180px, 13vw, 220px);
 }
 
-.fg-root, .fg-root * { box-sizing: border-box; }
+.fg-root, .fg-root * {
+  box-sizing: border-box;
+}
+
+/* The hidden attribute has to win over the layout rules further down.
+   .hp-block and .stats set `display`, and an author `display` silently beats
+   the UA stylesheet's [hidden] { display: none } — so scene switching would
+   set the attribute correctly and leave the panel on screen anyway. */
+.fg-root [hidden] {
+  display: none !important;
+}
 
 .fg-root {
   margin: 0;
@@ -56,8 +91,10 @@
 
 .fg-root .sr-only {
   position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -71,18 +108,10 @@
 .fg-root .stage {
   position: absolute;
   inset: 0;
+  z-index: 1;
 }
 
-@media (min-width: 721px) {
-  .fg-root .stage {
-    top: var(--hud-padding);
-    bottom: var(--hud-padding);
-    left: calc(var(--left-col-width) + var(--hud-padding) + var(--hud-gap));
-    right: calc(var(--right-col-width) + var(--hud-padding) + var(--hud-gap));
-  }
-}
-
-.fg-root #scene {
+.fg-root canvas.fg-canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -105,24 +134,78 @@
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+  transition: opacity 0.5s ease;
+  z-index: 10;
 }
 
 .fg-root .zone-label,
 .fg-root .gate-label {
   position: absolute;
-  top: 0; left: 0;
+  top: 0;
+  left: 0;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.5s ease;
   will-change: transform, opacity;
+  display: none !important;
 }
 
+.fg-root .zone-label[data-kind="terminal"] {
+  display: flex !important;
+}
+
+/* =============================================================
+   FLOATING GLASS CARD
+   The sidebar's material (see .panel), at caption scale — used by the
+   terminal captions and the butterfly hover tooltip, so everything that
+   floats over the garden is made of the same thing.
+
+   The top hairline of light is painted as a background layer rather than
+   .panel's ::before, for two reasons: it clips to the border radius on its
+   own, and it can never end up on top of the content — which matters here
+   because the tooltip's text is a bare text node with no element to raise
+   above an overlapping pseudo-element.
+   ============================================================= */
+.fg-root .zone-label,
+.fg-root .tooltip {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur-card);
+  -webkit-backdrop-filter: var(--blur-card);
+  color: var(--text);
+
+  background:
+    linear-gradient(180deg,
+        var(--glass-hi) 0%,
+        rgba(255, 255, 255, 0) 100%) top / 100% 45% no-repeat,
+    var(--glass-card);
+}
+
+/* Caption-scale layout — see .panel.
+   A caption tracks its bloom across the whole garden, landing on the white
+   petals as often as on the dark moss, so it has to carry its own surface:
+   white ink with a black glow (what this was) vanishes against the petals,
+   and bare dark ink would vanish against the moss. */
 .fg-root .zone-label {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   align-items: center;
   text-align: center;
+
+  padding: 9px 15px 10px;
+}
+
+/* The zone's own colour, kept as a hairline accent above the name
+   (see the data-kind rules below). */
+.fg-root .zone-label::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  margin-bottom: 5px;
+  background: currentColor;
+  opacity: 0.75;
 }
 
 .fg-root .zone-label .zl-name {
@@ -130,36 +213,41 @@
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--soft-white);
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+  color: var(--text);
 }
 
+/* Full --text, following .tower-sub — the panel's own equivalent subtitle,
+   which is near-black rather than faint. 9px mono is thinner than anything
+   on the panel, so the lighter greys measured below the panel's floor
+   (--faint 2.0:1, --muted 3.3:1, vs the panel's weakest at 4.0:1). The
+   hierarchy against the name is carried by size, weight, case and tracking,
+   not by ink. */
 .fg-root .zone-label .zl-note {
   font-family: var(--mono);
   font-size: 9px;
   letter-spacing: 0.10em;
-  color: rgba(233, 239, 243, 0.62);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 1px 12px rgba(0, 0, 0, 0.95);
+  color: var(--text);
 }
 
-.fg-root .zone-label .zl-name {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 1), 0 1px 14px rgba(0, 0, 0, 0.95);
+.fg-root .zone-label[data-kind="arrival"] {
+  color: var(--cyan-panel);
 }
 
-.fg-root .zone-label::before {
-  content: "";
-  width: 22px;
-  height: 1px;
-  margin-bottom: 4px;
-  background: currentColor;
-  opacity: 0.45;
+.fg-root .zone-label[data-kind="departure"] {
+  color: var(--amber-panel);
 }
 
-.fg-root .zone-label[data-kind="arrival"] { color: var(--cyan); }
-.fg-root .zone-label[data-kind="departure"] { color: var(--amber); }
-.fg-root .zone-label[data-kind="holding"] { color: rgba(255,255,255,0.7); }
-.fg-root .zone-label[data-kind="terminal"] { color: #9fe6b8; }
-.fg-root .zone-label[data-kind="runway"] { color: rgba(196, 196, 255, 0.68); }
+.fg-root .zone-label[data-kind="holding"] {
+  color: var(--faint);
+}
+
+.fg-root .zone-label[data-kind="terminal"] {
+  color: var(--mint-panel);
+}
+
+.fg-root .zone-label[data-kind="runway"] {
+  color: #5b5f9e;
+}
 
 .fg-root .gate-label {
   font-family: var(--mono);
@@ -180,8 +268,13 @@
    (Garden Terminal, hero) reads mint like the terminal-zone label; Terminal 1
    (Domestic Pier) reads a warmer neutral. Both are overridden by .occupied /
    .inbound below once a flight actually claims the gate. */
-.fg-root .gate-label.gate-t2 { border-color: rgba(159, 230, 184, 0.22); }
-.fg-root .gate-label.gate-t1 { border-color: rgba(255, 196, 107, 0.18); }
+.fg-root .gate-label.gate-t2 {
+  border-color: rgba(159, 230, 184, 0.22);
+}
+
+.fg-root .gate-label.gate-t1 {
+  border-color: rgba(255, 196, 107, 0.18);
+}
 
 .fg-root .gate-label.occupied {
   color: #fff;
@@ -201,22 +294,16 @@
   position: absolute;
   inset: 0;
   padding: var(--hud-padding);
-  display: grid;
-  grid-template-columns: var(--left-col-width) 1fr var(--right-col-width);
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "tower  .  stats"
-    "legend .  detail";
-  gap: var(--hud-gap);
   pointer-events: none;
+  z-index: 15;
 }
 
 .fg-root .panel {
+  position: relative;
   pointer-events: auto;
   background: var(--glass);
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
-  padding: var(--pad);
   box-shadow: var(--shadow);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
@@ -224,31 +311,56 @@
   /* cinematic entrance */
   opacity: 0;
   transform: translateY(10px);
-  animation: panel-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: panel-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.9s forwards;
 }
 
-/* Hairline of light along the top edge — the "glass art" tell */
+/* Hairline of light along the top edge — the "glass art" tell.
+   Height-capped and z-indexed below the content on purpose: with inset:0
+   on a full-height sidebar the 38% fade ran ~350px down the panel, and
+   an absolutely-positioned ::before with no z-index paints over static
+   children — so it was washing a white veil across the heading. */
 .fg-root .panel::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  inset: 0 0 auto;
+  height: 80px;
+  z-index: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   pointer-events: none;
   background: linear-gradient(180deg,
-    var(--glass-hi) 0%,
-    rgba(255, 255, 255, 0) 38%);
+      var(--glass-hi) 0%,
+      rgba(255, 255, 255, 0) 100%);
 }
-
-.fg-root .panel { position: relative; }
 
 @keyframes panel-in {
-  to { opacity: 1; transform: translateY(0); }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.fg-root .tower { grid-area: tower;  animation-delay: 1.9s; width: 100%; }
-.fg-root .stats { grid-area: stats;  animation-delay: 2.1s; width: 100%; }
-.fg-root .legend { grid-area: legend; animation-delay: 2.3s; width: 100%; }
-.fg-root .detail { grid-area: detail; animation-delay: 2.3s; width: 100%; }
+/* Single sidebar card holding every HUD section */
+.fg-root .hud-panel {
+  position: absolute;
+  left: var(--hud-padding);
+  top: var(--hud-padding);
+  bottom: var(--hud-padding);
+  width: var(--panel-width);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.fg-root .hp-block {
+  position: relative;
+  z-index: 1;   /* above .panel::before's top sheen */
+  padding: var(--pad);
+}
+
+.fg-root .hp-block+.hp-block {
+  border-top: 1px solid var(--stroke-soft);
+}
 
 .fg-root .eyebrow {
   margin: 0;
@@ -257,6 +369,15 @@
   letter-spacing: 0.20em;
   text-transform: uppercase;
   color: var(--faint);
+}
+
+/* The visualization picker sits straight under its own label, and .eyebrow
+   carries no margin — without this the two are flush. Scoped to this block
+   so the legend and detail headings, which have their own spacing, are
+   left alone. */
+.fg-root .scene .eyebrow {
+  display: block;
+  margin-bottom: 10px;
 }
 
 /* =============================================================
@@ -269,11 +390,16 @@
   gap: 8px;
 }
 
+/* Solid black, no shadow: the glass sits over the bright garden, so the
+   header reads by being darker than its backdrop. The subtitle drops the
+   58% --muted it used to carry — at 10px over a busy, moving plate that
+   translucency was what made it look washed out. */
 .fg-root .tower-title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: #000;
 }
 
 .fg-root .tower-sub {
@@ -282,7 +408,7 @@
   font-size: 10px;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #000;
 }
 
 .fg-root .live-dot {
@@ -296,9 +422,17 @@
 }
 
 @keyframes pulse-dot {
-  0%   { box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.5); }
-  70%  { box-shadow: 0 0 0 7px rgba(87, 227, 154, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(87, 227, 154, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.5);
+  }
+
+  70% {
+    box-shadow: 0 0 0 7px rgba(87, 227, 154, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(87, 227, 154, 0);
+  }
 }
 
 .fg-root .select-wrap {
@@ -320,7 +454,9 @@
   pointer-events: none;
 }
 
-.fg-root #airportSelect {
+/* Any select inside a .select-wrap, not one by id: the visualization
+   picker is the second one and adding a third should not need CSS. */
+.fg-root .select-wrap select {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
@@ -329,20 +465,34 @@
   font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 32, 0.05);
   border: 1px solid var(--stroke);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 0.25s ease, background 0.25s ease;
 }
 
-.fg-root #airportSelect:hover { border-color: rgba(255, 255, 255, 0.22); }
-.fg-root #airportSelect:focus-visible {
-  outline: none;
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(98, 220, 255, 0.14);
+.fg-root .select-wrap select:hover {
+  border-color: rgba(15, 23, 32, 0.24);
 }
-.fg-root #airportSelect option { background: #0a1016; color: var(--text); }
+
+.fg-root .select-wrap select:focus-visible {
+  outline: none;
+  border-color: var(--cyan-panel);
+  box-shadow: 0 0 0 3px rgba(11, 117, 148, 0.16);
+}
+
+.fg-root .select-wrap select option {
+  background: #f5f6f8;
+  color: var(--text);
+}
+
+/* Country/city picker for the weather scene, sitting above its live
+   readout — same .select-wrap every other dropdown uses, just spaced off
+   the stats grid below it. */
+.fg-root .location-select-wrap {
+  margin-bottom: 14px;
+}
 
 /* =============================================================
    STATS PANEL
@@ -350,7 +500,7 @@
 
 .fg-root .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(56px, auto));
+  grid-template-columns: 1fr 1fr;
   gap: 0;
 }
 
@@ -359,11 +509,24 @@
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  padding: 2px 14px;
-  border-left: 1px solid var(--stroke-soft);
+  padding: 4px 8px;
 }
-.fg-root .stat:first-child { border-left: 0; padding-left: 4px; }
-.fg-root .stat:last-child { padding-right: 4px; }
+
+.fg-root .stat:nth-child(1),
+.fg-root .stat:nth-child(2) {
+  padding-top: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stroke-soft);
+}
+
+.fg-root .stat:nth-child(3),
+.fg-root .stat:nth-child(4) {
+  padding-bottom: 0;
+}
+
+.fg-root .stat:nth-child(odd) {
+  border-right: 1px solid var(--stroke-soft);
+}
 
 .fg-root .stat-value {
   font-family: var(--mono);
@@ -374,10 +537,48 @@
   transition: color 0.4s ease;
 }
 
-.fg-root .stat[data-kind="arrival"]   .stat-value { color: var(--cyan); }
-.fg-root .stat[data-kind="departure"] .stat-value { color: var(--amber); }
-.fg-root .stat[data-kind="parked"]    .stat-value { color: #9fe6b8; }
-.fg-root .stat[data-kind="active"]    .stat-value { color: var(--text); }
+.fg-root .stat[data-kind="arrival"] .stat-value {
+  color: var(--cyan-panel);
+}
+
+.fg-root .stat[data-kind="departure"] .stat-value {
+  color: var(--amber-panel);
+}
+
+.fg-root .stat[data-kind="parked"] .stat-value {
+  color: var(--mint-panel);
+}
+
+.fg-root .stat[data-kind="active"] .stat-value {
+  color: var(--text);
+}
+
+/* Attendance scene's 3-up readout (present/absent/late) — one row instead
+   of the 2x2 grid the other stats blocks use. */
+.fg-root .stats.stats-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.fg-root .stats.stats-3 .stat {
+  border-bottom: none;
+  padding: 4px 8px;
+}
+
+.fg-root .stats.stats-3 .stat:not(:last-child) {
+  border-right: 1px solid var(--stroke-soft);
+}
+
+.fg-root .stat[data-kind="present"] .stat-value {
+  color: var(--mint-panel);
+}
+
+.fg-root .stat[data-kind="absent"] .stat-value {
+  color: var(--red-panel);
+}
+
+.fg-root .stat[data-kind="late"] .stat-value {
+  color: var(--amber-panel);
+}
 
 .fg-root .stat-label {
   font-size: 8.5px;
@@ -387,11 +588,103 @@
   color: var(--faint);
 }
 
+/* Manual temp/wind override — type an exact value to test the weather
+   scene's colour mapping and speed without waiting on a live reading;
+   Realtime hands control back to the poll. */
+.fg-root .weather-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 8px 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--stroke-soft);
+}
+
+/* One field per row — label and input share that one line, Temp above Wind. */
+.fg-root .weather-field {
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  align-items: center;
+  gap: 8px;
+}
+
+.fg-root .weather-field-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.fg-root .weather-field input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  padding: 3px 6px;
+  text-align: right;
+}
+
+.fg-root .weather-field input[type="number"]:focus-visible {
+  outline: none;
+  border-color: var(--cyan-panel);
+}
+
+/* Chrome/Safari's spinner arrows crowd a field this narrow. */
+.fg-root .weather-field input[type="number"]::-webkit-inner-spin-button,
+.fg-root .weather-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.fg-root .realtime-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  pointer-events: auto;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.fg-root .realtime-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(15, 23, 32, 0.26);
+}
+
+/* Disabled means "already realtime" — no override to hand back. */
+.fg-root .realtime-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Grey, still dot while live (nothing to hand back); green and pulsing
+   once a manual reading is in effect, matching the tower panel's own dot. */
+.fg-root .realtime-btn:disabled .live-dot {
+  background: var(--faint);
+  box-shadow: none;
+  animation: none;
+}
+
 /* =============================================================
    LEGEND PANEL
    ============================================================= */
-
-.fg-root .legend { width: 100%; }
 
 .fg-root .route-key,
 .fg-root .airline-key {
@@ -418,22 +711,36 @@
   border-radius: 2px;
   flex: none;
 }
-.fg-root .route-key .cyan { background: var(--cyan);  box-shadow: 0 0 10px rgba(98, 220, 255, 0.7); }
-.fg-root .route-key .amber { background: var(--amber); box-shadow: 0 0 10px rgba(255, 196, 107, 0.6); }
+
+.fg-root .route-key .cyan {
+  background: var(--cyan);
+  box-shadow: 0 0 10px rgba(98, 220, 255, 0.7);
+}
+
+.fg-root .route-key .amber {
+  background: var(--amber);
+  box-shadow: 0 0 10px rgba(255, 196, 107, 0.6);
+}
+
 .fg-root .route-key .white.dashed {
   background: repeating-linear-gradient(90deg,
-    rgba(255,255,255,0.85) 0 4px, transparent 4px 7px);
+      rgba(255, 255, 255, 0.85) 0 4px, transparent 4px 7px);
   box-shadow: none;
 }
 
-.fg-root .airline-head { margin-top: 16px; }
+.fg-root .airline-head {
+  margin-top: 16px;
+}
 
 .fg-root .airline-key li {
   justify-content: space-between;
   gap: 8px;
   transition: opacity 0.4s ease;
 }
-.fg-root .airline-key li.idle { opacity: 0.32; }
+
+.fg-root .airline-key li.idle {
+  opacity: 0.32;
+}
 
 .fg-root .airline-key .ak-left {
   display: flex;
@@ -488,7 +795,11 @@
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 }
-.fg-root .unpin:hover { color: var(--text); border-color: rgba(255,255,255,0.28); }
+
+.fg-root .unpin:hover {
+  color: var(--text);
+  border-color: rgba(15, 23, 32, 0.26);
+}
 
 .fg-root .detail-empty {
   margin: 12px 0 2px;
@@ -497,7 +808,9 @@
   color: var(--faint);
 }
 
-.fg-root .detail-body { margin-top: 12px; }
+.fg-root .detail-body {
+  margin-top: 12px;
+}
 
 .fg-root .detail-top {
   display: flex;
@@ -514,7 +827,10 @@
   box-shadow: 0 0 12px currentColor;
 }
 
-.fg-root .detail-id { min-width: 0; flex: 1; }
+.fg-root .detail-id {
+  min-width: 0;
+  flex: 1;
+}
 
 .fg-root .flight-no {
   display: block;
@@ -547,12 +863,24 @@
   color: var(--muted);
   white-space: nowrap;
 }
+
 .fg-root .status-chip[data-state="inbound"],
-.fg-root .status-chip[data-state="final"] { color: var(--cyan); }
-.fg-root .status-chip[data-state="holding"] { color: rgba(255,255,255,0.8); }
-.fg-root .status-chip[data-state="parked"] { color: #9fe6b8; }
+.fg-root .status-chip[data-state="final"] {
+  color: var(--cyan-panel);
+}
+
+.fg-root .status-chip[data-state="holding"] {
+  color: var(--text);
+}
+
+.fg-root .status-chip[data-state="parked"] {
+  color: var(--mint-panel);
+}
+
 .fg-root .status-chip[data-state="boarding"],
-.fg-root .status-chip[data-state="climb"] { color: var(--amber); }
+.fg-root .status-chip[data-state="climb"] {
+  color: var(--amber-panel);
+}
 
 .fg-root .detail-grid {
   display: grid;
@@ -585,28 +913,34 @@
 
 .fg-root .tooltip {
   position: absolute;
-  top: 0; left: 0;
+  top: 0;
+  left: 0;
   z-index: 20;
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -160%);
   transition: opacity 0.18s ease;
 
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--stroke);
-  background: rgba(6, 10, 14, 0.82);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.9);
+  /* Material comes from the shared floating-glass-card block above. */
+  padding: 7px 13px 8px;
 
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.05em;
   white-space: nowrap;
-  color: var(--text);
 }
-.fg-root .tooltip.visible { opacity: 1; }
-.fg-root .tooltip .tt-accent { color: var(--cyan); }
+
+.fg-root .tooltip.visible {
+  opacity: 1;
+}
+
+.fg-root .tooltip .tt-accent {
+  /* --cyan is the bright on-dark accent; on light glass it washes out, so
+     the flight number uses the darker panel variant like every other
+     accent that sits on glass. */
+  color: var(--cyan-panel);
+  font-weight: 600;
+}
 
 /* =============================================================
    CINEMATIC INTRO
@@ -621,7 +955,10 @@
   opacity: 1;
   transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.fg-root .veil.lifted { opacity: 0; }
+
+.fg-root .veil.lifted {
+  opacity: 0;
+}
 
 /* airport switch: quick breath of darkness */
 .fg-root .veil.switching {
@@ -647,10 +984,25 @@
 }
 
 @keyframes titlecard {
-  0%   { opacity: 0; transform: translateX(-50%) translateY(12px); }
-  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-  68%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
 }
 
 /* The card lands on bright moss. Without a scrim the metaphor line —
@@ -665,9 +1017,9 @@
   height: 260px;
   transform: translate(-50%, -50%);
   background: radial-gradient(ellipse at center,
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.52) 40%,
-    rgba(0, 0, 0, 0) 72%);
+      rgba(0, 0, 0, 0.78) 0%,
+      rgba(0, 0, 0, 0.52) 40%,
+      rgba(0, 0, 0, 0) 72%);
 }
 
 .fg-root .tc-kicker {
@@ -702,63 +1054,100 @@
    ============================================================= */
 
 @media (max-width: 900px) {
-  .fg-root .legend { width: min(200px, 54vw); }
-  .fg-root .detail { width: min(260px, 60vw); }
-  .fg-root .stat { padding: 2px 10px; }
-  .fg-root .stat-value { font-size: 19px; }
+  .fg-root {
+    --panel-width: 170px;
+  }
+
+  .fg-root .stat {
+    padding: 2px 10px;
+  }
+
+  .fg-root .stat-value {
+    font-size: 19px;
+  }
 }
 
 @media (max-width: 720px) {
-  .fg-root { --pad: 13px; --radius: 14px; }
-
-  .fg-root .hud {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr auto;
-    grid-template-areas:
-      "tower"
-      "stats"
-      "."
-      "detail";
-    gap: 10px;
-    padding: 12px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  .fg-root {
+    --pad: 13px;
+    --radius: 14px;
   }
 
-  .fg-root .tower { width: 100%; }
-  .fg-root .detail { width: 100%; }
+  .fg-root .hud {
+    padding: 12px;
+  }
+
+  /* Sidebar becomes a top bar, leaving room for the HUD toggle pill */
+  .fg-root .hud-panel {
+    left: 12px;
+    right: 148px;
+    top: 12px;
+    bottom: auto;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
 
   /* Airline roster is the first thing to go — the garden must breathe */
-  .fg-root .legend { display: none; }
+  .fg-root .legend {
+    display: none;
+  }
 
-  .fg-root .stats { grid-template-columns: repeat(4, 1fr); }
-  .fg-root .stat { padding: 2px 4px; }
-  .fg-root .stat-value { font-size: 18px; }
-  .fg-root .stat-label { font-size: 7.5px; letter-spacing: 0.10em; }
+  .fg-root .stat-value {
+    font-size: 18px;
+  }
 
-  .fg-root .tower-sub { margin-bottom: 11px; }
+  .fg-root .stat-label {
+    font-size: 7.5px;
+    letter-spacing: 0.10em;
+  }
 
-  .fg-root .zone-label .zl-note { display: none; }
-  .fg-root .zone-label .zl-name { font-size: 8.5px; letter-spacing: 0.16em; }
+  .fg-root .tower-sub {
+    margin-bottom: 11px;
+  }
+
+  .fg-root .zone-label .zl-note {
+    display: none;
+  }
+
+  .fg-root .zone-label .zl-name {
+    font-size: 8.5px;
+    letter-spacing: 0.16em;
+  }
 
   /* keep the one note that names the gates, since the captions are hidden */
-  .fg-root .zone-label[data-kind="terminal"] .zl-note { display: block; }
+  .fg-root .zone-label[data-kind="terminal"] .zl-note {
+    display: block;
+  }
 
   /* Ten gate captions collide at this scale. The rings still pulse, and
      "T2 · C1–C6 · T1 · D1–D4" under Kempegowda Bloom carries the meaning. */
-  .fg-root .gate-label { display: none; }
+  .fg-root .gate-label {
+    display: none;
+  }
 
-  .fg-root .titlecard { bottom: 28vh; }
+  .fg-root .titlecard {
+    bottom: 28vh;
+  }
 }
 
 @media (max-width: 400px) {
-  .fg-root .stat-value { font-size: 16px; }
-  .fg-root .detail-grid { grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+  .fg-root .stat-value {
+    font-size: 16px;
+  }
+
+  .fg-root .detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+  }
 }
 
 /*
  * Dedicated 195 × 390 portrait display.
- * The garden remains a centred landscape diorama while controls occupy the
- * otherwise-unused black space above and below it.
+ * The garden remains a centred landscape diorama while the single control
+ * card shrinks to a compact top bar showing just Tower + Stats.
  */
 @media (max-width: 240px) and (max-height: 460px) and (orientation: portrait) {
   .fg-root {
@@ -767,40 +1156,49 @@
     --radius-sm: 6px;
   }
 
-  .fg-root .stage { inset: 0; }
-
   .fg-root .hud {
-    display: block;
     padding: 0;
   }
 
-  .fg-root .tower {
-    position: absolute;
+  .fg-root .hud-panel {
     top: max(5px, env(safe-area-inset-top));
     left: 5px;
     right: 5px;
-    width: auto;
-    padding: 7px;
+    max-height: none;
     border-radius: 9px;
   }
 
-  .fg-root .tower-head { gap: 5px; }
-  .fg-root .live-dot { width: 4px; height: 4px; }
+  .fg-root .tower-head {
+    gap: 5px;
+  }
+
+  .fg-root .live-dot {
+    width: 4px;
+    height: 4px;
+  }
+
   .fg-root .tower-title {
     overflow: hidden;
     font-size: 10px;
     line-height: 1.1;
     text-overflow: ellipsis;
   }
-  .fg-root .tower-sub { display: none; }
 
-  .fg-root .select-wrap { margin-top: 6px; }
+  .fg-root .tower-sub {
+    display: none;
+  }
+
+  .fg-root .select-wrap {
+    margin-top: 6px;
+  }
+
   .fg-root .select-wrap::after {
     right: 8px;
     width: 4px;
     height: 4px;
   }
-  .fg-root #airportSelect {
+
+  .fg-root .select-wrap select {
     height: 25px;
     padding: 3px 22px 3px 8px;
     font-size: 9px;
@@ -808,23 +1206,39 @@
   }
 
   .fg-root .stats {
-    position: absolute;
-    right: 5px;
-    bottom: max(5px, env(safe-area-inset-bottom));
-    left: 5px;
-    width: auto;
     padding: 6px 4px;
-    border-radius: 9px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .fg-root .stat,
-.fg-root .stat:first-child,
-.fg-root .stat:last-child {
+
+  .fg-root .stat {
     min-width: 0;
     gap: 2px;
     padding: 0 2px;
   }
-  .fg-root .stat-value { font-size: 13px; }
+
+  /* Single row here, not the 2×2 quad — reset the quad's dividers
+     and use a plain left-rule between every column instead. */
+  .fg-root .stat:nth-child(1),
+  .fg-root .stat:nth-child(2),
+  .fg-root .stat:nth-child(3),
+  .fg-root .stat:nth-child(4) {
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .fg-root .stat:nth-child(odd) {
+    border-right: none;
+  }
+
+  .fg-root .stat:not(:first-child) {
+    border-left: 1px solid var(--stroke-soft);
+  }
+
+  .fg-root .stat-value {
+    font-size: 13px;
+  }
+
   .fg-root .stat-label {
     max-width: 100%;
     overflow: hidden;
@@ -834,29 +1248,150 @@
   }
 
   .fg-root .legend,
-.fg-root .detail,
-.fg-root .tooltip,
-.fg-root .zone-label,
-.fg-root .gate-label {
+  .fg-root .detail,
+  .fg-root .tooltip,
+  .fg-root .zone-label,
+  .fg-root .gate-label {
     display: none !important;
   }
 
-  .fg-root .titlecard { display: none; }
+  .fg-root .titlecard {
+    display: none;
+  }
 }
 
 /* Landscape phones: keep the stage clear */
 @media (max-height: 460px) and (orientation: landscape) {
-  .fg-root .legend { display: none; }
-  .fg-root .titlecard { bottom: 14px; }
-  .fg-root .tc-kicker { font-size: 18px; }
+  .fg-root .legend {
+    display: none;
+  }
+
+  .fg-root .titlecard {
+    bottom: 14px;
+  }
+
+  .fg-root .tc-kicker {
+    font-size: 18px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fg-root .panel { animation-duration: 0.01ms; opacity: 1; transform: none; }
-  .fg-root .titlecard { animation-duration: 0.01ms; animation-delay: 0s; opacity: 0; }
-  .fg-root .live-dot { animation: none; }
-  .fg-root .veil { transition-duration: 0.01ms; }
+  .fg-root .panel {
+    animation-duration: 0.01ms;
+    opacity: 1;
+    transform: none;
+  }
+
+  .fg-root .titlecard {
+    animation-duration: 0.01ms;
+    animation-delay: 0s;
+    opacity: 0;
+  }
+
+  .fg-root .live-dot {
+    animation: none;
+  }
+
+  .fg-root .veil {
+    transition-duration: 0.01ms;
+  }
 }
+
+/* --- COLLAPSIBLE HUD PANELS & TOGGLE --- */
+.fg-root .panel {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+}
+
+/* Default collapsed state for panels when HUD is not active */
+.fg-root .hud:not(.hud-active) .panel {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Slide the sidebar off-screen to the left on desktop layout */
+@media (min-width: 721px) {
+  .fg-root .hud:not(.hud-active) .hud-panel {
+    transform: translateX(-115%) !important;
+  }
+}
+
+/* Slide the top bar up on mobile layout */
+@media (max-width: 720px) {
+  .fg-root .hud:not(.hud-active) .hud-panel {
+    transform: translateY(-115%) !important;
+  }
+}
+
+/* Pill-shaped floating HUD toggle button */
+.fg-root .hud-toggle-btn {
+  position: absolute;
+  top: var(--hud-padding);
+  right: var(--hud-padding);
+  width: 124px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.3s, transform 0.2s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+  pointer-events: auto;
+  padding: 0;
+}
+
+.fg-root .hud-toggle-btn::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff4a4a;
+  /* red when closed */
+  box-shadow: 0 0 6px #ff4a4a;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.fg-root .hud-toggle-btn:hover {
+  background: rgba(15, 23, 32, 0.08);
+  border-color: rgba(15, 23, 32, 0.28);
+  transform: scale(1.05);
+}
+
+/* Open State */
+.fg-root .hud-active-btn {
+  border-color: #0f7fb0;
+  color: #0f7fb0;
+  box-shadow: 0 0 12px rgba(15, 127, 176, 0.18);
+}
+
+.fg-root .hud-active-btn::before {
+  background: #0f7fb0;
+  /* glowing blue when open */
+  box-shadow: 0 0 8px #0f7fb0;
+}
+
+/* Hide HUD layers when UI is inactive */
+.fg-root:not(.hud-active) .label-layer {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.fg-root:not(.hud-active) .tooltip {
+  display: none !important;
+}
+
 
 /* =============================================================
    CONTAINER CONTRACT  (added for the CMS integration)
@@ -885,11 +1420,14 @@
 /* HUD suppressed via options — the garden alone, as an ambient wall. */
 .fg-root.fg-no-hud .hud,
 .fg-root.fg-no-hud .tooltip,
-.fg-root.fg-no-hud .titlecard {
+.fg-root.fg-no-hud .titlecard,
+.fg-root.fg-no-hud .hud-toggle-btn {
   display: none;
 }
 
-.fg-root.fg-no-switching .select-wrap {
+/* Only the airport picker — the scene and location pickers are separate
+   controls that allowAirportSwitching has no business hiding. */
+.fg-root.fg-no-switching .airport-select-wrap {
   display: none;
 }
 
