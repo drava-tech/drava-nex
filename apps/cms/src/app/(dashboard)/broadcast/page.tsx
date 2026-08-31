@@ -10,9 +10,9 @@ import { PublishBoard } from "./_components/publish-board";
  * flow for rapid-fire pushing across several screens in one sitting.
  */
 /** This page targets only the 86" TV — not every registered screen. */
-const PUSH_TARGET_SCREEN_NAME = "tv-86inch";
+const BROADCAST_TARGET_SCREEN_NAME = "tv-86inch";
 
-export default async function PublishPage() {
+export default async function BroadcastPage() {
   await requireGuestOrAdmin();
   const [allScreens, experiences, experienceTypes] = await Promise.all([
     getScreens(),
@@ -20,7 +20,7 @@ export default async function PublishPage() {
     getExperienceTypes(),
   ]);
   const screens = allScreens.filter(
-    (s) => s.screenName.trim().toLowerCase() === PUSH_TARGET_SCREEN_NAME
+    (s) => s.screenName.trim().toLowerCase() === BROADCAST_TARGET_SCREEN_NAME
   );
 
   return (

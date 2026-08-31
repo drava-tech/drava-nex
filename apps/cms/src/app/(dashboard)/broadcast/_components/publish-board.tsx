@@ -774,7 +774,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          onAnimationComplete={() => router.push(`/push/live/${covering.screenId}`)}
+          onAnimationComplete={() => router.push(`/broadcast/live/${covering.screenId}`)}
           className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
         >
           <span className="text-sm font-bold uppercase tracking-widest text-white/70">

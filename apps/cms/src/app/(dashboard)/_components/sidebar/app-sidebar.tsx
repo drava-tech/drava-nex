@@ -40,7 +40,7 @@ const ALL_NAV = [
   },
   {
     title: "Broadcast",
-    url: "/push",
+    url: "/broadcast",
     icon: Send,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,

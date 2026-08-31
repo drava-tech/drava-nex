@@ -11,12 +11,12 @@ interface PageProps {
 }
 
 /**
- * Live control page landed on right after publishing from /push — same
+ * Live control page landed on right after publishing from /broadcast — same
  * full-page surface as /screens/<screenId> (LiveScreenSurface), just kept
- * under the /push route so the sidebar stays on "Push" instead of jumping
- * over to "Screens".
+ * under the /broadcast route so the sidebar stays on "Broadcast" instead of
+ * jumping over to "Screens".
  */
-export default async function PushLivePage({ params }: PageProps) {
+export default async function BroadcastLivePage({ params }: PageProps) {
   await requireGuestOrAdmin();
   const { deviceId } = await params;
 
@@ -37,7 +37,7 @@ export default async function PushLivePage({ params }: PageProps) {
         defaultMediaName: row.defaultMediaName,
       }}
       initialContent={content ? { id: content.id, type: content.type } : null}
-      backHref="/push"
+      backHref="/broadcast"
     />
   );
 }
