@@ -145,6 +145,18 @@ export function LiveScreenPlayer({
         detail: { direction: command === "NEXT_PAGE" ? "next" : "prev" },
       });
       window.dispatchEvent(event);
+    } else if (command === "MEDIA_SEEK") {
+      // Transient like MUTE — a seek is an instruction to act now, not a
+      // position to catch up to, so it deliberately isn't replayable.
+      window.dispatchEvent(new CustomEvent("media-seek", { detail: value }));
+    } else if (command === "MEDIA_TOGGLE_PLAY") {
+      window.dispatchEvent(new CustomEvent("media-toggle-play"));
+    } else if (command === "SET_PLAYBACK") {
+      // Replayable, unlike the two above: this is the absolute position the
+      // gateway replays right after CONTENT_UPDATE when a video is re-pushed,
+      // and it lands before VideoRenderer has mounted — see the comment on
+      // SET_SLIDE below.
+      dispatchReplayableEvent("media-set-playback", value);
     } else if (command === "SET_SLIDE") {
       // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
       // can receive this before ExperienceDisplay's listener has mounted —

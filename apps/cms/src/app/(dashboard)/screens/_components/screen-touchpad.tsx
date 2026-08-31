@@ -11,8 +11,6 @@ import {
   Plus,
   Volume2,
   VolumeX,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { useScreenCursorControl } from "@/hooks/useScreenCursorControl";
 import { useSystemAudio } from "@/hooks/useSystemAudio";
@@ -56,7 +54,7 @@ interface ScreenTouchpadProps {
  * regardless of which screen's touchpad you're on.
  */
 export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
-  const { agentOnline, moveCursor, click, scroll, scrollHorizontal, zoom } = useScreenCursorControl(screenId);
+  const { agentOnline, moveCursor, click, scroll, scrollHorizontal } = useScreenCursorControl(screenId);
 
   // --- Volume (existing global /api/audio endpoint — see docblock above) ---
   const { volume, muted, adjustVolume, toggleMute } = useSystemAudio();
@@ -244,29 +242,6 @@ export function ScreenTouchpad({ screenId }: ScreenTouchpadProps) {
           className="flex flex-1 select-none items-center justify-center text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
         >
           <Plus className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Zoom row — simulated as Ctrl+scroll on the remote PC, so it works
-          the same as the OS-standard zoom gesture in whatever app is on
-          screen. No persisted "zoom level" to display, unlike volume's real
-          percentage, so it's a plain button pair. */}
-      <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
-        <button
-          type="button"
-          onClick={() => zoom("out")}
-          className="flex flex-1 select-none items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
-        >
-          <ZoomOut className="h-4 w-4" />
-          Zoom Out
-        </button>
-        <button
-          type="button"
-          onClick={() => zoom("in")}
-          className="flex flex-1 select-none items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:bg-zinc-200 active:bg-zinc-300 dark:text-zinc-400 dark:hover:bg-white/10 dark:active:bg-white/20"
-        >
-          <ZoomIn className="h-4 w-4" />
-          Zoom In
         </button>
       </div>
 

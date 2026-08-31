@@ -70,8 +70,11 @@ const contentCache = new Map<string, WsContent>();
 const viewStateCache = new Map<string, Map<string, Map<string, unknown>>>();
 // How many distinct contents keep a remembered position per screen, evicted
 // oldest-first. The values are tiny, so this is about bounding unbounded
-// growth on a long-lived screen, not about saving meaningful memory.
-const VIEW_STATE_MEMORY_PER_SCREEN = 5;
+// growth on a long-lived screen, not about saving meaningful memory. Kept
+// comfortably above the 5 entries "Recently Opened" offers
+// (getRecentContentForScreen), so nothing an operator can still see in that
+// list has already had its position evicted here.
+const VIEW_STATE_MEMORY_PER_SCREEN = 10;
 
 /** Identity of a piece of content for view-state purposes — mirrors the
  * id+type pair every "did the content actually change" check already uses. */
@@ -973,7 +976,6 @@ export function createGateway(): WebSocketServer {
                 dy: msg.dy,
                 deltaY: msg.deltaY,
                 deltaX: msg.deltaX,
-                direction: msg.direction,
                 button: msg.button,
               } satisfies WsServerMessage)
             );

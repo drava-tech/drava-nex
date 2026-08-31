@@ -6,8 +6,9 @@
  * a viewer runs inside an iframe — a separate JS realm. Outbound is already
  * solved (the child dispatches a `screen-control` CustomEvent on
  * window.parent, which LiveScreenPlayer already relays); inbound had no path
- * at all, which is why SlidesViewer never receives the NEXT_PAGE/PREV_PAGE
- * commands that have existed for ages. This closes that direction.
+ * at all, which is why SlidesViewer used to receive none of the NEXT_PAGE/
+ * PREV_PAGE commands that had existed for ages. This closes that direction,
+ * and both PdfViewer and SlidesViewer now connect through it.
  *
  * postMessage rather than reaching across with window.parent.dispatchEvent:
  * one channel with one origin check, and it keeps working if these viewers
@@ -26,14 +27,13 @@ export const FRAME_BRIDGE_SOURCE = "cms-display-frame";
  * A `SET_`-prefixed command is additionally remembered by the gateway
  * per-content and replayed when that content is pushed again — see
  * viewStateCache in apps/api/src/ws/gateway.ts. That is what makes a PDF
- * resume on the page/zoom it was left at.
+ * resume on the page it was left at.
  */
 export const FRAME_FORWARDED_COMMANDS = [
   "NEXT_PAGE",
   "PREV_PAGE",
   "SET_PDF_VIEW",
-  "PDF_ZOOM",
-  "PDF_PAN",
+  "SET_SLIDES_VIEW",
 ] as const;
 
 export type FrameForwardedCommand = (typeof FRAME_FORWARDED_COMMANDS)[number];
@@ -75,7 +75,7 @@ export interface FrameBridge {
  * `preview` arrives via the init ACK and matters: the CMS mirror and the real
  * TV both render the same viewer, and only the authoritative (non-preview)
  * one may answer a delta command with an absolute SET_* — otherwise a single
- * remote zoom gets answered twice.
+ * remote navigation gets answered twice.
  *
  * Returns a no-op sender when there is no parent frame, so opening a viewer
  * URL directly in a tab still works.

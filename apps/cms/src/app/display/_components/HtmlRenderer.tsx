@@ -54,13 +54,14 @@ export function HtmlRenderer({
    * player can't produce sound in the CMS, only on the real TV. */
   preview?: boolean;
 }) {
-  // Slides and PDF have no internal scrollbar — both are ResizeObserver-driven
-  // exact-fit renderers that own their own zoom/pan, unlike Sheet/Word below
-  // which genuinely scroll — so they must NOT get the +20px overhang: an
-  // iframe's CSS width is that document's own viewport width, so the extra
-  // 20px gets scaled into the content itself and then cropped off the right
-  // edge by this page's own `overflow:hidden` ([screenId]/page.tsx), instead
-  // of hiding a scrollbar that was never going to appear.
+  // Slides and PDF must NOT get the +20px overhang: an iframe's CSS width is
+  // that document's own viewport width, so the extra 20px gets scaled into the
+  // content itself and then cropped off the right edge by this page's own
+  // `overflow:hidden` ([screenId]/page.tsx). Slides is a ResizeObserver-driven
+  // exact-fit renderer that grows no scrollbar at all;
+  // PDF does scroll continuously, but hides its own scrollbar in CSS
+  // (`.pdf-scroll` in PdfViewer), so neither needs a bar pushed off-screen —
+  // unlike Sheet/Word below, which scroll with the browser's native bar.
   const isExactFitViewer =
     content.source.startsWith(SLIDES_VIEWER_PATH) || content.source.startsWith(PDF_VIEWER_PATH);
 

@@ -316,9 +316,8 @@ export function mediaEmbedUrl(type: string, url: string, opts: EmbedOptions = {}
       // Our own PDF.js viewer rather than the browser's built-in one. That
       // one is a privileged extension desktop Chrome ships but embedded
       // signage engines often omit; it refuses to run sandboxed; and it
-      // exposes no readable page/zoom state, so it can neither be driven
-      // remotely (a screen with no native agent has no other way to zoom)
-      // nor resumed where it was left. Same reasoning as sheet/slides/word
+      // exposes no readable scroll position, so it can neither be driven
+      // remotely nor resumed where it was left. Same reasoning as sheet/slides/word
       // below — no kiosk variant, since the viewer owns its own chrome.
       return `${PDF_VIEWER_PATH}?src=${encodeURIComponent(url)}`;
 

@@ -235,14 +235,12 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
+      action: 'move' | 'click' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
       /** Horizontal scroll delta, for action 'scrollH'. */
       deltaX?: number;
-      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
-      direction?: 'in' | 'out';
       /** Which physical button a 'click' simulates — omitted means 'left'. */
       button?: 'left' | 'right';
     };
@@ -289,14 +287,12 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
+      action: 'move' | 'click' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
       /** Horizontal scroll delta, for action 'scrollH'. */
       deltaX?: number;
-      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
-      direction?: 'in' | 'out';
       button?: 'left' | 'right';
     };
 
