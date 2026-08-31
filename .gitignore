@@ -95,3 +95,8 @@ services/vision/models/**/w600k_r50.onnx
 # Local staging/backup copy of services/vision (model weights, .env, mat data) —
 # not under services/, so the rules above don't reach it; ignore wholesale.
 /gitignored-object-detection/
+
+# Helper runtime logs (screen-agent, audio bridge, vision) — self-rotating,
+# never useful in git. See .doc/device-setup.md "Screen PC helpers".
+*.log
+*.log.1

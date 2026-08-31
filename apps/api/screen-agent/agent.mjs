@@ -25,6 +25,11 @@ mouse.config.mouseSpeed = 0;
 const WS_URL = process.env.SCREEN_AGENT_WS_URL || 'ws://ec-cms/ws/';
 const SECRET = process.env.BROADCAST_SECRET || '';
 const SCREEN_ID = process.env.SCREEN_ID || '';
+// Off by default: the per-move trace below fires on EVERY mouse-move message
+// (hundreds a second during a drag), and this process now logs to a file
+// rather than a console. Set SCREEN_AGENT_DEBUG=1 in .env to turn it on
+// while diagnosing, then turn it back off.
+const DEBUG = process.env.SCREEN_AGENT_DEBUG === '1';
 
 if (!SECRET) {
   console.error('[agent] BROADCAST_SECRET is not set — copy .env.example to .env and fill it in. Exiting.');
@@ -93,11 +98,12 @@ async function handleCursorControl(msg) {
       );
       await mouse.setPosition(next);
       // Diagnostic: confirms move commands are actually arriving and
-      // landing on sane, changing coordinates — check this log during a
+      // landing on sane, changing coordinates — check agent.log during a
       // drag if the cursor still isn't visible on the TV despite clicks/
       // scroll working, to tell a functional bug from a pure OS/Chrome
-      // cursor-rendering visibility issue.
-      console.debug(`[agent] move -> (${next.x}, ${next.y})`);
+      // cursor-rendering visibility issue. Gated behind SCREEN_AGENT_DEBUG
+      // because it is per-move and would otherwise dominate the log.
+      if (DEBUG) console.debug(`[agent] move -> (${next.x}, ${next.y})`);
     } else if (msg.action === 'click') {
       await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {
