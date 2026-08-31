@@ -12,6 +12,13 @@ export interface FlightGardenOptions {
    * Defaults to the CMS static-media path for this template.
    */
   assetBaseUrl?: string;
+  /**
+   * Origin of the Hono API, for the scene feeds the engine fetches itself —
+   * the weather and attendance readings, and the presigned garden video.
+   * Same-origin (empty) by default, which is correct wherever nginx routes
+   * /api to the backend. No trailing slash required.
+   */
+  apiBaseUrl?: string;
   /** Airport code to open on. Falls back to the first catalog entry. */
   airportCode?: string;
   /** Overrides the HUD tower title. Empty/omitted = use the airport's own name. */
