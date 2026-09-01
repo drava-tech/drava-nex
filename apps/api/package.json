@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "seed:ir": "tsx src/scripts/seed-ir-devices.ts",
     "seed:casambi": "tsx src/scripts/seed-casambi-devices.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tuya:discover": "tsx src/scripts/tuya-ir-discover.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.12.0",

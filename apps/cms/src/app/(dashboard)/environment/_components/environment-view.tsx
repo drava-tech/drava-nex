@@ -4,26 +4,33 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@platform/ui";
-// import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
 import { setLightState, getLightState } from "@/actions/light-actions";
-import { sendRemoteKey } from "@/actions/ir-actions";
-import { IR_REMOTES } from "@/lib/ir-devices";
+import { acPower, acSetTemp, acSetMode, acSetFan, sendRemoteKey, getIrDeviceState } from "@/actions/ir-actions";
+import {
+  IR_AC,
+  IR_AC_CONFIGURED,
+  IR_REMOTES,
+  irDeviceForDeviceId,
+  acModeToBridge,
+  acModeFromBridge,
+  acFanToBridge,
+  acFanFromBridge,
+} from "@/lib/ir-devices";
 import { LIGHT_GROUP, GROUP_ON_BRIGHTNESS, GROUP_ON_COLOR, isGroupDeviceId } from "@/lib/casambi-lights";
 
+const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
 const AudioContent = dynamic(() => import("./audio-content"), { ssr: false });
 const SecurityContent = dynamic(() => import("./security-content"), { ssr: false });
 const IrRemotesContent = dynamic(() => import("./ir-remotes-content"), { ssr: false });
 
-type PanelType = "lighting" | "audio" | "security";
+type PanelType = "climate" | "lighting" | "audio" | "security";
 
-// The panels this page renders, in fixed order. Climate is intentionally absent
-// — the IR air-conditioner card is hidden. climate-content.tsx and the ir-actions
-// server actions are left intact, so restoring it means adding "climate" back
-// here plus its renderContent branch. The grid below sizes itself from this list.
-const PANELS: PanelType[] = ["lighting", "audio", "security"];
+// The panels this page renders, in fixed order. The grid below sizes itself
+// from this list, so adding or removing a card needs no layout changes.
+const PANELS: PanelType[] = ["climate", "lighting", "audio", "security"];
 
 // Grid-area names for the non-focused cards, in the order they stack.
 const SECONDARY_ROLES = ["top", "middle", "bottom"].slice(0, PANELS.length - 1);
@@ -51,6 +58,16 @@ export function EnvironmentView() {
   }, []);
 
   // States
+  const [climate, setClimate] = useState({
+    power: true,
+    temp: 22,
+    mode: "Dry",
+    fan: 60,
+    swing: false,
+    turbo: false,
+    timer: null as string | null,
+    fanSpeed: "Med",
+  });
   // Both Casambi drivers move together and the card offers on/off only, so a
   // single boolean is the whole lighting model: optimistic on toggle, then
   // corrected from the mesh by the one member that reports state back.
@@ -113,6 +130,21 @@ export function EnvironmentView() {
                 autoLockTimerRef.current = null;
               }
               setSecurity({ locked: msg.state === "locked" });
+            }
+          }
+          if (msg.type === "IR_STATE_UPDATE") {
+            const dev = irDeviceForDeviceId(msg.deviceId);
+            // Only the AC drives a live panel; its state is echoed back on each
+            // command (the bridge has no external AC-state feedback path).
+            if (dev && dev.deviceId === IR_AC.deviceId && msg.state) {
+              const st = msg.state as { power?: boolean; temp?: number; mode?: string; fan?: string };
+              setClimate(s => ({
+                ...s,
+                power: typeof st.power === "boolean" ? st.power : s.power,
+                temp: typeof st.temp === "number" ? st.temp : s.temp,
+                mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
+                fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
+              }));
             }
           }
           if (msg.type === "LIGHT_STATE_UPDATE" && isGroupDeviceId(msg.deviceId)) {
@@ -217,10 +249,75 @@ export function EnvironmentView() {
       .catch(err => console.error("Failed to load light states:", err));
   }, []);
 
-  // The IR remotes overlay (TV / soundbar) still uses the bridge; the AC's own
-  // command queue and state hydration went with the hidden Climate card.
+  // ── IR air-conditioner (Tuya cloud bridge) ────────────────────────────────
+  // Per-command-family coalescing so a held temp +/- press collapses to the
+  // latest value instead of blasting the Tuya cloud path, while power/mode/fan
+  // don't block each other.
+  const pendingAcRef = useRef<Map<string, () => Promise<unknown>>>(new Map());
+  const sendingAcRef = useRef<Set<string>>(new Set());
+
+  const queueAcCommand = useCallback((family: string, run: () => Promise<unknown>) => {
+    if (!IR_AC_CONFIGURED) return; // still mock until a real device uuid is set
+    pendingAcRef.current.set(family, run);
+    if (sendingAcRef.current.has(family)) return;
+
+    const sendNext = () => {
+      const next = pendingAcRef.current.get(family);
+      if (!next) {
+        sendingAcRef.current.delete(family);
+        return;
+      }
+      pendingAcRef.current.delete(family);
+      sendingAcRef.current.add(family);
+      next()
+        .catch(err => console.error(`Error sending AC ${family}:`, err))
+        .finally(() => { setTimeout(sendNext, 50); });
+    };
+    sendNext();
+  }, []);
+
+  const acSetPowerCmd = useCallback((power: boolean) => {
+    setClimate(s => ({ ...s, power }));
+    queueAcCommand("power", () => acPower(IR_AC.uuid, power));
+  }, [queueAcCommand]);
+
+  // set_* commands turn the AC on bridge-side, so reflect that optimistically.
+  const acSetTempCmd = useCallback((temp: number) => {
+    setClimate(s => ({ ...s, temp, power: true }));
+    queueAcCommand("temp", () => acSetTemp(IR_AC.uuid, temp));
+  }, [queueAcCommand]);
+
+  const acSetModeCmd = useCallback((mode: string) => {
+    setClimate(s => ({ ...s, mode, power: true }));
+    queueAcCommand("mode", () => acSetMode(IR_AC.uuid, acModeToBridge(mode)));
+  }, [queueAcCommand]);
+
+  const acSetFanSpeedCmd = useCallback((fanSpeed: string) => {
+    setClimate(s => ({ ...s, fanSpeed, power: true }));
+    queueAcCommand("fan", () => acSetFan(IR_AC.uuid, acFanToBridge(fanSpeed)));
+  }, [queueAcCommand]);
+
   const handleRemoteKey = useCallback((deviceUuid: string, key: string) => {
     sendRemoteKey(deviceUuid, key).catch(err => console.error(`Error sending IR key ${key}:`, err));
+  }, []);
+
+  // Hydrate the Climate panel from the AC's last-known persisted state, so a
+  // reload reflects reality instead of the hardcoded mock defaults.
+  useEffect(() => {
+    if (!IR_AC_CONFIGURED) return;
+    getIrDeviceState(IR_AC.uuid)
+      .then((dev) => {
+        const st = dev?.state as { power?: boolean; temp?: number; mode?: string; fan?: string } | undefined;
+        if (!st) return;
+        setClimate(s => ({
+          ...s,
+          power: typeof st.power === "boolean" ? st.power : s.power,
+          temp: typeof st.temp === "number" ? st.temp : s.temp,
+          mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
+          fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
+        }));
+      })
+      .catch(err => console.error("Failed to load AC state:", err));
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock
@@ -304,6 +401,21 @@ export function EnvironmentView() {
   const orderedContents = [focused, ...PANELS.filter(x => x !== focused)];
 
   const renderContent = (type: PanelType, isExpanded: boolean) => {
+    if (type === "climate") return <ClimateContent key="climate" isExpanded={isExpanded} state={climate} actions={{
+      // Wired to the real IR AC via the CrabController bridge (apps/api ir-driver).
+      setTemp: acSetTempCmd,
+      setMode: acSetModeCmd,
+      setPower: acSetPowerCmd,
+      setFanSpeed: acSetFanSpeedCmd,
+      // Local-only, and permanently so for this unit: the Tuya remote for
+      // "Experience Centre AC" exposes only PowerOn/PowerOff/T/M/F (checked via
+      // /v1.0/devices/{id}/functions) — there is no swing/turbo/timer dp to hit.
+      // These stay cosmetic unless the AC is re-learned as a codebook remote.
+      setFan: (fan: number) => setClimate(s => ({ ...s, fan })),
+      setSwing: (swing: boolean) => setClimate(s => ({ ...s, swing })),
+      setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),
+      setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
+    }} />;
     if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ on: lightsOn }} actions={{
       setPower: apiSetGroupPower,
     }} />;
@@ -401,29 +513,6 @@ export function EnvironmentView() {
         )}
       </AnimatePresence>
 
-      {/* <AnimatePresence>
-        {show3D && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 md:p-6"
-            onClick={() => setShow3D(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-              className="w-full max-w-5xl h-[85vh] rounded-3xl border border-border/50 overflow-hidden shadow-2xl relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                onClick={() => setShow3D(false)}
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <ThreeDView />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence> */}
     </div>
   );
 }

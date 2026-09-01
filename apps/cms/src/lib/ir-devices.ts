@@ -18,8 +18,8 @@ export interface IrDeviceConfig {
 
 /** The air-conditioner wired to the environment Climate panel. */
 export const IR_AC: IrDeviceConfig = {
-  uuid: "93f84fcf-4ed3-4d83-81b3-0a88c2cafbd6",
-  deviceId: "d73ea59a396b84072boahv", // ponytail: using Experience AC
+  uuid: "b7481310-8761-4cd3-be02-d1c67e305d9f",
+  deviceId: "d7b20d1b6760571b8b0cnw", // "Experience Centre AC" under hub Smart IR
   irDevice: "ac",
 };
 
