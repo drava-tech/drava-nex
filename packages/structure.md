@@ -34,7 +34,6 @@ packages/ CAN import from other packages (with care — see below)
 @platform/db     ←──── imports @platform/types only
 @platform/iot    ←──── imports @platform/types only
 @platform/ui     ←──── imports react only (no @platform deps)
-@platform/config ←──── imports nothing (pure JSON configs)
 ```
 
 ---
@@ -46,7 +45,6 @@ packages/ CAN import from other packages (with care — see below)
 | `apps/cms` and `apps/screens` both need the Screen type — who defines it? | `@platform/types` defines it once |
 | CMS and Screens both need a StatusBadge component — copy-paste? | `@platform/ui` shares it |
 | MQTT normalization logic duplicated in api + screens? | `@platform/iot` centralizes it |
-| Every tsconfig copy-pastes 20 strict options? | `@platform/config` defines them once |
 | DB queries scattered across apps? | `@platform/db` is the single access point |
 
 ---
@@ -56,8 +54,6 @@ packages/ CAN import from other packages (with care — see below)
 ```
 Step 1 — builds first (no deps):
   @platform/types
-  @platform/config
-
 Step 2 — builds after step 1:
   @platform/db    (needs types)
   @platform/iot   (needs types)

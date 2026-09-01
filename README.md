@@ -38,7 +38,6 @@ graph TD
         DB["@platform/db (Drizzle ORM Connection)"]
         UI["@platform/ui (Shared Component library)"]
         IoT["@platform/iot (MQTT Client Helpers)"]
-        Config["@platform/config (Lints & Config presets)"]
     end
 
     subgraph Infrastructure [Deployment & Routing]
