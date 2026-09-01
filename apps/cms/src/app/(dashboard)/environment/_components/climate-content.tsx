@@ -9,6 +9,12 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
   const [showTimerOptions, setShowTimerOptions] = useState(false);
   const [showFanOptions, setShowFanOptions] = useState(false);
 
+  // The AC only accepts a setpoint in cool/heat; auto/fan/dry have no temp in
+  // its codebook, so don't offer a dial the appliance will ignore.
+  const mode = String(state.mode ?? "").toLowerCase();
+  const tempApplies = mode === "cool" || mode === "heat";
+  const fanSpeeds = mode === "fan" ? (["Low", "Med", "High"] as const) : (["Auto", "Low", "Med", "High"] as const);
+
   return (
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
       <div className={`flex justify-between items-start shrink-0 ${isExpanded ? "mb-4" : "mb-2"}`}>
@@ -67,7 +73,23 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
             </div>
 
             <div className="relative z-20 flex min-h-0 w-full max-w-[420px] lg:max-w-[480px] justify-self-end flex-col justify-center gap-3 lg:gap-5 pr-1">
-              <div className="flex justify-end gap-2 lg:gap-3 shrink-0">
+              <div className="grid grid-cols-5 gap-1.5 shrink-0">
+                {(["Cool", "Heat", "Auto", "Fan", "Dry"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={(e) => { noProp(e); actions.setMode(mode); }}
+                    className={`h-9 rounded-xl border px-1 text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${
+                      state.mode?.toLowerCase() === mode.toLowerCase()
+                        ? 'bg-primary/10 text-primary border-primary/50 shadow-[0_0_12px_rgba(138,92,255,0.3)]'
+                        : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+
+              <div className={`flex justify-end gap-2 lg:gap-3 shrink-0 ${tempApplies ? "" : "opacity-40 pointer-events-none"}`}>
                 <Button variant="outline" size="icon" className="w-10 h-10 lg:w-12 lg:h-12 rounded-full" onClick={(e) => { noProp(e); actions.setTemp(Math.max(16, state.temp - 1)); }}>
                   <Wind className="w-5 h-5 lg:w-6 lg:h-6" />
                 </Button>
@@ -166,8 +188,8 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                     transition={{ type: "spring", bounce: 0, duration: 0.3 }}
                     className="absolute left-0 right-0 top-full z-40 mt-2 rounded-xl border border-blue-500/25 bg-card/95 p-2 shadow-2xl backdrop-blur"
                   >
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {(["Low", "Med", "High"] as const).map((speed) => (
+                    <div className={`grid gap-1.5 ${fanSpeeds.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+                      {fanSpeeds.map((speed) => (
                         <button
                           key={speed}
                           onClick={(e) => { noProp(e); actions.setFanSpeed(speed); setShowFanOptions(false); }}

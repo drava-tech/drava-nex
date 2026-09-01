@@ -667,8 +667,10 @@ export function EnvironmentView() {
       setMode: acSetModeCmd,
       setPower: acSetPowerCmd,
       setFanSpeed: acSetFanSpeedCmd,
-      // Local-only: the Tuya AC "scene" command carries only power/mode/temp/fan,
-      // so these have no bridge equivalent (can later map to raw codebook keys).
+      // Local-only, and permanently so for this unit: the Tuya remote for
+      // "Experience Centre AC" exposes only PowerOn/PowerOff/T/M/F (checked via
+      // /v1.0/devices/{id}/functions) — there is no swing/turbo/timer dp to hit.
+      // These stay cosmetic unless the AC is re-learned as a codebook remote.
       setFan: (fan: number) => setClimate(s => ({ ...s, fan })),
       setSwing: (swing: boolean) => setClimate(s => ({ ...s, swing })),
       setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),

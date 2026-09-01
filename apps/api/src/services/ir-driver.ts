@@ -1,14 +1,17 @@
 import { TuyaContext } from "@tuya/tuya-connector-nodejs";
 import type { Device } from "@platform/db";
 
-const HUB_ID = 'd7100900af2728b91bn2qw';
+// The IR blaster the remotes sit under. Changes whenever the hub is re-paired
+// or moved to a new Tuya cloud project — run `pnpm --filter @platform/api
+// tuya:discover` to print the current one.
+const HUB_ID = process.env["TUYA_IR_HUB_ID"] ?? "";
 
 // Lazy initialize TuyaContext to avoid crash if env vars are missing on startup
 let tuya: TuyaContext | null = null;
 function getTuya(): TuyaContext {
   if (!tuya) {
     tuya = new TuyaContext({
-      baseUrl: "https://openapi.tuyain.com",
+      baseUrl: process.env["TUYA_BASE_URL"] || "https://openapi.tuyain.com",
       accessKey: process.env.TUYA_ACCESS_ID || "",
       secretKey: process.env.TUYA_ACCESS_SECRET || "",
     });
@@ -37,11 +40,10 @@ export class IrDeviceDriver {
   async sendCommand(device: Device, input: IrCommandInput): Promise<void> {
     const config = device.config as { irDevice?: string; categoryId?: number; remoteIndex?: number } | null;
     const irDevice = config?.irDevice;
-    let remoteId = device.deviceId;
-    
-    // ponytail: Hardcode Experience AC because DB is unreachable to update the seed
-    if (irDevice === "ac") {
-      remoteId = "d73ea59a396b84072boahv";
+    const remoteId = device.deviceId;
+
+    if (!HUB_ID) {
+      throw new Error("[ir] TUYA_IR_HUB_ID not set — run `pnpm --filter @platform/api tuya:discover`");
     }
 
     if (!irDevice) {
@@ -74,11 +76,22 @@ export class IrDeviceDriver {
         const modeMap: Record<string, number> = { cool: 0, heat: 1, auto: 2, fan: 3, dry: 4 };
         const windMap: Record<string, number> = { auto: 0, low: 1, mid: 2, high: 3 };
 
+        const mode = modeMap[modeStr.toLowerCase()] ?? 0;
+        let wind = windMap[fanStr.toLowerCase()] ?? 0;
+
+        // Only cool/heat carry a setpoint in the Tuya codebook — sending a real
+        // temp in auto/fan/dry is rejected with 30100 "码库未查询到" (no code
+        // library entry). Fan mode likewise has no auto speed.
+        // ponytail: this matrix is read off the Experience Centre AC's
+        // key_range; if another AC differs, fetch
+        // /v2.0/infrareds/{hub}/remotes/{id}/keys and clamp against that.
+        if (mode === 3 && wind === 0) wind = 1;
+
         const body = {
           power: power ? 1 : 0,
-          mode: modeMap[modeStr.toLowerCase()] ?? 0,
-          temp: temp,
-          wind: windMap[fanStr.toLowerCase()] ?? 0,
+          mode,
+          temp: mode === 0 || mode === 1 ? temp : 0,
+          wind,
         };
 
         await callTuya(`/v2.0/infrareds/${HUB_ID}/air-conditioners/${remoteId}/scenes/command`, body);
