@@ -14,6 +14,21 @@ dist/
 tools/main-screen-kiosk/bin/
 tools/main-screen-kiosk/obj/
 
+# Android build outputs (tools/cms-android). The generated android/ project is
+# committed on purpose — it carries the network security config, the manifest
+# edits and the Gradle signing block — but its build artefacts are not.
+tools/cms-android/node_modules/
+tools/cms-android/android/build/
+tools/cms-android/android/app/build/
+tools/cms-android/android/capacitor-cordova-android-plugins/build/
+tools/cms-android/android/.gradle/
+tools/cms-android/android/.idea/
+tools/cms-android/android/local.properties
+# Release signing credentials and keystores — never commit these.
+tools/cms-android/android/keystore.properties
+*.jks
+*.keystore
+
 # Environmental variables
 .env
 .env.local

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The CMS is served by nginx with a mkcert-issued certificate on a bare LAN
+  host (see infra/nginx/default.conf and infra/nginx/certs/). Android trusts
+  no such CA by default, so without this file every launch would hit a TLS
+  error and the app would be unusable.
+
+  This trusts the mkcert root CA — and ONLY it, and ONLY for the CMS hosts.
+  Every other domain still uses the normal system trust store, so this is not
+  a blanket "ignore certificate errors" switch. Same posture as the WebView2
+  host allow-list in tools/main-screen-kiosk.
+
+  res/raw/ec_cms_root_ca.crt is copied from infra/nginx/certs/rootCA.crt by
+  scripts/sync-ca.mjs — do not hand-edit it.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">192.168.1.250</domain>
+        <domain includeSubdomains="true">ec-cms</domain>
+        <domain includeSubdomains="true">ec-cms.local</domain>
+        <trust-anchors>
+            <certificates src="@raw/ec_cms_root_ca" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
