@@ -18,7 +18,14 @@ describe("buildDom", () => {
   it("mounts a single scoped root inside the host", () => {
     buildDom(host);
     expect(host.children).toHaveLength(1);
-    expect((host.firstElementChild as HTMLElement).className).toBe("fg-root");
+
+    const root = host.firstElementChild as HTMLElement;
+    // Every rule in flight-garden.css is scoped under .fg-root, so losing this
+    // class silently unstyles the whole piece.
+    expect(root.classList.contains("fg-root")).toBe(true);
+    // index.html carried `hud-active` on <body>; it lives on the root now so
+    // the HUD-visibility rules apply per instance rather than per document.
+    expect(root.classList.contains("hud-active")).toBe(true);
   });
 
   it("provides every node the engine writes to", () => {
