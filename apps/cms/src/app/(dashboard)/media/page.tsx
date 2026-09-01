@@ -799,9 +799,15 @@ export default function MediaPage() {
 function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?: boolean }) {
   if (media.type === 'video') {
     return (
+      // preload="metadata": without it the browser buffers megabytes of every
+      // video in the grid just to draw a tile — one Media page view measured
+      // 26.5 MB, of which 22 MB was video nobody asked to play. These uploads
+      // are faststart (moov at byte 0), so "metadata" still paints the first
+      // frame as the thumbnail while fetching only the header.
       <video
         src={media.url}
         className="w-full h-full object-cover"
+        preload="metadata"
         muted
         playsInline
         loop
