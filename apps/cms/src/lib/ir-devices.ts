@@ -7,7 +7,7 @@
  *
  * ⚠️ The uuids below are placeholders. Register each IR device once via
  * `pnpm --filter @platform/api seed:ir` and paste the returned row ids here —
- * same flow as apps/cms/src/lib/casambi-zones.ts.
+ * same flow as apps/cms/src/lib/casambi-lights.ts.
  */
 
 export interface IrDeviceConfig {

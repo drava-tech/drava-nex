@@ -8,6 +8,14 @@ import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
+import {
+  MEDIA_SEEK,
+  MEDIA_TOGGLE_PLAY,
+  SET_PLAYBACK,
+  MEDIA_SEEK_EVENT,
+  MEDIA_TOGGLE_PLAY_EVENT,
+  MEDIA_SET_PLAYBACK_EVENT,
+} from "@/lib/display/playback-protocol";
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
@@ -145,18 +153,18 @@ export function LiveScreenPlayer({
         detail: { direction: command === "NEXT_PAGE" ? "next" : "prev" },
       });
       window.dispatchEvent(event);
-    } else if (command === "MEDIA_SEEK") {
+    } else if (command === MEDIA_SEEK) {
       // Transient like MUTE — a seek is an instruction to act now, not a
       // position to catch up to, so it deliberately isn't replayable.
-      window.dispatchEvent(new CustomEvent("media-seek", { detail: value }));
-    } else if (command === "MEDIA_TOGGLE_PLAY") {
-      window.dispatchEvent(new CustomEvent("media-toggle-play"));
-    } else if (command === "SET_PLAYBACK") {
+      window.dispatchEvent(new CustomEvent(MEDIA_SEEK_EVENT, { detail: value }));
+    } else if (command === MEDIA_TOGGLE_PLAY) {
+      window.dispatchEvent(new CustomEvent(MEDIA_TOGGLE_PLAY_EVENT));
+    } else if (command === SET_PLAYBACK) {
       // Replayable, unlike the two above: this is the absolute position the
       // gateway replays right after CONTENT_UPDATE when a video is re-pushed,
       // and it lands before VideoRenderer has mounted — see the comment on
       // SET_SLIDE below.
-      dispatchReplayableEvent("media-set-playback", value);
+      dispatchReplayableEvent(MEDIA_SET_PLAYBACK_EVENT, value);
     } else if (command === "SET_SLIDE") {
       // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
       // can receive this before ExperienceDisplay's listener has mounted —

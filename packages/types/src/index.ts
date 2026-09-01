@@ -325,6 +325,12 @@ export type WsCmsMessage =
   // IR ingest observed the CrabController bridge going online/offline (status).
   // Drives the live Climate panel + Remotes overlay in Environment Control.
   | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string }
+  // The door lock changed, pushed from Home Assistant's websocket by
+  // services/home-assistant-ingest.ts. Covers changes the CMS did not make
+  // (keypad, Yale app, HA dashboard, auto-lock) and the transient
+  // 'locking'/'unlocking' states HA emits while a command is in flight.
+  // Drives the live Security panel in Environment Control.
+  | { type: 'LOCK_STATE_UPDATE'; entityId: string; state: string; changedBy: string | null; lastChanged: string }
   // A screen's native screen-agent (apps/api/screen-agent) connected or
   // disconnected — drives the "Agent not connected" hint on the tablet
   // touchpad (see useScreenCursorControl). Broadcast on register/disconnect,

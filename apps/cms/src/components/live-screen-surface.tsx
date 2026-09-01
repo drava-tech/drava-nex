@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX, Rewind, FastForward, Pause } from "lucide-react";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
+import { MEDIA_SEEK, MEDIA_TOGGLE_PLAY } from "@/lib/display/playback-protocol";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
@@ -15,6 +16,20 @@ import type { WsContent } from "@platform/types";
 
 /** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
 const VOLUME_STEP = 5;
+/** Per-tap jump for the transport's rewind/forward buttons, in seconds. */
+const SEEK_STEP_SECONDS = 10;
+
+/**
+ * Whether the live content is something with a timeline to scrub. A native
+ * video is its own wire type; YouTube shares "html" with PDF/slides/word/
+ * sheet/links, so it has to be told apart by its embed URL — the same test
+ * HtmlRenderer uses to decide whether to attach the IFrame Player API.
+ */
+function isPlayableMedia(content: { type: string; source?: string } | null): boolean {
+  if (!content) return false;
+  if (content.type === "video") return true;
+  return content.type === "html" && /^https:\/\/www\.youtube\.com\/embed\//.test(content.source ?? "");
+}
 
 interface LiveScreenSurfaceProps {
   screenId: string;
@@ -30,7 +45,7 @@ interface LiveScreenSurfaceProps {
   }
   /** Whatever's actually live on the screen right now, so re-picking the same
    * content can be skipped as a no-op — see handleAssign. */
-  initialContent?: { id: string; type: string } | null;
+  initialContent?: { id: string; type: string; source?: string } | null;
   backHref?: string;
 }
 
@@ -55,6 +70,10 @@ export function LiveScreenSurface({
     name: changeContent?.defaultMediaName ?? null,
   });
   const [currentContent, setCurrentContent] = useState(initialContent);
+  /** Optimistic only: SET_PLAYBACK fans out to the screen registry, never to
+   * CMS sockets, so this panel cannot observe real playback state. Reset on
+   * every content change, where "playing" is known to be true again. */
+  const [assumePlaying, setAssumePlaying] = useState(true);
 
   const {
     online,
@@ -81,7 +100,12 @@ export function LiveScreenSurface({
     // queue step, or another admin tab would leave it pointing at content
     // that is no longer live — and re-picking that content would be
     // misread as a redundant push and silently dropped.
-    onContentUpdated: setCurrentContent,
+    onContentUpdated: (content) => {
+      setCurrentContent(content);
+      // Anything newly pushed starts playing, so the optimistic toggle has a
+      // known-good state again at every content change.
+      setAssumePlaying(true);
+    },
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
@@ -112,6 +136,17 @@ export function LiveScreenSurface({
     } else {
       await assignMedia(screenId, content.id);
     }
+  };
+
+  const showTransport = isPlayableMedia(currentContent);
+
+  const handleSeek = async (delta: number) => {
+    await sendRemoteCommand(screenId, MEDIA_SEEK, { delta });
+  };
+
+  const handleTogglePlay = async () => {
+    setAssumePlaying((prev) => !prev);
+    await sendRemoteCommand(screenId, MEDIA_TOGGLE_PLAY);
   };
 
   const handleMinimize = async () => {
@@ -284,6 +319,41 @@ export function LiveScreenSurface({
           >
             <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
           </button>
+
+          {/* Transport cluster — only for content with a timeline. Grouped in
+              its own pill and placed beside the volume controls so it reads as
+              media transport, and stays clearly separate from the Stop/Resume
+              button above, which shares a Play icon but blanks the screen
+              rather than controlling playback. */}
+          {showTransport && (
+            <div className="flex items-center gap-0.5 rounded-xl bg-zinc-500/10 px-1 py-1">
+              <button
+                onClick={() => handleSeek(-SEEK_STEP_SECONDS)}
+                title={`Back ${SEEK_STEP_SECONDS}s`}
+                aria-label={`Back ${SEEK_STEP_SECONDS} seconds`}
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+              >
+                <Rewind className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleTogglePlay}
+                title={assumePlaying ? "Pause" : "Play"}
+                aria-label={assumePlaying ? "Pause" : "Play"}
+                className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+              >
+                {assumePlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {assumePlaying ? "Pause" : "Play"}
+              </button>
+              <button
+                onClick={() => handleSeek(SEEK_STEP_SECONDS)}
+                title={`Forward ${SEEK_STEP_SECONDS}s`}
+                aria-label={`Forward ${SEEK_STEP_SECONDS} seconds`}
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+              >
+                <FastForward className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Volume cluster — always rendered, independent of what content is
               live (video, image, experience, or the touchpad), since it

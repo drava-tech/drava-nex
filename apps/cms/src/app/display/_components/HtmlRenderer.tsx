@@ -11,17 +11,47 @@ import {
   isBridgeMessage,
   type FrameBridgeMessage,
 } from "@/lib/display/frame-bridge";
+import {
+  createPlaybackEmitter,
+  MEDIA_SEEK_EVENT,
+  MEDIA_TOGGLE_PLAY_EVENT,
+  MEDIA_SET_PLAYBACK_EVENT,
+  SET_PLAYBACK,
+  SEEK_TOLERANCE_SECONDS,
+  PLAYBACK_EMIT_THROTTLE_MS,
+  type MediaSeekPayload,
+  type PlaybackState,
+} from "@/lib/display/playback-protocol";
 
 interface YTPlayer {
   unMute(): void;
   setVolume(volume: number): void;
   setPlaybackQuality(suggestedQuality: string): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  getCurrentTime(): number;
+  /** YT.PlayerState — 1 is PLAYING, which is the only value this cares about. */
+  getPlayerState(): number;
   destroy(): void;
 }
 
+/** YT.PlayerState.PLAYING. Not worth pulling in the whole enum for one check. */
+const YT_STATE_PLAYING = 1;
+
 declare global {
   interface Window {
-    YT?: { Player: new (el: HTMLElement, opts: { events?: { onReady?: (e: { target: YTPlayer }) => void } }) => YTPlayer };
+    YT?: {
+      Player: new (
+        el: HTMLElement,
+        opts: {
+          events?: {
+            onReady?: (e: { target: YTPlayer }) => void;
+            onStateChange?: (e: { data: number; target: YTPlayer }) => void;
+          };
+        }
+      ) => YTPlayer;
+    };
     onYouTubeIframeAPIReady?: () => void;
   }
 }
@@ -75,6 +105,12 @@ export function HtmlRenderer({
   // clip may never climb out of between restarts.
   const isKioskYouTube = !preview && /^https:\/\/www\.youtube\.com\/embed\//.test(content.source);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  /** Hoisted out of the effect closure so the transport listeners below can
+   * reach the player — the whole reason YouTube was previously uncontrollable. */
+  const playerRef = useRef<YTPlayer | null>(null);
+  /** Set by the transport effect below; read from onStateChange, which is
+   * registered first. Declared here so both effects can see it. */
+  const emitPlaybackRef = useRef<((immediate: boolean) => void) | null>(null);
 
   useEffect(() => {
     if (!isKioskYouTube) return;
@@ -86,12 +122,25 @@ export function HtmlRenderer({
       player = new window.YT.Player(iframeRef.current, {
         events: {
           onReady: (e) => {
+            playerRef.current = e.target;
             e.target.unMute();
             e.target.setVolume(100);
             try {
               e.target.setPlaybackQuality("hd1080");
             } catch {}
+            // Resume where this video was left off, if the gateway replayed a
+            // position while the IFrame API was still loading. Buffered
+            // because that replay lands right after CONTENT_UPDATE, long
+            // before the player exists.
+            const restore = lastReplayableDetail(MEDIA_SET_PLAYBACK_EVENT) as PlaybackState | undefined;
+            if (restore && restore.src === content.source && Number.isFinite(restore.time)) {
+              e.target.seekTo(restore.time, true);
+              if (!restore.playing) e.target.pauseVideo();
+            }
           },
+          // Fires on every play/pause/buffer/end, which is the only signal the
+          // IFrame API gives — there is no timeupdate equivalent.
+          onStateChange: () => emitPlaybackRef.current?.(true),
         },
       });
     };
@@ -114,7 +163,111 @@ export function HtmlRenderer({
 
     return () => {
       cancelled = true;
+      playerRef.current = null;
       player?.destroy();
+    };
+  }, [isKioskYouTube, content.source]);
+
+  // ─── Playback transport (kiosk YouTube) ───────────────────────────────────
+  //
+  // Only the real TV ever has a player: isKioskYouTube is `!preview`, and a
+  // YouTube asset shows the CMS operator the OS-cursor touchpad rather than a
+  // mirror (useScreenControls keys off content.type === "html"), so there is
+  // no preview player to keep in step.
+  useEffect(() => {
+    if (!isKioskYouTube) return;
+    const source = content.source;
+
+    const emitter = createPlaybackEmitter((state) => {
+      window.dispatchEvent(
+        new CustomEvent("screen-control", { detail: { command: SET_PLAYBACK, value: state } })
+      );
+    });
+
+    const report = (immediate: boolean) => {
+      const player = playerRef.current;
+      if (!player) return;
+      let time: number;
+      let playing: boolean;
+      try {
+        time = player.getCurrentTime();
+        playing = player.getPlayerState() === YT_STATE_PLAYING;
+      } catch {
+        // The player can be mid-teardown or not yet fully initialised; a
+        // missed position report is not worth surfacing.
+        return;
+      }
+      if (!Number.isFinite(time)) return;
+      // A paused player's position doesn't change, so the poll has nothing to
+      // report — only discrete actions (which flush) matter once stopped.
+      if (!immediate && !playing) return;
+      const state: PlaybackState = { src: source, time, playing };
+      if (immediate) emitter.flush(state);
+      else emitter.emit(state);
+    };
+    emitPlaybackRef.current = report;
+
+    const onSeek = (e: Event) => {
+      const player = playerRef.current;
+      if (!player) return;
+      const { delta } = ((e as CustomEvent<MediaSeekPayload>).detail ?? {}) as MediaSeekPayload;
+      if (typeof delta !== "number") return;
+      try {
+        player.seekTo(Math.max(player.getCurrentTime() + delta, 0), true);
+      } catch {
+        return;
+      }
+      report(true);
+    };
+
+    const onTogglePlay = () => {
+      const player = playerRef.current;
+      if (!player) return;
+      try {
+        if (player.getPlayerState() === YT_STATE_PLAYING) player.pauseVideo();
+        else player.playVideo();
+      } catch {
+        return;
+      }
+      report(true);
+    };
+
+    const onSetPlayback = (e: Event) => {
+      const player = playerRef.current;
+      const state = (e as CustomEvent<PlaybackState | undefined>).detail;
+      if (!player || !state || !Number.isFinite(state.time)) return;
+      // The replay buffer is keyed by command name, not content — a position
+      // from a previously-shown video must not be applied to this one.
+      if (state.src && state.src !== source) return;
+      try {
+        // Tolerance, because the gateway echoes our own reports back to us;
+        // seeking on every echo would stutter playback about once a second.
+        if (Math.abs(player.getCurrentTime() - state.time) > SEEK_TOLERANCE_SECONDS) {
+          player.seekTo(state.time, true);
+        }
+        const playing = player.getPlayerState() === YT_STATE_PLAYING;
+        if (state.playing && !playing) player.playVideo();
+        else if (!state.playing && playing) player.pauseVideo();
+      } catch {
+        /* player not ready */
+      }
+    };
+
+    window.addEventListener(MEDIA_SEEK_EVENT, onSeek);
+    window.addEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
+    window.addEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
+    // The IFrame API has no timeupdate, so position is kept current by poll.
+    // onStateChange alone would leave the cache stale between play and pause,
+    // which is exactly the case that has to resume correctly.
+    const poll = setInterval(() => report(false), PLAYBACK_EMIT_THROTTLE_MS);
+
+    return () => {
+      window.removeEventListener(MEDIA_SEEK_EVENT, onSeek);
+      window.removeEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
+      window.removeEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
+      clearInterval(poll);
+      emitPlaybackRef.current = null;
+      emitter.dispose();
     };
   }, [isKioskYouTube, content.source]);
 

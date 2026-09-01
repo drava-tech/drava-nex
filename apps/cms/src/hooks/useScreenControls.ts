@@ -28,7 +28,9 @@ interface UseScreenControlsOptions {
    * a kiosk relaunch. Lets a caller keep its own notion of "what's live"
    * honest instead of trusting a page-load snapshot.
    */
-  onContentUpdated?: (content: { id: string; type: string }) => void;
+  /** `source` is carried because `type` alone can't identify YouTube — it
+   * shares the "html" wire type with PDF/slides/word/sheet/links. */
+  onContentUpdated?: (content: { id: string; type: string; source?: string }) => void;
 }
 
 /**
@@ -67,7 +69,7 @@ export function useScreenControls({
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
       setShowTouchpad(content.type === "html");
-      onContentUpdated?.({ id: content.id, type: content.type });
+      onContentUpdated?.({ id: content.id, type: content.type, source: content.source });
       // Keeps the "N of M" counter in sync across every open control panel
       // (another tab, a second admin) — derived from the live content id
       // rather than a bespoke WS message.

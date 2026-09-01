@@ -77,10 +77,14 @@ export class CasambiDeviceDriver implements DeviceDriver {
           targetid: targetId,
           targettype: targetType,
         });
-        return;
       }
     }
 
+    // target_rgbw only drives the colour mixer — on the DALI drivers the dimmer
+    // ignores its `level` field entirely (verified on the mesh: an rgbw publish
+    // changed red/green/blue but left level at 0). So the level always has to
+    // follow on its own topic, or a coloured command would never actually turn
+    // the fixture on or off.
     await this.publish(`casambi/${network}/set/target_level`, {
       targetid: targetId,
       level,

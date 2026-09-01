@@ -33,6 +33,7 @@ export default async function MediaLivePage({ params }: PageProps) {
       initialShowTouchpad={content?.type === "html"}
       queueMediaIds={row.currentQueueMediaIds ?? undefined}
       initialQueueIndex={row.currentQueueIndex ?? undefined}
+      initialContent={content ? { id: content.id, type: content.type, source: content.source } : null}
       changeContent={{
         experiences,
         defaultMediaAssetId: row.defaultMediaAssetId,

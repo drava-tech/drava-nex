@@ -7,92 +7,37 @@ import { Button } from "@platform/ui";
 // import { EnvironmentView as ThreeDView } from "../../environment5/_components/environment-view";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
-import { setLightState, identifyLight, getLightState, type LightStateInput } from "@/actions/light-actions";
-import { listModes, createMode, updateMode, triggerMode, type ModeSummary } from "@/actions/mode-actions";
-import { acPower, acSetTemp, acSetMode, acSetFan, sendRemoteKey, getIrDeviceState } from "@/actions/ir-actions";
-import {
-  IR_AC,
-  IR_AC_CONFIGURED,
-  IR_REMOTES,
-  irDeviceForDeviceId,
-  acModeToBridge,
-  acModeFromBridge,
-  acFanToBridge,
-  acFanFromBridge,
-} from "@/lib/ir-devices";
-import { ZONE_DEVICES, ZONE_NAMES, zoneForDeviceId } from "@/lib/casambi-zones";
-import { hexToRgb } from "./utils";
-import { MiniSlider, Switch } from "./controls";
+import { setLightState, getLightState } from "@/actions/light-actions";
+import { sendRemoteKey } from "@/actions/ir-actions";
+import { IR_REMOTES } from "@/lib/ir-devices";
+import { LIGHT_GROUP, GROUP_ON_BRIGHTNESS, GROUP_ON_COLOR, isGroupDeviceId } from "@/lib/casambi-lights";
 
-const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
 const AudioContent = dynamic(() => import("./audio-content"), { ssr: false });
-const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr: false });
 const SecurityContent = dynamic(() => import("./security-content"), { ssr: false });
 const IrRemotesContent = dynamic(() => import("./ir-remotes-content"), { ssr: false });
 
-type PanelType = "climate" | "lighting" | "audio" | "security";
+type PanelType = "lighting" | "audio" | "security";
+
+// The panels this page renders, in fixed order. Climate is intentionally absent
+// — the IR air-conditioner card is hidden. climate-content.tsx and the ir-actions
+// server actions are left intact, so restoring it means adding "climate" back
+// here plus its renderContent branch. The grid below sizes itself from this list.
+const PANELS: PanelType[] = ["lighting", "audio", "security"];
+
+// Grid-area names for the non-focused cards, in the order they stack.
+const SECONDARY_ROLES = ["top", "middle", "bottom"].slice(0, PANELS.length - 1);
 
 const cardLayoutTransition = { type: "spring", bounce: 0.14, duration: 0.9 } as any;
 
-type DraftColor = { r: number; g: number; b: number; w: number; hex: string };
-type ZoneDraft = { on: boolean; brightness: number; color?: DraftColor };
-
-// Shared per-zone on/off + brightness + color editor used by both the
-// Add-Mode and Edit-Mode dialogs. The swatch is clickable — it opens the
-// same color picker used everywhere else, but staged into this draft
-// instead of pushed live, so it's included in the physical push on Save.
-function ZoneSettingsEditor({
-  draft,
-  colors,
-  masterColor,
-  onChange,
-  onEditColor,
-}: {
-  draft: Record<string, ZoneDraft>;
-  colors: Record<string, { hex: string }>;
-  masterColor: { hex: string };
-  onChange: (zone: string, patch: Partial<ZoneDraft>) => void;
-  onEditColor: (zone: string) => void;
-}) {
-  return (
-    <div className="space-y-4 mb-5">
-      {ZONE_NAMES.map(zone => {
-        const z = draft[zone] ?? { on: false, brightness: 0 };
-        const swatchHex = z.color?.hex ?? (colors[zone] ?? masterColor).hex;
-        return (
-          <div key={zone}>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  title="Edit color"
-                  className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 dark:border-white/20 hover:scale-125 transition-transform cursor-pointer"
-                  style={{ backgroundColor: swatchHex }}
-                  onClick={() => onEditColor(zone)}
-                />
-                <span className="text-xs font-bold uppercase tracking-widest">{zone}</span>
-              </div>
-              <Switch checked={z.on} onChange={(on: boolean) => onChange(zone, { on })} />
-            </div>
-            <MiniSlider
-              label=""
-              value={z.on ? z.brightness : 0}
-              onChange={(v: number) => onChange(zone, { brightness: v, on: v > 0 })}
-              max={100}
-              suffix="%"
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// How long the door stays unlocked before the UI re-locks it automatically.
+const AUTO_RELOCK_MS = 5_000;
+// Safety-net poll for the lock; the live path is the LOCK_STATE_UPDATE push.
+const LOCK_POLL_FALLBACK_MS = 30_000;
 
 export function EnvironmentView() {
-  const [focused, setFocused] = useState<PanelType>("climate");
+  const [focused, setFocused] = useState<PanelType>("lighting");
   const [isClient, setIsClient] = useState(false);
-  const [showColourPanel, setShowColourPanel] = useState(false);
   // const [show3D, setShow3D] = useState(false);
   const [showRemotes, setShowRemotes] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
@@ -106,161 +51,11 @@ export function EnvironmentView() {
   }, []);
 
   // States
-  const [climate, setClimate] = useState({
-    power: true,
-    temp: 22,
-    mode: "Dry",
-    fan: 60,
-    swing: false,
-    turbo: false,
-    timer: null as string | null,
-    fanSpeed: "Med",
-  });
-  const DEFAULT_COLOR = { r: 138, g: 92, b: 255, w: 100, hex: "#8A5CFF" };
-  const [lighting, setLighting] = useState({
-    power: true,
-    brightness: 49,
-    zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, 49])) as Record<string, number>,
-    // `color` is the master (all-zones) color; `colors` holds each zone's own
-    // independent color — same master/per-zone split as brightness/zones above.
-    color: DEFAULT_COLOR,
-    colors: Object.fromEntries(ZONE_NAMES.map(zone => [zone, DEFAULT_COLOR])) as Record<string, typeof DEFAULT_COLOR>,
-  });
-  const [colourPanelZone, setColourPanelZone] = useState<string | null>(null);
+  // Both Casambi drivers move together and the card offers on/off only, so a
+  // single boolean is the whole lighting model: optimistic on toggle, then
+  // corrected from the mesh by the one member that reports state back.
+  const [lightsOn, setLightsOn] = useState(false);
   const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
-
-  // Modes — named presets: whatever the lights are doing right now, saved and
-  // replayable later. Real device rows (type "scene") on the backend; see
-  // apps/api/src/routes/devices.ts POST /scenes + /scenes/:id/trigger.
-  const [modes, setModes] = useState<ModeSummary[]>([]);
-  const [showAddModeDialog, setShowAddModeDialog] = useState(false);
-  const [newModeName, setNewModeName] = useState("");
-  const [savingMode, setSavingMode] = useState(false);
-  // Editable preview shown in the create-mode dialog — seeded from whatever
-  // is live right now, but can be tweaked before Save actually pushes it out.
-  const [modeDraft, setModeDraft] = useState<Record<string, ZoneDraft>>({});
-  // Which zone's color swatch in the New-Mode dialog the color picker below
-  // is currently staging into — null means the picker is being used for its
-  // normal live-edit purpose (colourPanelZone) instead.
-  const [draftColorTarget, setDraftColorTarget] = useState<string | null>(null);
-
-  const refreshModes = useCallback(() => {
-    listModes().then(setModes).catch(err => console.error("Failed to load modes:", err));
-  }, []);
-
-  useEffect(() => { refreshModes(); }, [refreshModes]);
-
-  const openAddModeDialog = useCallback(() => {
-    const current = lightingRef.current;
-    setModeDraft(Object.fromEntries(
-      ZONE_NAMES.map(zone => {
-        const brightness = current.zones[zone] ?? 0;
-        return [zone, { on: brightness > 0, brightness, color: current.colors[zone] }];
-      })
-    ));
-    setNewModeName("");
-    setShowAddModeDialog(true);
-  }, []);
-
-  const submitNewMode = useCallback(async () => {
-    const name = newModeName.trim();
-    if (!name || savingMode) return;
-    setSavingMode(true);
-    try {
-      // Push each (possibly edited) zone out to the real light first — the
-      // capture below reads from the DB, so the physical state must already
-      // match what we're about to save before we save it.
-      for (const zone of ZONE_NAMES) {
-        const dev = ZONE_DEVICES[zone];
-        const draft = modeDraft[zone];
-        if (!dev || !draft) continue;
-        await setLightState(dev.uuid, {
-          on: draft.on,
-          brightness: draft.brightness,
-          color: draft.color?.hex ?? lightingRef.current.colors[zone]?.hex,
-        });
-      }
-      await createMode(name);
-      setLighting(s => ({ ...s, zones: { ...s.zones, ...Object.fromEntries(ZONE_NAMES.map(z => [z, modeDraft[z]?.brightness ?? s.zones[z] ?? 0])) } }));
-      setShowAddModeDialog(false);
-      setNewModeName("");
-      refreshModes();
-    } catch (err) {
-      console.error("Failed to create mode:", err);
-    } finally {
-      setSavingMode(false);
-    }
-  }, [newModeName, savingMode, modeDraft, refreshModes]);
-
-  const setModeDraftZone = useCallback((zone: string, patch: Partial<ZoneDraft>) => {
-    setModeDraft(d => ({ ...d, [zone]: { ...d[zone], ...patch } as ZoneDraft }));
-  }, []);
-
-  // Edit in place — long-press a mode card to arm it for editing. Editing
-  // just means "the widget's own live controls" (Master/zone sliders, color
-  // dots — all unchanged): triggering the mode syncs them to its saved
-  // values via the normal LIGHT_STATE_UPDATE path, then Save reads back
-  // whatever the lights are now actually doing. No separate draft state.
-  const [editingMode, setEditingMode] = useState<ModeSummary | null>(null);
-  const [editingModeName, setEditingModeName] = useState("");
-  const [savingEditMode, setSavingEditMode] = useState(false);
-
-  const startEditMode = useCallback((mode: ModeSummary) => {
-    triggerMode(mode.id).catch(err => console.error("Failed to trigger mode:", err));
-    setEditingModeName(mode.name);
-    setEditingMode(mode);
-  }, []);
-
-  const saveEditingMode = useCallback(async () => {
-    const name = editingModeName.trim();
-    if (!name || !editingMode || savingEditMode) return;
-    setSavingEditMode(true);
-    try {
-      const current = lightingRef.current;
-      const targets: Record<string, { on: boolean; brightness?: number; color?: string }> = {};
-      for (const zone of ZONE_NAMES) {
-        const dev = ZONE_DEVICES[zone];
-        if (!dev) continue;
-        const brightness = current.zones[zone] ?? 0;
-        targets[dev.uuid] = { on: brightness > 0, brightness, color: current.colors[zone]?.hex };
-      }
-      await updateMode(editingMode.deviceId, name, targets);
-      setEditingMode(null);
-      refreshModes();
-    } catch (err) {
-      console.error("Failed to update mode:", err);
-    } finally {
-      setSavingEditMode(false);
-    }
-  }, [editingModeName, editingMode, savingEditMode, refreshModes]);
-
-  const cancelEditingMode = useCallback(() => {
-    setEditingMode(null);
-  }, []);
-
-  const runMode = useCallback((id: string) => {
-    triggerMode(id).catch(err => console.error("Failed to trigger mode:", err));
-  }, []);
-
-  // Opens the shared color picker to stage a zone's color inside the
-  // New-Mode dialog's draft, instead of pushing it live like the main
-  // widget does.
-  const openDraftColorPanel = useCallback((zone: string) => {
-    setDraftColorTarget(zone);
-    setShowColourPanel(true);
-  }, []);
-
-  const closeColourPanelAny = useCallback(() => {
-    setShowColourPanel(false);
-    setDraftColorTarget(null);
-  }, []);
-
-  // Mirrors `lighting` for reads inside callbacks that must stay pure setState
-  // updaters (queueLightState fires a server action — a side effect — so it
-  // can never run inside a setLighting(s => ...) updater; React may invoke
-  // updaters outside the normal commit flow, which is what was breaking this).
-  const lightingRef = useRef(lighting);
-  useEffect(() => { lightingRef.current = lighting; }, [lighting]);
 
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef<boolean>(false);
@@ -302,36 +97,29 @@ export function EnvironmentView() {
             const applyVolume = pendingVolumeRef.current === null && !isSendingVolumeRef.current;
             setAudio(s => ({ ...s, volume: applyVolume ? msg.volume : s.volume, muted: msg.muted, device: msg.device }));
           }
-          if (msg.type === "LIGHT_STATE_UPDATE") {
-            const zone = zoneForDeviceId(msg.deviceId);
-            if (zone) {
-              const nextBrightness = typeof msg.state?.brightness === "number" ? msg.state.brightness : undefined;
-              const nextHex = typeof msg.state?.color === "string" ? msg.state.color : undefined;
-              const nextOn = typeof msg.state?.on === "boolean" ? msg.state.on : undefined;
-              setLighting(s => ({
-                ...s,
-                power: nextOn !== undefined ? (nextOn || Object.values({ ...s.zones, [zone]: nextBrightness ?? s.zones[zone as keyof typeof s.zones] }).some(b => b > 0)) : s.power,
-                zones: nextBrightness === undefined ? s.zones : { ...s.zones, [zone]: nextBrightness },
-                // No single physical device backs "master" (same as brightness) —
-                // a live update only ever tells us one zone's real color.
-                colors: nextHex === undefined ? s.colors : { ...s.colors, [zone]: { ...(s.colors[zone] ?? DEFAULT_COLOR), ...hexToRgb(nextHex), hex: nextHex } },
-              }));
+          // Either driver's report speaks for the group — they are always
+          // commanded together, and the gateway polls them on a slow rotation so
+          // whichever one answers first is the freshest truth we have. This is
+          // what keeps the switch honest when someone uses a wall switch, the
+          // Casambi app, or the Home Assistant bridge on this same network.
+          // Pushed by the API's Home Assistant ingest the instant HA sees the
+          // change, from any source. This is what makes the Security card as
+          // immediate as HA's own dashboard; the poll below is only a net.
+          if (msg.type === "LOCK_STATE_UPDATE") {
+            if (msg.state === "locked" || msg.state === "unlocked") {
+              // A real-world change supersedes any pending auto-relock timer.
+              if (autoLockTimerRef.current && msg.state === "locked") {
+                clearTimeout(autoLockTimerRef.current);
+                autoLockTimerRef.current = null;
+              }
+              setSecurity({ locked: msg.state === "locked" });
             }
           }
-          if (msg.type === "IR_STATE_UPDATE") {
-            const dev = irDeviceForDeviceId(msg.deviceId);
-            // Only the AC drives a live panel; its state is echoed back on each
-            // command (the bridge has no external AC-state feedback path).
-            if (dev && dev.deviceId === IR_AC.deviceId && msg.state) {
-              const st = msg.state as { power?: boolean; temp?: number; mode?: string; fan?: string };
-              setClimate(s => ({
-                ...s,
-                power: typeof st.power === "boolean" ? st.power : s.power,
-                temp: typeof st.temp === "number" ? st.temp : s.temp,
-                mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
-                fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
-              }));
-            }
+          if (msg.type === "LIGHT_STATE_UPDATE" && isGroupDeviceId(msg.deviceId)) {
+            const on = typeof msg.state?.on === "boolean"
+              ? msg.state.on
+              : typeof msg.state?.brightness === "number" ? msg.state.brightness > 0 : undefined;
+            if (on !== undefined) setLightsOn(on);
           }
         } catch { /* ignore */ }
       };
@@ -393,196 +181,46 @@ export function EnvironmentView() {
       .catch(err => console.error("Error setting mute:", err));
   }, []);
 
-  // Per-device command queue → real Casambi lights (apps/api/src/services/casambi-driver.ts).
-  // Same pending-ref coalescing as apiSetVolume above, keyed per device so the
-  // zones (+ color, which fans out to every zone) don't block each other during drags.
-  const pendingLightStateRef = useRef<Map<string, LightStateInput>>(new Map());
-  const sendingLightRef = useRef<Set<string>>(new Set());
+  // Grouped on/off → both real Casambi drivers (apps/api/src/services/casambi-driver.ts).
+  // Both commands are issued in the same tick so the two fixtures switch
+  // together, and "on" carries a fixed colour + brightness so they can never
+  // drift apart. No coalescing queue here — with a single switch there is
+  // nothing to coalesce; an in-flight ref just drops re-entrant taps.
+  const lightPendingRef = useRef(false);
 
-  const queueLightState = useCallback((deviceUuid: string, state: LightStateInput) => {
-    pendingLightStateRef.current.set(deviceUuid, state);
-    if (sendingLightRef.current.has(deviceUuid)) return;
+  const apiSetGroupPower = useCallback((on: boolean) => {
+    if (lightPendingRef.current) return;
+    lightPendingRef.current = true;
+    setLightsOn(on);
 
-    const sendNext = () => {
-      const next = pendingLightStateRef.current.get(deviceUuid);
-      if (!next) {
-        sendingLightRef.current.delete(deviceUuid);
-        return;
-      }
-      pendingLightStateRef.current.delete(deviceUuid);
-      sendingLightRef.current.add(deviceUuid);
+    const payload = on
+      ? { on: true, brightness: GROUP_ON_BRIGHTNESS, color: GROUP_ON_COLOR }
+      : { on: false };
 
-      setLightState(deviceUuid, next)
-        .catch(err => console.error(`Error setting light ${deviceUuid}:`, err))
-        .finally(() => { setTimeout(sendNext, 50); });
-    };
-
-    sendNext();
+    Promise.all(LIGHT_GROUP.map(dev => setLightState(dev.uuid, payload)))
+      .catch(err => {
+        console.error("Error setting lighting group:", err);
+        setLightsOn(!on);
+      })
+      .finally(() => { lightPendingRef.current = false; });
   }, []);
 
-  // Master Brightness = "set every zone to this level" (there's no single
-  // physical device behind Master — it's a convenience action over all 3).
-  const apiSetMasterBrightness = useCallback((brightness: number) => {
-    setLighting(s => ({
-      ...s,
-      brightness,
-      zones: Object.fromEntries(ZONE_NAMES.map(zone => [zone, brightness])) as typeof s.zones,
-    }));
-    for (const zone of ZONE_NAMES) {
-      const dev = ZONE_DEVICES[zone];
-      if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
-    }
-  }, [queueLightState]);
-
-  const apiSetZoneBrightness = useCallback((zone: string, brightness: number) => {
-    setLighting(s => ({ ...s, zones: { ...s.zones, [zone]: brightness } }));
-    const dev = ZONE_DEVICES[zone];
-    if (dev) queueLightState(dev.uuid, { on: brightness > 0, brightness });
-  }, [queueLightState]);
-
-  // `zone` omitted = master: same color fans out to every zone device (and
-  // every zone's own stored color is updated to match, like Master
-  // Brightness does for `zones`). `zone` given = only that one device/zone.
-  const apiSetColor = useCallback((color: { r: number; g: number; b: number; w: number; hex: string }, zone?: string) => {
-    const current = lightingRef.current;
-    if (!zone) {
-      setLighting(s => ({ ...s, color, colors: Object.fromEntries(ZONE_NAMES.map(z => [z, color])) as typeof s.colors }));
-      for (const z of ZONE_NAMES) {
-        const dev = ZONE_DEVICES[z];
-        const brightness = (current.zones as Record<string, number>)[z] ?? current.brightness;
-        if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
-      }
-      return;
-    }
-    setLighting(s => ({ ...s, colors: { ...s.colors, [zone]: color } }));
-    const dev = ZONE_DEVICES[zone];
-    const brightness = (current.zones as Record<string, number>)[zone] ?? current.brightness;
-    if (dev) queueLightState(dev.uuid, { on: true, brightness, color: color.hex });
-  }, [queueLightState]);
-
-  const identifyZone = useCallback((zone: string) => {
-    const dev = ZONE_DEVICES[zone];
-    if (!dev) return;
-    identifyLight(dev.uuid).catch(err => console.error(`Error identifying ${zone}:`, err));
-  }, []);
-
-  // Hydrate the Lighting panel from the registered Casambi devices' last-known persisted state.
+  // Hydrate from the drivers' last-known persisted state. Both are read: the
+  // pair is always driven together, so either row is a valid answer, and one of
+  // them may be staler than the other depending on the gateway's poll rotation.
   useEffect(() => {
-    async function loadLightStates() {
-      try {
-        const results = await Promise.all(
-          Object.entries(ZONE_DEVICES).map(async ([zone, dev]) => {
-            try {
-              const res = await getLightState(dev.uuid);
-              return { zone, state: res.state };
-            } catch {
-              return null;
-            }
-          })
-        );
-
-        setLighting(s => {
-          const nextZones = { ...s.zones };
-          let nextColor = s.color;
-          let lastBrightness: number | undefined = undefined;
-          const validResults = results.filter((r): r is { zone: string; state: { on?: boolean; brightness?: number; color?: string } } => r !== null && r.state !== undefined);
-
-          for (const item of validResults) {
-            if (typeof item.state.brightness === "number") {
-              nextZones[item.zone as keyof typeof s.zones] = item.state.brightness;
-              lastBrightness = item.state.brightness;
-            }
-            if (typeof item.state.color === "string") {
-              const rgb = hexToRgb(item.state.color);
-              nextColor = { ...nextColor, ...rgb, hex: item.state.color };
-            }
-          }
-
-          return {
-            ...s,
-            zones: nextZones,
-            power: validResults.some(r => r.state.on) ? true : (validResults.length > 0 ? false : s.power),
-            brightness: lastBrightness ?? s.brightness,
-            color: nextColor,
-          };
-        });
-      } catch (err) {
-        console.error("Failed to load light states:", err);
-      }
-    }
-
-    loadLightStates();
+    Promise.all(LIGHT_GROUP.map(dev => getLightState(dev.uuid).catch(() => null)))
+      .then(results => {
+        const states = results.flatMap(r => (r?.state ? [r.state] : []));
+        if (states.length > 0) setLightsOn(states.some(st => st.on === true));
+      })
+      .catch(err => console.error("Failed to load light states:", err));
   }, []);
 
-  // ── IR air-conditioner (CrabController bridge) ────────────────────────────
-  // Per-command-family coalescing (same shape as queueLightState) so a held
-  // temp +/- press collapses to the latest value instead of blasting the Tuya
-  // cloud path, while power/mode/fan don't block each other.
-  const pendingAcRef = useRef<Map<string, () => Promise<unknown>>>(new Map());
-  const sendingAcRef = useRef<Set<string>>(new Set());
-
-  const queueAcCommand = useCallback((family: string, run: () => Promise<unknown>) => {
-    if (!IR_AC_CONFIGURED) return; // still mock until a real device uuid is set
-    pendingAcRef.current.set(family, run);
-    if (sendingAcRef.current.has(family)) return;
-
-    const sendNext = () => {
-      const next = pendingAcRef.current.get(family);
-      if (!next) {
-        sendingAcRef.current.delete(family);
-        return;
-      }
-      pendingAcRef.current.delete(family);
-      sendingAcRef.current.add(family);
-      next()
-        .catch(err => console.error(`Error sending AC ${family}:`, err))
-        .finally(() => { setTimeout(sendNext, 50); });
-    };
-    sendNext();
-  }, []);
-
-  const acSetPowerCmd = useCallback((power: boolean) => {
-    setClimate(s => ({ ...s, power }));
-    queueAcCommand("power", () => acPower(IR_AC.uuid, power));
-  }, [queueAcCommand]);
-
-  // set_* commands turn the AC on bridge-side, so reflect that optimistically.
-  const acSetTempCmd = useCallback((temp: number) => {
-    setClimate(s => ({ ...s, temp, power: true }));
-    queueAcCommand("temp", () => acSetTemp(IR_AC.uuid, temp));
-  }, [queueAcCommand]);
-
-  const acSetModeCmd = useCallback((mode: string) => {
-    setClimate(s => ({ ...s, mode, power: true }));
-    queueAcCommand("mode", () => acSetMode(IR_AC.uuid, acModeToBridge(mode)));
-  }, [queueAcCommand]);
-
-  const acSetFanSpeedCmd = useCallback((fanSpeed: string) => {
-    setClimate(s => ({ ...s, fanSpeed, power: true }));
-    queueAcCommand("fan", () => acSetFan(IR_AC.uuid, acFanToBridge(fanSpeed)));
-  }, [queueAcCommand]);
-
+  // The IR remotes overlay (TV / soundbar) still uses the bridge; the AC's own
+  // command queue and state hydration went with the hidden Climate card.
   const handleRemoteKey = useCallback((deviceUuid: string, key: string) => {
     sendRemoteKey(deviceUuid, key).catch(err => console.error(`Error sending IR key ${key}:`, err));
-  }, []);
-
-  // Hydrate the Climate panel from the AC's last-known persisted state, so a
-  // reload reflects reality instead of the hardcoded mock defaults.
-  useEffect(() => {
-    if (!IR_AC_CONFIGURED) return;
-    getIrDeviceState(IR_AC.uuid)
-      .then((dev) => {
-        const st = dev?.state as { power?: boolean; temp?: number; mode?: string; fan?: string } | undefined;
-        if (!st) return;
-        setClimate(s => ({
-          ...s,
-          power: typeof st.power === "boolean" ? st.power : s.power,
-          temp: typeof st.temp === "number" ? st.temp : s.temp,
-          mode: typeof st.mode === "string" ? acModeFromBridge(st.mode) : s.mode,
-          fanSpeed: typeof st.fan === "string" ? acFanFromBridge(st.fan) : s.fanSpeed,
-        }));
-      })
-      .catch(err => console.error("Failed to load AC state:", err));
   }, []);
 
   // Real lock state — read live from Home Assistant (unlike the other mock
@@ -603,9 +241,12 @@ export function EnvironmentView() {
     }
   }, []);
 
+  // LOCK_STATE_UPDATE above is the live path. This poll only covers the gap
+  // while the websocket is down or reconnecting, so it can be slow — at 5s it
+  // was the card's sole source of truth, which is why it lagged HA so visibly.
   useEffect(() => {
     refreshLockState();
-    const interval = setInterval(refreshLockState, 5_000);
+    const interval = setInterval(refreshLockState, LOCK_POLL_FALLBACK_MS);
     return () => clearInterval(interval);
   }, [refreshLockState]);
 
@@ -623,12 +264,15 @@ export function EnvironmentView() {
     toggleDoorLock(locked ? "locked" : "unlocked")
       .then(() => {
         if (!locked) {
-          // Auto re-lock 2s after an unlock.
+          // Auto re-lock 5s after an unlock. Must stay comfortably above the
+          // Yale cloud's own command latency (measured at ~8s cold, ~2s warm) —
+          // at 2s the relock was firing while the unlock was still in flight,
+          // racing the two commands and making the toggle visibly snap back.
           autoLockTimerRef.current = setTimeout(() => {
             autoLockTimerRef.current = null;
             setSecurity({ locked: true });
             toggleDoorLock("locked").catch(() => refreshLockState());
-          }, 2_000);
+          }, AUTO_RELOCK_MS);
         }
       })
       .catch(() => refreshLockState())
@@ -641,14 +285,13 @@ export function EnvironmentView() {
     };
   }, []);
 
-  // Global Quick Devices State
-  const [globalPower, setGlobalPower] = useState({ ac: true, lights: true, audio: true });
-
   // Persistence
   useEffect(() => {
     setIsClient(true);
+    // A stale "climate" saved before that card was hidden must not win, or the
+    // page would try to focus a panel it no longer renders.
     const saved = localStorage.getItem("cms_environment_panel") as PanelType;
-    if (saved && ["climate", "lighting", "audio", "security"].includes(saved)) {
+    if (saved && PANELS.includes(saved)) {
       setFocused(saved);
     }
   }, []);
@@ -658,41 +301,13 @@ export function EnvironmentView() {
   }, [focused, isClient]);
 
   // Order
-  const orderedContents = [focused, ...(["climate", "lighting", "audio", "security"] as PanelType[]).filter(x => x !== focused)];
+  const orderedContents = [focused, ...PANELS.filter(x => x !== focused)];
 
   const renderContent = (type: PanelType, isExpanded: boolean) => {
-    if (type === "climate") return <ClimateContent key="climate" isExpanded={isExpanded} state={climate} actions={{
-      // Wired to the real IR AC via the CrabController bridge (apps/api ir-driver).
-      setTemp: acSetTempCmd,
-      setMode: acSetModeCmd,
-      setPower: acSetPowerCmd,
-      setFanSpeed: acSetFanSpeedCmd,
-      // Local-only: the Tuya AC "scene" command carries only power/mode/temp/fan,
-      // so these have no bridge equivalent (can later map to raw codebook keys).
-      setFan: (fan: number) => setClimate(s => ({ ...s, fan })),
-      setSwing: (swing: boolean) => setClimate(s => ({ ...s, swing })),
-      setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),
-      setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
+    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ on: lightsOn }} actions={{
+      setPower: apiSetGroupPower,
     }} />;
-    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ ...lighting, modes, editingModeId: editingMode?.id ?? null, editingModeName, savingEditMode }} globalPowerState={globalPower} globalPowerActions={{
-      setAc: (ac: boolean) => setGlobalPower(s => ({ ...s, ac })),
-      setLights: (lights: boolean) => setGlobalPower(s => ({ ...s, lights })),
-      setAudio: (audio: boolean) => setGlobalPower(s => ({ ...s, audio })),
-    }} actions={{
-      setBrightness: apiSetMasterBrightness,
-      setZoneBrightness: apiSetZoneBrightness,
-      setColor: apiSetColor,
-      setPower: (power: boolean) => setLighting(s => ({ ...s, power })),
-      toggleColourPanel: (zone?: string) => { setFocused("lighting"); setColourPanelZone(zone ?? null); setShowColourPanel(true); },
-      identifyZone,
-      addMode: openAddModeDialog,
-      triggerMode: runMode,
-      editMode: startEditMode,
-      setEditingModeName,
-      saveEditingMode,
-      cancelEditingMode,
-    }} />;
-    if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} globalPowerState={globalPower} actions={{
+    if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
       setVolume: apiSetVolume,
       setMuted: apiSetMuted,
@@ -715,14 +330,16 @@ export function EnvironmentView() {
 
       <div
         className="flex-1 w-full grid gap-6 min-h-0"
+        // Sized from PANELS so hiding or restoring a card leaves no empty cell:
+        // one tall "primary" beside a stack of the remaining secondary slots.
         style={isDesktop
-          ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: "1fr 1fr 1fr", gridTemplateAreas: '"primary top" "primary middle" "primary bottom"' }
-          : { gridTemplateColumns: "1fr", gridTemplateRows: "auto auto auto auto", gridTemplateAreas: '"primary" "top" "middle" "bottom"' }
+          ? { gridTemplateColumns: "68fr 32fr", gridTemplateRows: SECONDARY_ROLES.map(() => "1fr").join(" "), gridTemplateAreas: SECONDARY_ROLES.map(r => `"primary ${r}"`).join(" ") }
+          : { gridTemplateColumns: "1fr", gridTemplateRows: PANELS.map(() => "auto").join(" "), gridTemplateAreas: ['"primary"', ...SECONDARY_ROLES.map(r => `"${r}"`)].join(" ") }
         }
       >
-        {(["climate", "lighting", "audio", "security"] as PanelType[]).map((type) => {
+        {PANELS.map((type) => {
           const isPrimary = type === focused;
-          const role = isPrimary ? "primary" : (orderedContents[1] === type ? "top" : orderedContents[2] === type ? "middle" : "bottom");
+          const role = isPrimary ? "primary" : SECONDARY_ROLES[orderedContents.indexOf(type) - 1]!;
           return (
             <motion.div
               key={type}
@@ -760,87 +377,6 @@ export function EnvironmentView() {
           );
         })}
       </div>
-
-      <AnimatePresence>
-        {focused === "lighting" && showColourPanel && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
-            onClick={closeColourPanelAny}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-              className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="absolute top-6 right-6 z-50">
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={closeColourPanelAny}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-              <LightColourContent
-                state={{
-                  color: draftColorTarget
-                    ? (modeDraft[draftColorTarget]?.color ?? lighting.colors[draftColorTarget] ?? lighting.color)
-                    : (colourPanelZone ? (lighting.colors[colourPanelZone] ?? lighting.color) : lighting.color),
-                  zoneLabel: draftColorTarget ? `${draftColorTarget} (unsaved)` : (colourPanelZone ?? "All Zones"),
-                }}
-                actions={{
-                  setColor: (color: typeof lighting.color) => {
-                    if (draftColorTarget) {
-                      setModeDraftZone(draftColorTarget, { color });
-                      return;
-                    }
-                    apiSetColor(color, colourPanelZone ?? undefined);
-                  },
-                  closeColourPanel: closeColourPanelAny,
-                }}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showAddModeDialog && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
-            onClick={() => setShowAddModeDialog(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-              className="w-full max-w-md rounded-3xl border border-border/50 bg-card shadow-2xl p-6 relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="absolute top-6 right-6 z-50">
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowAddModeDialog(false)}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-              <h3 className="font-semibold tracking-tight text-lg uppercase mb-1">New Mode</h3>
-              <p className="text-xs text-muted-foreground mb-5">Review or adjust each light, then Save applies it physically and stores it.</p>
-              <input
-                autoFocus
-                type="text"
-                value={newModeName}
-                onChange={(e) => setNewModeName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") submitNewMode(); }}
-                placeholder="Mode name"
-                className="w-full bg-transparent border border-border focus:border-primary rounded-2xl px-4 h-12 text-sm focus:outline-none mb-5"
-              />
-              <ZoneSettingsEditor draft={modeDraft} colors={lighting.colors} masterColor={lighting.color} onChange={setModeDraftZone} onEditColor={openDraftColorPanel} />
-              <Button
-                className="w-full rounded-2xl font-bold"
-                onClick={submitNewMode}
-                disabled={!newModeName.trim() || savingMode}
-              >
-                {savingMode ? "Saving…" : "Save Mode"}
-              </Button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showRemotes && (
