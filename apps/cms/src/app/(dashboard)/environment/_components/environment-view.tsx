@@ -407,10 +407,14 @@ export function EnvironmentView() {
       setMode: acSetModeCmd,
       setPower: acSetPowerCmd,
       setFanSpeed: acSetFanSpeedCmd,
-      // Local-only, and permanently so for this unit: the Tuya remote for
-      // "Experience Centre AC" exposes only PowerOn/PowerOff/T/M/F (checked via
-      // /v1.0/devices/{id}/functions) — there is no swing/turbo/timer dp to hit.
-      // These stay cosmetic unless the AC is re-learned as a codebook remote.
+      // Local-only: the codebook for "Experience Centre AC" carries only
+      // PowerOn/PowerOff/T/M/F (per /v1.0/devices/{id}/functions), so there is
+      // no swing/turbo/timer dp. Reachable via raw IR learning
+      // (PUT /v2.0/infrareds/{hub}/learning-state — verified live) but that
+      // needs a human pressing the physical remote once per key, and the
+      // learned blast is one-shot: these would become momentary buttons, not
+      // the stateful toggles rendered today. Timer is better done CMS-side as
+      // a scheduled power_off than over IR at all.
       setFan: (fan: number) => setClimate(s => ({ ...s, fan })),
       setSwing: (swing: boolean) => setClimate(s => ({ ...s, swing })),
       setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),
