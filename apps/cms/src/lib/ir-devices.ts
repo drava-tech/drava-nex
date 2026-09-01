@@ -32,8 +32,8 @@ export const IR_AC_CONFIGURED = !IR_AC.uuid.startsWith("REPLACE_");
 
 /**
  * Non-AC codebook remotes rendered in the Remotes overlay. `keys` are the exact
- * key names configured under `remotes:` in CrabController's config.yaml (and
- * harvested via scripts/harvest_codes.py) — each becomes the `command` sent.
+ * key names from the Tuya codebook for the remote — each becomes the `command`
+ * sent through the API's Tuya Cloud IR driver (apps/api/src/services/ir-driver.ts).
  */
 export interface IrRemoteConfig extends IrDeviceConfig {
   label: string;

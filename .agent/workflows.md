@@ -84,7 +84,6 @@ If both fail: check `.env` is populated from `.env.example` and Postgres is up.
 1. Run `/init` — point it at:
    - `.doc/` — detailed documentation folder
    - `structure.md` files in each app and package
-   - `plan.md` — current implementation roadmap
    - This `.agent/` folder itself
 2. Review the generated `CLAUDE.md` against `AGENTS.md` (currently empty — fill it in)
 3. Update `.agent/context.md` if project state has changed since last session
