@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import type { CameraStatusUpdate, WsClientMessage, WsContent } from "@platform/types";
+import type { AudioStatus, CameraStatusUpdate, WsClientMessage, WsContent } from "@platform/types";
 import { resolveBrowserWsUrl } from "@/lib/display/client-urls";
 
 export interface VisitorDetectedEvent {
@@ -27,6 +27,10 @@ interface UseCmsScreenSyncOptions {
   onCameraStatusUpdated?: (status: CameraStatusUpdate) => void;
   onVisitorDetected?: (visitor: VisitorDetectedEvent) => void;
   onDoorEvent?: (event: DoorEventMessage) => void;
+  /** Live system-audio state pushed by the native audio bridge. The gateway
+   *  also replays the latest one to each socket on CMS_REGISTER, so a fresh
+   *  subscriber is seeded without needing its own fetch. */
+  onAudioStatusUpdate?: (status: AudioStatus) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -37,6 +41,7 @@ export function useCmsScreenSync({
   onCameraStatusUpdated,
   onVisitorDetected,
   onDoorEvent,
+  onAudioStatusUpdate,
   onConnectionChange,
 }: UseCmsScreenSyncOptions): void {
   const wsRef = useRef<WebSocket | null>(null);
@@ -55,6 +60,9 @@ export function useCmsScreenSync({
   onVisitorDetectedRef.current = onVisitorDetected;
   const onDoorEventRef = useRef(onDoorEvent);
   onDoorEventRef.current = onDoorEvent;
+
+  const onAudioStatusUpdateRef = useRef(onAudioStatusUpdate);
+  onAudioStatusUpdateRef.current = onAudioStatusUpdate;
   const onConnectionChangeRef = useRef(onConnectionChange);
   onConnectionChangeRef.current = onConnectionChange;
 
@@ -101,6 +109,12 @@ export function useCmsScreenSync({
           action: msg.action,
           createdAt: msg.createdAt,
           total: msg.total,
+        });
+      } else if (msg.type === "AUDIO_STATUS_UPDATE") {
+        onAudioStatusUpdateRef.current?.({
+          volume: msg.volume,
+          muted: msg.muted,
+          device: msg.device,
         });
       }
     };

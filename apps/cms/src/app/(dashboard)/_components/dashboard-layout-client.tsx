@@ -11,6 +11,7 @@ import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
 import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
 import { WhiteboardOverlay } from '@/app/(dashboard)/_components/whiteboard/whiteboard-overlay';
 import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
+import { StoreProvider } from '@/store/store-provider';
 
 export function DashboardLayoutClient({
   children,
@@ -22,6 +23,10 @@ export function DashboardLayoutClient({
   initialTriggerArmed: boolean;
 }) {
   return (
+    // StoreProvider sits above everything so the one system-audio subscription
+    // it mounts survives navigation between pages — the four surfaces that show
+    // volume live in different route segments.
+    <StoreProvider>
     <SidebarProvider style={{ "--sidebar-width": "14rem" } as React.CSSProperties}>
       <AppSidebar />
       {/* Bounded to the viewport + overflow-hidden so this is the ONE
@@ -68,5 +73,6 @@ export function DashboardLayoutClient({
       {/* Floating whiteboard — available on every dashboard page */}
       <WhiteboardOverlay />
     </SidebarProvider>
+    </StoreProvider>
   );
 }

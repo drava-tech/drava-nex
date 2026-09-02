@@ -19,7 +19,6 @@ import {
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
-// import { useServerDetection } from "@/hooks/useServerDetection";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
@@ -285,15 +284,10 @@ export function LiveScreenPlayer({
   // ponytail: browser detection disconnected — the GPU-box vision service
   // (services/vision) owns the cameras now, so the hook that grabbed the
   // operator's webcam is commented out and replaced by a disabled stub. No
-  // camera is ever accessed. Restore by uncommenting the import + hook call.
+  // camera is ever accessed. The old browser-side hook has been removed; see
+  // git history for apps/cms/src/hooks/useServerDetection.ts if it is ever needed.
   const runServer = !preview && !isShowcase && hasMappedCamera;
 
-  // const serverDetection = useServerDetection({
-  //   screenId,
-  //   sendRaw,
-  //   enabled: runServer,
-  //   cameraId: effectiveCameraId,
-  // });
   const serverDetection = {
     stream: null as MediaStream | null,
     lastResult: null,

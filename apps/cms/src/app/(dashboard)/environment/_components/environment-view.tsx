@@ -20,6 +20,7 @@ import {
   acFanFromBridge,
 } from "@/lib/ir-devices";
 import { LIGHT_GROUP, GROUP_ON_BRIGHTNESS, DEFAULT_GROUP_COLOR, isGroupDeviceId } from "@/lib/casambi-lights";
+import { useSystemAudio } from "@/hooks/useSystemAudio";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
@@ -47,7 +48,6 @@ const LOCK_POLL_FALLBACK_MS = 30_000;
 export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("lighting");
   const [isClient, setIsClient] = useState(false);
-  // const [show3D, setShow3D] = useState(false);
   const [showRemotes, setShowRemotes] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
 
@@ -85,15 +85,16 @@ export function EnvironmentView() {
   // what the fixture reports, not what was asked for.
   const [groupColor, setGroupColor] = useState<string>(DEFAULT_GROUP_COLOR);
   const [showColourPanel, setShowColourPanel] = useState(false);
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "AUX", treble: 0, device: "Detecting..." });
+  // Volume/mute/device now come from the Redux store (useSystemAudio), shared
+  // with the three other surfaces that show the same system audio. Only the
+  // fields with no backend at all stay local — NAudio exposes volume and mute
+  // and nothing else, so power/playing/input/treble are presentational.
+  const [audio, setAudio] = useState({ power: true, playing: true, input: "AUX", treble: 0 });
+  const { volume, muted, device, setVolume: setSystemVolume, setMuted: setSystemMuted } = useSystemAudio();
 
-  const pendingVolumeRef = useRef<number | null>(null);
-  const isSendingVolumeRef = useRef<boolean>(false);
-
-  // Real volume/mute/device — read live over WS from the native audio bridge
-  // (apps/api/audio-helper/bridge.mjs), not local mock state like the other
-  // panels above. power/playing/input/treble stay local-only: no
-  // backend equivalent exists for those (NAudio only exposes volume/mute).
+  // Live device state for the lighting, lock and IR-climate panels. Audio used
+  // to be read here too, but it moved to the store's shared StoreSync — this
+  // socket stays because the other three still need it.
   useEffect(() => {
     let ws: WebSocket | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -119,14 +120,8 @@ export function EnvironmentView() {
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data);
-          if (msg.type === "AUDIO_STATUS_UPDATE") {
-            // Ignore stale volume echoes while a local drag/write is still in
-            // flight — NAudio's own change notification bounces back over WS
-            // a step or two behind the live pointer position, and applying it
-            // mid-drag fights the optimistic value and makes the slider stutter.
-            const applyVolume = pendingVolumeRef.current === null && !isSendingVolumeRef.current;
-            setAudio(s => ({ ...s, volume: applyVolume ? msg.volume : s.volume, muted: msg.muted, device: msg.device }));
-          }
+          // AUDIO_STATUS_UPDATE is handled centrally by the store's StoreSync
+          // (src/store/store-sync.tsx) so all four surfaces share one copy.
           // Either driver's report speaks for the group — they are always
           // commanded together, and the gateway polls them on a slow rotation so
           // whichever one answers first is the freshest truth we have. This is
@@ -178,15 +173,6 @@ export function EnvironmentView() {
 
     connect();
 
-    fetch("/api/audio/status")
-      .then(res => res.json())
-      .then(data => {
-        if (data && typeof data.volume === "number") {
-          setAudio(s => ({ ...s, volume: data.volume, muted: data.muted, device: data.device }));
-        }
-      })
-      .catch(err => console.error("Failed to fetch audio status:", err));
-
     return () => {
       isDisposed = true;
       if (ws) ws.close();
@@ -194,37 +180,7 @@ export function EnvironmentView() {
     };
   }, []);
 
-  const apiSetVolume = useCallback((volume: number) => {
-    setAudio(s => ({ ...s, volume, muted: false }));
-    pendingVolumeRef.current = volume;
-    if (isSendingVolumeRef.current) return;
 
-    const sendNext = () => {
-      if (pendingVolumeRef.current === null) {
-        isSendingVolumeRef.current = false;
-        return;
-      }
-      const volToSend = pendingVolumeRef.current;
-      pendingVolumeRef.current = null;
-      isSendingVolumeRef.current = true;
-
-      fetch("/api/audio/volume", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ volume: volToSend }),
-      })
-        .catch(err => console.error("Error setting volume:", err))
-        .finally(() => { setTimeout(sendNext, 50); });
-    };
-
-    sendNext();
-  }, []);
-
-  const apiSetMuted = useCallback((muted: boolean) => {
-    setAudio(s => ({ ...s, muted }));
-    fetch(muted ? "/api/audio/mute" : "/api/audio/unmute", { method: "POST" })
-      .catch(err => console.error("Error setting mute:", err));
-  }, []);
 
   // Grouped on/off → both real Casambi drivers (apps/api/src/services/casambi-driver.ts).
   // Both commands are issued in the same tick so the two fixtures switch
@@ -466,10 +422,10 @@ export function EnvironmentView() {
       setColor: apiSetGroupColor,
       openColourPanel: () => { setFocused("lighting"); setShowColourPanel(true); },
     }} />;
-    if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} actions={{
+    if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={{ ...audio, volume, muted, device }} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
-      setVolume: apiSetVolume,
-      setMuted: apiSetMuted,
+      setVolume: setSystemVolume,
+      setMuted: setSystemMuted,
       setInput: (input: string) => setAudio(s => ({ ...s, input })),
       setPower: (power: boolean) => setAudio(s => ({ ...s, power })),
       setTreble: (treble: number) => setAudio(s => ({ ...s, treble })),

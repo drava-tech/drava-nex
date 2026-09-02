@@ -14,8 +14,12 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
   /* ponytail: input selector removed completely per user request; audio panel strictly provides Increase (+), Decrease (-), & Mute options */
   const adjustVolume = (delta: number) => {
     const base = state.muted ? 0 : state.volume;
+    // setVolume already clears `muted`. An explicit setMuted(false) here would
+    // also POST /api/audio/unmute concurrently with /api/audio/volume, and the
+    // native helper's unmute restores the pre-mute level from _volumeBeforeMute
+    // (apps/api/audio-helper/Program.cs) — so if it landed second it overwrote
+    // the volume just set and the hardware echoed the old value straight back.
     actions.setVolume(Math.max(0, Math.min(100, base + delta)));
-    actions.setMuted(false);
   };
 
   return (
@@ -60,6 +64,14 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
               <p className="mt-1 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Master Volume
               </p>
+              {/* Which endpoint is actually being driven — reads "Unknown
+                  Device" when the native audio bridge isn't connected, which is
+                  otherwise indistinguishable from everything working. */}
+              {state.device && (
+                <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground/70">
+                  {state.device}
+                </p>
+              )}
             </div>
 
             {/* Glowing Volume Level Bar */}

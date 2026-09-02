@@ -1,22 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MonitorPlay, Radio, X, AlertCircle } from "lucide-react";
-import { getScreens, getActiveScreens } from "@/actions/screen-actions";
+import { getScreens } from "@/actions/screen-actions";
 import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { ControlChooserDialog } from "@/components/control-chooser-dialog";
 
-export interface ScreenRow {
-  screenId: string;
-  screenName: string;
-  currentContentKind: string | null;
-  currentExperienceId: string | null;
-  experienceName: string | null;
-  currentMediaAssetId: string | null;
-  mediaType: string | null;
-  mediaUrl: string | null;
-  mediaName: string | null;
-}
+/**
+ * Re-exported from the query that produces it so the five components importing
+ * `ScreenRow` from here keep working. It used to be re-declared by hand in
+ * three places, which drifted — this copy was missing `blanked` and
+ * `defaultMediaName` that the other two had. Prefer importing from
+ * "@platform/db" directly in new code.
+ */
+import type { ScreenRow } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchScreens } from "@/store/screens-thunks";
+export type { ScreenRow };
 
 interface PushToScreenModalProps {
   contentName: string;
@@ -123,8 +123,13 @@ export function PushToScreenModal({
   onSkip,
   skipLabel = "Skip",
 }: PushToScreenModalProps) {
-  const [screens, setScreens] = useState<ScreenRow[]>([]);
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
+  // Both come from the store, shared with every other surface that shows
+  // screens — so opening this modal reflects any change made elsewhere, and a
+  // push made here updates those surfaces without either side re-fetching.
+  const dispatch = useAppDispatch();
+  const screens = useAppSelector((st) => st.screens.rows);
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
+  const activeScreenIds = useMemo(() => new Set(storeActiveIds), [storeActiveIds]);
   const [loadingScreens, setLoadingScreens] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
@@ -138,10 +143,9 @@ export function PushToScreenModal({
   // Reusable so a successful Remove can refetch without duplicating the
   // mount-time pre-selection logic (which must stay mount-only, see below).
   const loadScreens = async (): Promise<ScreenRow[]> => {
-    const [screenRows, activeIds] = await Promise.all([getScreens(), getActiveScreens()]);
-    setScreens(screenRows);
-    setActiveScreenIds(new Set(activeIds));
-    return screenRows;
+    const rows = await getScreens();
+    await dispatch(fetchScreens());
+    return rows;
   };
 
   // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.

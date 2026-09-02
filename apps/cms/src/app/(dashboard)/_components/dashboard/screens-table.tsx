@@ -1,23 +1,16 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Film, Layers, Radio, Slash } from "lucide-react";
-import type { WsContent } from "@platform/types";
-import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { LiquidPill } from "./liquid-pill";
+import type { ScreenRow } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { screensHydrated, activeScreensUpdated } from "@/store/screens-slice";
 
 type ContentKind = "experience" | "live-stream" | "media" | "none";
 type ScreenStatus = "online" | "offline";
 
-interface ScreenRow {
-  screenId: string;
-  screenName: string;
-  currentContentKind: string | null;
-  experienceName: string | null;
-  mediaName: string | null;
-  defaultMediaName: string | null;
-  blanked: boolean;
-}
+
 
 interface ScreenDetail {
   id: string;
@@ -83,14 +76,6 @@ function toScreenDetail(row: ScreenRow): ScreenDetail {
   };
 }
 
-function getContentKind(content: WsContent): ContentKind {
-  if (content.id === "__idle__") return "none";
-  if (content.type === "experience") {
-    return content.templateKey === "live-stream" ? "live-stream" : "experience";
-  }
-  return "media";
-}
-
 export function ScreensList({
   initialScreens,
   initialActiveScreenIds,
@@ -98,34 +83,28 @@ export function ScreensList({
   initialScreens: ScreenRow[];
   initialActiveScreenIds: string[];
 }) {
-  const [screens, setScreens] = useState<ScreenDetail[]>(() =>
-    initialScreens.map(toScreenDetail),
-  );
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(
-    () => new Set(initialActiveScreenIds),
-  );
+  const dispatch = useAppDispatch();
+  const storeRows = useAppSelector((st) => st.screens.rows);
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
 
-  const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {
-    setScreens((current) =>
-      current.map((screen) =>
-        screen.id === screenId
-          ? {
-              ...screen,
-              content:
-                content.id === "__idle__"
-                  ? "Unassigned"
-                  : (content.title ?? "Updated content"),
-              contentKind: getContentKind(content),
-            }
-          : screen,
-      ),
-    );
-  }, []);
+  useEffect(() => {
+    dispatch(screensHydrated(initialScreens));
+    dispatch(activeScreensUpdated(initialActiveScreenIds));
+  }, [dispatch, initialScreens, initialActiveScreenIds]);
 
-  useCmsScreenSync({
-    onScreenUpdated: handleScreenUpdated,
-    onActiveScreensUpdated: (ids) => setActiveScreenIds(new Set(ids)),
-  });
+  // Props until the hydrate dispatch lands, store after — the effect above runs
+  // only once the first paint is done, so without this the table renders empty.
+  const rows = storeRows.length > 0 ? storeRows : initialScreens;
+
+  // Derived, not stored. This used to be useState seeded at mount and then
+  // patched by a local WS handler; the row itself is now kept current by the
+  // store, so the view model is just a pure function of it and can never drift
+  // from what the other screen surfaces show.
+  const screens = useMemo(() => rows.map(toScreenDetail), [rows]);
+  const activeScreenIds = useMemo(
+    () => new Set(storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds),
+    [storeActiveIds, initialActiveScreenIds],
+  );
 
   if (screens.length === 0) {
     return (

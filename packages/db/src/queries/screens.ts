@@ -15,7 +15,15 @@ import { recordScreenMediaPush, recordScreenExperiencePush } from "./screen-cont
  * exclusive).
  */
 
-export async function listScreens(): Promise<{
+/**
+ * One row of the screen list, as every CMS surface sees it.
+ *
+ * Named here rather than inline because it is the canonical shape: the CMS used
+ * to re-declare narrower copies of it in three separate components, which drifted
+ * (one had `blanked`, one had `defaultMediaName`, one had neither). Import this
+ * instead of writing another.
+ */
+export interface ScreenRow {
   screenId: string;
   screenName: string;
   currentContentKind: string | null;
@@ -28,7 +36,9 @@ export async function listScreens(): Promise<{
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
   blanked: boolean;
-}[]> {
+}
+
+export async function listScreens(): Promise<ScreenRow[]> {
   const defaultMedia = alias(mediaAsset, "default_media");
   return db
     .select({
