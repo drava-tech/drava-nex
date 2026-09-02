@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Button } from "@platform/ui";
 import dynamic from "next/dynamic";
 import { toggleDoorLock, getLiveLockState } from "@/actions/door-lock-actions";
+import { hexToRgb } from "./utils";
 import { setLightState, getLightState } from "@/actions/light-actions";
 import { acPower, acSetTemp, acSetMode, acSetFan, sendRemoteKey, getIrDeviceState } from "@/actions/ir-actions";
 import {
@@ -18,12 +19,13 @@ import {
   acFanToBridge,
   acFanFromBridge,
 } from "@/lib/ir-devices";
-import { LIGHT_GROUP, GROUP_ON_BRIGHTNESS, GROUP_ON_COLOR, isGroupDeviceId } from "@/lib/casambi-lights";
+import { LIGHT_GROUP, GROUP_ON_BRIGHTNESS, DEFAULT_GROUP_COLOR, isGroupDeviceId } from "@/lib/casambi-lights";
 
 const ClimateContent = dynamic(() => import("./climate-content"), { ssr: false });
 const LightingContent = dynamic(() => import("./lighting-content"), { ssr: false });
 const AudioContent = dynamic(() => import("./audio-content"), { ssr: false });
 const SecurityContent = dynamic(() => import("./security-content"), { ssr: false });
+const LightColourContent = dynamic(() => import("./light-colour-content"), { ssr: false });
 const IrRemotesContent = dynamic(() => import("./ir-remotes-content"), { ssr: false });
 
 type PanelType = "climate" | "lighting" | "audio" | "security";
@@ -72,7 +74,18 @@ export function EnvironmentView() {
   // single boolean is the whole lighting model: optimistic on toggle, then
   // corrected from the mesh by the one member that reports state back.
   const [lightsOn, setLightsOn] = useState(false);
-  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "HDMI", treble: 0, device: "Detecting..." });
+  // The colour the user last chose for the group.
+  //
+  // Deliberately NOT synced from LIGHT_STATE_UPDATE. These fixtures transform
+  // what they are sent — the RGB path forces saturation to maximum, so a warm
+  // white reads back as red (see the calibration record in casambi-lights.ts).
+  // Syncing the swatch from readback would therefore replace the user's choice
+  // with the hardware's mangled version of it. Desired is the honest thing to
+  // show; localStorage keeps it across reloads since the server only stores
+  // what the fixture reports, not what was asked for.
+  const [groupColor, setGroupColor] = useState<string>(DEFAULT_GROUP_COLOR);
+  const [showColourPanel, setShowColourPanel] = useState(false);
+  const [audio, setAudio] = useState({ power: true, playing: true, volume: 45, muted: false, input: "AUX", treble: 0, device: "Detecting..." });
 
   const pendingVolumeRef = useRef<number | null>(null);
   const isSendingVolumeRef = useRef<boolean>(false);
@@ -219,6 +232,9 @@ export function EnvironmentView() {
   // drift apart. No coalescing queue here — with a single switch there is
   // nothing to coalesce; an in-flight ref just drops re-entrant taps.
   const lightPendingRef = useRef(false);
+  // Read inside callbacks that must not re-create on every colour change.
+  const groupColorRef = useRef(groupColor);
+  useEffect(() => { groupColorRef.current = groupColor; }, [groupColor]);
 
   const apiSetGroupPower = useCallback((on: boolean) => {
     if (lightPendingRef.current) return;
@@ -226,7 +242,7 @@ export function EnvironmentView() {
     setLightsOn(on);
 
     const payload = on
-      ? { on: true, brightness: GROUP_ON_BRIGHTNESS, color: GROUP_ON_COLOR }
+      ? { on: true, brightness: GROUP_ON_BRIGHTNESS, color: groupColorRef.current }
       : { on: false };
 
     Promise.all(LIGHT_GROUP.map(dev => setLightState(dev.uuid, payload)))
@@ -235,6 +251,31 @@ export function EnvironmentView() {
         setLightsOn(!on);
       })
       .finally(() => { lightPendingRef.current = false; });
+  }, []);
+
+  const apiSetGroupColor = useCallback((hex: string) => {
+    setGroupColor(hex);
+    try { localStorage.setItem("cms_light_group_colour", hex); } catch { /* private mode */ }
+
+    const payload = { on: true, brightness: GROUP_ON_BRIGHTNESS, color: hex };
+    const sendAll = () => Promise.all(LIGHT_GROUP.map(dev => setLightState(dev.uuid, payload)));
+
+    // Sent twice, ~2s apart. Commands demonstrably do not always reach both
+    // fixtures — that is the whole reason the two drift into different colours
+    // — and a second identical send is by far the cheapest way to raise the
+    // odds both land. It is idempotent, so a duplicate costs nothing.
+    sendAll()
+      .then(() => { setLightsOn(true); setTimeout(() => { void sendAll().catch(() => {}); }, 2000); })
+      .catch(err => console.error("Error setting lighting group colour:", err));
+  }, []);
+
+  // Restore the last chosen colour; the server only knows what the fixtures
+  // report, which is not what was asked for.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cms_light_group_colour");
+      if (saved && /^#[0-9A-F]{6}$/i.test(saved)) setGroupColor(saved);
+    } catch { /* private mode */ }
   }, []);
 
   // Hydrate from the drivers' last-known persisted state. Both are read: the
@@ -420,8 +461,10 @@ export function EnvironmentView() {
       setTurbo: (turbo: boolean) => setClimate(s => ({ ...s, turbo })),
       setTimer: (timer: string | null) => setClimate(s => ({ ...s, timer })),
     }} />;
-    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ on: lightsOn }} actions={{
+    if (type === "lighting") return <LightingContent key="lighting" isExpanded={isExpanded} state={{ on: lightsOn, color: groupColor }} actions={{
       setPower: apiSetGroupPower,
+      setColor: apiSetGroupColor,
+      openColourPanel: () => { setFocused("lighting"); setShowColourPanel(true); },
     }} />;
     if (type === "audio") return <AudioContent key="audio" isExpanded={isExpanded} state={audio} actions={{
       setPlaying: (playing: boolean) => setAudio(s => ({ ...s, playing })),
@@ -440,7 +483,7 @@ export function EnvironmentView() {
   if (!isClient) return null;
 
   return (
-    <div className="w-full h-full flex flex-col gap-6 overflow-hidden font-sans text-foreground pb-2">
+    <div className="w-full h-full flex flex-col gap-4 sm:gap-6 overflow-y-auto lg:overflow-hidden font-sans text-foreground pb-2">
 
       <h1 className="shrink-0 text-3xl font-black tracking-tight pt-2">Environment</h1>
 
@@ -469,7 +512,8 @@ export function EnvironmentView() {
                 originY: 0.5,
                 touchAction: "manipulation",
               }}
-              className={`rounded-2xl border bg-transparent flex flex-col relative min-h-0 ${isPrimary ? "overflow-visible" : "overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
+              /* ponytail: primary needs explicit min-h on mobile so grid auto-rows don't collapse to 0 height causing card overlaps */
+              className={`rounded-2xl border bg-card flex flex-col relative min-h-0 ${isPrimary ? "min-h-[460px] lg:min-h-0 overflow-hidden" : "min-h-[96px] lg:min-h-0 overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-90 hover:opacity-100"}`}
               // onTap (not onClick) — this card animates with `layout`, and on
               // touchscreens a plain onClick's first tap can get swallowed while
               // Framer Motion is mid layout-measurement; onTap is its own
@@ -483,7 +527,7 @@ export function EnvironmentView() {
                   animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.1 } }}
                   exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
                   className={isPrimary
-                    ? "absolute inset-0 w-full h-full p-5 md:p-8 flex flex-col overflow-visible"
+                    ? "absolute inset-0 w-full h-full p-4 sm:p-5 md:p-8 flex flex-col overflow-y-auto lg:overflow-hidden"
                     : "absolute inset-0 w-full h-full p-3 md:p-4 flex flex-col justify-center overflow-hidden"}
                 >
                   {renderContent(type, isPrimary)}
@@ -493,6 +537,35 @@ export function EnvironmentView() {
           );
         })}
       </div>
+
+      <AnimatePresence>
+        {focused === "lighting" && showColourPanel && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6"
+            onClick={() => setShowColourPanel(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+              className="w-full max-w-4xl rounded-3xl border border-border/50 bg-card shadow-2xl p-6 md:p-8 relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-6 right-6 z-50">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => setShowColourPanel(false)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <LightColourContent
+                state={{ color: { ...hexToRgb(groupColor), hex: groupColor } }}
+                actions={{
+                  setColor: (c: { hex: string }) => apiSetGroupColor(c.hex),
+                  closeColourPanel: () => setShowColourPanel(false),
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showRemotes && (

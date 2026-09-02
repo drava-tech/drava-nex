@@ -133,6 +133,10 @@ export interface LightState {
   on: boolean;
   brightness?: number;
   color?: string;
+  /** 0-255 on the fixture's dedicated white channel. The Casambi gateway
+   *  advertises supported_color_modes: ["rgbw"], so this is a real fourth
+   *  channel, distinct from a white mixed out of full R+G+B. */
+  white?: number;
 }
 
 /**

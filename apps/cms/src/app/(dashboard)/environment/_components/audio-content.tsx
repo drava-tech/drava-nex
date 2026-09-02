@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Speaker as SpeakerIcon, Plug, VolumeX, Minus, Plus } from "lucide-react";
+import React from "react";
+import { motion } from "framer-motion";
+import { Speaker as SpeakerIcon, VolumeX, Volume2, Minus, Plus } from "lucide-react";
 import { Badge } from "@platform/ui";
 import { Switch } from "./controls";
 import { noProp } from "./utils";
@@ -11,10 +11,7 @@ import { noProp } from "./utils";
 const VOLUME_STEP = 2;
 
 export default function AudioContent({ isExpanded, state, actions }: any) {
-  const inputOptions = ["HDMI", "AUX", "Bluetooth"] as const;
-  const currentInput = state.input ?? inputOptions[0];
-  const [showInputOptions, setShowInputOptions] = useState(false);
-
+  /* ponytail: input selector removed completely per user request; audio panel strictly provides Increase (+), Decrease (-), & Mute options */
   const adjustVolume = (delta: number) => {
     const base = state.muted ? 0 : state.volume;
     actions.setVolume(Math.max(0, Math.min(100, base + delta)));
@@ -51,82 +48,69 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex min-h-0 w-full flex-col gap-4 lg:gap-6 py-1" onClick={noProp}>
-            <div className="grid grid-cols-1 xl:grid-cols-[112px_112px] gap-2 lg:gap-3 items-stretch shrink-0">
-              <div className="relative z-30">
-                <button
-                  onClick={(e) => { noProp(e); setShowInputOptions((open) => !open); }}
-                  className="h-12 lg:h-16 w-full rounded-xl border border-blue-500/30 bg-blue-500/10 px-2 py-2 flex flex-col items-center justify-center gap-1 text-blue-500 font-bold transition-all hover:bg-blue-500/15 shadow-[0_0_14px_rgba(59,130,246,0.18)]"
-                >
-                  <Plug className="w-4 h-4 lg:w-5 lg:h-5" />
-                  <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">Input {currentInput}</span>
-                </button>
-                <AnimatePresence>
-                  {showInputOptions && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                      transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                      className="absolute left-0 top-full z-50 mt-2 w-40 rounded-xl border border-blue-500/25 bg-card/95 p-1.5 shadow-2xl backdrop-blur"
-                    >
-                      <div className="grid gap-1">
-                        {inputOptions.map((input) => (
-                          <button
-                            key={input}
-                            onClick={(e) => { noProp(e); actions.setInput(input); setShowInputOptions(false); }}
-                            className={`h-8 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-widest transition-all ${
-                              currentInput === input
-                                ? 'bg-blue-500/15 text-blue-500 border-blue-500/40 shadow-[0_0_10px_rgba(59,130,246,0.22)]'
-                               : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/60'
-                            }`}
-                          >
-                            {input}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+          <div className="flex-1 flex min-h-0 w-full flex-col justify-center items-center gap-6 py-4" onClick={noProp}>
+            {/* Center Volume Number & Subtitle */}
+            <div className="text-center">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight text-foreground">
+                  {state.muted ? 0 : state.volume}
+                </span>
+                <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-500/60">%</span>
               </div>
-              <button
-                onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
-                className={`h-12 lg:h-16 rounded-xl border px-2 py-2 flex flex-col items-center justify-center gap-1 font-bold transition-all ${
-                  state.muted
-                    ? 'bg-red-500/10 text-red-500 border-red-500/40 shadow-[0_0_14px_rgba(239,68,68,0.25)]'
-                    : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/50'
-                }`}
-              >
-                <VolumeX className="w-4 h-4 lg:w-5 lg:h-5" />
-                <span className="text-[8px] lg:text-[10px] uppercase tracking-widest">{state.muted ? "Muted" : "Mute"}</span>
-              </button>
+              <p className="mt-1 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Master Volume
+              </p>
             </div>
 
-            <div className="min-w-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
-              <div className="flex items-start justify-between mb-2 lg:mb-4 shrink-0">
-                <span className="text-3xl lg:text-5xl font-black">{state.muted ? 0 : state.volume}<span className="text-lg lg:text-2xl text-blue-500/50">%</span></span>
-                <span className="text-[10px] lg:text-xs font-bold text-muted-foreground uppercase tracking-widest">Master Volume</span>
-              </div>
-              <div className="flex-1 flex items-center justify-center gap-6 lg:min-h-0">
-                <motion.button
-                  whileTap={{ scale: 0.86 }}
-                  onClick={(e) => { noProp(e); adjustVolume(-VOLUME_STEP); }}
-                  style={{ touchAction: "manipulation" }}
-                  className="h-16 w-16 lg:h-20 lg:w-20 rounded-full border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex items-center justify-center text-blue-500 transition-colors hover:from-blue-500/25 hover:to-blue-500/10 shadow-[0_2px_16px_rgba(59,130,246,0.25),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                  aria-label="Decrease volume"
-                >
-                  <Minus className="w-6 h-6 lg:w-7 lg:h-7" strokeWidth={2.75} />
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.86 }}
-                  onClick={(e) => { noProp(e); adjustVolume(VOLUME_STEP); }}
-                  style={{ touchAction: "manipulation" }}
-                  className="h-16 w-16 lg:h-20 lg:w-20 rounded-full border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex items-center justify-center text-blue-500 transition-colors hover:from-blue-500/25 hover:to-blue-500/10 shadow-[0_2px_16px_rgba(59,130,246,0.25),inset_0_1px_0_rgba(255,255,255,0.08)]"
-                  aria-label="Increase volume"
-                >
-                  <Plus className="w-6 h-6 lg:w-7 lg:h-7" strokeWidth={2.75} />
-                </motion.button>
-              </div>
+            {/* Glowing Volume Level Bar */}
+            <div className="w-full max-w-sm h-2.5 bg-muted/60 rounded-full overflow-hidden p-0.5 border border-border/40">
+              <div
+                className="h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-150 rounded-full shadow-[0_0_12px_rgba(59,130,246,0.5)]"
+                style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }}
+              />
+            </div>
+
+            {/* Controls Row: Decrease (-), Mute Toggle, Increase (+) */}
+            <div className="flex items-center justify-center gap-6 sm:gap-8 pt-2">
+              {/* Decrease Volume Button */}
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={(e) => { noProp(e); adjustVolume(-VOLUME_STEP); }}
+                style={{ touchAction: "manipulation" }}
+                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex flex-col items-center justify-center text-blue-500 transition-all hover:from-blue-500/30 hover:to-blue-500/10 shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
+                aria-label="Decrease volume"
+              >
+                <Minus className="w-7 h-7 sm:w-9 sm:h-9" strokeWidth={2.5} />
+              </motion.button>
+
+              {/* Mute Button */}
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
+                style={{ touchAction: "manipulation" }}
+                className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border flex flex-col items-center justify-center gap-1 font-bold transition-all ${
+                  state.muted
+                    ? "bg-red-500/15 text-red-500 border-red-500/40 shadow-[0_4px_20px_rgba(239,68,68,0.3)]"
+                    : "bg-muted/30 text-foreground border-border hover:bg-muted/60 shadow-md"
+                }`}
+                aria-label={state.muted ? "Unmute" : "Mute"}
+              >
+                {state.muted ? <VolumeX className="w-6 h-6 sm:w-7 sm:h-7" /> : <Volume2 className="w-6 h-6 sm:w-7 sm:h-7" />}
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
+                  {state.muted ? "Muted" : "Mute"}
+                </span>
+              </motion.button>
+
+              {/* Increase Volume Button */}
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={(e) => { noProp(e); adjustVolume(VOLUME_STEP); }}
+                style={{ touchAction: "manipulation" }}
+                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex flex-col items-center justify-center text-blue-500 transition-all hover:from-blue-500/30 hover:to-blue-500/10 shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
+                aria-label="Increase volume"
+              >
+                <Plus className="w-7 h-7 sm:w-9 sm:h-9" strokeWidth={2.5} />
+              </motion.button>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, animate, useAnimation, useMotionValue, type PanInfo } from "framer-motion";
 import {
@@ -25,6 +25,7 @@ import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { PublishScreenBridge } from "./publish-screen-bridge";
+import { readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
 import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import type { WsContent } from "@platform/types";
 
@@ -39,6 +40,12 @@ const SWIPE_VELOCITY = 900;
  * or the two animations visibly overlap. */
 const CARD_RESET_MS = 240;
 
+/** useLayoutEffect so a remembered carousel position is already in place on the
+ * first painted frame rather than visibly jumping there afterwards. The
+ * useEffect fallback only covers the SSR pass, where there is by definition
+ * nothing restored to jump to (see publish-board-state.ts). */
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 interface ExperienceOption {
   id: string;
   title: string;
@@ -51,7 +58,7 @@ interface ExperienceTag {
   name: string;
 }
 
-interface MediaItem {
+export interface MediaItem {
   id: string;
   name: string;
   type: string;
@@ -75,7 +82,7 @@ function matchesDateRange(item: MediaItem, from: string, to: string): boolean {
 /** Every non-experience card carries the media asset's own classified type
  * (see apps/api/src/routes/media.ts's ALLOWED map) — "image"/"video" render a
  * real preview, the rest fall back to a file-type icon (see CardVisual). */
-type MediaCardType = "image" | "video" | "document" | "sheet" | "presentation" | "word";
+export type MediaCardType = "image" | "video" | "document" | "sheet" | "presentation" | "word";
 
 const MEDIA_TYPE_LABELS: Record<MediaCardType, string> = {
   video: "Video",
@@ -109,20 +116,30 @@ interface PublishBoardProps {
  * quick "opening" flash when new content lands on it.
  */
 export function PublishBoard({ initialScreens, experiences, experienceTypes }: PublishBoardProps) {
+  // Publishing navigates to the live page and coming back mounts a fresh
+  // board, so everything the user had set up would be lost — restored here
+  // from the per-document snapshot (see publish-board-state.ts). On a genuinely
+  // first visit every value below is the same default as before, so the
+  // server-rendered markup is unchanged. Captured in a ref so its identity is
+  // stable for the lifetime of this mount.
+  const restored = useRef(readBoardSnapshot()).current;
   const [screens, setScreens] = useState<ScreenRow[]>(initialScreens);
-  const [targetIndex, setTargetIndex] = useState(0);
-  const [filter, setFilter] = useState<"experiences" | "media">("experiences");
+  const [targetIndex, setTargetIndex] = useState(restored.targetIndex);
+  const [filter, setFilter] = useState<"experiences" | "media">(restored.filter);
   /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(restored.tagFilter);
   /** Only meaningful (and shown) while filter === "media" — narrows to one media type. */
-  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(null);
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(restored.mediaTypeFilter);
   /** Only meaningful while filter === "media" — narrows to email-ingested items only. */
-  const [emailOnly, setEmailOnly] = useState(false);
+  const [emailOnly, setEmailOnly] = useState(restored.emailOnly);
   /** Only meaningful while filter === "media" — "" | "YYYY-MM-DD", open-ended if either is empty. */
-  const [mediaDateFrom, setMediaDateFrom] = useState("");
-  const [mediaDateTo, setMediaDateTo] = useState("");
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [loadingMedia, setLoadingMedia] = useState(true);
+  const [mediaDateFrom, setMediaDateFrom] = useState(restored.mediaDateFrom);
+  const [mediaDateTo, setMediaDateTo] = useState(restored.mediaDateTo);
+  // Seeded from the snapshot so a return visit has its cards (and therefore
+  // its scroll position) on the very first frame instead of flashing the
+  // "Loading content…" spinner while /api/media is re-fetched below.
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(restored.mediaItems ?? []);
+  const [loadingMedia, setLoadingMedia] = useState(restored.mediaItems === null);
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const boxControls = useAnimation();
@@ -140,6 +157,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     // (link/email-sourced entries with no real file) is left out.
     const files = (data.media || []).filter((item: MediaItem) => Object.hasOwn(MEDIA_TYPE_LABELS, item.type));
     setMediaItems(files);
+    saveBoardSnapshot({ mediaItems: files });
   }, []);
 
   useEffect(() => {
@@ -165,6 +183,9 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       // doesn't know that on its own, so without this it can keep showing
       // whatever was already centered instead of the new newest item.
       if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
+      // ...and the snapshot must forget whichever card *was* centred, or a
+      // later return visit would scroll back to it and undo this jump.
+      saveBoardSnapshot({ centredCardKey: null });
       setFeedback({ message: "Loaded new media from email", tone: "success" });
     } catch (err) {
       setFeedback({
@@ -210,6 +231,12 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     return () => clearTimeout(timer);
   }, [feedback]);
 
+  // Everything the user picked, remembered for the trip to the live page and
+  // back. The carousel position is saved separately, from the scroll handler.
+  useEffect(() => {
+    saveBoardSnapshot({ filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo, targetIndex });
+  }, [filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo, targetIndex]);
+
   // Only offer tags that actually have at least one experience — same
   // convention as experiences/_components/projects-list.tsx's category filter.
   const availableTags = useMemo(() => {
@@ -253,7 +280,10 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, mediaItems, filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);
 
-  const targetScreen = screens[targetIndex] ?? null;
+  // Falls back to the first screen rather than null: targetIndex can be
+  // restored from a previous mount, and the screens list is re-fetched by the
+  // server on every visit, so a remembered index can outlive its screen.
+  const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
 
   const setSlideRef = useCallback((key: string, el: HTMLDivElement | null) => {
     if (el) slideRefs.current.set(key, el);
@@ -277,7 +307,14 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     const scroller = scrollerRef.current;
     if (!scroller) return;
     const viewportCenter = scroller.clientWidth / 2;
-    slideRefs.current.forEach((el) => {
+    // Whichever card ends up nearest the centre is also the one to scroll back
+    // to on a return visit — recorded here rather than in a separate pass
+    // because this already walks every slide measuring exactly that distance.
+    // Writing to the module snapshot is a plain assignment (no React state),
+    // so it stays free to do at scroll-event frequency.
+    let nearestKey: string | null = null;
+    let nearestDistance = Infinity;
+    slideRefs.current.forEach((el, key) => {
       const elCenterInViewport = el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
       const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
       const clamped = Math.max(-1.4, Math.min(1.4, offset));
@@ -287,7 +324,15 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       el.style.transform = `translateX(${nudge}px) scale(${scale})`;
       el.style.opacity = String(1 - proximity * 0.35);
       el.style.zIndex = String(5 - Math.round(proximity * 5));
+      // Math.abs(offset), not the clamped/capped value — several off-screen
+      // cards share a proximity of exactly 1 and could not be told apart.
+      const distance = Math.abs(offset);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestKey = key;
+      }
     });
+    if (nearestKey) saveBoardSnapshot({ centredCardKey: nearestKey });
   }, []);
 
   useEffect(() => {
@@ -322,12 +367,43 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     };
   }, [cards, updateSlideTransforms]);
 
+  /** Guards the one-shot carousel restore below against running twice, and
+   *  against running at all once the user has moved the carousel themselves. */
+  const scrollRestoredRef = useRef(false);
+  /** The filter-reset effect below must skip its own mount invocation — that
+   *  first pass belongs to the restore, not to a real filter change. */
+  const filterResetArmedRef = useRef(false);
+
+  // Put the carousel back on the card the user was last looking at. Deferred
+  // until there are cards to scroll to: on a first visit to /broadcast with
+  // filter === "media", they only arrive once /api/media resolves (a return
+  // visit has them on the first frame, seeded from the snapshot).
+  useIsomorphicLayoutEffect(() => {
+    if (scrollRestoredRef.current || cards.length === 0) return;
+    scrollRestoredRef.current = true;
+    const el = restored.centredCardKey ? slideRefs.current.get(restored.centredCardKey) : null;
+    if (!el) return;
+    // "instant" because the scroller carries `scroll-smooth` — the default
+    // would animate all the way across from the far left instead of just
+    // starting where the user left off.
+    el.scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
+    updateSlideTransforms();
+  }, [cards, restored.centredCardKey, updateSlideTransforms]);
+
   // Only an explicit filter (or tag/media-type) switch should jump the
   // carousel back to the start — publishing a card, a screen-sync update,
   // etc. must never reset scroll position (cards itself doesn't change from
   // those, but nothing here should assume that and reset on its account
-  // either).
+  // either). The mount pass is skipped for the same reason: it isn't a switch,
+  // it's where a remembered position gets restored above.
   useEffect(() => {
+    if (!filterResetArmedRef.current) {
+      filterResetArmedRef.current = true;
+      return;
+    }
+    // A real filter switch also cancels a restore still waiting on its cards,
+    // so it can't fire later and undo this jump.
+    scrollRestoredRef.current = true;
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = 0;
   }, [filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);

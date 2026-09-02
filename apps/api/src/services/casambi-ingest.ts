@@ -61,7 +61,7 @@ async function handleValuesMessage(topic: string, payload: Buffer): Promise<void
   const device = targetIdToDevice.get(targetId);
   if (!device) return; // not a device we've registered — ignore
 
-  let data: { level?: number; red?: number; green?: number; blue?: number };
+  let data: { level?: number; red?: number; green?: number; blue?: number; white?: number };
   try {
     data = JSON.parse(payload.toString());
   } catch {
@@ -74,6 +74,9 @@ async function handleValuesMessage(topic: string, payload: Buffer): Promise<void
     on: level > 0,
     brightness,
     color: rgbToHex(data.red ?? 0, data.green ?? 0, data.blue ?? 0),
+    // The fixture's dedicated white channel. Carried through so the CMS and the
+    // reconciler can see a white contribution that RGB alone cannot express.
+    white: typeof data.white === "number" ? data.white : 0,
   };
 
   try {

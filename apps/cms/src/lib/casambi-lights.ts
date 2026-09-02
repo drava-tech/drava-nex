@@ -15,6 +15,16 @@
  * the other answers immediately. Neither is authoritative on its own; since
  * they are always commanded together, whichever one reports tells us the
  * group's state.
+ *
+ * Calibrated 2026-09-02 by driving known RGBW values and reading back:
+ *   sent (255,0,0)     -> #FF000E  red      correct
+ *   sent (0,255,0)     -> #000AFF  blue     green/blue appear swapped
+ *   sent (0,0,255)     -> #59FF55  green    green/blue appear swapped
+ *   sent (255,243,224) -> #FF0030  red      saturation forced to 254
+ * Unit 19 lags unit 17 by ~35s but both settle to identical values, so the
+ * "two different colours" symptom is mostly reporting lag, not permanent
+ * drift. Whether the green/blue swap is in the command or only the readback
+ * is unresolved — see SWAP_GREEN_BLUE in casambi-driver.ts.
  */
 export const LIGHT_GROUP: { uuid: string; deviceId: string }[] = [
   { uuid: "62c1a059-3fdb-4d25-8743-f7cb51c83b49", deviceId: "casambi-light-17" },
@@ -22,14 +32,32 @@ export const LIGHT_GROUP: { uuid: string; deviceId: string }[] = [
 ];
 
 /**
- * The fixed look both drivers get on every switch-on. Not user-editable by
- * design — the card has no colour or brightness control, so sending the same
- * values to both targets is what keeps the two fixtures from drifting apart.
- * Note CasambiDeviceDriver hardcodes `white: 0`, so this warm white is mixed
- * from RGB only and the DALI driver's white LEDs stay dark.
+ * What the group is set to when switched on with no colour chosen yet.
+ *
+ * Measured behaviour of these fixtures (see CasambiDeviceDriver.rgbToRgbw):
+ * the RGB path always renders a FULLY SATURATED hue — a warm white sent as
+ * RGB came back at saturation 254, i.e. red. Whites only work through the
+ * dedicated W channel. The driver splits every colour into W + chromatic
+ * remainder, so the presets below are chosen to sit cleanly on one side of
+ * that split: the whites are almost pure W, the colours almost pure RGB.
  */
 export const GROUP_ON_BRIGHTNESS = 100;
-export const GROUP_ON_COLOR = "#FFF3E0";
+export const DEFAULT_GROUP_COLOR = "#FFF3E0";
+
+/**
+ * Everyday colours, offered as swatches on the card so the common cases are
+ * one tap and don't depend on hitting a precise point in the picker.
+ */
+export const LIGHT_PRESETS: { name: string; hex: string }[] = [
+  { name: "Warm White", hex: "#FFF3E0" },
+  { name: "Neutral White", hex: "#FFFFFF" },
+  { name: "Amber", hex: "#FF9000" },
+  { name: "Red", hex: "#FF0000" },
+  { name: "Green", hex: "#00FF00" },
+  { name: "Cyan", hex: "#00FFFF" },
+  { name: "Blue", hex: "#0000FF" },
+  { name: "Magenta", hex: "#FF00FF" },
+];
 
 /** True for either driver in the group. */
 export function isGroupDeviceId(deviceId: string): boolean {

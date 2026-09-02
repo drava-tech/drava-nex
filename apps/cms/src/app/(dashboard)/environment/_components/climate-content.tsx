@@ -40,16 +40,17 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-h-0 w-full flex items-center justify-between gap-4 md:gap-8 lg:gap-12 py-2 max-w-4xl mx-auto">
-            {/* Left: Mode Selection */}
-            <div className="flex flex-col gap-2.5 md:gap-3.5 shrink-0 w-24 md:w-28 lg:w-32">
+          /* ponytail: responsive layout uses flex-col on <sm screens and flex-row on sm+ so dial and controls never squish or overflow */
+          <div className="flex-1 min-h-0 w-full flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 lg:gap-12 py-2 max-w-4xl mx-auto overflow-y-auto sm:overflow-visible">
+            {/* Left/Top: Mode Selection */}
+            <div className="flex flex-row flex-wrap sm:flex-col justify-center gap-1.5 sm:gap-2.5 md:gap-3.5 shrink-0 w-full sm:w-24 md:w-28 lg:w-32">
               {(["Cool", "Heat", "Auto", "Fan", "Dry"] as const).map((m) => {
                 const isActive = state.mode?.toLowerCase() === m.toLowerCase();
                 return (
                   <button
                     key={m}
                     onClick={(e) => { noProp(e); actions.setMode(m); }}
-                    className={`h-10 md:h-12 lg:h-14 rounded-2xl border px-2 text-xs md:text-sm font-bold uppercase tracking-widest transition-all duration-300 ${
+                    className={`h-9 sm:h-10 md:h-12 lg:h-14 flex-1 sm:flex-none rounded-xl sm:rounded-2xl border px-2 text-[10px] sm:text-xs md:text-sm font-bold uppercase tracking-widest transition-all duration-300 ${
                       isActive
                         ? "bg-primary/10 text-primary border-primary/50 shadow-[0_0_16px_rgba(138,92,255,0.35)]"
                         : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"
@@ -62,14 +63,14 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
             </div>
 
             {/* Center: Temperature Dial */}
-            <div className="flex min-h-0 items-center justify-center flex-1 h-full max-h-[320px] sm:max-h-[380px] md:max-h-[440px] lg:max-h-[500px]">
+            <div className="flex min-h-0 items-center justify-center flex-1 w-full h-full max-h-[260px] sm:max-h-[380px] md:max-h-[440px] lg:max-h-[500px]">
               <div className="relative aspect-square h-full max-h-full max-w-full flex items-center justify-center shrink-0">
                 {Array.from({ length: 48 }).map((_, i) => {
                   const tickTemp = 15 + (i / 3);
                   const isActive = tickTemp <= state.temp;
                   return (
                     <div key={i} className="absolute inset-0 pointer-events-none" style={{ transform: `rotate(${i * 7.5}deg)` }}>
-                      <div className={`w-[2.5px] md:w-[3px] h-3.5 md:h-5 mx-auto rounded-full transition-colors duration-500 ${isActive
+                      <div className={`w-[2px] sm:w-[2.5px] md:w-[3px] h-3 sm:h-3.5 md:h-5 mx-auto rounded-full transition-colors duration-500 ${isActive
                         ? (state.temp > 24 ? "bg-orange-500 shadow-[0_0_10px_#f97316]" : "bg-cyan-500 shadow-[0_0_10px_#06b6d4]")
                         : "bg-muted-foreground/20"
                       }`} />
@@ -78,7 +79,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                 })}
                 <div className="relative w-[76%] h-[76%] rounded-full bg-card shadow-2xl flex flex-col items-center justify-center z-10 border border-border">
                   <div className={`absolute inset-3 rounded-full blur-2xl opacity-20 transition-colors duration-1000 ${state.temp > 24 ? "bg-orange-500" : "bg-cyan-500"} animate-pulse`} />
-                  <span className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b ${getTempColor(state.temp)} relative z-10 select-none`}>
+                  <span className={`text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b ${getTempColor(state.temp)} relative z-10 select-none`}>
                     {state.temp}°
                   </span>
                   <span className="text-[10px] md:text-xs font-black text-muted-foreground tracking-widest uppercase mt-1 md:mt-2 relative z-10 select-none">Target</span>
@@ -86,21 +87,21 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
               </div>
             </div>
 
-            {/* Right: Plus and Minus Controls */}
-            <div className={`flex flex-col gap-4 md:gap-6 shrink-0 w-24 md:w-28 lg:w-32 items-center justify-center ${tempApplies ? "" : "opacity-40 pointer-events-none"}`}>
+            {/* Right/Bottom: Plus and Minus Controls */}
+            <div className={`flex flex-row sm:flex-col gap-4 md:gap-6 shrink-0 w-full sm:w-24 md:w-28 lg:w-32 items-center justify-center ${tempApplies ? "" : "opacity-40 pointer-events-none"}`}>
               <button
                 onClick={(e) => { noProp(e); actions.setTemp(Math.min(30, state.temp + 1)); }}
-                className="w-14 h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-2xl md:rounded-3xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-2xl md:rounded-3xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
                 aria-label="Increase temperature"
               >
-                <Plus className="w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9" />
+                <Plus className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-9 lg:h-9" />
               </button>
               <button
                 onClick={(e) => { noProp(e); actions.setTemp(Math.max(16, state.temp - 1)); }}
-                className="w-14 h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-2xl md:rounded-3xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-2xl md:rounded-3xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
                 aria-label="Decrease temperature"
               >
-                <Minus className="w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9" />
+                <Minus className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-9 lg:h-9" />
               </button>
             </div>
           </div>
