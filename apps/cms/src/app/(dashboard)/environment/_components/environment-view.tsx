@@ -63,7 +63,7 @@ export function EnvironmentView() {
   const [climate, setClimate] = useState({
     power: true,
     temp: 22,
-    mode: "Dry",
+    mode: "Cool",
     fan: 60,
     swing: false,
     turbo: false,
