@@ -66,20 +66,26 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - MQTT_BROKER_URL=mqtt://mosquitto:1883
-      - MQTT_HOST=mosquitto
+      # NOTE: DATABASE_URL, MQTT_*, BROADCAST_SECRET, CAMERA_SCREEN_MAP and
+      # DETECTION_MIN_CONFIDENCE all come from .env.production above. They are
+      # deliberately NOT re-declared here.
+      #
+      # `environment:` overrides `env_file:`, so a line like
+      #   DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # silently becomes  postgresql://:@postgres:5432/  whenever compose runs
+      # WITHOUT --env-file ../../.env, because the interpolations resolve to
+      # empty. That took the database down on 2026-09-04 ("no PostgreSQL user
+      # name specified in startup packet"), and the same trap had already
+      # broken HA_URL. Values that must differ inside the container belong in
+      # .env.production, not in an interpolated override here.
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
-      - BROADCAST_SECRET=${BROADCAST_SECRET}
       # HA_URL / HA_TOKEN / HA_ENTITY_ID come from .env.production above, NOT from
       # the root .env passed via --env-file. They used to be re-declared here, and
       # because `environment:` overrides `env_file:`, that silently replaced
       # .env.production's correct HA_URL=http://homeassistant:8123 with the root
       # .env's http://localhost:8123 — which inside this container is the API
       # itself, so every door-lock call died with ECONNREFUSED.
-      - CAMERA_SCREEN_MAP=${CAMERA_SCREEN_MAP}
-      - DETECTION_MIN_CONFIDENCE=${DETECTION_MIN_CONFIDENCE}
       # Face crops written by the (host-native) vision service; the API
       # streams them to the CMS behind admin auth.
       - VISION_IMAGE_DIR=/data/faces
@@ -113,13 +119,14 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Same reasoning as the api service above: DATABASE_URL and
+      # BROADCAST_SECRET come from .env.production, never from an
+      # interpolated override that empties itself without --env-file.
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_WS_URL=/ws
       - NEXT_PUBLIC_WS_GATEWAY_URL=/ws
       - UPLOAD_DIR=/data/uploads
       - LOG_DIR=/data/logs
-      - BROADCAST_SECRET=${BROADCAST_SECRET}
       - INTERNAL_API_URL=http://api:4000
       - NEXT_PUBLIC_VISION_WS_URL=${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
     expose:

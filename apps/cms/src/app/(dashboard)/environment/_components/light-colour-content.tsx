@@ -4,11 +4,6 @@ import { Settings2, Copy } from "lucide-react";
 import { Button } from "@platform/ui";
 import { hexToRgb, rgbToHex, hsvToRgb, rgbToHsv, noProp } from "./utils";
 
-/**
- * Hue/value spectrum picker for the Casambi group. Restored from 079124b^ and
- * de-zoned: both drivers always receive the same colour, so there is no
- * per-zone target to choose any more.
- */
 export default function LightColourContent({ state, actions }: any) {
   const [hexInput, setHexInput] = useState(state.color.hex);
   const [isValidHex, setIsValidHex] = useState(true);
@@ -94,7 +89,7 @@ export default function LightColourContent({ state, actions }: any) {
         <Settings2 className="w-5 h-5" />
         <h3 className="font-semibold tracking-tight text-lg uppercase">Light Colour</h3>
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-full">
-          Both drivers
+          {state.targetLabel ?? "Light"}
         </span>
       </div>
 

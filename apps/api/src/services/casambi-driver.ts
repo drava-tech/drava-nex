@@ -139,6 +139,28 @@ export class CasambiDeviceDriver implements DeviceDriver {
     });
   }
 
+  /**
+   * Recall a scene defined in the Casambi network itself (not a CMS "scene" row).
+   *
+   * This is the ONLY way to change a fixture's White/Colour balance from here:
+   * a Casambi scene stores that balance as part of itself, whereas no direct
+   * MQTT command sets it — verified by probing every topic the gateway
+   * subscribes to. Measured: scene 2/3 move the fabrics into colour mode
+   * (balance 0 -> 255) and scene 1 returns them to warm (255 -> 0).
+   */
+  async triggerMeshScene(sceneId: number, level = 255): Promise<void> {
+    const network = process.env["CASAMBI_NETWORK_ID"];
+    if (!network) {
+      console.warn("[casambi] cannot recall scene — CASAMBI_NETWORK_ID not set");
+      return;
+    }
+    await this.publish(`casambi/${network}/set/scene_level`, {
+      scene: sceneId,
+      level,
+      duration: 1,
+    });
+  }
+
   async triggerScene(device: Device): Promise<void> {
     console.info(`[casambi] (noop) triggerScene ${device.deviceId} — target_level has no scene concept`);
   }

@@ -1,52 +1,38 @@
 /**
- * The two Casambi drivers the Environment lighting card switches as one group.
- * `uuid` is the device row id (used for POST /api/devices/lights/:uuid/state);
- * `deviceId` is the stable external id (what LIGHT_STATE_UPDATE WS broadcasts
- * carry — see apps/api/src/routes/devices.ts and services/casambi-ingest.ts).
- * Both rows come from `pnpm --filter @platform/api seed:casambi`.
+ * Constants for the Casambi lighting UI.
  *
- * Confirmed against the real Casambi network by blinking each unit: target 17
- * and target 19 are the only online dimmable drivers, and both respond. The
- * older casambi-light-2/3/4 rows point at units 12/13/4, which have since gone
- * offline and are deliberately left out.
- *
- * Both units report state, but only sporadically — the gateway polls them on a
- * slow rotation, so either one can stay silent for 30s+ after a command while
- * the other answers immediately. Neither is authoritative on its own; since
- * they are always commanded together, whichever one reports tells us the
- * group's state.
+ * The fixture roster deliberately does NOT live here any more — it is read at
+ * runtime by listLights() in @/actions/light-actions. A hardcoded list of row
+ * uuids broke twice as the mesh changed underneath it (targets 12/13 went
+ * offline, then 17 did), each time needing a code change and a redeploy to
+ * notice. Only calibration facts and colour constants belong in this file.
  *
  * Calibrated 2026-09-02 by driving known RGBW values and reading back:
  *   sent (255,0,0)     -> #FF000E  red      correct
  *   sent (0,255,0)     -> #000AFF  blue     green/blue appear swapped
  *   sent (0,0,255)     -> #59FF55  green    green/blue appear swapped
  *   sent (255,243,224) -> #FF0030  red      saturation forced to 254
- * Unit 19 lags unit 17 by ~35s but both settle to identical values, so the
- * "two different colours" symptom is mostly reporting lag, not permanent
- * drift. Whether the green/blue swap is in the command or only the readback
- * is unresolved — see SWAP_GREEN_BLUE in casambi-driver.ts.
- */
-export const LIGHT_GROUP: { uuid: string; deviceId: string }[] = [
-  { uuid: "62c1a059-3fdb-4d25-8743-f7cb51c83b49", deviceId: "casambi-light-17" },
-  { uuid: "717d2c30-e609-4ace-9afb-b4414b7be1a3", deviceId: "casambi-light-19" },
-];
-
-/**
- * What the group is set to when switched on with no colour chosen yet.
  *
- * Measured behaviour of these fixtures (see CasambiDeviceDriver.rgbToRgbw):
- * the RGB path always renders a FULLY SATURATED hue — a warm white sent as
- * RGB came back at saturation 254, i.e. red. Whites only work through the
- * dedicated W channel. The driver splits every colour into W + chromatic
- * remainder, so the presets below are chosen to sit cleanly on one side of
- * that split: the whites are almost pure W, the colours almost pure RGB.
+ * Two consequences drive the driver's colour handling (see casambi-driver.ts):
+ * the RGB path can only render fully saturated hues, so whites must come from
+ * the dedicated W channel; and whether the green/blue swap sits in the command
+ * or only in the readback is still unresolved (SWAP_GREEN_BLUE).
+ *
+ * Fixtures lag each other by ~35s in reporting but settle to identical values,
+ * so apparent "two different colours" is usually reporting lag, not drift.
  */
+
+/** What a fixture is set to when switched on with no colour chosen yet. */
 export const GROUP_ON_BRIGHTNESS = 100;
 export const DEFAULT_GROUP_COLOR = "#FFF3E0";
 
 /**
- * Everyday colours, offered as swatches on the card so the common cases are
- * one tap and don't depend on hitting a precise point in the picker.
+ * Everyday colours, offered as swatches so the common cases are one tap.
+ *
+ * Chosen to sit cleanly on one side of the driver's channel split (see
+ * toFixtureChannels): the whites are near-neutral so they go out as pure W,
+ * the colours fully saturated so they go out as pure RGB. Anything in
+ * between renders as a vivid hue on this hardware, not as a tint.
  */
 export const LIGHT_PRESETS: { name: string; hex: string }[] = [
   { name: "Warm White", hex: "#FFF3E0" },
@@ -59,7 +45,67 @@ export const LIGHT_PRESETS: { name: string; hex: string }[] = [
   { name: "Magenta", hex: "#FF00FF" },
 ];
 
-/** True for either driver in the group. */
-export function isGroupDeviceId(deviceId: string): boolean {
-  return LIGHT_GROUP.some((d) => d.deviceId === deviceId);
+
+/**
+ * Fixtures that should be driven as one, derived from their names.
+ *
+ * "Stretch Fabric 0" and "Stretch Fabric 1" collapse to a single "Stretch
+ * Fabric" row that sends the same command to both; "Strip Light" stays on its
+ * own. Grouping by name rather than by device id is deliberate — ids change
+ * when a fixture is re-paired (target 17 became 20/21 exactly that way), and a
+ * hardcoded id list has already broken this UI twice. Renaming in the seed is
+ * all it takes to regroup.
+ */
+export function groupLights<T extends { name: string }>(lights: T[]): { name: string; members: T[] }[] {
+  const order: string[] = [];
+  const bucket = new Map<string, T[]>();
+  for (const l of lights) {
+    // "Stretch Fabric 1" -> "Stretch Fabric"; names without a trailing number
+    // are their own group and stay individual.
+    const key = l.name.replace(/\s*\d+\s*$/, "").trim() || l.name;
+    if (!bucket.has(key)) { bucket.set(key, []); order.push(key); }
+    bucket.get(key)!.push(l);
+  }
+  return order.map((name) => ({ name, members: bucket.get(name)! }));
+}
+
+/**
+ * How each fixture group switches between warm and colour.
+ *
+ * A fixture's White/Colour balance is NOT settable by any direct MQTT command —
+ * every topic the gateway subscribes to was probed. A Casambi scene stores that
+ * balance as part of itself, so recalling one is the only way to move a fixture
+ * between warm and colour.
+ *
+ * A scene is NETWORK-WIDE: it applies to its own members regardless of which
+ * fixture the UI asked about. Isolation therefore comes from DISJOINT SCENE
+ * MEMBERSHIP, not from avoiding scenes — an earlier version routed the Strip
+ * Light through the fabrics' scene and its Warm button moved the fabric panels.
+ *
+ * Each group now has its own pair, verified 2026-09-04 to move only its own
+ * fixtures:
+ *     scene 1 -> fabric warm    (unit 28: 255 -> 0),  strip unaffected
+ *     scene 2 -> fabric colour  (unit 28: 0 -> 255),  strip unaffected
+ *     scene 3 -> strip warm     (unit 23: 255 -> 0),  fabrics unaffected
+ *     scene 4 -> strip colour   (unit 23: 0 -> 255),  fabrics unaffected
+ *
+ * Adding a group here without its OWN scenes would reintroduce that cross-talk,
+ * so confirm a new pair moves only its own fixtures before wiring it up.
+ *
+ * Keyed by GROUP NAME rather than device id: ids have been renumbered by
+ * re-pairing four times, names have not. Scene membership itself is edited in
+ * the Casambi app, so if a fixture stops following Warm, check it is a member
+ * there before changing code.
+ */
+export const SCENE_MODE_GROUPS: Record<string, { warm: number[]; colour: number[] }> = {
+  "Stretch Fabric": { warm: [1], colour: [2] },
+  "Strip Light": { warm: [3], colour: [4] },
+};
+
+/** What "warm" means for a fixture with no separate white source. */
+export const WARM_WHITE_HEX = "#FFF3E0";
+
+/** True when this group's warm/colour mode is switched by recalling a scene. */
+export function usesSceneMode(groupName: string): boolean {
+  return groupName in SCENE_MODE_GROUPS;
 }

@@ -114,3 +114,108 @@ export function ClimateControlIcon({ type, active }: { type: "swing" | "timer" |
     </div>
   );
 }
+
+/**
+ * A draggable slider with a real thumb and a generous touch target.
+ *
+ * MiniSlider above is deliberately tap-only: an earlier drag implementation
+ * made the handle visibly jump, because mid-drag positions raced ahead of the
+ * throttled onChange and then snapped back to the last confirmed value on
+ * release. Tapping avoided that but is awkward to use.
+ *
+ * This fixes the race properly instead of avoiding it: while a drag is in
+ * progress the thumb renders from local state and the incoming `value` prop is
+ * ignored, so a late parent update can never yank it backwards. onChange is
+ * throttled during the drag and always fired once more on release with the
+ * final position, so the committed value matches where the finger stopped.
+ */
+export function DragSlider({
+  value,
+  onChange,
+  min = 0,
+  max = 100,
+  disabled = false,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+}) {
+  const trackRef = React.useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+  const [local, setLocal] = React.useState(value);
+  const lastSent = React.useRef(0);
+
+  // While dragging, local wins — see the note above about the jump.
+  const shown = dragging ? local : value;
+  const pct = ((shown - min) / (max - min)) * 100;
+
+  const valueAt = (clientX: number) => {
+    const el = trackRef.current;
+    if (!el) return shown;
+    const r = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - r.left, r.width));
+    return Math.round(min + (x / r.width) * (max - min));
+  };
+
+  // The thumb follows the finger from local state on every move, so this
+  // only paces what actually reaches the mesh. At 90ms a two-second drag fired
+  // ~20 MQTT commands at the gateway; 250ms keeps it responsive without
+  // flooding it, and the forced commit on release guarantees the final value
+  // lands regardless of where the throttle happened to fall.
+  const commit = (v: number, force = false) => {
+    const now = Date.now();
+    if (force || now - lastSent.current > 250) {
+      lastSent.current = now;
+      onChange(v);
+    }
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      role="slider"
+      aria-valuenow={shown}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-disabled={disabled}
+      // Tall, transparent hit area around a thin visible track — easy to grab
+      // on a touchscreen without making the control look heavy.
+      className={`relative flex h-8 w-full touch-none items-center ${disabled ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const v = valueAt(e.clientX);
+        setDragging(true);
+        setLocal(v);
+        commit(v, true);
+      }}
+      onPointerMove={(e) => {
+        if (!dragging) return;
+        const v = valueAt(e.clientX);
+        setLocal(v);
+        commit(v);
+      }}
+      onPointerUp={(e) => {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        const v = valueAt(e.clientX);
+        setDragging(false);
+        setLocal(v);
+        commit(v, true); // always land on exactly where the finger stopped
+      }}
+      onPointerCancel={() => setDragging(false)}
+    >
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#1B006D] to-[#8A5CFF]"
+          style={{ width: `${pct}%`, transition: dragging ? "none" : "width 150ms ease-out" }}
+        />
+      </div>
+      <div
+        className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-primary shadow-md dark:border-zinc-900"
+        style={{ left: `${pct}%`, transition: dragging ? "none" : "left 150ms ease-out" }}
+      />
+    </div>
+  );
+}
