@@ -1034,6 +1034,13 @@ export function createGateway(): WebSocketServer {
             }
           }
 
+          if (msg.command === 'RESET_STATE' || msg.command === 'RESET_VIEW') {
+            const current = contentCache.get(msg.screenId);
+            if (current) {
+              viewStateCache.get(msg.screenId)?.delete(contentKeyOf(current));
+            }
+          }
+
           if (isWhiteboardCommand(msg.command)) {
             const value = msg.value as any;
 

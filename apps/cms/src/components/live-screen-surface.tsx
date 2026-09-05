@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX, Rewind, FastForward, Pause } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, AppWindow, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX, Rewind, FastForward, Pause } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@platform/ui";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
@@ -86,6 +93,8 @@ export function LiveScreenSurface({
     resetDetection,
     resettingToIdle,
     resetToIdle,
+    resettingState,
+    resetState,
     queueIndex,
     navigatingQueue,
     navigateQueue,
@@ -109,6 +118,10 @@ export function LiveScreenSurface({
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
+
+  /** Any kiosk window command in flight — surfaced on the collapsed App menu's
+   * trigger, since its items' own busy states are hidden while it's closed. */
+  const appBusy = reloading || minimizing || maximizing || closingApp;
 
   // Same office-wide system audio endpoint as the touchpad's volume row and
   // the Environment Control Audio tile — one physical PC's speakers,
@@ -268,6 +281,14 @@ export function LiveScreenSurface({
             </button>
           )}
           <button
+            onClick={resetState}
+            disabled={resettingState}
+            title="Reset the current content to its initial state (e.g. portfolio 1st frame)"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> {resettingState ? "Resetting..." : "Reset view"}
+          </button>
+          <button
             onClick={resetToIdle}
             disabled={resettingToIdle}
             title="Clear the current assignment and fall back to the default/idle media"
@@ -287,38 +308,58 @@ export function LiveScreenSurface({
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
           </button>
-          <button
-            onClick={handleReload}
-            disabled={reloading}
-            title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Refresh"}
-          </button>
-          <button
-            onClick={handleMinimize}
-            disabled={minimizing}
-            title="Minimize the kiosk app on the TV's PC, revealing its desktop"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Minimize2 className="h-3.5 w-3.5" /> {minimizing ? "..." : "Minimize"}
-          </button>
-          <button
-            onClick={handleMaximize}
-            disabled={maximizing}
-            title="Bring the kiosk app back to fullscreen on the TV's PC"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Maximize2 className="h-3.5 w-3.5" /> {maximizing ? "..." : "Maximize"}
-          </button>
-          <button
-            onClick={handleCloseApp}
-            disabled={closingApp}
-            title="Close the kiosk app on the TV's PC entirely"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
-          </button>
+          {/* Kiosk window controls (refresh/minimize/maximize/close) collapsed
+              into one menu — four permanent buttons crowded the action bar,
+              and these are occasional maintenance actions, unlike the live
+              content controls beside them. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={appBusy}
+              title="Kiosk app controls on the TV's PC — refresh, minimize, maximize, close"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 data-[state=open]:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            >
+              <AppWindow className="h-3.5 w-3.5" />
+              {appBusy ? "..." : "App"}
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onSelect={handleReload}
+                disabled={reloading}
+                className="cursor-pointer gap-2"
+                title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
+              >
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleMinimize}
+                disabled={minimizing}
+                className="cursor-pointer gap-2"
+                title="Minimize the kiosk app on the TV's PC, revealing its desktop"
+              >
+                <Minimize2 className="h-4 w-4" /> Minimize
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleMaximize}
+                disabled={maximizing}
+                className="cursor-pointer gap-2"
+                title="Bring the kiosk app back to fullscreen on the TV's PC"
+              >
+                <Maximize2 className="h-4 w-4" /> Maximize
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                // Deferred so the menu finishes closing before the blocking
+                // window.confirm inside the handler freezes the main thread.
+                onSelect={() => setTimeout(handleCloseApp, 0)}
+                disabled={closingApp}
+                className="cursor-pointer gap-2 text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                title="Close the kiosk app on the TV's PC entirely"
+              >
+                <Power className="h-4 w-4" /> Close app
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Transport cluster — only for content with a timeline. Grouped in
               its own pill and placed beside the volume controls so it reads as

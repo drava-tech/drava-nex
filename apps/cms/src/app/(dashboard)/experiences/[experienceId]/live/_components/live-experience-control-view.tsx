@@ -116,6 +116,8 @@ export function LiveExperienceControlView({
     resetDetection,
     resettingToIdle,
     resetToIdle: resetToIdleAction,
+    resettingState,
+    resetState,
     queueIndex,
     navigatingQueue,
     navigateQueue,
@@ -281,6 +283,12 @@ export function LiveExperienceControlView({
                 tone="danger"
               />
             )}
+            <DockButton
+              icon={<RotateCcw className="h-5 w-5" />}
+              label={resettingState ? "Resetting…" : "Reset view"}
+              onClick={resetState}
+              disabled={resettingState}
+            />
             <DockButton
               icon={<RotateCcw className="h-5 w-5" />}
               label={resettingToIdle ? "Resetting…" : "Reset to idle"}

@@ -34,6 +34,8 @@ export const FRAME_FORWARDED_COMMANDS = [
   "PREV_PAGE",
   "SET_PDF_VIEW",
   "SET_SLIDES_VIEW",
+  "RESET_STATE",
+  "RESET_VIEW",
 ] as const;
 
 export type FrameForwardedCommand = (typeof FRAME_FORWARDED_COMMANDS)[number];

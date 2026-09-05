@@ -182,6 +182,20 @@ export function LiveScreenPlayer({
     } else if (command === "SET_FILM_VIEW") {
       // Films page grid/player + which film — replayable, same reason as above.
       dispatchReplayableEvent("film-set-view", value);
+    } else if (command === "RESET_STATE" || command === "RESET_VIEW") {
+      // Reset interactive templates & experiences back to their initial state (1st frame / overview)
+      dispatchReplayableEvent("portfolio-set-view", {
+        cardIndex: null,
+        sectionIndex: null,
+        projectIndex: null,
+        splitView: false,
+        cameFromSplit: false,
+      });
+      dispatchReplayableEvent("portfolio-set-video", { videoUrl: null });
+      dispatchReplayableEvent("screen-set-slide", { slideIndex: 0 });
+      dispatchReplayableEvent("gallery-set-view", { photoId: null, index: null });
+      dispatchReplayableEvent("film-set-view", { mode: "grid", index: null });
+      window.dispatchEvent(new CustomEvent("screen-reset-state"));
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {
