@@ -250,7 +250,25 @@ export type WsServerMessage =
     };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string; preview?: boolean; freshLaunch?: boolean }
+  | {
+      type: 'REGISTER';
+      screenId: string;
+      preview?: boolean;
+      freshLaunch?: boolean;
+      /**
+       * What the display is actually rendering at. Diagnostic only — nothing
+       * branches on it, the gateway just logs it.
+       *
+       * Picture quality on a signage panel is decided almost entirely by
+       * whether the CSS viewport matches the physical panel, and that is set
+       * by the Windows display-scaling of a PC nobody can inspect remotely
+       * (the kiosk runs with devtools disabled). `dpr` other than 1, or an
+       * `inner` noticeably smaller than `screen`, means the page is
+       * compositing below native resolution and the output is being upscaled
+       * — see --force-device-scale-factor in tools/main-screen-kiosk.
+       */
+      viewport?: { dpr: number; innerW: number; innerH: number; screenW: number; screenH: number };
+    }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)

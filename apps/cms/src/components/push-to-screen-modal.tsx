@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MonitorPlay, Radio, X, AlertCircle } from "lucide-react";
 import { getScreens } from "@/actions/screen-actions";
+import type { DocumentKind } from "@platform/types";
 import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { ControlChooserDialog } from "@/components/control-chooser-dialog";
 
@@ -43,6 +44,9 @@ interface PushToScreenModalProps {
    * touchpad (see LiveControlDialog for why). Omit for any other content type.
    */
   showTouchpad?: boolean;
+  /** Which document viewer this content opens, if any — passed straight
+   * through to LiveControlDialog for the touchpad's zoom row. */
+  documentKind?: DocumentKind | null;
   /** Set to push an ordered multi-item queue instead of a single piece of content. */
   queue?: QueuePushConfig;
   /**
@@ -116,6 +120,7 @@ export function PushToScreenModal({
   isAlreadyShowing,
   onSaveLink,
   showTouchpad,
+  documentKind,
   queue,
   onPushed,
   onControl,
@@ -269,6 +274,7 @@ export function PushToScreenModal({
         onSaveLink={onSaveLink}
         onClose={onClose}
         showTouchpad={showTouchpad}
+        documentKind={documentKind}
         queueMediaIds={queue?.mediaAssetIds}
         initialQueueIndex={queue?.startIndex ?? 0}
         onNavigateQueue={

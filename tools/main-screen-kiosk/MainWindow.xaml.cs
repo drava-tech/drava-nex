@@ -63,7 +63,26 @@ public partial class MainWindow : Window
             // (VideoRenderer.tsx) just freezes on its first frame instead of
             // playing. Same flag already required and documented for the
             // alternate chrome.exe --kiosk path (.doc/device-setup.md).
-            AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required",
+            //
+            // --force-device-scale-factor=1 pins the web content's device
+            // scale factor to 1 regardless of the Windows display-scaling
+            // setting on this PC. Windows defaults a 4K display to 150% or
+            // 200%, which makes the CSS viewport 2560x1440 or 1920x1080; the
+            // page then composites into a layer that size and the compositor
+            // upscales it to the panel's real 3840x2160. A 4K video pushed to
+            // that screen is downsampled to 1080p and blown back up — the
+            // picture-quality complaint this fixes. At 1 the viewport equals
+            // the physical pixels and full-bleed video (VideoRenderer, which
+            // is 100vw/100vh) reaches the panel at native resolution.
+            //
+            // Template experiences are unaffected: ScreenStage lays out at a
+            // fixed 1920x1080 and scales to fit, so it simply scales by 2
+            // instead of 1 and rasterizes at the higher resolution.
+            //
+            // See also app.manifest — that stops Windows bitmap-stretching the
+            // whole window, which is the other half of the same problem.
+            AdditionalBrowserArguments =
+                "--autoplay-policy=no-user-gesture-required --force-device-scale-factor=1",
         };
         var environment = await CoreWebView2Environment.CreateAsync(null, null, environmentOptions);
 

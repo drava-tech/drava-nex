@@ -716,6 +716,21 @@ export function createGateway(): WebSocketServer {
           screenRegistry.get(sid)!.add(ws);
           broadcastActiveScreensToCms();
 
+          // Diagnostic only, logged rather than stored — this is the one place
+          // the platform can see what a physical panel is really rendering at,
+          // since the kiosk runs with devtools disabled. dpr !== 1, or inner
+          // much smaller than screen, means the page composites below native
+          // resolution and everything is upscaled to fit.
+          // `docker logs cms-api | grep viewport` after a screen reconnects.
+          if (msg.viewport) {
+            const v = msg.viewport;
+            const native = v.innerW * v.dpr >= v.screenW ? 'native' : 'UPSCALED';
+            console.log(
+              `[gateway] ${sid} viewport ${v.innerW}x${v.innerH} @dpr ${v.dpr} ` +
+                `on a ${v.screenW}x${v.screenH} screen — ${native}`
+            );
+          }
+
           for (const status of cameraStatusCache.values()) {
             if (status.screenId === sid && ws.readyState === WebSocket.OPEN) {
               const msg: WsServerMessage = { type: 'CAMERA_STATUS_UPDATE', ...status };

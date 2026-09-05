@@ -1,13 +1,24 @@
 "use client";
 
 import { useRef } from "react";
+import { FilmControlsOverlay } from "./film-controls-overlay";
+import { useFilmPlayback } from "./use-film-playback";
+import { usePortfolioScreen } from "../screen-context";
 
-/** Full-stage video popup with Fullscreen + Close controls. */
+/**
+ * Full-stage video popup — the overview card's "Watch Video" — with the same
+ * transport bar the films player uses, so play/pause/seek here also reach every
+ * other client of the screen. Fullscreen and Close are this surface's own.
+ */
 export function VideoPopup({ src, onClose }: { src: string; onClose: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const { mirror } = usePortfolioScreen();
+  const playback = useFilmPlayback(src);
 
   const goFullscreen = () => {
-    const el = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    const el = playback.video as
+      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+      | null;
     if (!el) return;
     if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
     else if (el.webkitEnterFullscreen) el.webkitEnterFullscreen();
@@ -33,7 +44,11 @@ export function VideoPopup({ src, onClose }: { src: string; onClose: () => void 
         zIndex: 50,
       }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "78%", maxWidth: 1500 }}>
+      <div
+        ref={boxRef}
+        onClick={(e) => e.stopPropagation()}
+        style={{ position: "relative", width: "78%", maxWidth: 1500 }}
+      >
         {/* Controls */}
         <div style={{ position: "absolute", top: -64, right: 0, display: "flex", gap: 16 }}>
           <button
@@ -70,14 +85,25 @@ export function VideoPopup({ src, onClose }: { src: string; onClose: () => void 
           </button>
         </div>
 
+        {/* No `controls` — see the note in FilmsGridView. Muted on a CMS mirror,
+            because audio only ever leaves the real panel. */}
         <video
-          ref={videoRef}
+          ref={playback.videoRef}
           src={src}
-          controls
           autoPlay
           playsInline
-          style={{ width: "100%", height: "auto", maxHeight: "82vh", borderRadius: 18, background: "#000", display: "block" }}
+          muted={mirror}
+          style={{
+            width: "100%",
+            height: "auto",
+            maxHeight: "82vh",
+            borderRadius: 18,
+            background: "#000",
+            display: "block",
+          }}
         />
+
+        <FilmControlsOverlay playback={playback} surfaceRef={boxRef} />
       </div>
     </div>
   );

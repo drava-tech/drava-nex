@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Centered, resolveSource } from "../../_components/viewer-common";
 import { connectFrameBridge, type FrameBridge } from "@/lib/display/frame-bridge";
+import { ZOOM_IN, ZOOM_OUT, clampZoom, stepZoom } from "@/lib/display/zoom-protocol";
 
 /** Minimal shape of the pdf.js pieces this viewer drives. */
 interface PdfPageProxy {
@@ -38,6 +39,12 @@ interface PdfView {
   src: string;
   page: number;
   oy: number;
+  /**
+   * Magnification over fit-to-width, 1 = fit. Optional so a value cached by
+   * the gateway before zoom existed still restores (the replay is verbatim and
+   * never read into) — clampZoom turns a missing or corrupt one back into 1.
+   */
+  zoom?: number;
 }
 
 const EMIT_THROTTLE_MS = 200;
@@ -52,6 +59,18 @@ const PAGE_GAP = 12;
 /** Pages kept rendered beyond the viewport on each side. One is enough to
  * cover a fast fling without holding a whole document's canvases in memory. */
 const OVERSCAN = 1;
+/**
+ * Hard ceiling on how many pages may be mounted at once.
+ *
+ * The window below is derived from what fits on screen, which was self-limiting
+ * while fit-to-width was the minimum zoom — a handful of pages. Zoomed out to
+ * 10%, a whole 200-page document is "visible", and each mounted page allocates
+ * its own canvas. MAX_CANVAS_PIXELS caps the size of one canvas but nothing
+ * capped the count, so the far end of that range is an out-of-memory crash on
+ * the kiosk. Pages past this render as their blank white box, which is what an
+ * unrendered page already looks like on the way in.
+ */
+const MAX_RENDERED_PAGES = 40;
 /** A programmatic scroll fires `scroll` asynchronously; ignore our own echo
  * for this long so restoring a position doesn't re-emit it. */
 const SCROLL_ECHO_MS = 200;
@@ -130,21 +149,31 @@ export function PdfViewer() {
 
   // ─── Layout ───────────────────────────────────────────────────────────────
 
+  const zoom = clampZoom(view.zoom);
+  /**
+   * Fit-to-width times the zoom factor.
+   *
+   *   = 1  the column IS the container, scrollLeft stays pinned at 0 and the
+   *        viewer is purely vertical
+   *   > 1  the column overhangs and pans horizontally too
+   *   < 1  the column is narrower than the container and is centred in it
+   *        (see `margin: 0 auto` on the column below)
+   */
+  const columnWidth = containerSize.w > 0 ? containerSize.w * zoom : 0;
+
   const layout = useMemo<Layout>(() => {
-    if (pageSizes.length === 0 || containerSize.w === 0) return EMPTY_LAYOUT;
-    // Always fit-to-width — the column is exactly the container, which is what
-    // pins scrollLeft at 0 and keeps this a purely vertical scroll.
+    if (pageSizes.length === 0 || columnWidth === 0) return EMPTY_LAYOUT;
     const tops: number[] = [];
     const heights: number[] = [];
     let y = 0;
     for (const size of pageSizes) {
-      const h = size.w > 0 ? (containerSize.w / size.w) * size.h : 0;
+      const h = size.w > 0 ? (columnWidth / size.w) * size.h : 0;
       tops.push(y);
       heights.push(h);
       y += h + PAGE_GAP;
     }
     return { tops, heights, total: Math.max(0, y - PAGE_GAP) };
-  }, [pageSizes, containerSize.w]);
+  }, [pageSizes, columnWidth]);
 
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
@@ -177,7 +206,7 @@ export function PdfViewer() {
   const applyView = useCallback((updater: (prev: PdfView) => PdfView, emit = true) => {
     setView((prev) => {
       const next = updater(prev);
-      if (next.page === prev.page && next.oy === prev.oy) {
+      if (next.page === prev.page && next.oy === prev.oy && next.zoom === prev.zoom) {
         return prev;
       }
       if (emit) emitView(next);
@@ -300,7 +329,10 @@ export function PdfViewer() {
     let last = first;
     while (last + 1 < l.tops.length && (l.tops[last + 1] ?? 0) <= bottom) last++;
     const start = Math.max(0, first - OVERSCAN);
-    const end = Math.min(l.tops.length - 1, last + OVERSCAN);
+    // Capped, not just clipped to the document: see MAX_RENDERED_PAGES. Counted
+    // forward from `start` so the pages the reader is actually looking at are
+    // the ones that get rendered.
+    const end = Math.min(l.tops.length - 1, last + OVERSCAN, start + MAX_RENDERED_PAGES - 1);
     setRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
   }, []);
 
@@ -344,6 +376,20 @@ export function PdfViewer() {
   useEffect(() => {
     updateRange();
   }, [layout, updateRange]);
+
+  // A zoom change re-lays-out the column at a new width, so the raw scrollTop
+  // now points at a different part of the document — re-anchor on the page and
+  // offset that were actually being read, the same way the resize observer
+  // does. Also re-centres horizontally, since the overhang the zoom just
+  // created would otherwise leave the reader pinned to the left edge.
+  const prevZoomRef = useRef(zoom);
+  useEffect(() => {
+    if (prevZoomRef.current === zoom) return;
+    prevZoomRef.current = zoom;
+    setPendingScroll(viewRef.current);
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+  }, [zoom]);
 
   // ─── Sizing ───────────────────────────────────────────────────────────────
 
@@ -410,7 +456,18 @@ export function PdfViewer() {
       onCommand: (command, value) => {
         if (command === "NEXT_PAGE") stepViewport(1);
         else if (command === "PREV_PAGE") stepViewport(-1);
-        else if (command === "SET_PDF_VIEW") {
+        else if (command === ZOOM_IN || command === ZOOM_OUT) {
+          // A delta, like NEXT_PAGE — the resulting absolute view is emitted
+          // as SET_PDF_VIEW by applyView, and the gateway caches that so the
+          // document comes back at this zoom next time it's pushed. At the
+          // clamp limits stepZoom returns the same factor, applyView
+          // short-circuits, and nothing is emitted.
+          revealControls();
+          applyView((prev) => ({
+            ...prev,
+            zoom: stepZoom(prev.zoom, command === ZOOM_IN ? "in" : "out"),
+          }));
+        } else if (command === "SET_PDF_VIEW") {
           const v = value as PdfView | undefined;
           if (!v || typeof v.page !== "number") return;
           // Guard against a leftover view for a different document — the
@@ -434,7 +491,7 @@ export function PdfViewer() {
       bridge.disconnect();
       bridgeRef.current = null;
     };
-  }, [stepViewport, applyView, src]);
+  }, [stepViewport, applyView, revealControls, src]);
 
   // ─── Auto-hiding chrome ───────────────────────────────────────────────────
 
@@ -454,7 +511,9 @@ export function PdfViewer() {
     };
   }, [revealControls]);
 
-  const showControls = numPages > 1 && !loading && !error;
+  // Zoomed counts as worth showing even on a one-page document: the readout is
+  // the only feedback that a remote zoom landed at all.
+  const showControls = (numPages > 1 || zoom !== 1) && !loading && !error;
 
   return (
     <div className="fixed inset-0 bg-[#0a0a0a] text-zinc-100">
@@ -475,8 +534,12 @@ export function PdfViewer() {
         <div
           style={{
             position: "relative",
-            width: containerSize.w || "100%",
+            width: columnWidth || "100%",
             height: layout.total,
+            // Below fit-to-width the column is NARROWER than the container, so
+            // without this it sits hard against the left edge with dead space
+            // beside it. Above 100% the column overhangs and this is a no-op.
+            margin: "0 auto",
           }}
         >
           {pageSizes.map((_, i) =>
@@ -486,9 +549,14 @@ export function PdfViewer() {
                 doc={pdfRef.current}
                 pageNumber={i + 1}
                 top={layout.tops[i] ?? 0}
-                width={containerSize.w}
+                width={columnWidth}
                 height={layout.heights[i] ?? 0}
-                renderWidth={containerSize.w}
+                // Re-rendered at the zoomed width rather than CSS-scaled, so
+                // zooming in actually resolves more detail instead of
+                // magnifying the same pixels. PageSlot's own MAX_CANVAS_PIXELS
+                // cap keeps a tall page at a high zoom from failing to
+                // allocate.
+                renderWidth={columnWidth}
                 onMeasured={handleMeasured}
               />
             ) : null
@@ -508,6 +576,7 @@ export function PdfViewer() {
         >
           <span className="text-sm tabular-nums text-zinc-400">
             {view.page} / {numPages}
+            {zoom !== 1 && ` · ${Math.round(zoom * 100)}%`}
           </span>
         </div>
       )}

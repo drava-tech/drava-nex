@@ -37,7 +37,6 @@ export const DEFAULT_GROUP_COLOR = "#FFF3E0";
 export const LIGHT_PRESETS: { name: string; hex: string }[] = [
   { name: "Warm White", hex: "#FFF3E0" },
   { name: "Neutral White", hex: "#FFFFFF" },
-  { name: "Amber", hex: "#FF9000" },
   { name: "Red", hex: "#FF0000" },
   { name: "Green", hex: "#00FF00" },
   { name: "Cyan", hex: "#00FFFF" },

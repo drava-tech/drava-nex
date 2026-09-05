@@ -225,6 +225,13 @@
       "when": 1784020305842,
       "tag": "0031_screen_content_push_generalize",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784020305843,
+      "tag": "0032_screen_status_samples",
+      "breakpoints": true
     }
   ]
 }

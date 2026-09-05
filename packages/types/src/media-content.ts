@@ -63,6 +63,46 @@ export const WORD_VIEWER_PATH = "/display/word";
 /** Path of the CMS-hosted PDF viewer (see apps/cms/src/app/display/pdf). */
 export const PDF_VIEWER_PATH = "/display/pdf";
 
+/** A document viewer that accepts remote ZOOM_IN/ZOOM_OUT. */
+export type DocumentKind = "pdf" | "slides" | "word";
+
+/**
+ * Same answer as documentKindOf, but from a raw MediaType rather than from
+ * live screen content — for callers that know what they are about to push but
+ * have no WsContent yet (the push-to-screen flow).
+ */
+export function documentKindOfMediaType(type: string): DocumentKind | null {
+  if (type === "document") return "pdf";
+  if (type === "presentation") return "slides";
+  if (type === "word") return "word";
+  return null;
+}
+
+/**
+ * Which CMS-hosted document viewer is live on a screen, or null for anything
+ * else.
+ *
+ * Has to work off the embed URL rather than the content type, because
+ * `mediaEmbedUrl` collapses PDF, slides, Word, spreadsheets, YouTube, Drive and
+ * plain links into the single "html" wire type — the same reason
+ * `isPlayableMedia` in live-screen-surface.tsx tells YouTube apart by its embed
+ * URL. Callers use this to decide whether a zoom control would actually do
+ * something; a control that silently does nothing is the failure this avoids.
+ *
+ * Spreadsheets are deliberately absent: SheetViewer has no frame bridge, so it
+ * cannot receive a command yet. Add it here when it does, not before.
+ */
+export function documentKindOf(
+  content: { type: string; source?: string } | null | undefined
+): DocumentKind | null {
+  if (!content || content.type !== "html") return null;
+  const source = content.source ?? "";
+  if (source.startsWith(PDF_VIEWER_PATH)) return "pdf";
+  if (source.startsWith(SLIDES_VIEWER_PATH)) return "slides";
+  if (source.startsWith(WORD_VIEWER_PATH)) return "word";
+  return null;
+}
+
 function safeUrl(raw: string): URL | null {
   try {
     return new URL(raw.trim());

@@ -40,7 +40,7 @@ export function ContentRenderer({
       // standby/demo display.
       if (content.templateKey === "portfolio") {
         const portfolio = content.templateContent?.["portfolio"] as PortfolioContent | undefined;
-        return <PortfolioRenderer content={portfolio} />;
+        return <PortfolioRenderer content={portfolio} preview={preview} />;
       }
       if (content.templateKey === "live-stream") {
         const ls = readLiveStreamContent(content.templateContent);

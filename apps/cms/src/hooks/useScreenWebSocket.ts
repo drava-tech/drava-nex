@@ -64,6 +64,20 @@ export function useScreenWebSocket({
         screenId,
         preview,
         freshLaunch: !hasRegisteredRef.current,
+        // Diagnostic only — see the field's docblock in @platform/types.
+        // Skipped for previews, whose viewport is an iframe in a CMS layout
+        // and says nothing about the physical panel.
+        ...(preview
+          ? {}
+          : {
+              viewport: {
+                dpr: window.devicePixelRatio,
+                innerW: window.innerWidth,
+                innerH: window.innerHeight,
+                screenW: window.screen.width,
+                screenH: window.screen.height,
+              },
+            }),
       };
       hasRegisteredRef.current = true;
       ws.send(JSON.stringify(reg));

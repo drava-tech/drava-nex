@@ -329,6 +329,11 @@ function serveMediaFile(
         "Accept-Ranges": "bytes",
         "Content-Length": String(end - start + 1),
         "Content-Type": mimeType,
+        // Must be set on the 206 path too, not just the full-file one below:
+        // a <video> element fetches almost exclusively by range, so a
+        // cache-control that only covers 200 responses never applies to the
+        // content that actually benefits from it.
+        ...(cacheControl ? { "Cache-Control": cacheControl } : {}),
       },
     });
   }
@@ -370,9 +375,17 @@ mediaStreamRouter.get("/", async (c) => {
 // images/video with no session, same as /display.
 export const mediaFilesRouter = new Hono();
 
+// Uploaded files are stored under a freshly-generated uuid name and never
+// rewritten in place — a re-upload produces a different URL — so a given
+// /media/<uuid>.<ext> is immutable for its whole life, exactly like the
+// code-shipped assets below. Without this a signage screen re-downloaded the
+// entire file on every push and every reload; for the 150 MB clips in this
+// library that is the difference between an instant cut and a visible stall.
+const UPLOAD_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 mediaFilesRouter.get("/:filename", async (c) => {
   const fileName = path.basename(c.req.param("filename"));
-  return serveMediaFile(c, fileName);
+  return serveMediaFile(c, fileName, UPLOAD_CACHE_CONTROL);
 });
 
 // Subdirectories holding large static assets that ship WITH the code (3D models,

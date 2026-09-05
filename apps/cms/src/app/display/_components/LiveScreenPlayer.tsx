@@ -4,15 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
 import { cn, dispatchReplayableEvent } from "@platform/ui";
+import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates/portfolio";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
 import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
 import {
   MEDIA_SEEK,
+  MEDIA_SEEK_TO,
+  MEDIA_SET_PAUSED,
   MEDIA_TOGGLE_PLAY,
   SET_PLAYBACK,
   MEDIA_SEEK_EVENT,
+  MEDIA_SEEK_TO_EVENT,
+  MEDIA_SET_PAUSED_EVENT,
   MEDIA_TOGGLE_PLAY_EVENT,
   MEDIA_SET_PLAYBACK_EVENT,
 } from "@/lib/display/playback-protocol";
@@ -156,6 +161,17 @@ export function LiveScreenPlayer({
       // Transient like MUTE — a seek is an instruction to act now, not a
       // position to catch up to, so it deliberately isn't replayable.
       window.dispatchEvent(new CustomEvent(MEDIA_SEEK_EVENT, { detail: value }));
+    } else if (command === MEDIA_SEEK_TO) {
+      // Absolute, but transient for the same reason as MEDIA_SEEK above: it is
+      // where a finger let go of the scrub bar just now, not a position later
+      // joiners should be caught up to. The screen answers with SET_PLAYBACK,
+      // which IS the replayable record.
+      window.dispatchEvent(new CustomEvent(MEDIA_SEEK_TO_EVENT, { detail: value }));
+    } else if (command === MEDIA_SET_PAUSED) {
+      // Transient, like the seeks above: this is "pause because a drag is
+      // starting", not a state later joiners should be caught up to. The
+      // screen's own SET_PLAYBACK remains the replayable record.
+      window.dispatchEvent(new CustomEvent(MEDIA_SET_PAUSED_EVENT, { detail: value }));
     } else if (command === MEDIA_TOGGLE_PLAY) {
       window.dispatchEvent(new CustomEvent(MEDIA_TOGGLE_PLAY_EVENT));
     } else if (command === SET_PLAYBACK) {
@@ -182,6 +198,13 @@ export function LiveScreenPlayer({
     } else if (command === "SET_FILM_VIEW") {
       // Films page grid/player + which film — replayable, same reason as above.
       dispatchReplayableEvent("film-set-view", value);
+    } else if (command === SET_VIDEO_PLAYBACK) {
+      // Position and play state of the portfolio video that is open — the films
+      // player or the overview's "Watch Video" popup. Replayable for the same
+      // reason as SET_SLIDE: the gateway replays it right after CONTENT_UPDATE,
+      // well before the <video> it belongs to has mounted, and the surface picks
+      // it up on arrival instead of starting from zero.
+      dispatchReplayableEvent(VIDEO_PLAYBACK_EVENT, value);
     } else if (command === "RESET_STATE" || command === "RESET_VIEW") {
       // Reset interactive templates & experiences back to their initial state (1st frame / overview)
       dispatchReplayableEvent("portfolio-set-view", {
@@ -195,6 +218,10 @@ export function LiveScreenPlayer({
       dispatchReplayableEvent("screen-set-slide", { slideIndex: 0 });
       dispatchReplayableEvent("gallery-set-view", { photoId: null, index: null });
       dispatchReplayableEvent("film-set-view", { mode: "grid", index: null });
+      // Null, not a position: the gateway drops its own cache on RESET_STATE,
+      // but the replay buffer here is per-tab and would otherwise resume a film
+      // at the position it was reset away from the next time one is opened.
+      dispatchReplayableEvent(VIDEO_PLAYBACK_EVENT, null);
       window.dispatchEvent(new CustomEvent("screen-reset-state"));
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));

@@ -19,7 +19,8 @@ import { CameraStatusBadge } from "@/components/camera-status-badge";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
 import { ScreenAssignmentPicker } from "@/app/(dashboard)/screens/_components/screens-assignment-picker";
-import type { WsContent } from "@platform/types";
+import { VideoControlPanel } from "@/components/video-control-panel";
+import { documentKindOf, type WsContent } from "@platform/types";
 
 /** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
 const VOLUME_STEP = 5;
@@ -77,9 +78,16 @@ export function LiveScreenSurface({
     name: changeContent?.defaultMediaName ?? null,
   });
   const [currentContent, setCurrentContent] = useState(initialContent);
-  /** Optimistic only: SET_PLAYBACK fans out to the screen registry, never to
-   * CMS sockets, so this panel cannot observe real playback state. Reset on
-   * every content change, where "playing" is known to be true again. */
+  /**
+   * Optimistic, and only ever used for the YouTube pill below.
+   *
+   * A native video no longer needs it: VideoControlPanel holds a preview
+   * socket for this screen and reads the real SET_PLAYBACK the screen emits
+   * (see useScreenPlayback). A kiosk YouTube embed reports through the IFrame
+   * Player API against its own embed URL, which does not line up with that
+   * path, so it keeps the guess — and the guess is at least reset on every
+   * content change, where "playing" is known to be true again.
+   */
   const [assumePlaying, setAssumePlaying] = useState(true);
 
   const {
@@ -151,7 +159,9 @@ export function LiveScreenSurface({
     }
   };
 
-  const showTransport = isPlayableMedia(currentContent);
+  // Native video is controlled from VideoControlPanel, which has a real
+  // position and a scrub bar; only YouTube still needs this reduced pill.
+  const showTransport = isPlayableMedia(currentContent) && currentContent?.type !== "video";
 
   const handleSeek = async (delta: number) => {
     await sendRemoteCommand(screenId, MEDIA_SEEK, { delta });
@@ -443,13 +453,33 @@ export function LiveScreenSurface({
         </div>
       </div>
 
-      {showTouchpad ? (
+{/*
+        Three surfaces, and the ORDER matters. YouTube shares the "html" wire
+        type with PDF/slides/word/sheet/links, so it lands in the touchpad
+        branch — which is correct, a cross-origin kiosk embed can only be
+        driven by the real OS cursor. Testing for video first keeps it out of
+        that branch without disturbing anything else.
+      */}
+      {currentContent?.type === "video" ? (
+        // No mirror: decoding the same file a second time just to watch it is
+        // real bandwidth for no control value. Real transport + true position
+        // instead — see VideoControlPanel.
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+            <VideoControlPanel
+              screenId={screenId}
+              source={currentContent.source}
+              contentName={screenName}
+            />
+          </div>
+        </div>
+      ) : showTouchpad ? (
         // No preview — a blank touchpad that drives the REAL OS cursor on the
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
           <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden">
-            <ScreenTouchpad screenId={screenId} />
+            <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
           </div>
         </div>
       ) : (
