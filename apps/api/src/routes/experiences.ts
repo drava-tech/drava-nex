@@ -10,9 +10,11 @@ import {
   mergeExperienceTemplateContent,
   updateExperience,
   experienceSlugExists,
+  getScreenIdsByExperienceId,
 } from "@platform/db";
 import { requireAdmin, type SessionUser } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
+import { pushScreenContent } from "./screens.js";
 
 // Everything under /api/experiences. The public GET list is unguarded (screens
 // touch-picker reads it); mutations are guarded per-route (never router-wide, so
@@ -34,6 +36,32 @@ function userId(c: Parameters<typeof ok>[0]): string {
 
 function param(c: Parameters<typeof ok>[0], name: string): string {
   return (c.req.param() as Record<string, string | undefined>)[name] ?? "";
+}
+
+/**
+ * Re-push an experience to every screen currently showing it.
+ *
+ * Editing an experience only wrote the row: a screen already rendering that
+ * experience kept the templateContent it was handed at push time, so changing
+ * an option in the CMS editor (a Flight Simulation airport, HUD visibility,
+ * sim speed…) did nothing on the wall until someone re-pushed the experience
+ * by hand or reloaded the display. The screen was never told.
+ *
+ * pushScreenContent re-reads getScreenContent, which carries templateKey +
+ * templateContent, so the fresh options ride the normal CONTENT_UPDATE path;
+ * useContentPreloader's content key already hashes templateContent, so the
+ * screen accepts the update instead of deduping it as "same content".
+ *
+ * Best-effort and never fatal: the write is already committed and the author's
+ * save must not fail because one screen's broadcast did.
+ */
+async function repushExperienceToScreens(experienceId: string): Promise<void> {
+  try {
+    const screenIds = await getScreenIdsByExperienceId(experienceId);
+    await Promise.all(screenIds.map((screenId) => pushScreenContent(screenId)));
+  } catch (err) {
+    console.error(`[experiences] re-push after edit failed for ${experienceId}:`, err);
+  }
 }
 
 // --- Create ---
@@ -141,6 +169,7 @@ experiencesRouter.patch("/:id", requireAdmin, async (c) => {
     typeIds: body.typeIds ?? [],
     updatedByUserId: userId(c),
   });
+  await repushExperienceToScreens(id);
   return ok(c, { updated: true });
 });
 
@@ -167,7 +196,9 @@ experiencesRouter.patch("/:id/template", requireAdmin, async (c) => {
   if (body.templateKey !== null && !isTemplateKey(body.templateKey)) {
     return fail(c, "VALIDATION", `Unknown template: "${body.templateKey}".`, 400);
   }
-  await setExperienceTemplate(param(c, "id"), body.templateKey, userId(c));
+  const experienceId = param(c, "id");
+  await setExperienceTemplate(experienceId, body.templateKey, userId(c));
+  await repushExperienceToScreens(experienceId);
   return ok(c, { updated: true });
 });
 
@@ -184,6 +215,8 @@ experiencesRouter.patch("/:id/content", requireAdmin, async (c) => {
   if (!isTemplateKey(body.templateKey)) {
     return fail(c, "VALIDATION", `Unknown template: "${body.templateKey}".`, 400);
   }
-  await mergeExperienceTemplateContent(param(c, "id"), body.templateKey, body.content, userId(c));
+  const experienceId = param(c, "id");
+  await mergeExperienceTemplateContent(experienceId, body.templateKey, body.content, userId(c));
+  await repushExperienceToScreens(experienceId);
   return ok(c, { updated: true });
 });

@@ -223,6 +223,27 @@ export async function getScreenIdsByTemplateKey(templateKey: string): Promise<st
   return rows.map((r) => r.screenId);
 }
 
+/**
+ * All screens currently showing one specific experience. The experience-scoped
+ * sibling of getScreenIdsByTemplateKey above, and the reason re-authoring a
+ * template in the CMS editor reaches the wall live: saving content has to know
+ * which screens are rendering that experience right now so it can re-push the
+ * fresh templateContent to them (see the experiences router).
+ */
+export async function getScreenIdsByExperienceId(experienceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ screenId: screen.screenId })
+    .from(screen)
+    .where(
+      and(
+        eq(screen.currentContentKind, "experience"),
+        eq(screen.currentExperienceId, experienceId),
+        isNull(screen.deletedAt)
+      )
+    );
+  return rows.map((r) => r.screenId);
+}
+
 export async function screenExists(screenId: string): Promise<boolean> {
   const [row] = await db
     .select({ screenId: screen.screenId })
