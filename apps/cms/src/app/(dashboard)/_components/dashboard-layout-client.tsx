@@ -9,7 +9,22 @@ import {
 } from "@platform/ui";
 import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
 import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
-import { WhiteboardOverlay } from '@/app/(dashboard)/_components/whiteboard/whiteboard-overlay';
+import dynamic from 'next/dynamic';
+
+// Lazy on purpose. This overlay is a floating widget most visits never open,
+// but it is mounted on EVERY dashboard page — and it statically imports
+// FabMenu/FabItem, which import framer-motion. Loading it eagerly therefore
+// pulled framer-motion into the shared dashboard bundle for every route.
+// ssr:false because it is purely an interactive client widget with no
+// server-rendered content worth paying for. Same pattern the environment panel
+// already uses for its content panes (environment-view.tsx).
+const WhiteboardOverlay = dynamic(
+  () =>
+    import('@/app/(dashboard)/_components/whiteboard/whiteboard-overlay').then(
+      (m) => m.WhiteboardOverlay
+    ),
+  { ssr: false }
+);
 import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
 import { StoreProvider } from '@/store/store-provider';
 

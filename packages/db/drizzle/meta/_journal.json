@@ -232,6 +232,27 @@
       "when": 1784020305843,
       "tag": "0032_screen_status_samples",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784020305844,
+      "tag": "0033_media_asset_listing_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784020305845,
+      "tag": "0034_media_listing_partial_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784020305846,
+      "tag": "0035_media_thumbnail_url",
+      "breakpoints": true
     }
   ]
 }

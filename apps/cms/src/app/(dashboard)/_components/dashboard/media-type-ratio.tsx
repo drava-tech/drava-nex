@@ -2,7 +2,7 @@
 
 import { FileText, Film, Image as ImageIcon, type LucideIcon } from "lucide-react";
 import {
-  dashboardMediaGroup,
+  groupMediaStats,
   useDashboardMedia,
   type DashboardMediaGroup,
 } from "./media-live-data";
@@ -21,10 +21,8 @@ const CATEGORIES: RatioCategory[] = [
 ];
 
 export function MediaTypeRatio() {
-  const assets = useDashboardMedia();
-  const counts = { video: 0, image: 0, document: 0, other: 0 };
-
-  for (const asset of assets) counts[dashboardMediaGroup(asset.type)] += 1;
+  const { byType } = useDashboardMedia();
+  const { counts } = groupMediaStats(byType);
 
   const trackedTotal = counts.video + counts.image + counts.document;
 

@@ -35,10 +35,18 @@ export interface PublishBoardSnapshot {
   targetIndex: number;
   /** `${card.type}:${card.id}` of the card nearest the carousel's centre. */
   centredCardKey: string | null;
-  /** Cached /api/media result, so the carousel renders — and can be scrolled
+  /** Cached /api/media rows, so the carousel renders — and can be scrolled
    *  back to centredCardKey — on the first frame, with no loading flash.
-   *  null means "never fetched in this document yet". */
+   *  null means "never fetched in this document yet".
+   *
+   *  This is however many keyset pages the user had scrolled through, not the
+   *  whole library (see publish-board.tsx's loadMediaPage). */
   mediaItems: MediaItem[] | null;
+  /** Keyset cursor for the page AFTER the last one in mediaItems, so a return
+   *  visit can keep scrolling instead of dead-ending at whatever was cached.
+   *  null means either "not fetched yet" or "reached the end of the list" —
+   *  mediaItems === null distinguishes the two. */
+  mediaNextCursor: string | null;
 }
 
 /** Must match PublishBoard's own initial useState values exactly, or a first
@@ -53,6 +61,7 @@ const DEFAULTS: PublishBoardSnapshot = {
   targetIndex: 0,
   centredCardKey: null,
   mediaItems: null,
+  mediaNextCursor: null,
 };
 
 let snapshot: PublishBoardSnapshot = { ...DEFAULTS };

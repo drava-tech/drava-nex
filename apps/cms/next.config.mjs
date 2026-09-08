@@ -13,6 +13,11 @@ const nextConfig = {
   // Trace files from monorepo root so workspace packages are included in the bundle
   outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {
+    // Barrel packages: without this, importing one helper from @platform/types
+    // or one icon from lucide-react pulls the whole module graph into the
+    // route bundle. Measured: one helper import cost /screens +75 kB before
+    // this plus "sideEffects": false on the workspace packages.
+    optimizePackageImports: ['@platform/ui', '@platform/types', 'lucide-react'],
     middlewareClientMaxBodySize: '100mb',
   },
   async rewrites() {

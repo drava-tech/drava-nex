@@ -4,6 +4,7 @@ import { FileText, Film, Image as ImageIcon, Link2, type LucideIcon } from "luci
 import {
   dashboardMediaGroup,
   formatMediaBytes,
+  groupMediaStats,
   useDashboardMedia,
   type DashboardMediaGroup,
 } from "./media-live-data";
@@ -33,22 +34,13 @@ function formatUploadDate(value: string): string {
 }
 
 export function StorageUsage() {
-  const assets = useDashboardMedia();
-  const bytesByGroup = { video: 0, image: 0, document: 0 };
-  let totalBytes = 0;
-
-  for (const asset of assets) {
-    const bytes = asset.sizeBytes ?? 0;
-    totalBytes += bytes;
-    const group = dashboardMediaGroup(asset.type);
-    if (group !== "other") bytesByGroup[group] += bytes;
-  }
+  const { total, totalBytes, byType, recent } = useDashboardMedia();
+  const { bytes: bytesByGroup } = groupMediaStats(byType);
   const categorizedBytes =
     bytesByGroup.video + bytesByGroup.image + bytesByGroup.document;
 
-  const recentUploads = [...assets]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 4);
+  // Already newest-first and capped by the API — no client-side sort needed.
+  const recentUploads = recent;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
@@ -57,7 +49,7 @@ export function StorageUsage() {
           <p className="text-xs uppercase tracking-wide text-slate-400">Stored media</p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-white">{formatMediaBytes(totalBytes)}</p>
           <p className="mt-1 text-xs text-slate-400">
-            {assets.length} library asset{assets.length === 1 ? "" : "s"}
+            {total} library asset{total === 1 ? "" : "s"}
           </p>
         </div>
 

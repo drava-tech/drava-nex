@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@platform/ui";
 import {
-  listMediaAssets,
+  getMediaLibraryStats,
   listScreens,
   getDailyScreenUptime,
   getScreenUptimeRecordingSince,
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
   const [
     screenRows,
     activeScreenIds,
-    mediaAssets,
+    mediaStats,
     uptime,
     recordingSince,
     activity,
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     listScreens(),
     getActiveScreens(),
-    listMediaAssets(),
+    getMediaLibraryStats(),
     getDailyScreenUptime(),
     getScreenUptimeRecordingSince(),
     getRecentActivity(),
@@ -100,13 +100,19 @@ export default async function DashboardPage() {
 
   return (
     <DashboardMediaProvider
-      initialAssets={mediaAssets.map((asset) => ({
-        id: asset.id,
-        name: asset.name,
-        type: asset.type,
-        sizeBytes: asset.sizeBytes,
-        createdAt: asset.createdAt.toISOString(),
-      }))}
+      initialStats={{
+        total: mediaStats.total,
+        totalBytes: mediaStats.totalBytes,
+        byType: mediaStats.byType,
+        recentCount: mediaStats.recentCount,
+        recent: mediaStats.recent.map((asset) => ({
+          id: asset.id,
+          name: asset.name,
+          type: asset.type,
+          sizeBytes: asset.sizeBytes,
+          createdAt: asset.createdAt.toISOString(),
+        })),
+      }}
     >
       <div className="flex flex-1 flex-col gap-4 p-4">
       {/* Page header */}

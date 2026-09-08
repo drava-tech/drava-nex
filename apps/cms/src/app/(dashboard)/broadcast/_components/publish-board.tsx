@@ -38,6 +38,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@platform/ui";
+import { PUSHABLE_MEDIA_TYPES, mediaThumbnailSrc } from "@/lib/media-tiles";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import {
   currentLabel,
@@ -91,18 +92,8 @@ export interface MediaItem {
   url: string;
   source: string | null;
   createdAt: string | null;
-}
-
-/** `from`/`to` are "YYYY-MM-DD" (possibly empty for an open-ended bound),
- * directly comparable against the leading 10 chars of an ISO createdAt —
- * same convention as apps/cms/src/app/(dashboard)/media/page.tsx's date filter. */
-function matchesDateRange(item: MediaItem, from: string, to: string): boolean {
-  if (!from && !to) return true;
-  if (!item.createdAt) return true;
-  const itemDate = item.createdAt.slice(0, 10);
-  if (from && itemDate < from) return false;
-  if (to && itemDate > to) return false;
-  return true;
+  /** Small derived tile; null for videos and pre-backfill images. */
+  thumbnailUrl?: string | null;
 }
 
 /** Every non-experience card carries the media asset's own classified type
@@ -186,6 +177,23 @@ export function PublishBoard({
   const [loadingMedia, setLoadingMedia] = useState(
     restored.mediaItems === null,
   );
+  /** Keyset cursor for the next page, or null at the end of the list. */
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    restored.mediaNextCursor,
+  );
+  const [loadingMore, setLoadingMore] = useState(false);
+  /** Read by the scroll handler, which must not re-subscribe per state change. */
+  const loadingMoreRef = useRef(false);
+  const nextCursorRef = useRef<string | null>(restored.mediaNextCursor);
+  nextCursorRef.current = nextCursor;
+  /** Bumped on every filter change; a response tagged with a stale seq is
+   *  dropped, so a slow first page can't overwrite a newer filter's results. */
+  const requestSeqRef = useRef(0);
+  /** Which media types actually exist under the current source/date filter.
+   *  Comes from the server (GET /api/media/stats) rather than from the loaded
+   *  rows: with keyset paging the client has only seen the pages it scrolled
+   *  through, so deriving the dropdown locally would hide types further down. */
+  const [presentMediaTypes, setPresentMediaTypes] = useState<string[]>([]);
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
     message: string;
@@ -202,27 +210,125 @@ export function PublishBoard({
   );
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  /** Slides currently parked at the off-screen end state, so updateSlideTransforms
+   *  can skip rewriting styles that would not change. */
+  const parkedSlidesRef = useRef<Set<string>>(new Set());
 
-  // Reusable so "Load Email" can refetch after ingesting, not just on mount.
-  const fetchMedia = useCallback(async () => {
-    const res = await fetch("/api/media");
-    const data = await res.json();
-    // All pushable file types, not just image/video — anything else
-    // (link/email-sourced entries with no real file) is left out.
-    const files = (data.media || []).filter((item: MediaItem) =>
-      Object.hasOwn(MEDIA_TYPE_LABELS, item.type),
-    );
-    setMediaItems(files);
-    saveBoardSnapshot({ mediaItems: files });
-  }, []);
+  // The carousel's filters, as /api/media query params. Type/source/date are
+  // applied by the server now rather than after the fetch — under keyset paging
+  // a client-side filter would show an empty row whenever the first page
+  // happened to contain no matches, while matches sat unfetched further down.
+  const mediaQuery = useCallback(
+    (extra?: Record<string, string>) => {
+      const params = new URLSearchParams({
+        // Only pushable file kinds ever become cards; the pasted-link kinds
+        // (youtube/drive/link) have no real file behind them.
+        types: mediaTypeFilter ? mediaTypeFilter : PUSHABLE_MEDIA_TYPES.join(","),
+        ...extra,
+      });
+      if (emailOnly) params.set("sources", "email");
+      if (mediaDateFrom) params.set("dateFrom", mediaDateFrom);
+      if (mediaDateTo) params.set("dateTo", mediaDateTo);
+      return params;
+    },
+    [mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo],
+  );
 
+  /**
+   * Load one keyset page. `cursor === null` starts a fresh walk (a filter
+   * change, or "Load Email"); otherwise it appends the next page.
+   *
+   * Keyset rather than page/offset because rows are constantly inserted at the
+   * HEAD of this list — Gmail ingest below, and any MEDIA_LIBRARY_UPDATED. An
+   * offset window would shift under every such insert and the following page
+   * would repeat or skip cards mid-scroll.
+   */
+  const loadMediaPage = useCallback(
+    async (cursor: string | null) => {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      const seq = cursor === null ? ++requestSeqRef.current : requestSeqRef.current;
+      if (cursor === null) setLoadingMedia(true);
+      else setLoadingMore(true);
+
+      try {
+        const params = mediaQuery({ mode: "cursor", limit: "30" });
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(`/api/media?${params.toString()}`);
+        if (!res.ok) throw new Error(`media request failed: ${res.status}`);
+        const data = (await res.json()) as {
+          media?: MediaItem[];
+          nextCursor?: string | null;
+        };
+        // A newer filter has already started its own walk — drop this page
+        // rather than mixing two filters' rows into one carousel.
+        if (seq !== requestSeqRef.current) return;
+
+        const page = data.media ?? [];
+        const cursorOut = data.nextCursor ?? null;
+        setMediaItems((prev) => {
+          // Append-and-dedupe: a row can legitimately arrive twice if it was
+          // inserted above the cursor between two pages.
+          const merged = cursor === null ? page : [...prev, ...page];
+          const seen = new Set<string>();
+          const deduped = merged.filter((m) =>
+            seen.has(m.id) ? false : (seen.add(m.id), true),
+          );
+          saveBoardSnapshot({ mediaItems: deduped, mediaNextCursor: cursorOut });
+          return deduped;
+        });
+        setNextCursor(cursorOut);
+        nextCursorRef.current = cursorOut;
+      } catch (err) {
+        console.error("Failed to load media for publish board:", err);
+      } finally {
+        loadingMoreRef.current = false;
+        setLoadingMedia(false);
+        setLoadingMore(false);
+      }
+    },
+    [mediaQuery],
+  );
+
+  // Restart the walk whenever a media filter changes. Deliberately not keyed on
+  // `filter`/`tagFilter` — those switch between the experience and media rows
+  // and narrow experiences, neither of which changes the media query.
+  //
+  // The mount pass is skipped on a return visit: the snapshot already carries
+  // the pages the user had scrolled through AND the cursor to continue from, so
+  // refetching page 1 here would throw those away and strand the scroll restore
+  // (which is waiting for exactly those cards) at the start of the list.
+  const skipInitialLoadRef = useRef(restored.mediaItems !== null);
   useEffect(() => {
-    fetchMedia()
-      .catch((err) =>
-        console.error("Failed to load media for publish board:", err),
-      )
-      .finally(() => setLoadingMedia(false));
-  }, [fetchMedia]);
+    if (skipInitialLoadRef.current) {
+      skipInitialLoadRef.current = false;
+      return;
+    }
+    void loadMediaPage(null);
+  }, [loadMediaPage]);
+
+  // Which media types exist under the current source/date filter, for the type
+  // dropdown. Deliberately asks WITHOUT the type filter applied, or selecting
+  // one type would collapse the dropdown to just that type.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (emailOnly) params.set("sources", "email");
+    if (mediaDateFrom) params.set("dateFrom", mediaDateFrom);
+    if (mediaDateTo) params.set("dateTo", mediaDateTo);
+    let cancelled = false;
+    fetch(`/api/media/stats?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { byType?: { type: string }[] } | null) => {
+        if (cancelled || !data?.byType) return;
+        setPresentMediaTypes(data.byType.map((t) => t.type));
+      })
+      .catch(() => {
+        // Non-fatal: the dropdown just keeps its previous options.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [emailOnly, mediaDateFrom, mediaDateTo]);
 
   // On-demand Gmail ingest — pulls the last 2 days of attachments/links into
   // media_asset, same action as the "Load Email" button on the Media Library
@@ -236,7 +342,10 @@ export function PublishBoard({
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success)
         throw new Error(data.error ?? "Could not load email");
-      await fetchMedia();
+      // Restart the keyset walk from the top rather than appending: the new
+      // items were inserted at the HEAD of the ordering, so they belong to
+      // page 1 and no cursor further down would ever reach them.
+      await loadMediaPage(null);
       // /api/media already returns newest-first, so the just-loaded items land
       // at the front of mediaItems/cards — but the scroller's pixel position
       // doesn't know that on its own, so without this it can keep showing
@@ -300,20 +409,17 @@ export function PublishBoard({
     return experienceTypes.filter((t) => present.has(t.id));
   }, [experiences, experienceTypes]);
 
-  // Same "only offer what's actually present" convention, for media types —
-  // respects the email-source and date-range filters too, so it never offers
-  // a type that would come back empty once those are also applied.
-  const availableMediaTypes = useMemo(() => {
-    const scoped = mediaItems
-      .filter((m) => !emailOnly || m.source === "email")
-      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo));
-    const present = Array.from(
-      new Set(scoped.map((m) => m.type as MediaCardType)),
-    );
-    return present
-      .filter((t) => t in MEDIA_TYPE_LABELS)
-      .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] }));
-  }, [mediaItems, emailOnly, mediaDateFrom, mediaDateTo]);
+  // Same "only offer what's actually present" convention, for media types.
+  // presentMediaTypes comes from GET /api/media/stats under the current
+  // source/date filter, so it covers the whole library rather than only the
+  // keyset pages scrolled so far.
+  const availableMediaTypes = useMemo(
+    () =>
+      presentMediaTypes
+        .filter((t): t is MediaCardType => t in MEDIA_TYPE_LABELS)
+        .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] })),
+    [presentMediaTypes],
+  );
 
   const cards = useMemo<ContentCard[]>(() => {
     const experienceCards: ContentCard[] = experiences
@@ -325,27 +431,18 @@ export function PublishBoard({
         thumbnail: e.coverImage,
         typeIds: e.typeIds,
       }));
-    const mediaCards: ContentCard[] = mediaItems
-      .filter((m) => !mediaTypeFilter || m.type === mediaTypeFilter)
-      .filter((m) => !emailOnly || m.source === "email")
-      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo))
-      .map((m) => ({
-        id: m.id,
-        type: m.type as MediaCardType,
-        title: m.name,
-        thumbnail: m.url,
-      }));
+    // No client-side type/source/date filtering here any more — mediaItems is
+    // already the filtered result set, page by page, from the server.
+    const mediaCards: ContentCard[] = mediaItems.map((m) => ({
+      id: m.id,
+      type: m.type as MediaCardType,
+      title: m.name,
+      // The derived tile where one exists. A card is ~384px wide, so loading
+      // the original here cost roughly 2.3 MB per card.
+      thumbnail: mediaThumbnailSrc(m),
+    }));
     return filter === "experiences" ? experienceCards : mediaCards;
-  }, [
-    experiences,
-    mediaItems,
-    filter,
-    tagFilter,
-    mediaTypeFilter,
-    emailOnly,
-    mediaDateFrom,
-    mediaDateTo,
-  ]);
+  }, [experiences, mediaItems, filter, tagFilter]);
 
   // Falls back to the first screen rather than null: targetIndex can be
   // restored from a previous mount, and the screens list is re-fetched by the
@@ -353,8 +450,15 @@ export function PublishBoard({
   const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
 
   const setSlideRef = useCallback((key: string, el: HTMLDivElement | null) => {
-    if (el) slideRefs.current.set(key, el);
-    else slideRefs.current.delete(key);
+    if (el) {
+      slideRefs.current.set(key, el);
+    } else {
+      slideRefs.current.delete(key);
+      // Drop the parked mark with the element. A key that came back later
+      // (after a filter switch, say) would otherwise be skipped by
+      // updateSlideTransforms while its fresh element still had no transform.
+      parkedSlidesRef.current.delete(key);
+    }
   }, []);
 
   // Coverflow effect: scale/nudge/fade each slide by its live distance from
@@ -381,17 +485,18 @@ export function PublishBoard({
     // so it stays free to do at scroll-event frequency.
     let nearestKey: string | null = null;
     let nearestDistance = Infinity;
+
+    // Two passes on purpose. Reading offsetLeft/offsetWidth is a layout read
+    // and writing style is a layout invalidation, so interleaving them per
+    // element (as this used to) forces the browser to re-lay-out the row once
+    // per card, every frame — the cost that made the carousel degrade as the
+    // library grew. Batching all reads, then all writes, is a single layout.
+    const measured: { el: HTMLDivElement; key: string; offset: number }[] = [];
     slideRefs.current.forEach((el, key) => {
       const elCenterInViewport =
         el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
       const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
-      const clamped = Math.max(-1.4, Math.min(1.4, offset));
-      const proximity = Math.min(Math.abs(clamped), 1);
-      const scale = 1 - proximity * 0.35;
-      const nudge = -clamped * 18;
-      el.style.transform = `translateX(${nudge}px) scale(${scale})`;
-      el.style.opacity = String(1 - proximity * 0.35);
-      el.style.zIndex = String(5 - Math.round(proximity * 5));
+      measured.push({ el, key, offset });
       // Math.abs(offset), not the clamped/capped value — several off-screen
       // cards share a proximity of exactly 1 and could not be told apart.
       const distance = Math.abs(offset);
@@ -400,12 +505,62 @@ export function PublishBoard({
         nearestKey = key;
       }
     });
+
+    for (const { el, key, offset } of measured) {
+      const clamped = Math.max(-1.4, Math.min(1.4, offset));
+      const proximity = Math.min(Math.abs(clamped), 1);
+      // Skip writing to slides whose style can no longer change, so per-frame
+      // work stays proportional to the few cards on screen rather than to every
+      // page loaded so far.
+      //
+      // The threshold is 1.4, NOT proximity >= 1. scale/opacity/zIndex derive
+      // from `proximity` and do saturate at 1.0 — but `nudge` derives from
+      // `clamped`, which keeps changing out to 1.4, another 7.2px of travel.
+      // Parking at 1.0 froze a transform that was still moving, so a card held
+      // a stale position across that band and then visibly snapped when it came
+      // back inside it. Past 1.4 every written value really is saturated.
+      const parked = Math.abs(offset) >= 1.4;
+      if (parked && parkedSlidesRef.current.has(key)) continue;
+      if (parked) parkedSlidesRef.current.add(key);
+      else parkedSlidesRef.current.delete(key);
+
+      const scale = 1 - proximity * 0.35;
+      const nudge = -clamped * 18;
+      el.style.transform = `translateX(${nudge}px) scale(${scale})`;
+      el.style.opacity = String(1 - proximity * 0.35);
+      el.style.zIndex = String(5 - Math.round(proximity * 5));
+    }
+
     if (nearestKey) saveBoardSnapshot({ centredCardKey: nearestKey });
   }, []);
+
+  /**
+   * Pull the next keyset page when the scroller nears its right-hand end.
+   *
+   * Deliberately folded into the existing rAF-throttled scroll pass rather than
+   * given its own listener: one handler, one measurement, one frame budget.
+   * loadingMoreRef (not the loadingMore state) is the guard so a single scroll
+   * burst can't fire several overlapping requests before the first resolves.
+   */
+  const maybeLoadMore = useCallback(
+    (scroller: HTMLDivElement) => {
+      if (loadingMoreRef.current || !nextCursorRef.current) return;
+      // Roughly five cards' width of runway, so the next page is in flight
+      // before the user reaches the end rather than after.
+      const runway = 5 * 384;
+      const remaining =
+        scroller.scrollWidth - scroller.scrollLeft - scroller.clientWidth;
+      if (remaining <= runway) void loadMediaPage(nextCursorRef.current);
+    },
+    [loadMediaPage],
+  );
 
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    // The card set just changed, so every slide needs one unconditional styling
+    // pass before the skip-if-parked optimisation can be trusted again.
+    parkedSlidesRef.current.clear();
     updateSlideTransforms();
 
     let ticking = false;
@@ -415,6 +570,7 @@ export function PublishBoard({
       requestAnimationFrame(() => {
         ticking = false;
         updateSlideTransforms();
+        maybeLoadMore(scroller);
       });
     };
     // A plain mouse wheel only ever generates vertical delta, and this row has
@@ -433,7 +589,7 @@ export function PublishBoard({
       scroller.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onScroll);
     };
-  }, [cards, updateSlideTransforms]);
+  }, [cards, updateSlideTransforms, maybeLoadMore]);
 
   /** Guards the one-shot carousel restore below against running twice, and
    *  against running at all once the user has moved the carousel themselves. */
@@ -500,6 +656,8 @@ export function PublishBoard({
     let dragging = false;
     let startX = 0;
     let startScrollLeft = 0;
+    /** Pending "drop the smooth-scroll override" timer, if a settle is running. */
+    let settleTimer: number | undefined;
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
@@ -507,6 +665,18 @@ export function PublishBoard({
       startX = e.clientX;
       startScrollLeft = scroller.scrollLeft;
       scroller.style.cursor = "grabbing";
+      // Mandatory snap keeps pulling toward a snap point while this handler
+      // writes scrollLeft underneath it, which makes a hand drag feel sticky
+      // and steppy. Suspended for the drag only; stopDragging restores it so
+      // releasing still settles onto a card, and wheel/touch keep snapping.
+      scroller.style.scrollSnapType = "none";
+      // Cancel any settle animation still running from the previous release —
+      // otherwise this drag would be animated rather than tracking 1:1.
+      if (settleTimer !== undefined) {
+        window.clearTimeout(settleTimer);
+        settleTimer = undefined;
+      }
+      scroller.style.scrollBehavior = "";
       // Stops the browser starting a native image drag-ghost when the press
       // lands on a thumbnail <img>, without affecting SwipeCard's own
       // pointerdown-driven vertical drag (preventDefault here doesn't stop
@@ -518,8 +688,35 @@ export function PublishBoard({
       scroller.scrollLeft = startScrollLeft - (e.clientX - startX);
     };
     const stopDragging = () => {
+      // Cursor and snapping are restored on every path below — a pointercancel
+      // can arrive without a matching move, and leaving snapping switched off
+      // would silently disable it for the rest of the session. Both writes are
+      // idempotent, so running them on a non-drag pointerup costs nothing.
+      const wasDragging = dragging;
       dragging = false;
       scroller.style.cursor = "";
+
+      // The smooth settle only belongs to a real drag. This runs on every
+      // window pointerup — including a plain tap on a card to publish it — and
+      // leaving scroll-behavior:smooth armed after those would make an
+      // immediately following wheel scroll feel laggy for no reason. Snapping
+      // is still restored here, idempotently, so it can never stay disabled.
+      if (!wasDragging) {
+        scroller.style.scrollSnapType = "";
+        return;
+      }
+
+      // Order matters: restoring snap is what triggers the re-snap, and this
+      // scroller's scroll-behavior is `auto` (see className), so smooth has to
+      // be in place BEFORE snapping comes back or the card teleports to centre
+      // instead of settling. Dropped again once the settle has run, so the next
+      // drag still tracks the pointer exactly.
+      scroller.style.scrollBehavior = "smooth";
+      scroller.style.scrollSnapType = "";
+      settleTimer = window.setTimeout(() => {
+        scroller.style.scrollBehavior = "";
+        settleTimer = undefined;
+      }, 400);
     };
 
     scroller.addEventListener("pointerdown", onPointerDown);
@@ -527,6 +724,7 @@ export function PublishBoard({
     window.addEventListener("pointerup", stopDragging);
     window.addEventListener("pointercancel", stopDragging);
     return () => {
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
       scroller.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", stopDragging);
@@ -936,7 +1134,19 @@ export function PublishBoard({
           <>
             <div
               ref={scrollerRef}
-              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory scroll-smooth"
+              // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
+              // scrolling API call, so with scroll-behavior:smooth the browser
+              // ANIMATES it — and both the drag handler and the wheel handler
+              // below assign scrollLeft on every event. Each one kicked off a
+              // new easing animation that the next immediately interrupted, so
+              // the carousel was permanently easing toward a target that had
+              // already moved and could never track the cursor.
+              //
+              // Nothing loses smoothness: the two programmatic scrolls that
+              // want it ask for it themselves — scrollToAdjacentCard passes
+              // behavior:"smooth", and the position restore passes
+              // behavior:"instant" precisely to opt out of this class.
+              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
               style={{
                 paddingLeft: "calc(50% - 12rem)",
                 paddingRight: "calc(50% - 12rem)",
@@ -959,6 +1169,16 @@ export function PublishBoard({
                   </div>
                 );
               })}
+              {/* Tail spinner for the next keyset page. Rendered inside the
+                  scroller so it occupies real width — that keeps the runway
+                  maybeLoadMore measures against from collapsing the moment the
+                  last card is reached. Not registered as a slide, so the
+                  coverflow pass ignores it. */}
+              {loadingMore && filter !== "experiences" && (
+                <div className="flex w-48 shrink-0 items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                </div>
+              )}
             </div>
 
             <div className="flex shrink-0 items-center justify-center gap-4">

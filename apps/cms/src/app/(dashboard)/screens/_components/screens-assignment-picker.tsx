@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import {
   X,
   Check,
@@ -12,6 +14,7 @@ import {
   LayoutTemplate,
 } from "lucide-react";
 import type { WsContent } from "@platform/types";
+import { mediaThumbnailSrc } from "@/lib/media-tiles";
 
 interface MediaItem {
   id: string;
@@ -20,6 +23,8 @@ interface MediaItem {
   url: string;
   size: string;
   date: string;
+  /** Small derived tile; null for videos and pre-backfill images. */
+  thumbnailUrl?: string | null;
 }
 
 /** One "Recently Opened" entry — either a media asset or an experience. */
@@ -89,15 +94,21 @@ function MediaCard({
           <video
             src={media.url}
             className="w-full h-full object-cover"
+            // Without this the browser buffers megabytes of every video in the
+            // grid just to draw a tile — same fix the media library already
+            // carries. "metadata" still paints the first frame.
+            preload="metadata"
             muted
             playsInline
           />
         ) : (
           <img
-            src={media.url}
+            // The derived tile, not the original upload.
+            src={mediaThumbnailSrc(media)}
             alt={media.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
           />
         )}
         {/* Badge tag */}
@@ -216,22 +227,63 @@ export function ScreenAssignmentPicker({
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [recentItems, setRecentItems] = useState<RecentContentItem[]>([]);
 
+  /** Keyset cursor for the next page of media, or null at the end of the list. */
+  const [mediaCursor, setMediaCursor] = useState<string | null>(null);
+  const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
+  /** Search runs on the server now, so a screen can be pointed at any asset in
+   *  the library — not only one that happened to be in the first page. */
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const mediaSeqRef = useRef(0);
+
+  /**
+   * One page of image/video assets. Type filtering and search are both applied
+   * by the API — this used to download the whole media library and discard
+   * every non-image/video row in the browser.
+   */
+  const loadMedia = useCallback(
+    async (cursor: string | null) => {
+      const seq = cursor === null ? ++mediaSeqRef.current : mediaSeqRef.current;
+      if (cursor === null) setLoadingMedia(true);
+      else setLoadingMoreMedia(true);
+      try {
+        const params = new URLSearchParams({
+          mode: "cursor",
+          limit: "48",
+          // Only image and video render on a screen.
+          types: "image,video",
+        });
+        if (debouncedSearch.trim())
+          params.set("search", debouncedSearch.trim());
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(`/api/media?${params.toString()}`);
+        const data = res.ok ? await res.json() : null;
+        if (seq !== mediaSeqRef.current) return;
+        const page: MediaItem[] = data?.media ?? [];
+        setMediaItems((prev) => (cursor === null ? page : [...prev, ...page]));
+        setMediaCursor(data?.nextCursor ?? null);
+      } catch (err) {
+        console.error("Failed to load media in picker:", err);
+      } finally {
+        if (seq === mediaSeqRef.current) {
+          setLoadingMedia(false);
+          setLoadingMoreMedia(false);
+        }
+      }
+    },
+    [debouncedSearch],
+  );
+
+  // Restart the walk when the tab opens, and whenever the search term settles.
   useEffect(() => {
-    if (activeTab === "files" && mediaItems.length === 0) {
-      setLoadingMedia(true);
-      fetch("/api/media")
-        .then((res) => res.json())
-        .then((data) => {
-          // Only show video and image files for screen display
-          const files = (data.media || []).filter(
-            (item: any) => item.type === "image" || item.type === "video",
-          );
-          setMediaItems(files);
-        })
-        .catch((err) => console.error("Failed to load media in picker:", err))
-        .finally(() => setLoadingMedia(false));
-    }
-  }, [activeTab, mediaItems.length]);
+    if (activeTab !== "files") return;
+    void loadMedia(null);
+  }, [activeTab, loadMedia]);
+
+  const mediaSentinelRef = useInfiniteScroll({
+    hasMore: mediaCursor !== null,
+    loading: loadingMedia || loadingMoreMedia,
+    onLoadMore: () => void loadMedia(mediaCursor),
+  });
 
   const [loadingRecentItems, setLoadingRecentItems] = useState(false);
 
@@ -294,9 +346,8 @@ export function ScreenAssignmentPicker({
     exp.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const filteredMedia = mediaItems.filter((media) =>
-    media.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // Already searched and type-filtered by the API.
+  const filteredMedia = mediaItems;
 
   const filteredRecentItems = recentItems.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -478,6 +529,17 @@ export function ScreenAssignmentPicker({
                       onSetDefault={onSetDefault}
                     />
                   ))}
+                </div>
+              )}
+              {/* Sentinel: the next page loads when this scrolls into view. */}
+              {!loadingMedia && mediaCursor && (
+                <div
+                  ref={mediaSentinelRef}
+                  className="flex justify-center py-4"
+                >
+                  {loadingMoreMedia && (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                  )}
                 </div>
               )}
             </div>

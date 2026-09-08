@@ -461,3 +461,22 @@ export function mediaAssetToWsContent(
   // that isn't a video as an image rather than blanking the screen.
   return { ...base, type: "image", source: asset.url };
 }
+
+/**
+ * Which URL a small tile should load for a media asset.
+ *
+ * Falls back to the original when no thumbnail exists (videos, links, and any
+ * image uploaded before the backfill ran).
+ *
+ * NOTE: CMS client components must NOT import this — they use the copy in
+ * apps/cms/src/lib/media-tiles.ts instead. This package emits CommonJS, which
+ * cannot be tree-shaken, so a runtime import from here drags the whole barrel
+ * (zod included) into the browser bundle. That file explains the trade-off and
+ * is the one to keep in sync.
+ */
+export function mediaThumbnailSrc(asset: {
+  url: string;
+  thumbnailUrl?: string | null;
+}): string {
+  return asset.thumbnailUrl || asset.url;
+}

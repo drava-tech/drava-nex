@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Badge } from "@platform/ui";
 import { EditVisitorModal } from "./edit-visitor-modal";
+import { CameraSnapshot } from "./camera-snapshot";
 import { useCmsScreenSync, type VisitorDetectedEvent } from "@/hooks/useCmsScreenSync";
 import type { VisitorListItem } from "@platform/types";
 
@@ -36,17 +37,6 @@ export function VisitorsClient({
   const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState(search);
   const [editing, setEditing] = useState<string | null>(null);
-
-  // Debug camera preview — polls the latest JPEG (boxes drawn server-side by
-  // services/vision) so you can visually confirm detection without needing a
-  // separate local script. cam-entrance must match VISION_CAMERAS in the
-  // vision service's .env.
-  const [snapshotTick, setSnapshotTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setSnapshotTick((t) => t + 1), 1500);
-    return () => clearInterval(id);
-  }, []);
-  const [snapshotAvailable, setSnapshotAvailable] = useState(true);
 
   // Live list — seeded from the server render, then mutated by WS events.
   const [items, setItems] = useState<VisitorListItem[]>(visitors);
@@ -154,24 +144,7 @@ export function VisitorsClient({
           </span>
         </form>
 
-        <div className="rounded-lg border p-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Camera preview (cam-entrance) — green box = counts as present, red = too small/far
-          </p>
-          {!snapshotAvailable && (
-            <p className="mb-2 text-sm text-muted-foreground">
-              No recent snapshot — is the vision pipeline running?
-            </p>
-          )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`/api/vision-snapshot/cam-entrance?t=${snapshotTick}`}
-            alt="Live camera detection preview"
-            className={`max-h-80 rounded-md border bg-black ${snapshotAvailable ? "" : "hidden"}`}
-            onError={() => setSnapshotAvailable(false)}
-            onLoad={() => setSnapshotAvailable(true)}
-          />
-        </div>
+        <CameraSnapshot cameraId="cam-entrance" />
 
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">

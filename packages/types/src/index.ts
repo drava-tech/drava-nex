@@ -12,6 +12,9 @@ export * from "./visitors.js";
 // --- Media library → display content mapping (PDF/sheet/YouTube/Drive embeds) ---
 export * from "./media-content.js";
 
+// --- Media library listing (shared filter set + offset/cursor paging contract) ---
+export * from "./media-listing.js";
+
 // --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
 export * from "./flight-simulation.js";
 
