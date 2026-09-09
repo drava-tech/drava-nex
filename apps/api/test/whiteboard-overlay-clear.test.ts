@@ -24,6 +24,7 @@ vi.mock("../src/ws/gateway.js", () => ({
   sendCommandToScreen: vi.fn(),
   setScreenBlankState: vi.fn(),
   getConnectedScreenIds: vi.fn(() => []),
+  getConnectedPlayerCount: vi.fn(() => 1),
   resetScreenTakeover: vi.fn(),
   clearTakeoverFlag: vi.fn(),
   getLiveObjectRecognitionContent: vi.fn(() => null),

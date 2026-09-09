@@ -195,6 +195,12 @@ export function LiveScreenPlayer({
       // Which gallery photo is expanded — a tap on a control tablet has to open
       // the same photo on the wall. Replayable — see comment on SET_SLIDE above.
       dispatchReplayableEvent("gallery-set-view", value);
+    } else if (command === "SET_FLIGHT_VIEW") {
+      // Flight Garden's HUD — which visualization is showing, its airport, and
+      // the weather feed driving the art. Replayable, and it matters more here
+      // than for most: the engine chunk is a slow dynamic import, so a replayed
+      // view routinely arrives before the canvas has mounted its listener.
+      dispatchReplayableEvent("flight-set-view", value);
     } else if (command === "SET_FILM_VIEW") {
       // Films page grid/player + which film — replayable, same reason as above.
       dispatchReplayableEvent("film-set-view", value);
@@ -218,6 +224,11 @@ export function LiveScreenPlayer({
       dispatchReplayableEvent("screen-set-slide", { slideIndex: 0 });
       dispatchReplayableEvent("gallery-set-view", { photoId: null, index: null });
       dispatchReplayableEvent("film-set-view", { mode: "grid", index: null });
+      // Undefined, not a default view: the Flight Garden's own defaults live in
+      // the engine (DEFAULT_SCENE / the authored airportCode), so clearing the
+      // replay buffer lets a freshly-mounted scene use them rather than being
+      // driven back to a guess made here.
+      dispatchReplayableEvent("flight-set-view", undefined);
       // Null, not a position: the gateway drops its own cache on RESET_STATE,
       // but the replay buffer here is per-tab and would otherwise resume a film
       // at the position it was reset away from the next time one is opened.

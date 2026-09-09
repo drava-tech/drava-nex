@@ -49,6 +49,21 @@ export function useScreenWebSocket({
   // carries freshLaunch: true. An ordinary reconnect after a network blip
   // within the same page load must NOT look like a fresh launch.
   const hasRegisteredRef = useRef(false);
+  // …but a fresh JS context alone is too broad: pressing F5 on the wall builds
+  // one too, and the gateway answers freshLaunch by wiping the screen's
+  // assignment back to idle (gateway.ts, resetScreenToIdle). A refresh has to
+  // keep what is on the wall; only genuinely (re)opening the URL — a kiosk
+  // process start, or closing the tab and going back to it — should come up
+  // clean. Navigation Timing is what separates the two. A browser that doesn't
+  // report an entry falls back to the old behaviour rather than never
+  // resetting.
+  const openedFresh = useRef(true);
+  if (typeof performance !== "undefined") {
+    const navType = (
+      performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
+    )?.type;
+    if (navType === "reload" || navType === "back_forward") openedFresh.current = false;
+  }
 
   const connect = useCallback(() => {
     const resolved = resolveBrowserWsUrl(wsUrl);
@@ -63,7 +78,7 @@ export function useScreenWebSocket({
         type: "REGISTER",
         screenId,
         preview,
-        freshLaunch: !hasRegisteredRef.current,
+        freshLaunch: !hasRegisteredRef.current && openedFresh.current,
         // Diagnostic only — see the field's docblock in @platform/types.
         // Skipped for previews, whose viewport is an iframe in a CMS layout
         // and says nothing about the physical panel.

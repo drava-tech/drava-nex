@@ -53,7 +53,11 @@ import {
   PUBLISH_DRAG_END,
 } from "@/lib/publish-drag-protocol";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { screenContentUpdated, screensHydrated } from "@/store/screens-slice";
+import {
+  activeScreensUpdated,
+  screenContentUpdated,
+  screensHydrated,
+} from "@/store/screens-slice";
 
 /** How far / how fast a card must be swiped up before it counts as "publish" —
  * deliberately strict (near the card's full height) so an accidental brush
@@ -126,6 +130,8 @@ interface ContentCard {
 
 interface PublishBoardProps {
   initialScreens: ScreenRow[];
+  /** Connected screen ids at render time; the store keeps them current after. */
+  initialActiveScreenIds: string[];
   experiences: ExperienceOption[];
   experienceTypes: ExperienceTag[];
 }
@@ -140,6 +146,7 @@ interface PublishBoardProps {
  */
 export function PublishBoard({
   initialScreens,
+  initialActiveScreenIds,
   experiences,
   experienceTypes,
 }: PublishBoardProps) {
@@ -153,6 +160,19 @@ export function PublishBoard({
   const dispatch = useAppDispatch();
   const storeRows = useAppSelector((s) => s.screens.rows);
   const screens = storeRows.length > 0 ? storeRows : initialScreens;
+  // Kept live by StoreSync's ACTIVE_SCREENS_LIST — the same source the
+  // experiences list and browser view read for their online dots. This board
+  // targets exactly one panel (the 86" TV), so whether that panel is actually
+  // attached is the single most useful thing to show here. Seeded from the
+  // server prop and falling back to it until the socket's first list arrives,
+  // so the dot is never wrongly amber on the first frame (same shape as
+  // projects-list.tsx).
+  const storeActiveIds = useAppSelector((s) => s.screens.activeIds);
+  useEffect(() => {
+    dispatch(activeScreensUpdated(initialActiveScreenIds));
+  }, [dispatch, initialActiveScreenIds]);
+  const activeScreenIds =
+    storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds;
   const [targetIndex, setTargetIndex] = useState(restored.targetIndex);
   const [filter, setFilter] = useState<"experiences" | "media">(
     restored.filter,
@@ -197,7 +217,8 @@ export function PublishBoard({
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
     message: string;
-    tone: "success" | "error";
+    // "warning" = the push itself worked, but nothing was there to receive it.
+    tone: "success" | "warning" | "error";
   } | null>(null);
   const boxControls = useAnimation();
   const router = useRouter();
@@ -376,7 +397,13 @@ export function PublishBoard({
 
   useEffect(() => {
     if (!feedback) return;
-    const timer = setTimeout(() => setFeedback(null), 2500);
+    // A warning is the one banner that carries information the operator can't
+    // get anywhere else on this page (the wall is dead), so it stays up long
+    // enough to actually be read.
+    const timer = setTimeout(
+      () => setFeedback(null),
+      feedback.tone === "warning" ? 6000 : 2500,
+    );
     return () => clearTimeout(timer);
   }, [feedback]);
 
@@ -826,15 +853,26 @@ export function PublishBoard({
       });
       (async () => {
         try {
-          if (card.type === "experience") {
-            await assignExperience(screenId, card.id);
-          } else {
-            await assignMedia(screenId, card.id);
-          }
-          setFeedback({
-            message: `Pushed "${card.title}" to ${screenName}`,
-            tone: "success",
-          });
+          const result =
+            card.type === "experience"
+              ? await assignExperience(screenId, card.id)
+              : await assignMedia(screenId, card.id);
+          // The push can succeed at every layer — DB written, broadcast sent —
+          // and still change nothing, because the panel's page died and never
+          // reconnected. The optimistic dispatch above has already moved this
+          // board's "now showing" line, so without this the operator has no way
+          // to tell a live wall from a dead one.
+          setFeedback(
+            result.players === 0
+              ? {
+                  message: `Pushed "${card.title}", but no display is connected to ${screenName}`,
+                  tone: "warning",
+                }
+              : {
+                  message: `Pushed "${card.title}" to ${screenName}`,
+                  tone: "success",
+                },
+          );
           // Delayed to match SwipeCard's own local fly-off/reset timeout
           // (CARD_RESET_MS) below — otherwise a fast response can start the
           // full-screen cover while the card is still mid-animation.
@@ -883,6 +921,9 @@ export function PublishBoard({
 
         <DropZone
           screen={targetScreen}
+          isOnline={
+            targetScreen ? activeScreenIds.includes(targetScreen.screenId) : false
+          }
           isPushing={pushingId !== null}
           controls={boxControls}
         />
@@ -909,7 +950,9 @@ export function PublishBoard({
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
               feedback.tone === "success"
                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-red-500/10 text-red-600 dark:text-red-400"
+                : feedback.tone === "warning"
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "bg-red-500/10 text-red-600 dark:text-red-400"
             }`}
           >
             {feedback.message}
@@ -1224,10 +1267,13 @@ export function PublishBoard({
 
 function DropZone({
   screen,
+  isOnline,
   isPushing,
   controls,
 }: {
   screen: ScreenRow | null;
+  /** Whether a real display is attached right now — false means a push lands nowhere. */
+  isOnline: boolean;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
 }) {
@@ -1236,12 +1282,26 @@ function DropZone({
       animate={controls}
       className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border-2 border-[#432992] bg-zinc-950 px-4 shadow-sm"
     >
-      <span className="truncate text-sm font-bold uppercase tracking-wide text-white">
-        {screen ? screen.screenName : "No screens registered yet"}
+      <span className="flex min-w-0 items-center gap-2">
+        {screen && (
+          <span
+            title={isOnline ? "Display connected" : "No display connected"}
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              isOnline ? "bg-emerald-400" : "bg-amber-400"
+            }`}
+          />
+        )}
+        <span className="truncate text-sm font-bold uppercase tracking-wide text-white">
+          {screen ? screen.screenName : "No screens registered yet"}
+        </span>
       </span>
       {screen && (
         <span className="shrink-0 truncate text-xs text-white/60">
-          {isPushing ? "Publishing…" : currentLabel(screen)}
+          {isPushing
+            ? "Publishing…"
+            : isOnline
+              ? currentLabel(screen)
+              : "Offline — nothing will change on the wall"}
         </span>
       )}
     </motion.div>

@@ -14,18 +14,34 @@ export async function getScreens() {
 }
 
 /**
+ * How many real displays actually received a push. `players: 0` means the
+ * assignment was written and broadcast correctly but no panel was connected to
+ * see it — the caller should warn rather than report a clean success.
+ */
+export interface PushResult {
+  players: number;
+}
+
+/**
  * Assign an experience to a screen. The API writes the DB (source of truth) and
  * pushes the derived content over WebSocket to the screen + CMS + UE subscribers.
  */
-export async function assignExperience(screenId: string, experienceId: string) {
+export async function assignExperience(
+  screenId: string,
+  experienceId: string
+): Promise<PushResult> {
   await requireGuestOrAdmin();
-  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/experience`, {
-    method: "POST",
-    body: JSON.stringify({ experienceId }),
-  });
+  const res = await apiFetch<{ players?: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/experience`,
+    {
+      method: "POST",
+      body: JSON.stringify({ experienceId }),
+    }
+  );
   if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
+  return { players: res.data?.players ?? 0 };
 }
 
 export async function addScreen(screenId: string, screenName: string) {
@@ -109,15 +125,22 @@ export async function setScreenWhiteboardSession(screenId: string, documentId: s
  * asset), or clear the current assignment with null so it falls back to the
  * screen's default/idle media.
  */
-export async function assignMedia(screenId: string, mediaAssetId: string | null) {
+export async function assignMedia(
+  screenId: string,
+  mediaAssetId: string | null
+): Promise<PushResult> {
   await requireGuestOrAdmin();
-  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media`, {
-    method: "POST",
-    body: JSON.stringify({ mediaAssetId }),
-  });
+  const res = await apiFetch<{ players?: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/media`,
+    {
+      method: "POST",
+      body: JSON.stringify({ mediaAssetId }),
+    }
+  );
   if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
+  return { players: res.data?.players ?? 0 };
 }
 
 /**
