@@ -27,7 +27,6 @@ All three are routed through Nginx on port 80: `/` → CMS (incl. `/screens` adm
 | `@platform/types` | Shared TypeScript type contracts — the canonical source; never duplicate types in apps |
 | `@platform/iot` | MQTT client wrapper (`MQTTDeviceManager`) used by the API |
 | `@platform/ui` | Shared React component library (Tailwind 4, CVA, clsx, tailwind-merge) |
-| `@platform/config` | Shared ESLint and TypeScript config presets |
 
 Only `apps/api` has a direct DB connection (Postgres is the single source of truth). The CMS
 writes the DB via server actions, then pushes content to screens over the WebSocket (via

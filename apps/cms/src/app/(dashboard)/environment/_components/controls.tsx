@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
+import { DragSlider } from "@/components/drag-slider";
 
 export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-gradient-to-r from-[#1B006D] to-[#8A5CFF]" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
   // Single click/tap on the track sets the value directly at that position —
@@ -114,3 +115,11 @@ export function ClimateControlIcon({ type, active }: { type: "swing" | "timer" |
     </div>
   );
 }
+
+/**
+ * Re-exported so this page keeps its single controls import. The
+ * implementation moved to components/drag-slider.tsx when the video scrub bar
+ * started needing it too — a shared control must not live inside one route's
+ * private _components folder.
+ */
+export { DragSlider };

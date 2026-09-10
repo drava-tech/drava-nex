@@ -35,6 +35,13 @@ export function useScreenWebSocket({
 }: UseScreenWebSocketOptions): UseScreenWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // See the identical flag in useCmsScreenSync.ts. `onclose` fires after the
+  // effect cleanup has already cleared the pending reconnect timer, so without
+  // this an unmounted hook scheduled a connect() nothing could cancel. That
+  // mattered most on the publish round trip (board -> live page -> back), which
+  // stranded an immortal `preview` socket per cycle — inflating the screen
+  // registry and amplifying every drag-progress frame across the zombies.
+  const closedRef = useRef(false);
   const [status, setStatus] = useState<WsStatus>("connecting");
   const onContentUpdateRef = useRef(onContentUpdate);
   onContentUpdateRef.current = onContentUpdate;
@@ -42,6 +49,28 @@ export function useScreenWebSocket({
   onCameraStatusUpdateRef.current = onCameraStatusUpdate;
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
+  // True once this hook has sent its first REGISTER. Persists across the
+  // reconnect loop below (never a dep of `connect`) so only the very first
+  // REGISTER of this JS context's lifetime — i.e. a real kiosk process
+  // (re)start, since a page load/navigation always creates a fresh context —
+  // carries freshLaunch: true. An ordinary reconnect after a network blip
+  // within the same page load must NOT look like a fresh launch.
+  const hasRegisteredRef = useRef(false);
+  // …but a fresh JS context alone is too broad: pressing F5 on the wall builds
+  // one too, and the gateway answers freshLaunch by wiping the screen's
+  // assignment back to idle (gateway.ts, resetScreenToIdle). A refresh has to
+  // keep what is on the wall; only genuinely (re)opening the URL — a kiosk
+  // process start, or closing the tab and going back to it — should come up
+  // clean. Navigation Timing is what separates the two. A browser that doesn't
+  // report an entry falls back to the old behaviour rather than never
+  // resetting.
+  const openedFresh = useRef(true);
+  if (typeof performance !== "undefined") {
+    const navType = (
+      performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
+    )?.type;
+    if (navType === "reload" || navType === "back_forward") openedFresh.current = false;
+  }
 
   const connect = useCallback(() => {
     const resolved = resolveBrowserWsUrl(wsUrl);
@@ -52,7 +81,27 @@ export function useScreenWebSocket({
 
     ws.onopen = () => {
       setStatus("connected");
-      const reg: WsClientMessage = { type: "REGISTER", screenId, preview };
+      const reg: WsClientMessage = {
+        type: "REGISTER",
+        screenId,
+        preview,
+        freshLaunch: !hasRegisteredRef.current && openedFresh.current,
+        // Diagnostic only — see the field's docblock in @platform/types.
+        // Skipped for previews, whose viewport is an iframe in a CMS layout
+        // and says nothing about the physical panel.
+        ...(preview
+          ? {}
+          : {
+              viewport: {
+                dpr: window.devicePixelRatio,
+                innerW: window.innerWidth,
+                innerH: window.innerHeight,
+                screenW: window.screen.width,
+                screenH: window.screen.height,
+              },
+            }),
+      };
+      hasRegisteredRef.current = true;
       ws.send(JSON.stringify(reg));
     };
 
@@ -77,6 +126,7 @@ export function useScreenWebSocket({
     };
 
     ws.onclose = () => {
+      if (closedRef.current) return; // unmounted — do not resurrect
       setStatus("disconnected");
       reconnectRef.current = setTimeout(connect, 3_000);
     };
@@ -85,8 +135,10 @@ export function useScreenWebSocket({
   }, [screenId, wsUrl, preview]);
 
   useEffect(() => {
+    closedRef.current = false;
     connect();
     return () => {
+      closedRef.current = true;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };

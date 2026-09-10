@@ -43,7 +43,9 @@ export function StreamRenderer({
         inset: 0,
         width: "100vw",
         height: "100vh",
-        objectFit: "cover",
+        // Matches VideoRenderer — see the note there. cover crops and upscales
+        // any source that isn't the panel's aspect ratio.
+        objectFit: "contain",
         backgroundColor: "#000",
         display: "block",
       }}

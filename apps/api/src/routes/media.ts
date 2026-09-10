@@ -1,12 +1,15 @@
 import { Hono } from "hono";
 import fs from "fs";
 import fsPromises from "fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
-import { classifyLink } from "@platform/types";
+import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { classifyLink, listMediaQuerySchema } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
+import { generateThumbnail } from "../services/thumbnails.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
@@ -87,6 +90,9 @@ function toMediaItem(a: MediaAsset) {
     createdAt: new Date(a.createdAt).toISOString(),
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
     pendingSave: a.pendingSave,
+    // Null for videos, links, and any image predating the backfill — consumers
+    // resolve the fallback with mediaThumbnailSrc().
+    thumbnailUrl: a.thumbnailUrl,
   };
 }
 
@@ -118,15 +124,77 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets. ?source=email filters to just the
-// email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
+// GET /api/media — paginated media listing, in one of two modes:
+//
+//   offset (default)  ?page=&pageSize=      → { media, total, page, pageSize }
+//   cursor            ?mode=cursor&cursor=&limit=  → { media, nextCursor }
+//
+// Cursor mode is what /broadcast's carousel uses: it scrolls forward through a
+// list that gains rows at the head (Gmail ingest, MEDIA_LIBRARY_UPDATED), and
+// an offset window would repeat or skip cards every time that happens.
+//
+// Filters (search, types, sources, dateFrom, dateTo) apply identically to both.
+// The response key stays `media` — this route is one of the legacy ad-hoc
+// shapes deliberately kept out of the {success,data} envelope so always-on
+// display clients don't break (see apps/api/src/lib/response.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
-    const source = c.req.query("source");
-    const assets = await listMediaAssets(source ? { source } : undefined);
-    return c.json({ media: assets.map(toMediaItem) });
+    const raw = { ...c.req.query() };
+    // Legacy alias: ?source=email was the single-value form of ?sources=.
+    if (raw["source"] && !raw["sources"]) raw["sources"] = raw["source"];
+
+    const parsed = listMediaQuerySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid media query", details: parsed.error.issues }, 400);
+    }
+    const query = parsed.data;
+
+    if (query.mode === "cursor") {
+      const { items, nextCursor } = await listMediaAssetsCursor(query);
+      return c.json({ media: items.map(toMediaItem), nextCursor });
+    }
+
+    const { items, total, page, pageSize } = await listMediaAssets(query);
+    return c.json({ media: items.map(toMediaItem), total, page, pageSize });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
+  }
+});
+
+// GET /api/media/stats — whole-library aggregates for the dashboard media
+// cards (total count, bytes stored, per-type ratio, additions this week, and
+// the newest few uploads).
+//
+// These are library-wide figures, so they cannot be derived from a page of the
+// listing above. This exists so the dashboard stops downloading every media row
+// on mount, on every WS reconnect and on every browser tab focus just to sum
+// sizeBytes in the browser — COUNT/SUM/GROUP BY return a handful of rows here
+// however large the library gets.
+mediaRouter.get("/stats", requireGuestOrAdmin, async (c) => {
+  try {
+    // Same filter set as the listing, so /broadcast can ask "which media types
+    // exist under my current source/date filter?" and get an answer that agrees
+    // with the rows the listing will hand it.
+    const parsed = listMediaQuerySchema.safeParse({ ...c.req.query() });
+    if (!parsed.success) {
+      return c.json({ error: "Invalid media query", details: parsed.error.issues }, 400);
+    }
+    const stats = await getMediaLibraryStats(parsed.data);
+    return c.json({
+      total: stats.total,
+      totalBytes: stats.totalBytes,
+      byType: stats.byType,
+      recentCount: stats.recentCount,
+      recent: stats.recent.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        sizeBytes: r.sizeBytes,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to load media stats" }, 500);
   }
 });
 
@@ -245,13 +313,35 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     // Server-generated filename — never trust the client name for the path.
     const storedName = `${randomUUID()}${classified.ext}`;
-    const bytes = await file.arrayBuffer();
-    await fsPromises.writeFile(path.join(UPLOAD_DIR, storedName), Buffer.from(bytes));
+    const destPath = path.join(UPLOAD_DIR, storedName);
+
+    // Stream to disk rather than `Buffer.from(await file.arrayBuffer())`.
+    // MAX_UPLOAD_BYTES is 1 GiB, and that pair held the WHOLE file twice more
+    // in the single API process on top of what the multipart parse already
+    // holds — roughly 3x the file size resident at once, in a process that is
+    // also serving every screen. One large video was enough to push it over.
+    //
+    // Only images are materialised as a Buffer below, because generateThumbnail
+    // needs the bytes; those are megabytes, not gigabytes.
+    await pipeline(
+      Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]),
+      fs.createWriteStream(destPath)
+    );
 
     // Preserve a human-friendly display name (sanitized, never used as a path).
     const displayName = file.name.replace(/[^a-zA-Z0-9_.\- ]/g, "_").slice(0, 200) || storedName;
 
     const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
+
+    // Images get a small WebP tile so the media grid and the broadcast carousel
+    // stop downloading multi-megabyte originals to paint ~200px thumbnails.
+    // Best-effort by contract: null here just means consumers fall back to the
+    // original, so a sharp failure can never cost the user their upload. Done
+    // before the insert so the row is written once, already complete.
+    const thumbnailUrl =
+      classified.type === "image"
+        ? await generateThumbnail(UPLOAD_DIR, storedName, await fsPromises.readFile(destPath))
+        : null;
 
     const asset = await createMediaAsset({
       type: classified.type,
@@ -259,6 +349,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
       name: displayName,
       sizeBytes: file.size,
       source: "upload",
+      thumbnailUrl,
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
     broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
@@ -329,6 +420,11 @@ function serveMediaFile(
         "Accept-Ranges": "bytes",
         "Content-Length": String(end - start + 1),
         "Content-Type": mimeType,
+        // Must be set on the 206 path too, not just the full-file one below:
+        // a <video> element fetches almost exclusively by range, so a
+        // cache-control that only covers 200 responses never applies to the
+        // content that actually benefits from it.
+        ...(cacheControl ? { "Cache-Control": cacheControl } : {}),
       },
     });
   }
@@ -370,9 +466,17 @@ mediaStreamRouter.get("/", async (c) => {
 // images/video with no session, same as /display.
 export const mediaFilesRouter = new Hono();
 
+// Uploaded files are stored under a freshly-generated uuid name and never
+// rewritten in place — a re-upload produces a different URL — so a given
+// /media/<uuid>.<ext> is immutable for its whole life, exactly like the
+// code-shipped assets below. Without this a signage screen re-downloaded the
+// entire file on every push and every reload; for the 150 MB clips in this
+// library that is the difference between an instant cut and a visible stall.
+const UPLOAD_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 mediaFilesRouter.get("/:filename", async (c) => {
   const fileName = path.basename(c.req.param("filename"));
-  return serveMediaFile(c, fileName);
+  return serveMediaFile(c, fileName, UPLOAD_CACHE_CONTROL);
 });
 
 // Subdirectories holding large static assets that ship WITH the code (3D models,

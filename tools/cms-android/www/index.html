@@ -1,0 +1,68 @@
+<!--
+  Offline / load-failure page, wired up as server.errorPath in
+  capacitor.config.ts. Capacitor special-cases the exact error URL so it is
+  served from the APK's own assets even though server.url is remote — but only
+  that one URL. Sub-resources would be proxied to the network and fail, so this
+  page must stay entirely self-contained: inline CSS and JS only, no external
+  stylesheet, script, font or image.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>CMS</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px;
+    background: linear-gradient(to bottom, #01001F, #000000);
+    color: #E6E6F0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    text-align: center;
+    -webkit-user-select: none; user-select: none;
+  }
+  .card { max-width: 420px; }
+  h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0 0 8px; font-size: 15px; line-height: 1.55; color: #9A9AB0; }
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 14px; color: #C9C9DD;
+    background: rgba(255,255,255,0.06);
+    padding: 2px 7px; border-radius: 5px;
+  }
+  ul { margin: 18px 0 0; padding: 0; list-style: none; }
+  li { font-size: 14px; color: #7B7B92; line-height: 1.9; }
+  button {
+    margin-top: 26px; padding: 12px 30px;
+    font: inherit; font-size: 15px; font-weight: 500;
+    color: #01001F; background: #E6E6F0;
+    border: 0; border-radius: 8px; cursor: pointer;
+  }
+  button:active { opacity: 0.75; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Couldn't load the CMS</h1>
+    <p>This page didn't load from <code id="server">the CMS server</code>.</p>
+    <ul>
+      <li>Check this device is on the office Wi-Fi</li>
+      <li>Check the CMS server is powered on</li>
+    </ul>
+    <button type="button" id="retry">Back to the CMS</button>
+  </div>
+  <script>
+    // SERVER_URL is rewritten at build time by scripts/sync-ca.mjs to match
+    // server.url in capacitor.config.ts, so this page can never drift from it.
+    var SERVER_URL = 'https://192.168.1.250';
+    document.getElementById('server').textContent = SERVER_URL;
+    document.getElementById('retry').addEventListener('click', function () {
+      location.replace(SERVER_URL);
+    });
+  </script>
+</body>
+</html>

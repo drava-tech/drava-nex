@@ -7,6 +7,7 @@ import {
   resetDetection as resetDetectionAction,
   setScreenBlanked,
   advanceScreenQueue,
+  sendRemoteCommand,
 } from "@/actions/screen-actions";
 import type { CameraStatusUpdate } from "@platform/types";
 
@@ -22,11 +23,20 @@ interface UseScreenControlsOptions {
    */
   queueMediaIds?: string[];
   initialQueueIndex?: number;
+  /**
+   * Called with whatever content this screen switched to, from ANY source —
+   * this control panel, another admin tab, a queue step, a reset to idle, or
+   * a kiosk relaunch. Lets a caller keep its own notion of "what's live"
+   * honest instead of trusting a page-load snapshot.
+   */
+  /** `source` is carried because `type` alone can't identify YouTube — it
+   * shares the "html" wire type with PDF/slides/word/sheet/links. */
+  onContentUpdated?: (content: { id: string; type: string; source?: string }) => void;
 }
 
 /**
  * Shared live-control state for one screen — blank/resume, reset-detection,
- * reset-to-idle, and (optionally) queue position — backed by
+ * reset-to-idle, reset-state, and (optionally) queue position — backed by
  * a single useCmsScreenSync subscription. Extracted out of ScreenControlView
  * so the /screens/:screenId page and the /experiences/.../live/:deviceId page
  * run off one implementation instead of two copies of the same optimistic
@@ -38,6 +48,7 @@ export function useScreenControls({
   initialShowTouchpad = false,
   queueMediaIds,
   initialQueueIndex = 0,
+  onContentUpdated,
 }: UseScreenControlsOptions) {
   const [online, setOnline] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CameraStatusUpdate | null>(null);
@@ -45,6 +56,7 @@ export function useScreenControls({
 
   const [resetting, setResetting] = useState(false);
   const [resettingToIdle, setResettingToIdle] = useState(false);
+  const [resettingState, setResettingState] = useState(false);
   const [blanked, setBlanked] = useState(initialBlanked);
   const [togglingBlank, setTogglingBlank] = useState(false);
 
@@ -59,6 +71,7 @@ export function useScreenControls({
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
       setShowTouchpad(content.type === "html");
+      onContentUpdated?.({ id: content.id, type: content.type, source: content.source });
       // Keeps the "N of M" counter in sync across every open control panel
       // (another tab, a second admin) — derived from the live content id
       // rather than a bespoke WS message.
@@ -94,6 +107,18 @@ export function useScreenControls({
       console.error("Failed to reset to idle:", err);
     } finally {
       setResettingToIdle(false);
+    }
+  };
+
+  // Resets the active content to its initial state (e.g. portfolio 1st frame, slide 0)
+  const resetState = async () => {
+    setResettingState(true);
+    try {
+      await sendRemoteCommand(screenId, "RESET_STATE");
+    } catch (err) {
+      console.error("Failed to reset content state:", err);
+    } finally {
+      setResettingState(false);
     }
   };
 
@@ -135,6 +160,8 @@ export function useScreenControls({
     resetDetection,
     resettingToIdle,
     resetToIdle,
+    resettingState,
+    resetState,
     queueIndex,
     navigatingQueue,
     navigateQueue,

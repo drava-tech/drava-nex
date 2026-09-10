@@ -6,9 +6,56 @@ import {
   mediaEmbedUrl,
   mediaAssetToWsContent,
   normalizeUrl,
+  PDF_VIEWER_PATH,
   SLIDES_VIEWER_PATH,
   WORD_VIEWER_PATH,
 } from "@platform/types";
+
+describe("document media type", () => {
+  it("is a recognised media type, and not a link kind", () => {
+    expect(isMediaType("document")).toBe(true);
+    // Uploaded from a file, so the UI must still offer Download for it.
+    expect(isLinkMediaType("document")).toBe(false);
+  });
+
+  it("embeds through our own PDF.js viewer — no kiosk variant, since the viewer owns its chrome", () => {
+    const url = "/media/deck.pdf";
+    const encoded = encodeURIComponent(url);
+
+    expect(mediaEmbedUrl("document", url)).toBe(`${PDF_VIEWER_PATH}?src=${encoded}`);
+    expect(mediaEmbedUrl("document", url, { kiosk: true })).toBe(`${PDF_VIEWER_PATH}?src=${encoded}`);
+  });
+
+  it("no longer hands the browser's built-in viewer its Open Parameters", () => {
+    // Guards the migration off Chromium's built-in viewer: those parameters
+    // only ever meant anything to it, and it can neither be driven remotely
+    // nor resumed where it was left.
+    const embedded = mediaEmbedUrl("document", "/media/deck.pdf", { kiosk: true });
+    expect(embedded).not.toContain("#toolbar=0");
+    expect(embedded).not.toContain("view=FitH");
+  });
+
+  it("still ends in .pdf, which is why the renderer must not sniff PDFs by URL shape", () => {
+    // The src is percent-encoded into the query, so a naive /\.pdf$/ test
+    // matches our viewer route too. HtmlRenderer used to do exactly that and
+    // would have stripped this frame's sandbox; it now matches on the viewer
+    // path instead. Encoded here so the trap can't be reintroduced silently.
+    const embedded = mediaEmbedUrl("document", "/media/deck.pdf", { kiosk: true });
+    expect(/\.pdf(#|\?|$)/i.test(embedded)).toBe(true);
+    expect(embedded.startsWith(PDF_VIEWER_PATH)).toBe(true);
+  });
+
+  it("reaches a screen as an embedded page", () => {
+    const content = mediaAssetToWsContent({
+      id: "asset-pdf",
+      type: "document",
+      url: "/media/deck.pdf",
+      name: "deck.pdf",
+    });
+    expect(content.type).toBe("html");
+    expect(content.source).toContain(PDF_VIEWER_PATH);
+  });
+});
 
 describe("presentation media type", () => {
   it("is a recognised media type, and not a link kind", () => {

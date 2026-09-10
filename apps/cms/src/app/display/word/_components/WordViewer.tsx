@@ -1,18 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Centered, resolveSource } from "../../_components/viewer-common";
+import { connectFrameBridge } from "@/lib/display/frame-bridge";
+import { ZOOM_IN, ZOOM_OUT, clampZoom, stepZoom } from "@/lib/display/zoom-protocol";
 
-/** Only same-origin/relative sources are loadable — anything else fails CORS anyway. */
-function resolveSource(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
+/** Body text size at zoom 1. Everything else in .word-doc is sized in `em`, so
+ * scaling this one value scales the whole document proportionally. */
+const BASE_FONT_PX = 16;
+
+/**
+ * Absolute view state, mirroring PdfView / SlidesView. Only zoom for now —
+ * this viewer had no remote control of any kind before, so scroll-position
+ * resume is a separate follow-up rather than something to bundle in here.
+ *
+ * `src` travels with it and is checked on apply, because the parent's replay
+ * buffer is keyed by command name rather than by content. The SET_ prefix is
+ * what earns the gateway caching and replay that makes a document come back at
+ * the zoom it was left at.
+ */
+interface WordView {
+  src: string;
+  zoom?: number;
 }
 
 export function WordViewer() {
@@ -22,6 +32,14 @@ export function WordViewer() {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zoom, setZoom] = useState(1);
+
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
+  /** False on the CMS mirror. Only the authoritative instance answers a delta
+   * command with an absolute SET_WORD_VIEW, or one remote zoom is echoed
+   * twice. */
+  const authoritativeRef = useRef(true);
 
   const load = useCallback(async (source: string) => {
     setLoading(true);
@@ -55,6 +73,39 @@ export function WordViewer() {
     void load(source);
   }, [src, load]);
 
+  // ─── Remote commands ──────────────────────────────────────────────────────
+  // This viewer had no inbound path at all until now — it rendered whatever it
+  // was given and ignored every command the display page relayed.
+  useEffect(() => {
+    const bridge = connectFrameBridge({
+      onInit: ({ preview }) => {
+        authoritativeRef.current = !preview;
+      },
+      onCommand: (command, value) => {
+        if (command === ZOOM_IN || command === ZOOM_OUT) {
+          const next = stepZoom(zoomRef.current, command === ZOOM_IN ? "in" : "out");
+          if (next === zoomRef.current) return; // at the clamp limit
+          zoomRef.current = next;
+          setZoom(next);
+          if (authoritativeRef.current) {
+            bridge.send("SET_WORD_VIEW", { src: resolveSource(src) ?? "", zoom: next } as WordView);
+          }
+        } else if (command === "SET_WORD_VIEW") {
+          const v = value as WordView | undefined;
+          if (!v) return;
+          // Guard against a leftover view for a different document — the
+          // parent's replay buffer is keyed by command, not by content.
+          const source = resolveSource(src);
+          if (v.src && source && v.src !== source) return;
+          const restored = clampZoom(v.zoom);
+          zoomRef.current = restored;
+          setZoom(restored);
+        }
+      },
+    });
+    return () => bridge.disconnect();
+  }, [src]);
+
   if (loading) {
     return <Centered>Loading document…</Centered>;
   }
@@ -71,14 +122,19 @@ export function WordViewer() {
     <div className="fixed inset-0 overflow-auto bg-[#0a0a0a]">
       <div
         className="word-doc mx-auto max-w-3xl px-8 py-12 text-zinc-200"
+        // Zoom reflows rather than magnifying: everything in .word-doc below is
+        // sized in `em`, so scaling the root size scales the whole document and
+        // the text stays crisp at any factor — the right behaviour for a
+        // continuous-text viewer, unlike the fixed-canvas PDF and slide ones.
+        style={{ fontSize: `${BASE_FONT_PX * zoom}px` }}
         // mammoth's output is semantic HTML converted from a document the
         // admin uploaded or emailed themselves — same trust level as the PDF/
         // pptx content this same route family already renders unsanitized.
         dangerouslySetInnerHTML={{ __html: html }}
       />
       <style jsx global>{`
+        /* font-size is set inline so remote zoom can drive it — see above. */
         .word-doc {
-          font-size: 16px;
           line-height: 1.7;
         }
         .word-doc h1, .word-doc h2, .word-doc h3, .word-doc h4 {
@@ -102,14 +158,6 @@ export function WordViewer() {
         }
         .word-doc th { font-weight: 600; background: rgba(255, 255, 255, 0.05); }
       `}</style>
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[#0a0a0a] p-8 text-center">
-      <p className={`text-lg ${tone === "error" ? "text-red-400" : "text-zinc-400"}`}>{children}</p>
     </div>
   );
 }

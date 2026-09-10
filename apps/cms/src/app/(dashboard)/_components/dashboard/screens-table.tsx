@@ -1,23 +1,24 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Film, Layers, Radio, Slash } from "lucide-react";
-import type { WsContent } from "@platform/types";
-import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
 import { LiquidPill } from "./liquid-pill";
+import type { ScreenRow } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { screensHydrated, activeScreensUpdated } from "@/store/screens-slice";
+import { SampleBadge } from "./sample-badge";
+
+/** Shown only when no screens exist at all — a fresh install. */
+const SAMPLE_SCREENS: ScreenDetail[] = [
+  { id: "main-screen", name: "Main Screen", content: "Showreel.mp4", contentKind: "media" },
+  { id: "lobby", name: "Lobby Display", content: "Welcome Screen", contentKind: "experience" },
+  { id: "facade", name: "Facade", content: "Unassigned", contentKind: "none" },
+];
 
 type ContentKind = "experience" | "live-stream" | "media" | "none";
 type ScreenStatus = "online" | "offline";
 
-interface ScreenRow {
-  screenId: string;
-  screenName: string;
-  currentContentKind: string | null;
-  experienceName: string | null;
-  mediaName: string | null;
-  defaultMediaName: string | null;
-  blanked: boolean;
-}
+
 
 interface ScreenDetail {
   id: string;
@@ -83,14 +84,6 @@ function toScreenDetail(row: ScreenRow): ScreenDetail {
   };
 }
 
-function getContentKind(content: WsContent): ContentKind {
-  if (content.id === "__idle__") return "none";
-  if (content.type === "experience") {
-    return content.templateKey === "live-stream" ? "live-stream" : "experience";
-  }
-  return "media";
-}
-
 export function ScreensList({
   initialScreens,
   initialActiveScreenIds,
@@ -98,52 +91,53 @@ export function ScreensList({
   initialScreens: ScreenRow[];
   initialActiveScreenIds: string[];
 }) {
-  const [screens, setScreens] = useState<ScreenDetail[]>(() =>
-    initialScreens.map(toScreenDetail),
+  const dispatch = useAppDispatch();
+  const storeRows = useAppSelector((st) => st.screens.rows);
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
+
+  useEffect(() => {
+    dispatch(screensHydrated(initialScreens));
+    dispatch(activeScreensUpdated(initialActiveScreenIds));
+  }, [dispatch, initialScreens, initialActiveScreenIds]);
+
+  // Props until the hydrate dispatch lands, store after — the effect above runs
+  // only once the first paint is done, so without this the table renders empty.
+  const rows = storeRows.length > 0 ? storeRows : initialScreens;
+
+  // Derived, not stored. This used to be useState seeded at mount and then
+  // patched by a local WS handler; the row itself is now kept current by the
+  // store, so the view model is just a pure function of it and can never drift
+  // from what the other screen surfaces show.
+  const screens = useMemo(() => rows.map(toScreenDetail), [rows]);
+  const activeScreenIds = useMemo(
+    () => new Set(storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds),
+    [storeActiveIds, initialActiveScreenIds],
   );
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(
-    () => new Set(initialActiveScreenIds),
-  );
 
-  const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {
-    setScreens((current) =>
-      current.map((screen) =>
-        screen.id === screenId
-          ? {
-              ...screen,
-              content:
-                content.id === "__idle__"
-                  ? "Unassigned"
-                  : (content.title ?? "Updated content"),
-              contentKind: getContentKind(content),
-            }
-          : screen,
-      ),
-    );
-  }, []);
-
-  useCmsScreenSync({
-    onScreenUpdated: handleScreenUpdated,
-    onActiveScreensUpdated: (ids) => setActiveScreenIds(new Set(ids)),
-  });
-
-  if (screens.length === 0) {
-    return (
-      <p className="py-6 text-center text-sm text-slate-400">
-        No screens configured
-      </p>
-    );
-  }
+  // Placeholders rather than an empty card on a fresh install. Badged and
+  // dimmed — an operator must never read these as screens they actually own.
+  const isSample = screens.length === 0;
+  const shown = isSample ? SAMPLE_SCREENS : screens;
 
   return (
-    <ul className="flex flex-col divide-y divide-white/5">
-      {screens.map((screen) => {
+    <>
+    {isSample && (
+      <div className="px-6 pb-3">
+        <SampleBadge title="No screens configured yet — these are examples" />
+      </div>
+    )}
+    <ul className={`flex flex-col divide-y divide-white/5 ${isSample ? "opacity-50" : ""}`}>
+      {shown.map((screen) => {
         const Kind = kindMeta[screen.contentKind].icon;
-        const isOnline = activeScreenIds.has(screen.id);
+        const isOnline = isSample ? screen.id !== "facade" : activeScreenIds.has(screen.id);
         const status = statusMeta[isOnline ? "online" : "offline"];
 
         return (
-          <li key={screen.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+          // px-6 matches CardHeader's p-6, so a row lines up under the card
+          // title. The padding lives on the row and not on CardContent (which
+          // this card sets to px-0) so the divide-y rules still run the full
+          // width of the card instead of stopping short on both sides.
+          <li key={screen.id} className="flex items-center gap-3 px-6 py-3 first:pt-0 last:pb-0">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
               <Kind className="h-4 w-4" />
             </span>
@@ -169,6 +163,7 @@ export function ScreensList({
         );
       })}
     </ul>
+    </>
   );
 }
 

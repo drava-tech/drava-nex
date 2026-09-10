@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play, MoreVertical, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@platform/ui";
-import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { removeScreen, assignExperience, assignMedia, setScreenBlanked } from "@/actions/screen-actions";
+import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
+import type { ScreenRow } from "@platform/db";
 import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import { ScreenMirror } from "./screen-mirror";
 import { AddScreenModal } from "./add-screen-modal";
 import { GRADIENT_BORDER_IMAGE } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import type { WsContent } from "@platform/types";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { screensHydrated, activeScreensUpdated, screenContentUpdated } from "@/store/screens-slice";
+import { setScreenBlanked as setScreenBlankedThunk } from "@/store/screens-thunks";
 
 interface ScreenConfig {
   id: string;
@@ -18,19 +21,6 @@ interface ScreenConfig {
   contentType: "video" | "image" | "experience";
   contentValue: string;
   contentLabel?: string;
-  blanked: boolean;
-}
-
-interface ScreenRow {
-  screenId: string;
-  screenName: string;
-  currentContentKind: string | null;
-  currentExperienceId: string | null;
-  experienceName: string | null;
-  currentMediaAssetId: string | null;
-  mediaType: string | null;
-  mediaUrl: string | null;
-  mediaName: string | null;
   blanked: boolean;
 }
 
@@ -77,13 +67,22 @@ export function ScreensController({
 }: ScreensControllerProps) {
   const router = useRouter();
 
-  const [screens, setScreens] = useState<ScreenConfig[]>(() =>
-    initialScreens.map((row) => ({
+  const dispatch = useAppDispatch();
+  const storeRows = useAppSelector((st) => st.screens.rows);
+  // Props until the hydrate dispatch lands, store after.
+  const rows = storeRows.length > 0 ? storeRows : initialScreens;
+  // Derived, not stored. This was useState seeded at mount and then patched by
+  // hand from three places; the row is now kept current by the store, so the
+  // view model is a pure function of it and cannot drift from the other
+  // surfaces showing the same screens.
+  const screens = useMemo<ScreenConfig[]>(
+    () => rows.map((row) => ({
       id: row.screenId,
       name: row.screenName,
       blanked: row.blanked,
       ...deriveContentInfo(row),
-    }))
+    })),
+    [rows],
   );
   const [pickerTargetId, setPickerTargetId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -107,12 +106,11 @@ export function ScreensController({
   // Toggle the full-black overlay for a screen (Stop/Resume).
   const handleToggleBlank = async (screenId: string, next: boolean) => {
     setBlankingId(screenId);
-    updateScreen(screenId, { blanked: next });
     try {
-      await setScreenBlanked(screenId, next);
+      // The thunk owns the optimistic update and the rollback on failure.
+      await dispatch(setScreenBlankedThunk(screenId, next));
     } catch (err) {
       console.error("Failed to toggle screen blank state:", err);
-      updateScreen(screenId, { blanked: !next });
     } finally {
       setBlankingId(null);
     }
@@ -137,56 +135,61 @@ export function ScreensController({
       router.push(`/screens/${encodeURIComponent(screenId)}`);
     }
   };
+  // "Just changed" pulse. Previously stamped by this component's own WS handler;
+  // now derived by diffing the store rows, so it still fires for changes made
+  // anywhere (another tab, the touch picker) without a second subscription.
   const [liveUpdates, setLiveUpdates] = useState<Record<string, number>>({});
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
-
-  // Re-sync state whenever the server-provided screen list changes (e.g. after add/remove)
+  const previousRowsRef = useRef(rows);
   useEffect(() => {
-    setScreens(
-      initialScreens.map((row) => ({
-        id: row.screenId,
-        name: row.screenName,
-        blanked: row.blanked,
-        ...deriveContentInfo(row),
-      }))
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(initialScreens)]);
+    const before = previousRowsRef.current;
+    previousRowsRef.current = rows;
+    if (before === rows) return;
+    const changed = rows.filter((row) => {
+      const prev = before.find((r) => r.screenId === row.screenId);
+      return prev && (
+        prev.currentContentKind !== row.currentContentKind ||
+        prev.currentExperienceId !== row.currentExperienceId ||
+        prev.currentMediaAssetId !== row.currentMediaAssetId
+      );
+    });
+    if (changed.length === 0) return;
+    const stamp = Date.now();
+    setLiveUpdates((prev) => ({
+      ...prev,
+      ...Object.fromEntries(changed.map((row) => [row.screenId, stamp])),
+    }));
+  }, [rows]);
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
+  const activeScreenIds = useMemo(
+    () => new Set(storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds),
+    [storeActiveIds, initialActiveScreenIds],
+  );
 
-  const updateScreen = (id: string, updates: Partial<ScreenConfig>) => {
-    setScreens((prev) => prev.map((s) => s.id === id ? { ...s, ...updates } : s));
-  };
+  // Re-hydrate whenever the server-provided list changes (e.g. after add/remove,
+  // which router.refresh()es the page). SCREEN_UPDATED and ACTIVE_SCREENS_LIST
+  // are handled centrally by the store's StoreSync, so this component no longer
+  // needs its own socket or its own copy of that mapping.
+  useEffect(() => {
+    dispatch(screensHydrated(initialScreens));
+  }, [dispatch, initialScreens]);
 
-  const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {
-    const contentType: ScreenConfig["contentType"] =
-      content.type === "video" ? "video" :
-        content.type === "experience" ? "experience" : "image";
-    
-    // For video/image from live sync, content.source is already full url/path
-    updateScreen(screenId, { contentType, contentValue: content.source, contentLabel: content.title });
-    setLiveUpdates((prev) => ({ ...prev, [screenId]: Date.now() }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useCmsScreenSync({
-    onScreenUpdated: handleScreenUpdated,
-    onActiveScreensUpdated: (ids) => {
-      setActiveScreenIds(new Set(ids));
-    },
-  });
+  useEffect(() => {
+    dispatch(activeScreensUpdated(initialActiveScreenIds));
+  }, [dispatch, initialActiveScreenIds]);
 
   const handleAssign = async (screenId: string, content: WsContent) => {
-    const contentType: ScreenConfig["contentType"] =
-      content.type === "video" ? "video" :
-        content.type === "experience" ? "experience" : "image";
-
-    const contentValue = content.type === "experience" ? content.id : content.source;
-
-    updateScreen(screenId, { 
-      contentType, 
-      contentValue, 
-      contentLabel: content.title 
-    });
+    dispatch(screenContentUpdated(
+      content.type === "experience"
+        ? { screenId, kind: "experience", id: content.id, title: content.title ?? null }
+        : {
+            screenId,
+            kind: "media",
+            id: content.id,
+            title: content.title ?? null,
+            mediaType: content.type,
+            mediaUrl: content.source,
+          },
+    ));
     setPickerTargetId(null);
 
     if (content.type === "video" || content.type === "image") {
@@ -225,7 +228,7 @@ export function ScreensController({
           {/* Drag & Publish + Add screen row */}
           <div className="flex items-center justify-end gap-2 mb-6">
             <button
-              onClick={() => router.push("/push")}
+              onClick={() => router.push("/broadcast")}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 text-xs font-bold tracking-wider uppercase transition-colors"
             >
               <Send className="h-3.5 w-3.5" />

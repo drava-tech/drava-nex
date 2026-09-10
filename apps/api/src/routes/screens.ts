@@ -13,10 +13,11 @@ import {
   setScreenBlanked,
   getScreenContent,
   screenExists,
+  getRecentContentForScreen,
 } from "@platform/db";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent, setScreenWhiteboardDocument, getActiveWhiteboardDocuments, stopScreenWhiteboard } from "../ws/gateway.js";
+import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, getConnectedScreenIds, getConnectedPlayerCount, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent, setScreenWhiteboardDocument, getActiveWhiteboardDocuments, stopScreenWhiteboard } from "../ws/gateway.js";
 
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
@@ -49,6 +50,17 @@ screensRouter.get("/:screenId/config", async (c) => {
   return c.json({ screenId, content });
 });
 
+// GET /api/screens/:screenId/recent-content — up to 5 most-recently-pushed
+// pieces of content (media or experience) for this screen, newest first
+// (see recordScreenMediaPush/recordScreenExperiencePush). CMS-only surface,
+// unlike the reads above.
+screensRouter.get("/:screenId/recent-content", requireGuestOrAdmin, async (c) => {
+  const screenId = param(c, "screenId");
+  const items = await getRecentContentForScreen(screenId);
+  c.header("Cache-Control", "no-store, no-cache, must-revalidate");
+  return c.json({ items });
+});
+
 /** Push freshly-assigned content to screens, UE subscribers, and CMS tabs. */
 export async function pushScreenContent(screenId: string) {
   // Whatever's about to render here replaces what's on screen now, so any
@@ -73,6 +85,16 @@ export async function pushScreenContent(screenId: string) {
   const outgoing = content ?? IDLE_WS_CONTENT;
   broadcast({ screenId, content: outgoing, source: "cms" });
   broadcastToCms({ type: "SCREEN_UPDATED", screenId, content: outgoing, source: "cms" });
+  // A push to a screen with no player attached succeeds at every layer — the
+  // DB row is written, the broadcast goes out — and changes nothing on the
+  // wall, because the panel's page died and never reconnected. That used to be
+  // invisible: the CMS updates its own row optimistically, so a dead screen and
+  // a working one looked identical. Say so, here and in the response.
+  if (getConnectedPlayerCount(screenId) === 0) {
+    console.warn(
+      `[screens] pushed content to "${screenId}" but no display is connected — nothing changed on the wall.`
+    );
+  }
   return content ?? null;
 }
 
@@ -127,7 +149,9 @@ screensRouter.post("/:id/experience", requireGuestOrAdmin, async (c) => {
   setScreenBlankState(screenId, false);
   // Stale-whiteboard cleanup lives in pushScreenContent() now — see there.
   const content = await pushScreenContent(screenId);
-  return ok(c, { screenId, content });
+  // `players: 0` means the assignment stuck but no display was watching, so the
+  // CMS can warn instead of reporting a clean success.
+  return ok(c, { screenId, content, players: getConnectedPlayerCount(screenId) });
 });
 
 const assignMediaSchema = z.object({ mediaAssetId: z.string().min(1).nullable() });
@@ -146,7 +170,7 @@ screensRouter.post("/:id/media", requireGuestOrAdmin, async (c) => {
   clearTakeoverFlag(screenId);
   setScreenBlankState(screenId, false);
   const content = await pushScreenContent(screenId);
-  return ok(c, { screenId, content });
+  return ok(c, { screenId, content, players: getConnectedPlayerCount(screenId) });
 });
 
 const assignMediaQueueSchema = z.object({

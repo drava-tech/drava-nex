@@ -208,6 +208,71 @@ From the devices:
 
 ---
 
+## Screen PC helpers (screen-agent + audio bridge)
+
+Two Node helpers run on the Windows PC driving a screen. They can't live in the
+Linux API container: one injects real OS-level input, the other drives WASAPI.
+
+| Helper | Path | Does | Needs in `.env` |
+|---|---|---|---|
+| **screen-agent** | `apps/api/screen-agent/` | Moves the real mouse cursor for the CMS touchpad (nut-js) | `BROADCAST_SECRET`, `SCREEN_ID` (this PC's own screen id, matching its kiosk URL), optional `SCREEN_AGENT_WS_URL` |
+| **audio bridge** | `apps/api/audio-helper/` | System volume/mute; spawns `audio-helper.exe` (NAudio) as a child | `BROADCAST_SECRET`, optional `AUDIO_BRIDGE_WS_URL` |
+
+`screen-agent` installs its own dependencies — run `npm install` in that folder
+once per PC (it is deliberately outside the pnpm workspace, because nut-js has
+native bindings that must build on the target machine). The audio bridge
+resolves `ws` from the workspace, so that PC needs a `pnpm install` at the repo
+root.
+
+### How they start
+
+Both run **hidden, with no console window**, via a Scheduled Task per helper:
+
+```
+Task "ScreenAgent"  -> wscript.exe "...\apps\api\screen-agent\run-hidden.vbs"
+Task "AudioBridge"  -> wscript.exe "...\apps\api\audio-helper\run-hidden.vbs"
+```
+
+`run-hidden.vbs` launches `run.bat` with window style `0` (hidden). It waits on
+the child rather than returning immediately, so the task stays in the *Running*
+state — that is what lets Task Scheduler supervise it. Both tasks run
+**InteractiveToken as the logged-in user**: this is mandatory, not incidental.
+A Windows Service runs in session 0 and physically cannot inject input into the
+user's desktop, so a service-based setup would appear healthy while the touchpad
+silently did nothing.
+
+Each task has two triggers:
+- **At logon** — brings the helper up after a reboot.
+- **Every 5 minutes** — a watchdog. `MultipleInstances` is `IgnoreNew`, so this
+  is a no-op while the helper is alive, and restarts it within 5 minutes if it
+  died. Task Scheduler's own "restart on failure" setting does **not** cover
+  this: it only reacts to launch failures, not to a program exiting non-zero.
+
+### Logs
+
+`run.bat` redirects stdout+stderr to `agent.log` / `bridge.log` next to it.
+Without this, hiding the window would discard the only failure signal these
+programs have — a missing `BROADCAST_SECRET`/`SCREEN_ID` prints one line and
+exits, and `Registration rejected … Check BROADCAST_SECRET` is console-only.
+
+Logs are **self-erasing**: at ~2 MB the live file is moved over its single
+previous generation, so each helper is capped at ~4 MB forever. Nothing to
+clean up.
+
+### Debugging
+
+- Read `agent.log` / `bridge.log` first — a hidden helper reports nothing else.
+- To watch it live, run `run.bat` directly from a terminal (stop the task first,
+  or you will have two instances).
+- Set `SCREEN_AGENT_DEBUG=1` in `apps/api/screen-agent/.env` to log every cursor
+  move — the diagnostic that separates "commands aren't arriving" from "the
+  cursor is moving but Chrome isn't drawing it". Off by default because it fires
+  hundreds of times a second during a drag. Turn it back off afterwards.
+- The CMS already shows whether the agent is connected (the screen control page
+  reads "Screen agent not connected"); the log tells you *why*.
+
+---
+
 ## See also
 
 - [`networking.md`](./networking.md) — full port registry and nginx routing

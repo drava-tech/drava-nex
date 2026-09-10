@@ -32,3 +32,8 @@ Thumbs.db
 .turbo
 **/.turbo
 **/*.tsbuildinfo
+
+# Companion apps — native builds (Windows kiosk, Android shell). No Dockerfile
+# references them, and the generated Android project is megabytes of build
+# context nothing in the image needs.
+tools

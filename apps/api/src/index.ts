@@ -16,7 +16,9 @@ import { devicesRouter } from './routes/devices.js';
 import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
 import { startCasambiIngest } from './services/casambi-ingest.js';
 import { startIrIngest } from './services/ir-ingest.js';
+import { startHomeAssistantIngest } from './services/home-assistant-ingest.js';
 import { startGmailIngest } from './services/gmail-ingest.js';
+import { startScreenUptimeSampler } from './services/screen-uptime.js';
 import { screensRouter, pushScreenContent } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
@@ -68,6 +70,7 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
+startHomeAssistantIngest();
 void startGmailIngest();
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
@@ -197,6 +200,7 @@ resetAllScreensToIdle()
   .finally(() => {
     httpServer.listen(PORT, () => {
       audioService.start();
+      startScreenUptimeSampler();
       console.info('');
       console.info('┌─────────────────────────────────────────────────────────┐');
       console.info('│          @platform/api  —  CMS Platform Gateway         │');

@@ -7,6 +7,8 @@ import {
   getScreenWhiteboardState,
   setScreenWhiteboardState,
   getScreenBlanked,
+  resetScreenToIdle,
+  clearRecentContentForScreen,
 } from '@platform/db';
 import {
   isWhiteboardCommand,
@@ -20,6 +22,7 @@ import {
   type WhiteboardSurface,
   type WhiteboardStroke,
 } from '../services/whiteboard-state.js';
+import { IDLE_WS_CONTENT } from '@platform/types';
 import type {
   CameraStatus,
   CameraStatusUpdate,
@@ -43,15 +46,74 @@ const screenRegistry = new Map<string, Set<WebSocket>>();
 const cmsRegistry = new Set<WebSocket>();
 // Last known content per screen — fast path for WELCOME on reconnect
 const contentCache = new Map<string, WsContent>();
-// Last in-template view state per screen, one slot per distinct "SET_*"
-// command name — a template can have independently-nested state (e.g.
-// portfolio's SET_PORTFOLIO_VIEW picks which category page is active, while
-// that category's own SET_FILM_VIEW picks which film within it), and a
-// single shared slot would let the inner command silently clobber the outer
-// one, losing "how did we even get to this page" on reconnect. So a client
-// that joins AFTER a navigation (e.g. a freshly-opened CMS mirror or a
-// reconnecting TV) converges to the current view. Cleared when content changes.
-const viewStateCache = new Map<string, Map<string, unknown>>();
+// In-template view state, per screen AND per content: screenId -> contentKey
+// -> (SET_* command -> value). Two levels of nesting, each for its own reason:
+//
+//  - Per COMMAND (innermost), because a template can have independently-nested
+//    state (portfolio's SET_PORTFOLIO_VIEW picks which category page is
+//    active, while that category's own SET_FILM_VIEW picks which film within
+//    it). A single shared slot would let the inner command silently clobber
+//    the outer one, losing "how did we even get to this page".
+//  - Per CONTENT, so switching a screen away to something else and back
+//    RESUMES the first content where it was left instead of restarting it —
+//    the "backgrounded app" behaviour (portfolio -> a PDF -> portfolio comes
+//    back on the same category/film). Keeping each content's state under its
+//    own key is also what makes that safe: a replay only ever reads the slot
+//    for the content currently on screen, so one content's SET_* commands can
+//    never leak into a different one.
+//
+// Replayed both to a client that joins AFTER a navigation (a freshly-opened
+// CMS mirror or a reconnecting TV, via REGISTER) and to every client of a
+// screen when content is pushed to it (via broadcast), so the physical TV and
+// the CMS mirror always converge on the same view. In-memory only — a kiosk
+// restart (freshLaunch) and an API restart both deliberately wipe it.
+const viewStateCache = new Map<string, Map<string, Map<string, unknown>>>();
+// How many distinct contents keep a remembered position per screen, evicted
+// oldest-first. The values are tiny, so this is about bounding unbounded
+// growth on a long-lived screen, not about saving meaningful memory. Kept
+// comfortably above the 5 entries "Recently Opened" offers
+// (getRecentContentForScreen), so nothing an operator can still see in that
+// list has already had its position evicted here.
+const VIEW_STATE_MEMORY_PER_SCREEN = 10;
+
+/** Identity of a piece of content for view-state purposes — mirrors the
+ * id+type pair every "did the content actually change" check already uses. */
+function contentKeyOf(content: WsContent): string {
+  return `${content.type}:${content.id}`;
+}
+
+/** This content's remembered SET_* commands on this screen, if any. */
+function getViewState(screenId: string, content: WsContent): Map<string, unknown> | undefined {
+  return viewStateCache.get(screenId)?.get(contentKeyOf(content));
+}
+
+/**
+ * The slot to record this content's view state into, creating it if needed and
+ * evicting the screen's least-recently-used content once past the cap. Map
+ * iteration is insertion-ordered, so re-inserting on access is what keeps
+ * "least recently used" accurate.
+ */
+function touchViewState(screenId: string, content: WsContent): Map<string, unknown> {
+  let byContent = viewStateCache.get(screenId);
+  if (!byContent) {
+    byContent = new Map();
+    viewStateCache.set(screenId, byContent);
+  }
+
+  const key = contentKeyOf(content);
+  const existing = byContent.get(key);
+  const slot = existing ?? new Map<string, unknown>();
+  // Re-insert (delete first) so this key moves to the end = most recent.
+  byContent.delete(key);
+  byContent.set(key, slot);
+
+  while (byContent.size > VIEW_STATE_MEMORY_PER_SCREEN) {
+    const oldest = byContent.keys().next().value;
+    if (oldest === undefined) break;
+    byContent.delete(oldest);
+  }
+  return slot;
+}
 // Live whiteboard state per screen — reconstructed from SCREEN_INTERACTION
 // commands via the same reducer the CMS/TV clients use, and persisted to the
 // screen row on "settling" commands. Presence in this map means "active";
@@ -222,10 +284,31 @@ export function broadcastActiveScreensToCms() {
 }
 
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
+/**
+ * Send a content's remembered SET_* commands to whichever sockets are given —
+ * shared by the REGISTER replay (one joining socket) and by every content push
+ * (all of a screen's sockets). Insertion order matters: the outer command was
+ * set first, on the original navigation into the page, so it naturally
+ * replays before the inner one that refines it.
+ *
+ * Safe to send immediately after CONTENT_UPDATE without waiting for the new
+ * template to mount: clients dispatch these through dispatchReplayableEvent
+ * (packages/ui/src/lib/replayable-window-event.ts), which buffers the last
+ * value per event name so a listener mounting later still catches up.
+ */
+function sendViewStateTo(sockets: Iterable<WebSocket>, screenId: string, content: WsContent): void {
+  const state = getViewState(screenId, content);
+  if (!state) return;
+  for (const [command, value] of state) {
+    const frame = JSON.stringify({ type: 'SCREEN_COMMAND', command, value, timestamp: Date.now() });
+    for (const ws of sockets) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+    }
+  }
+}
+
 export function broadcast(req: BroadcastRequest): number {
   contentCache.set(req.screenId, req.content);
-  // New content resets the in-template view — drop any stale view state.
-  viewStateCache.delete(req.screenId);
 
   const msg: WsServerMessage = {
     type: 'CONTENT_UPDATE',
@@ -244,6 +327,10 @@ export function broadcast(req: BroadcastRequest): number {
       count++;
     }
   }
+  // Restore where this content was last left off, so re-pushing something the
+  // screen has shown before resumes it instead of restarting it — for the
+  // physical TV and any CMS mirror alike, since both are in this same set.
+  sendViewStateTo(sockets, req.screenId, req.content);
   return count;
 }
 
@@ -335,7 +422,6 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
     const content = await getScreenContent(screenId);
     if (content) {
       contentCache.set(screenId, content);
-      viewStateCache.delete(screenId);
 
       const update: WsServerMessage = {
         type: 'CONTENT_UPDATE',
@@ -344,7 +430,7 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
         timestamp: Date.now(),
       };
       const frame = JSON.stringify(update);
-      
+
       const sockets = screenRegistry.get(screenId);
       if (sockets) {
         for (const sock of sockets) {
@@ -352,6 +438,9 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
             sock.send(frame);
           }
         }
+        // Reverting off a detection takeover resumes the underlying content
+        // where it was left, same as any other push (see broadcast).
+        sendViewStateTo(sockets, screenId, content);
       }
 
       broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
@@ -364,7 +453,6 @@ export async function resetScreenTakeover(screenId: string): Promise<boolean> {
 /** Push a CONTENT_UPDATE to a screen's live sockets + notify CMS watchers. */
 function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
   contentCache.set(screenId, content);
-  viewStateCache.delete(screenId);
 
   const update: WsServerMessage = { type: 'CONTENT_UPDATE', screenId, content, timestamp: Date.now() };
   const frame = JSON.stringify(update);
@@ -373,6 +461,7 @@ function pushContentUpdateToScreen(screenId: string, content: WsContent): void {
     for (const sock of sockets) {
       if (sock.readyState === WebSocket.OPEN) sock.send(frame);
     }
+    sendViewStateTo(sockets, screenId, content);
   }
 
   broadcastToCms({ type: 'SCREEN_UPDATED', screenId, content, source: 'cms' });
@@ -551,25 +640,44 @@ export function getLiveObjectRecognitionContent(screenId: string): WsContent | n
   };
 }
 
+/**
+ * Real (non-preview) players currently attached to one screen, pruning any
+ * socket that has since closed. A CMS preview iframe deliberately doesn't
+ * count: it mirrors the push in the operator's own browser, which is exactly
+ * the thing that makes a dead wall panel look alive.
+ */
+function countLivePlayers(id: string, sockets: Set<WebSocket>): number {
+  let liveCount = 0;
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      if (!(ws as WebSocket & { isPreview?: boolean }).isPreview) liveCount++;
+    } else {
+      sockets.delete(ws);
+    }
+  }
+  if (sockets.size === 0) screenRegistry.delete(id);
+  return liveCount;
+}
+
 export function getConnectedScreenIds(): string[] {
   return Array.from(screenRegistry.keys()).filter((id) => {
     const sockets = screenRegistry.get(id);
     if (!sockets) return false;
-    let liveCount = 0; // real (non-preview) players only
-    for (const ws of sockets) {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        if (!(ws as WebSocket & { isPreview?: boolean }).isPreview) liveCount++;
-      } else {
-        sockets.delete(ws);
-      }
-    }
-    if (sockets.size === 0) {
-      screenRegistry.delete(id);
-      return false;
-    }
     // Online only when at least one real player (not just CMS preview iframes) is connected.
-    return liveCount > 0;
+    return countLivePlayers(id, sockets) > 0;
   });
+}
+
+/**
+ * How many real displays would actually see a push to this screen right now.
+ * Zero means the content was written and broadcast correctly but nobody was
+ * listening — the CMS surfaces that rather than reporting a plain success (see
+ * pushScreenContent in routes/screens.ts).
+ */
+export function getConnectedPlayerCount(screenId: string): number {
+  const sockets = screenRegistry.get(screenId);
+  if (!sockets) return 0;
+  return countLivePlayers(screenId, sockets);
 }
 
 // ─── Gateway factory ──────────────────────────────────────────────────────────
@@ -627,6 +735,21 @@ export function createGateway(): WebSocketServer {
           screenRegistry.get(sid)!.add(ws);
           broadcastActiveScreensToCms();
 
+          // Diagnostic only, logged rather than stored — this is the one place
+          // the platform can see what a physical panel is really rendering at,
+          // since the kiosk runs with devtools disabled. dpr !== 1, or inner
+          // much smaller than screen, means the page composites below native
+          // resolution and everything is upscaled to fit.
+          // `docker logs cms-api | grep viewport` after a screen reconnects.
+          if (msg.viewport) {
+            const v = msg.viewport;
+            const native = v.innerW * v.dpr >= v.screenW ? 'native' : 'UPSCALED';
+            console.log(
+              `[gateway] ${sid} viewport ${v.innerW}x${v.innerH} @dpr ${v.dpr} ` +
+                `on a ${v.screenW}x${v.screenH} screen — ${native}`
+            );
+          }
+
           for (const status of cameraStatusCache.values()) {
             if (status.screenId === sid && ws.readyState === WebSocket.OPEN) {
               const msg: WsServerMessage = { type: 'CAMERA_STATUS_UPDATE', ...status };
@@ -640,24 +763,12 @@ export function createGateway(): WebSocketServer {
             ws.send(JSON.stringify(welcome));
           };
 
-          // After WELCOME, replay every cached in-template view-state command to
-          // THIS socket only, so a late joiner lands on the same page/video —
-          // ALL of them, not just the most recent, since outer/inner nested
-          // state (e.g. portfolio's SET_PORTFOLIO_VIEW + a category's own
-          // SET_FILM_VIEW) live in independent slots. Map iteration order is
-          // insertion order, so the outer command (set first, on the original
-          // navigation into it) naturally replays before the inner one.
-          const replayViewState = () => {
-            const vs = viewStateCache.get(sid);
-            if (!vs || ws.readyState !== WebSocket.OPEN) return;
-            for (const [command, value] of vs) {
-              ws.send(JSON.stringify({
-                type: 'SCREEN_COMMAND',
-                command,
-                value,
-                timestamp: Date.now(),
-              }));
-            }
+          // After WELCOME, replay the CURRENT content's cached view-state
+          // commands to THIS socket only, so a late joiner lands on the same
+          // page/video the screen is already on.
+          const replayViewState = (content: WsContent) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            sendViewStateTo([ws], sid, content);
           };
 
           // If a whiteboard is live on this screen, resume it for the newly
@@ -718,33 +829,80 @@ export function createGateway(): WebSocketServer {
               .catch((err) => console.error('[gateway] Blanked-state lookup failed for', sid, err));
           };
 
-          const cached = contentCache.get(sid);
-          if (cached) {
-            sendWelcome(cached);
-            replayViewState();
-            replayWhiteboardState();
-            replayBlankState();
-          } else {
-            // Cache is empty (e.g. right after an API restart). Fall back to the
-            // authoritative DB so the screen syncs to current content on connect
-            // instead of staying on stale page-load content.
-            void getScreenContent(sid).then((dbContent) => {
-              // Same DB-is-never-live-truth gap as pushScreenContent — an
-              // API restart wipes this in-memory cache, so without this a
-              // reconnecting object-recognition screen would show the
-              // stale/default DB row until the mat next changes.
-              const content =
-                dbContent?.templateKey === 'object-recognition'
-                  ? getLiveObjectRecognitionContent(sid) ?? dbContent
-                  : dbContent;
-              if (content) {
-                contentCache.set(sid, content);
-                sendWelcome(content);
-                replayViewState();
-              }
+          // `onResolved` receives whatever content this screen actually
+          // settled on — the caller can't just assume idle, since the DB
+          // lookup below is async and may well resolve to real content.
+          const resolveAndSendWelcome = (onResolved?: (content: WsContent) => void) => {
+            const cached = contentCache.get(sid);
+            if (cached) {
+              sendWelcome(cached);
+              replayViewState(cached);
               replayWhiteboardState();
               replayBlankState();
-            }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
+              onResolved?.(cached);
+            } else {
+              // Cache is empty (e.g. right after an API restart, or just
+              // cleared below by a fresh-launch reset). Fall back to the
+              // authoritative DB so the screen syncs to current content on
+              // connect instead of staying on stale page-load content.
+              void getScreenContent(sid).then((dbContent) => {
+                // Same DB-is-never-live-truth gap as pushScreenContent — an
+                // API restart wipes this in-memory cache, so without this a
+                // reconnecting object-recognition screen would show the
+                // stale/default DB row until the mat next changes.
+                const resolved =
+                  dbContent?.templateKey === 'object-recognition'
+                    ? getLiveObjectRecognitionContent(sid) ?? dbContent
+                    : dbContent;
+                // Nothing assigned (and no default media) — still send
+                // WELCOME with the idle sentinel, same as pushScreenContent,
+                // so a client that was already rendering OLD content (e.g. a
+                // kiosk mid-freshLaunch-reset) actually gets told to switch
+                // to idle instead of silently hearing nothing and staying
+                // stuck on whatever it last rendered.
+                const content = resolved ?? IDLE_WS_CONTENT;
+                contentCache.set(sid, content);
+                sendWelcome(content);
+                if (resolved) replayViewState(resolved);
+                replayWhiteboardState();
+                replayBlankState();
+                onResolved?.(content);
+              }).catch((err) => console.error('[gateway] WELCOME lookup failed for', sid, err));
+            }
+          };
+
+          if (msg.freshLaunch && !msg.preview) {
+            // A real screen/kiosk process just (re)started (not a preview
+            // mirror, not a mid-session reconnect after a network blip) —
+            // clear this screen's stale in-memory state and reset its DB row
+            // to idle before resolving WELCOME, the same idea as
+            // resetScreensAndExit's boot/shutdown reset (apps/api/src/index.ts),
+            // but scoped to just this one screen instead of all of them.
+            // Deliberately destructive, including every remembered per-content
+            // view position: reopening the kiosk app is meant to come up idle
+            // with everything erased, not resume where it left off.
+            contentCache.delete(sid);
+            viewStateCache.delete(sid);
+            whiteboardStateCache.delete(sid);
+            setScreenBlankState(sid, false);
+            void Promise.all([
+              clearRecentContentForScreen(sid).catch((err) =>
+                console.error('[gateway] clearRecentContentForScreen failed for', sid, err)
+              ),
+              resetScreenToIdle(sid).catch((err) =>
+                console.error('[gateway] resetScreenToIdle failed for', sid, err)
+              ),
+            ]).finally(() => {
+              // Tell the CMS what this screen ACTUALLY settled on rather than
+              // assuming idle — normally that is idle (the reset above just
+              // ran), but hardcoding the sentinel made every CMS tab show
+              // "No content assigned" even when real content had resolved.
+              resolveAndSendWelcome((content) => {
+                broadcastToCms({ type: 'SCREEN_UPDATED', screenId: sid, content, source: 'screen' });
+              });
+            });
+          } else {
+            resolveAndSendWelcome();
           }
           break;
         }
@@ -852,7 +1010,6 @@ export function createGateway(): WebSocketServer {
                 dy: msg.dy,
                 deltaY: msg.deltaY,
                 deltaX: msg.deltaX,
-                direction: msg.direction,
                 button: msg.button,
               } satisfies WsServerMessage)
             );
@@ -864,8 +1021,6 @@ export function createGateway(): WebSocketServer {
         case 'CONTENT_CHANGE_REQUEST': {
           const { screenId, content } = msg;
           contentCache.set(screenId, content);
-          // New content resets the in-template view — drop any stale view state.
-          viewStateCache.delete(screenId);
 
           // Confirm to the requesting screen immediately
           const update: WsServerMessage = {
@@ -899,16 +1054,25 @@ export function createGateway(): WebSocketServer {
 
         case 'SCREEN_INTERACTION': {
           // Cache absolute view-state interactions so late joiners can
-          // converge — one slot per command name (see viewStateCache above),
-          // so an inner command (e.g. SET_FILM_VIEW) doesn't clobber an
-          // outer one (e.g. SET_PORTFOLIO_VIEW) for the same screen.
+          // converge, and so this content resumes here if the screen is
+          // switched away and later switched back — recorded against the
+          // content currently on screen (see viewStateCache above), one slot
+          // per command name so an inner command (e.g. SET_FILM_VIEW) doesn't
+          // clobber an outer one (e.g. SET_PORTFOLIO_VIEW).
           if (msg.command.startsWith('SET_')) {
-            let screenViewState = viewStateCache.get(msg.screenId);
-            if (!screenViewState) {
-              screenViewState = new Map();
-              viewStateCache.set(msg.screenId, screenViewState);
+            // No current content means there's nothing to attribute this
+            // position to — it would be unreplayable, so drop it.
+            const current = contentCache.get(msg.screenId);
+            if (current) {
+              touchViewState(msg.screenId, current).set(msg.command, msg.value);
             }
-            screenViewState.set(msg.command, msg.value);
+          }
+
+          if (msg.command === 'RESET_STATE' || msg.command === 'RESET_VIEW') {
+            const current = contentCache.get(msg.screenId);
+            if (current) {
+              viewStateCache.get(msg.screenId)?.delete(contentKeyOf(current));
+            }
           }
 
           if (isWhiteboardCommand(msg.command)) {
@@ -1041,9 +1205,6 @@ export function createGateway(): WebSocketServer {
           sockets.delete(ws);
           if (sockets.size === 0) {
             screenRegistry.delete(registeredScreenId);
-            // No clients left for this screen — forget its view state so a
-            // returning screen starts from its content's default view.
-            viewStateCache.delete(registeredScreenId);
           }
         }
         broadcastActiveScreensToCms();

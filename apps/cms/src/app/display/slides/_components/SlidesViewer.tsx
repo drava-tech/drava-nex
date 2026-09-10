@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Centered, resolveSource } from "../../_components/viewer-common";
+import { connectFrameBridge, type FrameBridge } from "@/lib/display/frame-bridge";
+import { ZOOM_IN, ZOOM_OUT, clampZoom, stepZoom } from "@/lib/display/zoom-protocol";
 
 // Metric-compatible, self-hosted replacements for the handful of Microsoft
 // Office fonts that actually show up in decks (Google's own substitutes,
@@ -215,17 +218,28 @@ interface Previewer {
   destroy: () => void;
 }
 
-/** Only same-origin/relative sources are loadable — anything else fails CORS anyway. */
-function resolveSource(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
+/**
+ * Absolute view state, mirroring PdfViewer's SET_PDF_VIEW. `src` travels with
+ * it and is checked on apply, because the parent's replay buffer is keyed by
+ * command name rather than by content — a leftover index from a previously
+ * shown deck must not be applied to this one.
+ *
+ * The SET_ prefix is what earns this gateway caching and replay (see
+ * viewStateCache in apps/api/src/ws/gateway.ts), which is what makes a deck
+ * resume on the slide it was left at when it is pushed again.
+ */
+interface SlidesView {
+  src: string;
+  index: number;
+  /**
+   * Magnification over fit-to-box, 1 = fit. Optional so a value cached by the
+   * gateway before zoom existed still restores — clampZoom turns a missing or
+   * corrupt one back into 1.
+   */
+  zoom?: number;
 }
+
+const EMIT_THROTTLE_MS = 200;
 
 export function SlidesViewer() {
   const params = useSearchParams();
@@ -240,10 +254,30 @@ export function SlidesViewer() {
   // instead of substituting, since the real font beats any stand-in.
   const embeddedFontsRef = useRef<Set<string>>(new Set());
 
+  const bridgeRef = useRef<FrameBridge | null>(null);
+  /** False on the CMS mirror. Only the authoritative instance answers a delta
+   * command with an absolute SET_SLIDES_VIEW, or one remote next-slide gets
+   * answered twice. */
+  const authoritativeRef = useRef(true);
+  const lastEmitRef = useRef(0);
+  const emitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingViewRef = useRef<SlidesView | null>(null);
+  /** The most recent inbound SET_SLIDES_VIEW, kept even while the deck is
+   * still downloading and parsing — the postMessage carrying it lands long
+   * before that finishes, so without this the initial render would have
+   * nothing left to restore from. */
+  const pendingRestoreRef = useRef<SlidesView | null>(null);
+
   const [slideCount, setSlideCount] = useState(0);
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zoom, setZoom] = useState(1);
+  /** Read inside goTo, which must keep a stable identity — it is a dependency
+   * of the bridge and keyboard effects, and re-registering those on every zoom
+   * step would tear the frame bridge down mid-session. */
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
 
   /**
    * Build (or rebuild) the previewer at the host's current pixel size. The
@@ -292,7 +326,29 @@ export function SlidesViewer() {
     setCurrent(index);
   }, []);
 
-  const goTo = useCallback((index: number) => {
+  /** Throttled with a guaranteed trailing emit, matching PdfViewer's emitView
+   * — holding an arrow key down would otherwise flood the socket and thrash
+   * the gateway's LRU cache. */
+  const emitView = useCallback((next: SlidesView) => {
+    if (!authoritativeRef.current) return;
+    pendingViewRef.current = next;
+
+    const flush = () => {
+      emitTimerRef.current = null;
+      const pending = pendingViewRef.current;
+      if (!pending) return;
+      pendingViewRef.current = null;
+      lastEmitRef.current = Date.now();
+      bridgeRef.current?.send("SET_SLIDES_VIEW", pending);
+    };
+
+    if (emitTimerRef.current) return; // already scheduled; it'll pick up the newest
+    const since = Date.now() - lastEmitRef.current;
+    if (since >= EMIT_THROTTLE_MS) flush();
+    else emitTimerRef.current = setTimeout(flush, EMIT_THROTTLE_MS - since);
+  }, []);
+
+  const goTo = useCallback((index: number, emit = true) => {
     const previewer = previewerRef.current;
     if (!previewer || previewer.slideCount === 0) return;
     // Wrap in both directions, so a screen loops the deck forever.
@@ -302,7 +358,29 @@ export function SlidesViewer() {
     const host = hostRef.current;
     if (host) patchFonts(host, embeddedFontsRef.current);
     setCurrent(next);
-  }, []);
+    if (emit) emitView({ src: resolveSource(src) ?? "", index: next, zoom: zoomRef.current });
+  }, [emitView, src]);
+
+  /**
+   * One zoom step, answered with the absolute view so the gateway caches it and
+   * the deck comes back at this magnification next time it is pushed.
+   *
+   * Implemented as a CSS transform on the host rather than by rebuilding the
+   * previewer at a larger size: init() re-parses the entire deck (see render()),
+   * which is why the resize observer is debounced to 200ms. Zoom has to feel
+   * like a button press, so it must not go anywhere near that path.
+   */
+  const applyZoom = useCallback((direction: "in" | "out") => {
+    const next = stepZoom(zoomRef.current, direction);
+    if (next === zoomRef.current) return; // already at the clamp limit
+    zoomRef.current = next;
+    setZoom(next);
+    emitView({
+      src: resolveSource(src) ?? "",
+      index: previewerRef.current?.currentIndex ?? 0,
+      zoom: next,
+    });
+  }, [emitView, src]);
 
   // Initial load.
   useEffect(() => {
@@ -323,7 +401,13 @@ export function SlidesViewer() {
         const buffer = await res.arrayBuffer();
         if (cancelled) return;
         bufferRef.current = buffer;
-        await render(buffer, 0);
+        // Resume where this deck was left off, if the gateway replayed a
+        // position for it while we were still loading. Anything else — a
+        // first-ever view, or a stale index belonging to a different deck —
+        // starts at the first slide. render() clamps to the real slide count.
+        const restore = pendingRestoreRef.current;
+        const startIndex = restore && restore.src === source ? restore.index : 0;
+        await render(buffer, startIndex);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Could not read this presentation");
@@ -379,7 +463,49 @@ export function SlidesViewer() {
     return () => window.removeEventListener("keydown", onKey);
   }, [goTo]);
 
-  const showControls = slideCount > 1 && !loading && !error;
+  // ─── Remote commands ──────────────────────────────────────────────────────
+  // Inbound had no path into this iframe until the frame bridge existed, which
+  // is why remote next/prev slide never worked here the way it does for PDF.
+  useEffect(() => {
+    const bridge = connectFrameBridge({
+      onInit: ({ preview }) => {
+        authoritativeRef.current = !preview;
+      },
+      onCommand: (command, value) => {
+        if (command === "NEXT_PAGE") goTo((previewerRef.current?.currentIndex ?? 0) + 1);
+        else if (command === "PREV_PAGE") goTo((previewerRef.current?.currentIndex ?? 0) - 1);
+        else if (command === ZOOM_IN) applyZoom("in");
+        else if (command === ZOOM_OUT) applyZoom("out");
+        else if (command === "SET_SLIDES_VIEW") {
+          const v = value as SlidesView | undefined;
+          if (!v || typeof v.index !== "number") return;
+          // Guard against a leftover view for a different deck — the parent's
+          // replay buffer is keyed by command, not by content.
+          const source = resolveSource(src);
+          if (v.src && source && v.src !== source) return;
+          const restoredZoom = clampZoom(v.zoom);
+          zoomRef.current = restoredZoom;
+          setZoom(restoredZoom);
+          // Held for the load effect too: this may well arrive before the deck
+          // has been fetched and parsed, in which case there is no previewer
+          // to move yet and the initial render must pick it up instead.
+          pendingRestoreRef.current = { ...v, src: v.src || source || "" };
+          // emit: false — this IS the echo of our own state, or another
+          // client's; re-emitting it would loop.
+          goTo(v.index, false);
+        }
+      },
+    });
+    bridgeRef.current = bridge;
+    return () => {
+      bridge.disconnect();
+      bridgeRef.current = null;
+      if (emitTimerRef.current) clearTimeout(emitTimerRef.current);
+      emitTimerRef.current = null;
+    };
+  }, [goTo, applyZoom, src]);
+
+  const showControls = (slideCount > 1 || zoom !== 1) && !loading && !error;
 
   return (
     <div className="fixed inset-0 bg-[#0a0a0a] text-zinc-100">
@@ -393,11 +519,61 @@ export function SlidesViewer() {
         .pptx-preview-wrapper-pre,
         .pptx-preview-wrapper-pagination { display: none !important; }
         .pptx-preview-wrapper { background: transparent !important; }
+        .slides-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       {/* Full-bleed now that controls float over the slide instead of
-          sharing a flex row with it — the deck gets the entire viewport. */}
-      <div ref={hostRef} className="absolute inset-0 overflow-hidden" />
+          sharing a flex row with it — the deck gets the entire viewport.
+          The outer div is a static clip boundary pinned to the viewport, so
+          a deck that letterboxes to a different aspect ratio than the screen
+          stays bounded to it rather than spilling past. */}
+      {/*
+        Zoom is a CSS transform, not a bigger render: the spacer below is
+        zoom x the viewport so there is something to pan around, while the host
+        keeps its ORIGINAL layout size (100/zoom % of a zoom-sized parent is
+        exactly the viewport again) and is scaled up visually. Keeping the
+        host's layout box constant is the whole point — the ResizeObserver
+        above watches it, and any change there re-parses the entire deck.
+      */}
+      <div
+        className="slides-scroll absolute inset-0"
+        style={{
+          // Signage must never show a scrollbar; hidden in the <style> above.
+          overflow: zoom > 1 ? "auto" : "hidden",
+          scrollbarWidth: "none",
+          overscrollBehavior: "none",
+          // Zoomed out, the spacer below is SMALLER than the viewport, and a
+          // block container would strand it in the top-left corner with dead
+          // space to the right and below. Flex centres it on both axes, which
+          // `margin: auto` alone cannot do vertically. Zoomed in the spacer
+          // overhangs and must stay a plain scrolling block.
+          ...(zoom < 1
+            ? { display: "flex", alignItems: "center", justifyContent: "center" }
+            : {}),
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: `${zoom * 100}%`,
+            height: `${zoom * 100}%`,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            ref={hostRef}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: `${100 / zoom}%`,
+              height: `${100 / zoom}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+            }}
+          />
+        </div>
+      </div>
 
       {loading && <Centered>Loading presentation…</Centered>}
       {error && <Centered tone="error">{error}</Centered>}
@@ -414,6 +590,7 @@ export function SlidesViewer() {
           </button>
           <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-zinc-400">
             {current + 1} / {slideCount}
+            {zoom !== 1 && ` · ${Math.round(zoom * 100)}%`}
           </span>
           <button
             onClick={() => goTo(current + 1)}
@@ -424,14 +601,6 @@ export function SlidesViewer() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Centered({ children, tone }: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[#0a0a0a] p-8 text-center">
-      <p className={`text-lg ${tone === "error" ? "text-red-400" : "text-zinc-400"}`}>{children}</p>
     </div>
   );
 }

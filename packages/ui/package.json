@@ -37,6 +37,10 @@
       "import": "./src/templates/gallery/index.ts",
       "types": "./src/templates/gallery/index.ts"
     },
+    "./playback-sync": {
+      "import": "./src/lib/playback-sync.ts",
+      "types": "./src/lib/playback-sync.ts"
+    },
     "./globals.css": "./src/globals.css"
   },
   "scripts": {
@@ -76,5 +80,6 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
-  }
+  },
+  "sideEffects": false
 }

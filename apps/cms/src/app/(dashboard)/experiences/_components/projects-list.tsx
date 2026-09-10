@@ -53,6 +53,8 @@ import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS, type TemplateKey } from "@/lib/templates";
 import { GRADIENT_BORDER_IMAGE } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import type { Experience } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { activeScreensUpdated } from "@/store/screens-slice";
 
 type ExperienceWithTypes = Experience & { typeIds: string[]; coverImage?: string | null };
 
@@ -355,7 +357,16 @@ export function ProjectsList({
   const [saving, setSaving] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [search, setSearch] = useState("");
-  const [activeScreenIds] = useState<Set<string>>(() => new Set(initialActiveScreenIds));
+  // From the store, so the online dots stay correct while the page is open.
+  // This was a frozen useState seeded once from server props — it never updated,
+  // so a screen going offline left a stale green dot until a full reload.
+  const dispatch = useAppDispatch();
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
+  useEffect(() => { dispatch(activeScreensUpdated(initialActiveScreenIds)); }, [dispatch, initialActiveScreenIds]);
+  const activeScreenIds = useMemo(
+    () => new Set(storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds),
+    [storeActiveIds, initialActiveScreenIds],
+  );
 
   const isFiltering = categoryFilter !== "all";
   const dragEnabled = isAdmin && !isFiltering && search.trim() === "";

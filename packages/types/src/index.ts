@@ -12,6 +12,9 @@ export * from "./visitors.js";
 // --- Media library → display content mapping (PDF/sheet/YouTube/Drive embeds) ---
 export * from "./media-content.js";
 
+// --- Media library listing (shared filter set + offset/cursor paging contract) ---
+export * from "./media-listing.js";
+
 // --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
 export * from "./flight-simulation.js";
 
@@ -133,6 +136,10 @@ export interface LightState {
   on: boolean;
   brightness?: number;
   color?: string;
+  /** 0-255 on the fixture's dedicated white channel. The Casambi gateway
+   *  advertises supported_color_modes: ["rgbw"], so this is a real fourth
+   *  channel, distinct from a white mixed out of full R+G+B. */
+  white?: number;
 }
 
 /**
@@ -235,20 +242,36 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
+      action: 'move' | 'click' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
       /** Horizontal scroll delta, for action 'scrollH'. */
       deltaX?: number;
-      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
-      direction?: 'in' | 'out';
       /** Which physical button a 'click' simulates — omitted means 'left'. */
       button?: 'left' | 'right';
     };
 
 export type WsClientMessage =
-  | { type: 'REGISTER'; screenId: string; preview?: boolean }
+  | {
+      type: 'REGISTER';
+      screenId: string;
+      preview?: boolean;
+      freshLaunch?: boolean;
+      /**
+       * What the display is actually rendering at. Diagnostic only — nothing
+       * branches on it, the gateway just logs it.
+       *
+       * Picture quality on a signage panel is decided almost entirely by
+       * whether the CSS viewport matches the physical panel, and that is set
+       * by the Windows display-scaling of a PC nobody can inspect remotely
+       * (the kiosk runs with devtools disabled). `dpr` other than 1, or an
+       * `inner` noticeably smaller than `screen`, means the page is
+       * compositing below native resolution and the output is being upscaled
+       * — see --force-device-scale-factor in tools/main-screen-kiosk.
+       */
+      viewport?: { dpr: number; innerW: number; innerH: number; screenW: number; screenH: number };
+    }
   | { type: 'CMS_REGISTER' }
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)
@@ -289,14 +312,12 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll' | 'scrollH' | 'zoom';
+      action: 'move' | 'click' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
       /** Horizontal scroll delta, for action 'scrollH'. */
       deltaX?: number;
-      /** Zoom direction, for action 'zoom' — simulated as Ctrl+scroll. */
-      direction?: 'in' | 'out';
       button?: 'left' | 'right';
     };
 
@@ -329,6 +350,12 @@ export type WsCmsMessage =
   // IR ingest observed the CrabController bridge going online/offline (status).
   // Drives the live Climate panel + Remotes overlay in Environment Control.
   | { type: 'IR_STATE_UPDATE'; deviceId: string; state?: Record<string, unknown>; status?: string }
+  // The door lock changed, pushed from Home Assistant's websocket by
+  // services/home-assistant-ingest.ts. Covers changes the CMS did not make
+  // (keypad, Yale app, HA dashboard, auto-lock) and the transient
+  // 'locking'/'unlocking' states HA emits while a command is in flight.
+  // Drives the live Security panel in Environment Control.
+  | { type: 'LOCK_STATE_UPDATE'; entityId: string; state: string; changedBy: string | null; lastChanged: string }
   // A screen's native screen-agent (apps/api/screen-agent) connected or
   // disconnected — drives the "Agent not connected" hint on the tablet
   // touchpad (see useScreenCursorControl). Broadcast on register/disconnect,

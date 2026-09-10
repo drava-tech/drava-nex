@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, AlertTriangle, RotateCw } from "lucide-react";
-import { mediaEmbedUrl, isPageMediaType } from "@platform/types";
+import { mediaEmbedUrl, isPageMediaType, documentKindOfMediaType } from "@platform/types";
 import { assignMedia } from "@/actions/screen-actions";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 
@@ -69,6 +69,7 @@ export function MediaPreviewModal({
       // listed item (upload, or a link kept earlier) shouldn't show the button.
       onSaveLink={media.pendingSave ? handleSaveLink : undefined}
       showTouchpad={showTouchpad}
+      documentKind={documentKindOfMediaType(media.type)}
       // Page-type content (link/YouTube/Drive/PDF/sheet/deck) hands off to the
       // routed touchpad at /browser/live/[deviceId] instead of swapping in
       // the in-popup LiveControlDialog — one touchpad surface, not two. Other
@@ -138,13 +139,6 @@ function EmbedSurface({ media }: { media: MediaItem }) {
   // Only arbitrary web pages hit framing headers — YouTube, Drive and our own
   // viewers all publish embeds built to be framed.
   const isWebPage = media.type === "link";
-  // Chromium's built-in PDF viewer is a privileged extension that refuses to
-  // run inside a sandboxed iframe at all — it shows a hard "This page has
-  // been blocked" screen instead of the document, so PDFs skip sandboxing
-  // entirely (a same-origin PDF poses none of the risk sandboxing guards
-  // against here).
-  const isRawPdf = media.type === "document";
-
   // Checked after mount so SSR markup and the first client render agree.
   useEffect(() => {
     setHasExtension(document.documentElement.hasAttribute(EXTENSION_MARKER));
@@ -163,10 +157,8 @@ function EmbedSurface({ media }: { media: MediaItem }) {
         src={src}
         title={media.name}
         onLoad={() => setMaybeBlocked(false)}
-        className="h-full w-full border-0 bg-white"
-        {...(!isRawPdf && {
-          sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation",
-        })}
+        className="h-full w-full border-0 bg-black"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation"
         allow="autoplay; encrypted-media; fullscreen; clipboard-write"
       />
 

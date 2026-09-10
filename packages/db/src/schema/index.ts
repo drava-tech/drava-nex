@@ -41,6 +41,10 @@ export { visitor } from "./visitors.js";
 // ─── Door Events (Yale lock webhook history) ──────────────────────────────────
 export { doorEvent } from "./door-events.js";
 
+// ─── Screen Content Push History ───────────────────────────────────────────────
+export { screenContentPush } from "./screen-content-pushes.js";
+export { screenStatusSample } from "./screen-status-samples.js";
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 export {
   userRelations,
@@ -76,6 +80,8 @@ export type { MediaAsset, NewMediaAsset } from "./media.js";
 export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-ingest.js";
 export type { Visitor, NewVisitor } from "./visitors.js";
 export type { DoorEvent, NewDoorEvent } from "./door-events.js";
+export type { ScreenContentPush, NewScreenContentPush } from "./screen-content-pushes.js";
+export type { ScreenStatusSample, NewScreenStatusSample } from "./screen-status-samples.js";
 export type {
   Product,
   NewProduct,

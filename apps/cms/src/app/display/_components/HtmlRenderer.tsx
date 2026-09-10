@@ -1,19 +1,57 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { SLIDES_VIEWER_PATH } from "@platform/types";
+import { PDF_VIEWER_PATH, SLIDES_VIEWER_PATH } from "@platform/types";
+import { lastReplayableDetail } from "@platform/ui";
 import type { HtmlContent } from "@/types/display";
+import {
+  FRAME_BRIDGE_SOURCE,
+  FRAME_FORWARDED_COMMANDS,
+  frameCommandEvent,
+  isBridgeMessage,
+  type FrameBridgeMessage,
+} from "@/lib/display/frame-bridge";
+import {
+  createPlaybackEmitter,
+  MEDIA_SEEK_EVENT,
+  MEDIA_TOGGLE_PLAY_EVENT,
+  MEDIA_SET_PLAYBACK_EVENT,
+  SET_PLAYBACK,
+  SEEK_TOLERANCE_SECONDS,
+  PLAYBACK_EMIT_THROTTLE_MS,
+  type MediaSeekPayload,
+  type PlaybackState,
+} from "@/lib/display/playback-protocol";
 
 interface YTPlayer {
   unMute(): void;
   setVolume(volume: number): void;
   setPlaybackQuality(suggestedQuality: string): void;
+  playVideo(): void;
+  pauseVideo(): void;
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  getCurrentTime(): number;
+  /** YT.PlayerState — 1 is PLAYING, which is the only value this cares about. */
+  getPlayerState(): number;
   destroy(): void;
 }
 
+/** YT.PlayerState.PLAYING. Not worth pulling in the whole enum for one check. */
+const YT_STATE_PLAYING = 1;
+
 declare global {
   interface Window {
-    YT?: { Player: new (el: HTMLElement, opts: { events?: { onReady?: (e: { target: YTPlayer }) => void } }) => YTPlayer };
+    YT?: {
+      Player: new (
+        el: HTMLElement,
+        opts: {
+          events?: {
+            onReady?: (e: { target: YTPlayer }) => void;
+            onStateChange?: (e: { data: number; target: YTPlayer }) => void;
+          };
+        }
+      ) => YTPlayer;
+    };
     onYouTubeIframeAPIReady?: () => void;
   }
 }
@@ -46,22 +84,16 @@ export function HtmlRenderer({
    * player can't produce sound in the CMS, only on the real TV. */
   preview?: boolean;
 }) {
-  // Chromium's built-in PDF viewer is a privileged extension that refuses to
-  // run inside a sandboxed iframe at all — it shows a hard "This page has
-  // been blocked" screen instead of the document. `source` is the only thing
-  // available here (no original asset type is threaded through the WS
-  // content model), so detect a raw PDF by its URL shape, matching how
-  // mediaEmbedUrl() builds one (`<url ending in .pdf>#view=FitH` etc.).
-  const isRawPdf = /\.pdf(#|\?|$)/i.test(content.source);
-
-  // SlidesViewer has no internal scrollbar — it's a ResizeObserver-driven
-  // exact-fit renderer, unlike Sheet/Word/PDF below which genuinely scroll —
-  // so it must NOT get the +20px overhang: an iframe's CSS width is that
-  // document's own viewport width, so the extra 20px gets scaled into the
-  // deck itself and then cropped off the right edge by this page's own
-  // `overflow:hidden` ([screenId]/page.tsx), instead of hiding a scrollbar
-  // that was never going to appear.
-  const isSlides = content.source.startsWith(SLIDES_VIEWER_PATH);
+  // Slides and PDF must NOT get the +20px overhang: an iframe's CSS width is
+  // that document's own viewport width, so the extra 20px gets scaled into the
+  // content itself and then cropped off the right edge by this page's own
+  // `overflow:hidden` ([screenId]/page.tsx). Slides is a ResizeObserver-driven
+  // exact-fit renderer that grows no scrollbar at all;
+  // PDF does scroll continuously, but hides its own scrollbar in CSS
+  // (`.pdf-scroll` in PdfViewer), so neither needs a bar pushed off-screen —
+  // unlike Sheet/Word below, which scroll with the browser's native bar.
+  const isExactFitViewer =
+    content.source.startsWith(SLIDES_VIEWER_PATH) || content.source.startsWith(PDF_VIEWER_PATH);
 
   // mediaEmbedUrl() starts a kiosk YouTube embed muted (see the comment
   // there) so autoplay is deterministic instead of YouTube's own player
@@ -73,6 +105,12 @@ export function HtmlRenderer({
   // clip may never climb out of between restarts.
   const isKioskYouTube = !preview && /^https:\/\/www\.youtube\.com\/embed\//.test(content.source);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  /** Hoisted out of the effect closure so the transport listeners below can
+   * reach the player — the whole reason YouTube was previously uncontrollable. */
+  const playerRef = useRef<YTPlayer | null>(null);
+  /** Set by the transport effect below; read from onStateChange, which is
+   * registered first. Declared here so both effects can see it. */
+  const emitPlaybackRef = useRef<((immediate: boolean) => void) | null>(null);
 
   useEffect(() => {
     if (!isKioskYouTube) return;
@@ -84,12 +122,25 @@ export function HtmlRenderer({
       player = new window.YT.Player(iframeRef.current, {
         events: {
           onReady: (e) => {
+            playerRef.current = e.target;
             e.target.unMute();
             e.target.setVolume(100);
             try {
               e.target.setPlaybackQuality("hd1080");
             } catch {}
+            // Resume where this video was left off, if the gateway replayed a
+            // position while the IFrame API was still loading. Buffered
+            // because that replay lands right after CONTENT_UPDATE, long
+            // before the player exists.
+            const restore = lastReplayableDetail(MEDIA_SET_PLAYBACK_EVENT) as PlaybackState | undefined;
+            if (restore && restore.src === content.source && Number.isFinite(restore.time)) {
+              e.target.seekTo(restore.time, true);
+              if (!restore.playing) e.target.pauseVideo();
+            }
           },
+          // Fires on every play/pause/buffer/end, which is the only signal the
+          // IFrame API gives — there is no timeupdate equivalent.
+          onStateChange: () => emitPlaybackRef.current?.(true),
         },
       });
     };
@@ -112,7 +163,111 @@ export function HtmlRenderer({
 
     return () => {
       cancelled = true;
+      playerRef.current = null;
       player?.destroy();
+    };
+  }, [isKioskYouTube, content.source]);
+
+  // ─── Playback transport (kiosk YouTube) ───────────────────────────────────
+  //
+  // Only the real TV ever has a player: isKioskYouTube is `!preview`, and a
+  // YouTube asset shows the CMS operator the OS-cursor touchpad rather than a
+  // mirror (useScreenControls keys off content.type === "html"), so there is
+  // no preview player to keep in step.
+  useEffect(() => {
+    if (!isKioskYouTube) return;
+    const source = content.source;
+
+    const emitter = createPlaybackEmitter((state) => {
+      window.dispatchEvent(
+        new CustomEvent("screen-control", { detail: { command: SET_PLAYBACK, value: state } })
+      );
+    });
+
+    const report = (immediate: boolean) => {
+      const player = playerRef.current;
+      if (!player) return;
+      let time: number;
+      let playing: boolean;
+      try {
+        time = player.getCurrentTime();
+        playing = player.getPlayerState() === YT_STATE_PLAYING;
+      } catch {
+        // The player can be mid-teardown or not yet fully initialised; a
+        // missed position report is not worth surfacing.
+        return;
+      }
+      if (!Number.isFinite(time)) return;
+      // A paused player's position doesn't change, so the poll has nothing to
+      // report — only discrete actions (which flush) matter once stopped.
+      if (!immediate && !playing) return;
+      const state: PlaybackState = { src: source, time, playing };
+      if (immediate) emitter.flush(state);
+      else emitter.emit(state);
+    };
+    emitPlaybackRef.current = report;
+
+    const onSeek = (e: Event) => {
+      const player = playerRef.current;
+      if (!player) return;
+      const { delta } = ((e as CustomEvent<MediaSeekPayload>).detail ?? {}) as MediaSeekPayload;
+      if (typeof delta !== "number") return;
+      try {
+        player.seekTo(Math.max(player.getCurrentTime() + delta, 0), true);
+      } catch {
+        return;
+      }
+      report(true);
+    };
+
+    const onTogglePlay = () => {
+      const player = playerRef.current;
+      if (!player) return;
+      try {
+        if (player.getPlayerState() === YT_STATE_PLAYING) player.pauseVideo();
+        else player.playVideo();
+      } catch {
+        return;
+      }
+      report(true);
+    };
+
+    const onSetPlayback = (e: Event) => {
+      const player = playerRef.current;
+      const state = (e as CustomEvent<PlaybackState | undefined>).detail;
+      if (!player || !state || !Number.isFinite(state.time)) return;
+      // The replay buffer is keyed by command name, not content — a position
+      // from a previously-shown video must not be applied to this one.
+      if (state.src && state.src !== source) return;
+      try {
+        // Tolerance, because the gateway echoes our own reports back to us;
+        // seeking on every echo would stutter playback about once a second.
+        if (Math.abs(player.getCurrentTime() - state.time) > SEEK_TOLERANCE_SECONDS) {
+          player.seekTo(state.time, true);
+        }
+        const playing = player.getPlayerState() === YT_STATE_PLAYING;
+        if (state.playing && !playing) player.playVideo();
+        else if (!state.playing && playing) player.pauseVideo();
+      } catch {
+        /* player not ready */
+      }
+    };
+
+    window.addEventListener(MEDIA_SEEK_EVENT, onSeek);
+    window.addEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
+    window.addEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
+    // The IFrame API has no timeupdate, so position is kept current by poll.
+    // onStateChange alone would leave the cache stale between play and pause,
+    // which is exactly the case that has to resume correctly.
+    const poll = setInterval(() => report(false), PLAYBACK_EMIT_THROTTLE_MS);
+
+    return () => {
+      window.removeEventListener(MEDIA_SEEK_EVENT, onSeek);
+      window.removeEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
+      window.removeEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
+      clearInterval(poll);
+      emitPlaybackRef.current = null;
+      emitter.dispose();
     };
   }, [isKioskYouTube, content.source]);
 
@@ -136,6 +291,81 @@ export function HtmlRenderer({
     };
   }, []);
 
+  // Relay remote commands into a framed viewer. The display page owns the one
+  // WebSocket, but a viewer runs in its own JS realm inside this iframe, so
+  // LiveScreenPlayer's window events can't reach it — see frame-bridge.ts.
+  //
+  // Two races, each with the tool that actually solves it: the parent-side one
+  // (a command arriving before this component mounted) is covered by
+  // dispatchReplayableEvent's buffer, which works because that's the same
+  // realm; the child-side one (iframe not loaded yet) is covered by the ready
+  // handshake and queue below, because that buffer is per-realm and provably
+  // cannot cross the frame boundary.
+  const bridgeReadyRef = useRef(false);
+  const bridgeQueueRef = useRef<{ command: string; value?: unknown }[]>([]);
+
+  useEffect(() => {
+    bridgeReadyRef.current = false;
+    bridgeQueueRef.current = [];
+
+    const post = (msg: FrameBridgeMessage) => {
+      iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
+    };
+
+    const sendCommand = (command: string, value?: unknown) => {
+      if (bridgeReadyRef.current) {
+        post({ source: FRAME_BRIDGE_SOURCE, kind: "command", command, value });
+        return;
+      }
+      // Mirror the gateway's own one-slot-per-command semantics: a newer
+      // absolute SET_* supersedes an older queued one, while everything
+      // else keeps its relative order.
+      if (command.startsWith("SET_")) {
+        bridgeQueueRef.current = bridgeQueueRef.current.filter((q) => q.command !== command);
+      }
+      bridgeQueueRef.current.push({ command, value });
+    };
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      if (!isBridgeMessage(e.data)) return;
+
+      if (e.data.kind === "ready") {
+        // A second "ready" means the frame reloaded itself — re-init and
+        // reflush rather than treating it as a duplicate.
+        bridgeReadyRef.current = true;
+        post({ source: FRAME_BRIDGE_SOURCE, kind: "init", preview: !!preview });
+        const queued = bridgeQueueRef.current;
+        bridgeQueueRef.current = [];
+        for (const q of queued) {
+          post({ source: FRAME_BRIDGE_SOURCE, kind: "command", command: q.command, value: q.value });
+        }
+      } else if (e.data.kind === "control") {
+        // Outbound: re-dispatch as the event LiveScreenPlayer already relays.
+        window.dispatchEvent(
+          new CustomEvent("screen-control", { detail: { command: e.data.command, value: e.data.value } })
+        );
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+
+    const unsubscribes = FRAME_FORWARDED_COMMANDS.map((command) => {
+      const eventName = frameCommandEvent(command);
+      const buffered = lastReplayableDetail(eventName);
+      if (buffered !== undefined) sendCommand(command, buffered);
+      const onEvent = (e: Event) => sendCommand(command, (e as CustomEvent).detail);
+      window.addEventListener(eventName, onEvent);
+      return () => window.removeEventListener(eventName, onEvent);
+    });
+
+    return () => {
+      window.removeEventListener("message", onMessage);
+      for (const off of unsubscribes) off();
+    };
+  }, [content.source, preview]);
+
   return (
     <iframe
       key={content.source}
@@ -150,18 +380,16 @@ export function HtmlRenderer({
         // shows up as a bare strip (the iframe's background) on the right
         // edge. Overhanging the extra width pushes that scrollbar off-screen,
         // where the display page's own `overflow:hidden` (see html/body style
-        // in [screenId]/page.tsx) clips it away. Skipped for slides — see
-        // `isSlides` above.
-        width: isSlides ? "100vw" : "calc(100vw + 20px)",
+        // in [screenId]/page.tsx) clips it away. Skipped for the exact-fit
+        // viewers — see `isExactFitViewer` above.
+        width: isExactFitViewer ? "100vw" : "calc(100vw + 20px)",
         height: "100vh",
         border: "none",
         backgroundColor: "#000",
         display: "block",
         touchAction: "auto",
       }}
-      {...(!isRawPdf && {
-        sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation",
-      })}
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation"
       allow={preview ? "encrypted-media; fullscreen; clipboard-write" : "autoplay; encrypted-media; fullscreen; clipboard-write"}
     />
   );
