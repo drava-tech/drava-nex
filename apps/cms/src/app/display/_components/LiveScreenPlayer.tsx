@@ -8,6 +8,7 @@ import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { useAudioKeepAlive } from "@/hooks/useAudioKeepAlive";
 import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
 import {
   MEDIA_SEEK,
@@ -97,6 +98,13 @@ export function LiveScreenPlayer({
 }: LiveScreenPlayerProps) {
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
+
+  // Keeps the panel's audio output open across content swaps so no push — and
+  // no pause -> play — has to wait for the HDMI sink to wake. Mounted here
+  // rather than in a renderer precisely because it has to outlive every
+  // content change. Never on a CMS mirror, same contract as the mute effect in
+  // VideoRenderer.tsx.
+  useAudioKeepAlive(!preview);
 
   // Set from a PUBLISH_DRAG_END{committed:true} command; consumed by the
   // effect below the moment the matching content actually arrives, so the

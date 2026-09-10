@@ -202,23 +202,49 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     };
   }, [content.source, preview]);
 
-  // The `autoPlay` attribute below can't surface a blocked-playback promise
+  // Playback is started here rather than by an `autoPlay` attribute, for two
+  // reasons. First, `autoPlay` can't surface a blocked-playback promise
   // rejection — if the browser blocks unmuted autoplay (kiosk host missing
   // the --autoplay-policy flag, or any other viewer without it), the element
-  // just sits frozen on its first frame with no error anywhere. This calls
-  // play() explicitly so a rejection can be caught, falling back to muted
-  // playback so the video still plays instead of staying dead. No "tap to
-  // unmute" affordance: this is an unattended kiosk display, nobody's there
-  // to click it (unlike welcome-renderer.tsx, which has a real click path).
+  // just sits frozen on its first frame with no error anywhere; calling play()
+  // explicitly lets a rejection be caught and fall back to muted playback so
+  // the video still plays instead of staying dead. No "tap to unmute"
+  // affordance: this is an unattended kiosk display, nobody's there to click
+  // it (unlike welcome-renderer.tsx, which has a real click path).
+  //
+  // Second, having BOTH `autoPlay` and this call issues two competing play
+  // requests, and the browser treats the second as interrupting the first —
+  // the "~1s-in stutter" already diagnosed and fixed in welcome-renderer.tsx
+  // (see the comment on its <video>), which was never carried over here.
+  //
+  // The readiness gate matters just as much as which of the two starts it.
+  // play() on a freshly-mounted element with an empty buffer starts the video
+  // renderer as soon as the first frame decodes while the audio renderer is
+  // still opening its output — so the picture runs, the sound arrives late,
+  // and the audio then drops the samples it fell behind by to re-lock to the
+  // clock (an audibly missing word). Waiting for HAVE_FUTURE_DATA lets both
+  // renderers start together. Needs preload="auto" on the element below:
+  // without `autoPlay` the browser would otherwise stop at metadata and
+  // `canplay` would never fire.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => {
-      if (!video.muted) {
-        video.muted = true;
-        video.play().catch(() => {});
-      }
-    });
+
+    const start = () => {
+      video.play().catch(() => {
+        if (!video.muted) {
+          video.muted = true;
+          video.play().catch(() => {});
+        }
+      });
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      start();
+      return;
+    }
+    video.addEventListener("canplay", start, { once: true });
+    return () => video.removeEventListener("canplay", start);
   }, [content.source]);
 
   if (!content.source) {
@@ -233,7 +259,9 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       ref={videoRef}
       key={content.source}       // force remount if source changes
       src={content.source}
-      autoPlay
+      // No `autoPlay`: the effect above starts playback once the element is
+      // actually ready. preload="auto" is what makes that safe — see there.
+      preload="auto"
       playsInline
       muted={preview || content.muted}
       loop={content.loop}
