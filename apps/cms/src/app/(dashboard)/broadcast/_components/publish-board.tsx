@@ -56,6 +56,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   activeScreensUpdated,
   screenContentUpdated,
+  screenRowRestored,
   screensHydrated,
 } from "@/store/screens-slice";
 
@@ -69,6 +70,16 @@ const SWIPE_VELOCITY = 900;
  * the screen" cover (triggerPublish) must never start before this finishes,
  * or the two animations visibly overlap. */
 const CARD_RESET_MS = 240;
+
+/** Matches the cover's own 0.45s rise, so navigation starts as it lands. */
+const COVER_SETTLE_MS = 450;
+
+/**
+ * Hard ceiling on the "Opening …" cover. If the navigation it starts hasn't
+ * replaced this page by now it isn't going to — give the board back instead of
+ * leaving an opaque panel over the whole surface.
+ */
+const COVER_BAIL_MS = 8_000;
 
 /** useLayoutEffect so a remembered carousel position is already in place on the
  * first painted frame rather than visibly jumping there afterwards. The
@@ -226,6 +237,33 @@ export function PublishBoard({
     screenId: string;
     screenName: string;
   } | null>(null);
+  // Drives the cover's navigation, and guarantees the cover can always be
+  // dismissed. This used to hang off the cover's own onAnimationComplete, which
+  // framer-motion does not fire when the animation is interrupted — and an
+  // incoming SCREEN_UPDATED re-render is enough to interrupt it. When it didn't
+  // fire there was no other exit anywhere in this component (there is still no
+  // other setCovering(null) call by design — this effect owns it), so the board
+  // sat behind an opaque full-screen "Opening …" panel until a manual reload.
+  const coverNavRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!covering) {
+      coverNavRef.current = null;
+      return;
+    }
+    if (coverNavRef.current === covering.screenId) return;
+    coverNavRef.current = covering.screenId;
+    const target = `/broadcast/live/${covering.screenId}`;
+    const nav = window.setTimeout(() => router.push(target), COVER_SETTLE_MS);
+    // The destination re-runs the expensive getExperiences() and has no
+    // loading.tsx, so a slow or failed navigation is entirely possible. Hand
+    // the board back rather than leaving the operator with a dead screen.
+    const bail = window.setTimeout(() => setCovering(null), COVER_BAIL_MS);
+    return () => {
+      window.clearTimeout(nav);
+      window.clearTimeout(bail);
+    };
+  }, [covering, router]);
+
   const sendDragRef = useRef<(command: string, value?: unknown) => void>(
     () => {},
   );
@@ -829,6 +867,10 @@ export function PublishBoard({
       }
 
       setPushingId(card.id);
+      // Snapshot for the rollback in the catch below. Taken before the
+      // optimistic dispatch, and deliberately a copy — the row in the store is
+      // about to be mutated in place by the reducer.
+      const priorRow = { ...targetScreen };
       // Optimistic update so the box's "now showing" line reflects the push
       // immediately. Same reducer the WebSocket echo uses, so the mapping from
       // content to row lives in exactly one place now.
@@ -882,6 +924,11 @@ export function PublishBoard({
           );
         } catch (err) {
           console.error("Failed to push content:", err);
+          // Undo the optimistic write. Without this the row keeps claiming the
+          // card is live, and the `alreadyShowing` guard above then short-
+          // circuits every retry — the card becomes permanently unpublishable
+          // until a real SCREEN_UPDATED or a full reload corrects the row.
+          dispatch(screenRowRestored(priorRow));
           setFeedback({
             message: `Failed to push "${card.title}" to ${screenName}`,
             tone: "error",
@@ -1251,9 +1298,6 @@ export function PublishBoard({
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          onAnimationComplete={() =>
-            router.push(`/broadcast/live/${covering.screenId}`)
-          }
           className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
         >
           <span className="text-sm font-bold uppercase tracking-widest text-white/70">

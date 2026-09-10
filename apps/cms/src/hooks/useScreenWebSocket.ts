@@ -35,6 +35,13 @@ export function useScreenWebSocket({
 }: UseScreenWebSocketOptions): UseScreenWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // See the identical flag in useCmsScreenSync.ts. `onclose` fires after the
+  // effect cleanup has already cleared the pending reconnect timer, so without
+  // this an unmounted hook scheduled a connect() nothing could cancel. That
+  // mattered most on the publish round trip (board -> live page -> back), which
+  // stranded an immortal `preview` socket per cycle — inflating the screen
+  // registry and amplifying every drag-progress frame across the zombies.
+  const closedRef = useRef(false);
   const [status, setStatus] = useState<WsStatus>("connecting");
   const onContentUpdateRef = useRef(onContentUpdate);
   onContentUpdateRef.current = onContentUpdate;
@@ -119,6 +126,7 @@ export function useScreenWebSocket({
     };
 
     ws.onclose = () => {
+      if (closedRef.current) return; // unmounted — do not resurrect
       setStatus("disconnected");
       reconnectRef.current = setTimeout(connect, 3_000);
     };
@@ -127,8 +135,10 @@ export function useScreenWebSocket({
   }, [screenId, wsUrl, preview]);
 
   useEffect(() => {
+    closedRef.current = false;
     connect();
     return () => {
+      closedRef.current = true;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };

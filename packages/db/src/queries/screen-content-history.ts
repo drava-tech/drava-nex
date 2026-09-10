@@ -40,6 +40,16 @@ export async function clearRecentContentForScreen(screenId: string): Promise<voi
 }
 
 /**
+ * How many raw push rows to read per requested result. The query dedupes in JS,
+ * so the newest rows may all be repeats of the same item; this leaves room for
+ * that without reading the whole table. If a screen has fewer than `limit`
+ * distinct items in its most recent `limit * DEDUPE_HEADROOM` pushes, the tab
+ * shows fewer rows — an acceptable trade for a bounded read on a table that
+ * grows forever.
+ */
+const DEDUPE_HEADROOM = 8;
+
+/**
  * Most recent distinct pieces of content (media or experience) pushed to a
  * screen, newest first, capped at `limit` — backs the "Recently Opened" tab
  * in ScreenAssignmentPicker. Deduped so the same item pushed more than once
@@ -62,7 +72,14 @@ export async function getRecentContentForScreen(screenId: string, limit = 5): Pr
     .leftJoin(mediaAsset, and(eq(screenContentPush.mediaAssetId, mediaAsset.id), isNull(mediaAsset.deletedAt)))
     .leftJoin(experience, and(eq(screenContentPush.experienceId, experience.id), isNull(experience.deletedAt)))
     .where(eq(screenContentPush.screenId, screenId))
-    .orderBy(desc(screenContentPush.pushedAt));
+    .orderBy(desc(screenContentPush.pushedAt))
+    // screen_content_push is append-only (see the table's docblock) and gains a
+    // row on every publish, including every queue next/prev step — so a busy
+    // screen accumulates thousands. Without a bound this read pulled ALL of
+    // them, hydrated through two joins, just to hand back `limit` rows after a
+    // JS dedupe. The multiplier covers the dedupe: the newest N rows can be
+    // repeats of the same few items, and this is the CMS's most-opened panel.
+    .limit(limit * DEDUPE_HEADROOM);
 
   const seen = new Set<string>();
   const deduped: RecentScreenContentItem[] = [];

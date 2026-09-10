@@ -111,16 +111,21 @@ export function LiveScreenPlayer({
   // real content's own entrance animation doesn't replay on top of the one
   // PublishDragOverlay already played live during the drag.
   const lastDragCommittedIdRef = useRef<string | null>(null);
-  const [suppressNextReveal, setSuppressNextReveal] = useState(false);
-  useEffect(() => {
-    if (lastDragCommittedIdRef.current === activeContent.id) {
-      setSuppressNextReveal(true);
-      lastDragCommittedIdRef.current = null;
-    } else {
-      setSuppressNextReveal(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey]);
+
+  // Derived during render, NOT in an effect. The class this produces goes on a
+  // div that is keyed by activeKey, so it mounts and begins its 600ms reveal in
+  // the very same commit — an effect resolves one render too late and lands the
+  // class on an animation that is already running. Both directions were wrong:
+  // a drag-published item started sliding and then snapped when `animation:
+  // none` arrived mid-slide, and the next ordinary push mounted suppressed and
+  // then restarted the slide a frame later. That was the "very odd" transition.
+  const revealRef = useRef<{ key: string; suppress: boolean }>({ key: activeKey, suppress: false });
+  if (revealRef.current.key !== activeKey) {
+    const suppress = lastDragCommittedIdRef.current === activeContent.id;
+    if (suppress) lastDragCommittedIdRef.current = null;
+    revealRef.current = { key: activeKey, suppress };
+  }
+  const suppressNextReveal = revealRef.current.suppress;
 
   // "Stop" must actually stop everything (video/audio/animations), not just
   // hide it behind BlackoutOverlay's black div — a hidden-but-still-mounted

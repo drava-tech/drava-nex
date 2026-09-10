@@ -128,10 +128,28 @@ async function handleValuesMessage(topic: string, payload: Buffer): Promise<void
     white: typeof data.white === "number" ? data.white : 0,
   };
 
+  // Skip no-op ticks, mirroring the `device.status === status` guard in the
+  // propertys handler above. `poll_device/+/values` is a continuous stream —
+  // during a fade or a scene recall it arrives at tens of messages a second per
+  // fixture — and without this EVERY one of them did a Postgres UPDATE and a
+  // JSON fan-out to every connected CMS socket, even when the level and colour
+  // were byte-identical to what was already stored. This was the hottest write
+  // path in the app, and it is driven by an external device we don't control.
+  const prev = (device.state ?? {}) as Record<string, unknown>;
+  const unchanged =
+    prev["on"] === state.on &&
+    prev["brightness"] === state.brightness &&
+    prev["color"] === state.color &&
+    prev["white"] === state.white;
+  if (unchanged) return;
+
   try {
     // MERGE, don't replace: colorBalance is written by the propertys handler
   // above and would otherwise be wiped on every values tick.
-    const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...state });
+    const updated = await setDeviceState(device.id, { ...prev, ...state });
+    // Keep the cached row in step so the guard above keeps working until the
+    // next cache refresh — same reason as the status handler's cache write.
+    targetIdToDevice.set(targetId, { ...device, state: updated.state });
     broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
   } catch (err) {
     console.error(`[casambi] failed to persist live state for ${device.deviceId}:`, err);

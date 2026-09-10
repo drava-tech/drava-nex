@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import fs from "fs";
 import fsPromises from "fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
@@ -311,9 +313,20 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     // Server-generated filename — never trust the client name for the path.
     const storedName = `${randomUUID()}${classified.ext}`;
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await fsPromises.writeFile(path.join(UPLOAD_DIR, storedName), buffer);
+    const destPath = path.join(UPLOAD_DIR, storedName);
+
+    // Stream to disk rather than `Buffer.from(await file.arrayBuffer())`.
+    // MAX_UPLOAD_BYTES is 1 GiB, and that pair held the WHOLE file twice more
+    // in the single API process on top of what the multipart parse already
+    // holds — roughly 3x the file size resident at once, in a process that is
+    // also serving every screen. One large video was enough to push it over.
+    //
+    // Only images are materialised as a Buffer below, because generateThumbnail
+    // needs the bytes; those are megabytes, not gigabytes.
+    await pipeline(
+      Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]),
+      fs.createWriteStream(destPath)
+    );
 
     // Preserve a human-friendly display name (sanitized, never used as a path).
     const displayName = file.name.replace(/[^a-zA-Z0-9_.\- ]/g, "_").slice(0, 200) || storedName;
@@ -327,7 +340,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
     // before the insert so the row is written once, already complete.
     const thumbnailUrl =
       classified.type === "image"
-        ? await generateThumbnail(UPLOAD_DIR, storedName, buffer)
+        ? await generateThumbnail(UPLOAD_DIR, storedName, await fsPromises.readFile(destPath))
         : null;
 
     const asset = await createMediaAsset({

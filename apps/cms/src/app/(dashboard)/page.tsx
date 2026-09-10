@@ -8,16 +8,18 @@ import {
   CardTitle,
 } from "@platform/ui";
 import {
-  getMediaLibraryStats,
   listScreens,
-  getDailyScreenUptime,
-  getScreenUptimeRecordingSince,
-  getRecentActivity,
-  getExperienceStats,
-  getUserStats,
   UPTIME_WINDOW,
   UPTIME_TIME_ZONE,
 } from "@platform/db";
+import {
+  getCachedMediaLibraryStats,
+  getCachedDailyScreenUptime,
+  getCachedScreenUptimeRecordingSince,
+  getCachedRecentActivity,
+  getCachedExperienceStats,
+  getCachedUserStats,
+} from "@/lib/dashboard-cache";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getActiveScreens } from "@/actions/screen-actions";
 import { panelBorderStyle } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
@@ -53,14 +55,17 @@ export default async function DashboardPage() {
     experienceStats,
     userStats,
   ] = await Promise.all([
+    // Screen rows and live-connection state stay uncached — that is what the
+    // operator acts on. Everything below them is analytics on a 20s TTL; see
+    // lib/dashboard-cache.ts.
     listScreens(),
     getActiveScreens(),
-    getMediaLibraryStats(),
-    getDailyScreenUptime(),
-    getScreenUptimeRecordingSince(),
-    getRecentActivity(),
-    getExperienceStats(),
-    getUserStats(),
+    getCachedMediaLibraryStats(),
+    getCachedDailyScreenUptime(),
+    getCachedScreenUptimeRecordingSince(),
+    getCachedRecentActivity(),
+    getCachedExperienceStats(),
+    getCachedUserStats(),
   ]);
 
   const onlineCount = screenRows.filter((s) => activeScreenIds.includes(s.screenId)).length;

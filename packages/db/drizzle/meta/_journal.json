@@ -253,6 +253,13 @@
       "when": 1784020305846,
       "tag": "0035_media_thumbnail_url",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784020305847,
+      "tag": "0036_auth_lookup_indexes",
+      "breakpoints": true
     }
   ]
 }

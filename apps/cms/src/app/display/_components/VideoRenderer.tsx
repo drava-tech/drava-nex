@@ -11,6 +11,7 @@ import {
   MEDIA_SET_PAUSED_EVENT,
   MEDIA_TOGGLE_PLAY_EVENT,
   MEDIA_SET_PLAYBACK_EVENT,
+  CONTENT_PLAYING_EVENT,
   SET_PLAYBACK,
   type MediaSeekPayload,
   type MediaSeekToPayload,
@@ -18,6 +19,14 @@ import {
   type PlaybackState,
 } from "@/lib/display/playback-protocol";
 import { VideoControlsOverlay } from "./VideoControlsOverlay";
+
+/**
+ * How long to wait for a readiness event before starting playback anyway.
+ * Deliberately longer than useContentPreloader's own 3s buffer budget, so in
+ * the normal case the element is already warm and this never fires — it exists
+ * only so a video that never reports ready still plays instead of freezing.
+ */
+const START_FALLBACK_MS = 4_000;
 
 interface VideoRendererProps {
   content: VideoContent;
@@ -230,11 +239,22 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     const video = videoRef.current;
     if (!video) return;
 
+    // Signalled in every terminal case, success or failure. A cover that only
+    // lifts on success is a cover that stays down forever on the one occasion
+    // it matters most — see CONTENT_PLAYING_EVENT's docblock.
+    const signalPlaying = () => {
+      window.dispatchEvent(
+        new CustomEvent(CONTENT_PLAYING_EVENT, { detail: { id: content.id } })
+      );
+    };
+
     const start = () => {
-      video.play().catch(() => {
+      video.play().then(signalPlaying).catch(() => {
         if (!video.muted) {
           video.muted = true;
-          video.play().catch(() => {});
+          video.play().then(signalPlaying).catch(signalPlaying);
+        } else {
+          signalPlaying();
         }
       });
     };
@@ -243,8 +263,33 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       start();
       return;
     }
-    video.addEventListener("canplay", start, { once: true });
-    return () => video.removeEventListener("canplay", start);
+
+    // The readiness gate must never be the ONLY way playback can begin. Without
+    // `autoPlay` nothing forces the browser past metadata — `preload="auto"` is
+    // a hint Chromium is free to ignore under memory pressure or on a signage
+    // appliance — and a mid-load network error fires `error`, not `canplay`. In
+    // either case a bare `canplay` listener leaves the panel frozen on a black
+    // first frame with nothing in the logs, which is exactly what a stalled
+    // publish looked like on the wall. So: take whichever signal arrives first,
+    // and fall back to starting unconditionally rather than showing nothing.
+    let done = false;
+    const startOnce = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      start();
+    };
+    const timer = setTimeout(startOnce, START_FALLBACK_MS);
+    function cleanup() {
+      clearTimeout(timer);
+      video?.removeEventListener("canplay", startOnce);
+      video?.removeEventListener("loadeddata", startOnce);
+      video?.removeEventListener("error", startOnce);
+    }
+    video.addEventListener("canplay", startOnce, { once: true });
+    video.addEventListener("loadeddata", startOnce, { once: true });
+    video.addEventListener("error", startOnce, { once: true });
+    return cleanup;
   }, [content.source]);
 
   if (!content.source) {

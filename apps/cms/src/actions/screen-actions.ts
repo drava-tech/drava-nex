@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { listScreens } from "@platform/db";
 import { apiFetch } from "@/lib/api-client";
@@ -74,20 +75,31 @@ export async function sendRemoteCommand(screenId: string, command: string, value
   }
 }
 
-export async function getActiveScreens(): Promise<string[]> {
-  await requireGuestOrAdmin();
+/**
+ * One fetch of /api/screens/active, memoized for the lifetime of the request.
+ *
+ * The endpoint returns { activeScreenIds, activeWhiteboards } together, but the
+ * two accessors below were each fetching it independently — and /screens calls
+ * both in the same Promise.all, so every render made two round trips for one
+ * payload. React's `cache` collapses them without changing either signature.
+ */
+const fetchActiveScreenState = cache(async (): Promise<{
+  activeScreenIds?: string[];
+  activeWhiteboards?: Record<string, string>;
+}> => {
   const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
-
   try {
     const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      return data.activeScreenIds ?? [];
-    }
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error("[remote] getActiveScreens failed", err);
+    console.error("[remote] fetchActiveScreenState failed", err);
   }
-  return [];
+  return {};
+});
+
+export async function getActiveScreens(): Promise<string[]> {
+  await requireGuestOrAdmin();
+  return (await fetchActiveScreenState()).activeScreenIds ?? [];
 }
 
 /** screenId -> whiteboard_document id, for every screen a saved whiteboard is
@@ -96,18 +108,7 @@ export async function getActiveScreens(): Promise<string[]> {
  * instead of the generic per-screen control page. */
 export async function getActiveWhiteboardSessions(): Promise<Record<string, string>> {
   await requireGuestOrAdmin();
-  const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
-
-  try {
-    const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      return data.activeWhiteboards ?? {};
-    }
-  } catch (err) {
-    console.error("[remote] getActiveWhiteboardSessions failed", err);
-  }
-  return {};
+  return (await fetchActiveScreenState()).activeWhiteboards ?? {};
 }
 
 /** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen. */
