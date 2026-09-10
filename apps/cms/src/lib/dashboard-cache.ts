@@ -6,6 +6,8 @@ import {
   getRecentActivity,
   getExperienceStats,
   getUserStats,
+  type MediaLibraryStats,
+  type DashboardActivityItem,
 } from "@platform/db";
 
 /**
@@ -21,10 +23,13 @@ import {
  * watches land, and they already arrive in real time over the WebSocket — a
  * cache there would show someone a wall that isn't what they just published.
  *
- * TTL is the primary freshness mechanism. `revalidatePath` (used throughout
- * actions/*.ts) invalidates the *route* cache, not these entries — clearing
- * them needs `revalidateTag(DASHBOARD_TAG)`, which is wired below for the cases
- * where a mutation should show up immediately.
+ * ⚠ unstable_cache stores its value as JSON, so anything that goes in as a
+ * `Date` comes back out as a STRING while still being typed as a Date. That is
+ * invisible at build time and blows up at runtime on the first `.toISOString()`
+ * — which is exactly how this shipped broken once (dashboard 500,
+ * "a.createdAt.toISOString is not a function"). Every wrapper below that can
+ * carry a Date therefore revives it explicitly, and the raw cached function is
+ * kept private so nothing can bypass the revival.
  */
 const TTL_SECONDS = 20;
 
@@ -32,33 +37,61 @@ export const DASHBOARD_TAG = "dashboard-analytics";
 
 const cacheOpts = { revalidate: TTL_SECONDS, tags: [DASHBOARD_TAG] };
 
-export const getCachedMediaLibraryStats = unstable_cache(
+/** Cache round-trips a Date to a string; put it back. */
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+// ─── Carries Dates: must be revived ─────────────────────────────────────────
+
+const cachedMediaLibraryStats = unstable_cache(
   getMediaLibraryStats,
   ["dashboard:media-library-stats"],
   cacheOpts
 );
 
-/**
- * The most expensive of the set: a generate_series calendar cross-joined
- * against the sample table. Even with the sargable lower bound added to the
- * query, it is pure recomputation of a chart that changes every 5 minutes at
- * most (the sampler's interval) — an ideal caching target.
- */
-export const getCachedDailyScreenUptime = unstable_cache(
-  getDailyScreenUptime,
-  ["dashboard:daily-uptime"],
+export async function getCachedMediaLibraryStats(): Promise<MediaLibraryStats> {
+  const stats = await cachedMediaLibraryStats();
+  return {
+    ...stats,
+    recent: stats.recent.map((asset) => ({ ...asset, createdAt: toDate(asset.createdAt) })),
+  };
+}
+
+const cachedRecentActivity = unstable_cache(
+  getRecentActivity,
+  ["dashboard:recent-activity"],
   cacheOpts
 );
 
-export const getCachedScreenUptimeRecordingSince = unstable_cache(
+export async function getCachedRecentActivity(): Promise<DashboardActivityItem[]> {
+  const items = await cachedRecentActivity();
+  return items.map((item) => ({ ...item, at: toDate(item.at) }));
+}
+
+const cachedUptimeRecordingSince = unstable_cache(
   getScreenUptimeRecordingSince,
   ["dashboard:uptime-recording-since"],
   cacheOpts
 );
 
-export const getCachedRecentActivity = unstable_cache(
-  getRecentActivity,
-  ["dashboard:recent-activity"],
+export async function getCachedScreenUptimeRecordingSince(): Promise<Date | null> {
+  const since = await cachedUptimeRecordingSince();
+  return since ? toDate(since) : null;
+}
+
+// ─── Plain numbers and strings: safe to hand back as-is ─────────────────────
+
+/**
+ * The most expensive of the set: a generate_series calendar cross-joined
+ * against the sample table. Even with the sargable lower bound added to the
+ * query, it is pure recomputation of a chart that changes every 5 minutes at
+ * most (the sampler's interval) — an ideal caching target. Returns
+ * already-formatted day/label strings, so nothing to revive.
+ */
+export const getCachedDailyScreenUptime = unstable_cache(
+  getDailyScreenUptime,
+  ["dashboard:daily-uptime"],
   cacheOpts
 );
 
