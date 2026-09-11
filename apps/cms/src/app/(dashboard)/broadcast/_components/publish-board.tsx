@@ -1458,22 +1458,24 @@ function CardVisual({
       : FILE_TYPE_ICONS[card.type];
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Autoplay each video preview only while its card is actually visible —
-  // entering the viewport (coverflow scroll) starts it, leaving stops it,
-  // rather than every video in the carousel playing at once.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) video.play().catch(() => {});
-        else video.pause();
-      },
-      { threshold: 0.6 },
-    );
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
+  // Video previews deliberately do NOT autoplay any more.
+  //
+  // `card.thumbnail` for a video is the ORIGINAL FILE — mediaThumbnailSrc()
+  // falls back to `url` because thumbnails are only ever generated for images —
+  // so playing each card as it scrolled into view meant the carousel streamed
+  // full-resolution video to paint 200px tiles. Measured on the Android tablet:
+  // 805 MB of .mp4 across 61 requests in six hours, against 5 MB for the whole
+  // rest of the app, with one video fetched 25 times as it scrolled in and out.
+  //
+  // Worse than the bandwidth: every scroll cancelled range requests mid-flight,
+  // and an aborted range request used to crash the API outright (see
+  // fileWebStream in apps/api/src/routes/media.ts). That fix makes aborts safe;
+  // this one stops manufacturing them.
+  //
+  // The element now loads metadata only, and `#t=0.1` asks for the frame at
+  // 0.1s so the tile still shows a real still rather than a black box. Proper
+  // generated poster frames (ffmpeg at upload + a backfill) are the real fix
+  // and would let this be a plain <img>.
 
   return (
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
@@ -1481,10 +1483,10 @@ function CardVisual({
         {card.type === "video" && card.thumbnail ? (
           <video
             ref={videoRef}
-            src={card.thumbnail}
+            src={`${card.thumbnail}#t=0.1`}
             className="h-full w-full object-cover"
+            preload="metadata"
             muted
-            loop
             playsInline
           />
         ) : card.thumbnail &&

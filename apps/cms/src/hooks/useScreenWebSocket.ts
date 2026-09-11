@@ -70,6 +70,28 @@ export function useScreenWebSocket({
       performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
     )?.type;
     if (navType === "reload" || navType === "back_forward") openedFresh.current = false;
+
+    // Navigation Timing alone is not enough. The kiosk shell recovers from a
+    // WebView2 renderer crash by calling Navigate(TargetUrl) again, which
+    // reports type "navigate" — indistinguishable from a genuine first open —
+    // so a crashed-and-recovered panel would hard-reset itself to idle. A React
+    // remount (error boundary, Suspense retry) has the same effect on the refs
+    // above without any document load at all.
+    //
+    // sessionStorage is scoped to the tab and survives both, so it records that
+    // THIS screen has already registered once here. Wrapped because a WebView
+    // with site data disabled throws on access, and the correct fallback is the
+    // Navigation Timing answer above, not a crash.
+    try {
+      const key = `screen-registered:${screenId}`;
+      if (window.sessionStorage.getItem(key)) {
+        openedFresh.current = false;
+      } else {
+        window.sessionStorage.setItem(key, "1");
+      }
+    } catch {
+      /* storage unavailable — fall back to Navigation Timing alone */
+    }
   }
 
   const connect = useCallback(() => {
@@ -101,6 +123,10 @@ export function useScreenWebSocket({
               },
             }),
       };
+      // Set BEFORE the send, and note the flag is computed above: if the first
+      // connection attempt never succeeds — which is exactly what happens while
+      // the API is restarting — the reconnect that eventually lands must not
+      // still look like a fresh launch and wipe the screen.
       hasRegisteredRef.current = true;
       ws.send(JSON.stringify(reg));
     };
