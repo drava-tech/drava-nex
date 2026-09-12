@@ -1,6 +1,6 @@
 "use server";
 
-import { db, experience, experienceToType, isNull } from "@platform/db";
+import { db, experience, experienceToType, mediaAsset, isNull } from "@platform/db";
 import { asc, desc } from "drizzle-orm";
 import { revalidatePath, unstable_cache } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
@@ -67,13 +67,18 @@ type ExperienceCard = { id: string; title: string; coverImage: string | null; ty
  */
 const getExperienceCards = unstable_cache(
   async (): Promise<ExperienceCard[]> => {
-    const [rows, assignments] = await Promise.all([
+    const [rows, assignments, mediaRows] = await Promise.all([
       db
         .select({ id: experience.id, name: experience.name, templateContent: experience.templateContent })
         .from(experience)
         .where(isNull(experience.deletedAt))
         .orderBy(asc(experience.position), desc(experience.createdAt)),
       db.select({ experienceId: experienceToType.experienceId, typeId: experienceToType.typeId }).from(experienceToType),
+      // ponytail: Map raw media URLs in experience templates to their derived thumbnail_url for lightweight cards.
+      db
+        .select({ url: mediaAsset.url, thumbnailUrl: mediaAsset.thumbnailUrl })
+        .from(mediaAsset)
+        .where(isNull(mediaAsset.deletedAt)),
     ]);
 
     const typeIdsByExperience = new Map<string, string[]>();
@@ -83,12 +88,23 @@ const getExperienceCards = unstable_cache(
       else typeIdsByExperience.set(experienceId, [typeId]);
     }
 
-    return rows.map((r) => ({
-      id: r.id,
-      title: r.name,
-      coverImage: extractCoverImage(r.templateContent),
-      typeIds: typeIdsByExperience.get(r.id) ?? [],
-    }));
+    const thumbMap = new Map<string, string>();
+    for (const m of mediaRows) {
+      if (m.thumbnailUrl && m.url) {
+        thumbMap.set(m.url, m.thumbnailUrl);
+      }
+    }
+
+    return rows.map((r) => {
+      const rawCover = extractCoverImage(r.templateContent);
+      const coverImage = rawCover ? (thumbMap.get(rawCover) ?? rawCover) : null;
+      return {
+        id: r.id,
+        title: r.name,
+        coverImage,
+        typeIds: typeIdsByExperience.get(r.id) ?? [],
+      };
+    });
   },
   ["experiences:cards"],
   { revalidate: 20, tags: ["experiences"] }
