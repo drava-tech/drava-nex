@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
     pathname === "/favicon.ico" ||
     // Logo shown on the unauthenticated /display kiosk idle screen — must be
     // public for the same reason /media/ is (see comment above).
-    pathname === "/Logo.png"
+    pathname === "/Logo.svg"
   ) {
     return NextResponse.next();
   }
