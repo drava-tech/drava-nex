@@ -12,6 +12,10 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/") ||
     pathname.startsWith("/ws") ||
     pathname === "/health" ||
+    // This container's own liveness probe (app/cms-health/route.ts). Must be
+    // public or the healthcheck gets a 307 to /login and the container is
+    // reported unhealthy forever.
+    pathname === "/cms-health" ||
     pathname === "/display" ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/dev-preview/") ||

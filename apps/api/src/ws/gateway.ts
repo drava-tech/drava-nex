@@ -640,25 +640,44 @@ export function getLiveObjectRecognitionContent(screenId: string): WsContent | n
   };
 }
 
+/**
+ * Real (non-preview) players currently attached to one screen, pruning any
+ * socket that has since closed. A CMS preview iframe deliberately doesn't
+ * count: it mirrors the push in the operator's own browser, which is exactly
+ * the thing that makes a dead wall panel look alive.
+ */
+function countLivePlayers(id: string, sockets: Set<WebSocket>): number {
+  let liveCount = 0;
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      if (!(ws as WebSocket & { isPreview?: boolean }).isPreview) liveCount++;
+    } else {
+      sockets.delete(ws);
+    }
+  }
+  if (sockets.size === 0) screenRegistry.delete(id);
+  return liveCount;
+}
+
 export function getConnectedScreenIds(): string[] {
   return Array.from(screenRegistry.keys()).filter((id) => {
     const sockets = screenRegistry.get(id);
     if (!sockets) return false;
-    let liveCount = 0; // real (non-preview) players only
-    for (const ws of sockets) {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        if (!(ws as WebSocket & { isPreview?: boolean }).isPreview) liveCount++;
-      } else {
-        sockets.delete(ws);
-      }
-    }
-    if (sockets.size === 0) {
-      screenRegistry.delete(id);
-      return false;
-    }
     // Online only when at least one real player (not just CMS preview iframes) is connected.
-    return liveCount > 0;
+    return countLivePlayers(id, sockets) > 0;
   });
+}
+
+/**
+ * How many real displays would actually see a push to this screen right now.
+ * Zero means the content was written and broadcast correctly but nobody was
+ * listening — the CMS surfaces that rather than reporting a plain success (see
+ * pushScreenContent in routes/screens.ts).
+ */
+export function getConnectedPlayerCount(screenId: string): number {
+  const sockets = screenRegistry.get(screenId);
+  if (!sockets) return 0;
+  return countLivePlayers(screenId, sockets);
 }
 
 // ─── Gateway factory ──────────────────────────────────────────────────────────
@@ -715,6 +734,21 @@ export function createGateway(): WebSocketServer {
           }
           screenRegistry.get(sid)!.add(ws);
           broadcastActiveScreensToCms();
+
+          // Diagnostic only, logged rather than stored — this is the one place
+          // the platform can see what a physical panel is really rendering at,
+          // since the kiosk runs with devtools disabled. dpr !== 1, or inner
+          // much smaller than screen, means the page composites below native
+          // resolution and everything is upscaled to fit.
+          // `docker logs cms-api | grep viewport` after a screen reconnects.
+          if (msg.viewport) {
+            const v = msg.viewport;
+            const native = v.innerW * v.dpr >= v.screenW ? 'native' : 'UPSCALED';
+            console.log(
+              `[gateway] ${sid} viewport ${v.innerW}x${v.innerH} @dpr ${v.dpr} ` +
+                `on a ${v.screenW}x${v.screenH} screen — ${native}`
+            );
+          }
 
           for (const status of cameraStatusCache.values()) {
             if (status.screenId === sid && ws.readyState === WebSocket.OPEN) {
@@ -1031,6 +1065,13 @@ export function createGateway(): WebSocketServer {
             const current = contentCache.get(msg.screenId);
             if (current) {
               touchViewState(msg.screenId, current).set(msg.command, msg.value);
+            }
+          }
+
+          if (msg.command === 'RESET_STATE' || msg.command === 'RESET_VIEW') {
+            const current = contentCache.get(msg.screenId);
+            if (current) {
+              viewStateCache.get(msg.screenId)?.delete(contentKeyOf(current));
             }
           }
 

@@ -1,0 +1,21 @@
+{
+  "name": "cms-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android WebView shell for the CMS admin dashboard",
+  "scripts": {
+    "sync:ca": "node scripts/sync-ca.mjs",
+    "sync": "npm run sync:ca && cap sync android",
+    "assets": "node scripts/generate-assets.mjs && capacitor-assets generate --android && node scripts/fix-adaptive-icon.mjs",
+    "open": "cap open android",
+    "build:debug": "npm run sync && node scripts/gradle.mjs assembleDebug",
+    "build:release": "npm run sync && node scripts/gradle.mjs assembleRelease",
+    "gradle": "node scripts/gradle.mjs"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1"
+  }
+}

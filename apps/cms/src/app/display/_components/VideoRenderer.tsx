@@ -4,15 +4,29 @@ import { useEffect, useRef } from "react";
 import { lastReplayableDetail } from "@platform/ui";
 import type { VideoContent } from "@/types/display";
 import {
+  applyPlayback,
   createPlaybackEmitter,
   MEDIA_SEEK_EVENT,
+  MEDIA_SEEK_TO_EVENT,
+  MEDIA_SET_PAUSED_EVENT,
   MEDIA_TOGGLE_PLAY_EVENT,
   MEDIA_SET_PLAYBACK_EVENT,
+  CONTENT_PLAYING_EVENT,
   SET_PLAYBACK,
-  SEEK_TOLERANCE_SECONDS,
   type MediaSeekPayload,
+  type MediaSeekToPayload,
+  type MediaSetPausedPayload,
   type PlaybackState,
 } from "@/lib/display/playback-protocol";
+import { VideoControlsOverlay } from "./VideoControlsOverlay";
+
+/**
+ * How long to wait for a readiness event before starting playback anyway.
+ * Deliberately longer than useContentPreloader's own 3s buffer budget, so in
+ * the normal case the element is already warm and this never fires — it exists
+ * only so a video that never reports ready still plays instead of freezing.
+ */
+const START_FALLBACK_MS = 4_000;
 
 interface VideoRendererProps {
   content: VideoContent;
@@ -45,12 +59,16 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
   // ─── Playback transport ─────────────────────────────────────────────────
   //
   // Deliberately NOT gated on `preview`, unlike the mute effect above. That
-  // guard exists because audio must only ever leave the real TV; a mirror
-  // that stays in step is the entire point of a mirror, and for a native
-  // video the mirror is the operator's only visual feedback (a video is
-  // content.type "video", which useScreenControls shows the mirror for rather
-  // than the touchpad). So seek/play/pause apply here either way — only the
-  // outbound emit below is restricted to the authoritative instance.
+  // guard exists because audio must only ever leave the real TV, which has no
+  // equivalent here: every client of a screen should converge on the same
+  // position, so seek/play/pause apply whether this is the TV or a CMS-side
+  // embed. Only the outbound emit below is restricted to the authoritative
+  // instance, so one screen reports one position.
+  //
+  // (This used to be justified by "the mirror is the operator's only visual
+  // feedback". That stopped being true when the Screens panel replaced the
+  // mirror with a controls-only panel for video — the reasoning above is the
+  // one that still holds.)
   useEffect(() => {
     const source = content.source;
     if (!source) return;
@@ -64,12 +82,28 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       );
     });
 
+    /**
+     * True between the first scrubbing seek of a drag and the final plain one.
+     *
+     * The `seeked` listener below flushes by default, which is right for a
+     * discrete seek and wrong for a drag — it would broadcast on every frame of
+     * the scrub and undo the whole point of the `scrubbing` flag. Cleared by any
+     * command that is not a scrub frame, so a drag that ends abnormally
+     * (pointercancel, a client disappearing) cannot leave reporting throttled.
+     */
+    let scrubbing = false;
+
     /** Only the real TV reports position — a mirror echoing it too would have
      * the gateway cache two competing values for the same content. */
     const report = (immediate: boolean) => {
       const video = videoRef.current;
       if (!video || preview) return;
       const state: PlaybackState = { src: source, time: video.currentTime, playing: !video.paused };
+      // Only when it is a real number. video.duration is NaN until metadata
+      // lands and Infinity for some streams, and JSON.stringify turns NaN into
+      // null — a value that passes an "is it undefined" check and then paints
+      // a scrub bar with no scale.
+      if (Number.isFinite(video.duration)) state.duration = video.duration;
       if (immediate) emitter.flush(state);
       else emitter.emit(state);
     };
@@ -83,6 +117,40 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       // bound rather than seeking to NaN, which resets the element to 0.
       const max = Number.isFinite(video.duration) ? video.duration : Number.MAX_SAFE_INTEGER;
       video.currentTime = Math.min(Math.max(video.currentTime + delta, 0), max);
+      report(true);
+    };
+
+    const onSeekTo = (e: Event) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const payload = ((e as CustomEvent<MediaSeekToPayload>).detail ?? {}) as MediaSeekToPayload;
+      const { time } = payload;
+      if (typeof time !== "number" || !Number.isFinite(time)) return;
+
+      scrubbing = payload.scrubbing === true;
+
+      const max = Number.isFinite(video.duration) ? video.duration : Number.MAX_SAFE_INTEGER;
+      video.currentTime = Math.min(Math.max(time, 0), max);
+      // A destination is flushed; a frame of a drag in progress is not. Flushing
+      // would be right for a single seek — timeupdate never fires while paused,
+      // so other clients would otherwise sit on the old position — but during a
+      // live scrub it means a broadcast per seek, ~8 a second, to every client
+      // of the screen. The final seek of a drag omits the flag and flushes the
+      // position that actually matters.
+      report(!scrubbing);
+    };
+
+    /** Absolute, unlike onTogglePlay — see MEDIA_SET_PAUSED in the protocol. */
+    const onSetPaused = (e: Event) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const { paused } = ((e as CustomEvent<MediaSetPausedPayload>).detail ??
+        {}) as MediaSetPausedPayload;
+      if (typeof paused !== "boolean") return;
+      // Ends any scrub: the drag is over, or someone else took control.
+      scrubbing = false;
+      if (paused) video.pause();
+      else void video.play().catch(() => {});
       report(true);
     };
 
@@ -106,6 +174,8 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     };
 
     window.addEventListener(MEDIA_SEEK_EVENT, onSeek);
+    window.addEventListener(MEDIA_SEEK_TO_EVENT, onSeekTo);
+    window.addEventListener(MEDIA_SET_PAUSED_EVENT, onSetPaused);
     window.addEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
     window.addEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
 
@@ -113,38 +183,113 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     const onTimeUpdate = () => report(false);
     const onPlay = () => report(true);
     const onPause = () => report(true);
+    // Flushed, not throttled: a seek is a discrete jump whose exact position
+    // matters, and timeupdate would report it up to a second late (and not at
+    // all while paused). Covers every seek path at once — the on-screen scrub
+    // bar, MEDIA_SEEK, MEDIA_SEEK_TO.
+    //
+    // Except mid-drag, where flushing every frame of the scrub is exactly the
+    // broadcast storm the `scrubbing` flag exists to prevent — the flag would
+    // be pointless if this listener flushed anyway.
+    const onSeeked = () => report(!scrubbing);
     video?.addEventListener("timeupdate", onTimeUpdate);
     video?.addEventListener("play", onPlay);
     video?.addEventListener("pause", onPause);
+    video?.addEventListener("seeked", onSeeked);
 
     return () => {
       window.removeEventListener(MEDIA_SEEK_EVENT, onSeek);
+      window.removeEventListener(MEDIA_SEEK_TO_EVENT, onSeekTo);
+      window.removeEventListener(MEDIA_SET_PAUSED_EVENT, onSetPaused);
       window.removeEventListener(MEDIA_TOGGLE_PLAY_EVENT, onTogglePlay);
       window.removeEventListener(MEDIA_SET_PLAYBACK_EVENT, onSetPlayback);
       video?.removeEventListener("timeupdate", onTimeUpdate);
       video?.removeEventListener("play", onPlay);
       video?.removeEventListener("pause", onPause);
+      video?.removeEventListener("seeked", onSeeked);
       emitter.dispose();
     };
   }, [content.source, preview]);
 
-  // The `autoPlay` attribute below can't surface a blocked-playback promise
+  // Playback is started here rather than by an `autoPlay` attribute, for two
+  // reasons. First, `autoPlay` can't surface a blocked-playback promise
   // rejection — if the browser blocks unmuted autoplay (kiosk host missing
   // the --autoplay-policy flag, or any other viewer without it), the element
-  // just sits frozen on its first frame with no error anywhere. This calls
-  // play() explicitly so a rejection can be caught, falling back to muted
-  // playback so the video still plays instead of staying dead. No "tap to
-  // unmute" affordance: this is an unattended kiosk display, nobody's there
-  // to click it (unlike welcome-renderer.tsx, which has a real click path).
+  // just sits frozen on its first frame with no error anywhere; calling play()
+  // explicitly lets a rejection be caught and fall back to muted playback so
+  // the video still plays instead of staying dead. No "tap to unmute"
+  // affordance: this is an unattended kiosk display, nobody's there to click
+  // it (unlike welcome-renderer.tsx, which has a real click path).
+  //
+  // Second, having BOTH `autoPlay` and this call issues two competing play
+  // requests, and the browser treats the second as interrupting the first —
+  // the "~1s-in stutter" already diagnosed and fixed in welcome-renderer.tsx
+  // (see the comment on its <video>), which was never carried over here.
+  //
+  // The readiness gate matters just as much as which of the two starts it.
+  // play() on a freshly-mounted element with an empty buffer starts the video
+  // renderer as soon as the first frame decodes while the audio renderer is
+  // still opening its output — so the picture runs, the sound arrives late,
+  // and the audio then drops the samples it fell behind by to re-lock to the
+  // clock (an audibly missing word). Waiting for HAVE_FUTURE_DATA lets both
+  // renderers start together. Needs preload="auto" on the element below:
+  // without `autoPlay` the browser would otherwise stop at metadata and
+  // `canplay` would never fire.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => {
-      if (!video.muted) {
-        video.muted = true;
-        video.play().catch(() => {});
-      }
-    });
+
+    // Signalled in every terminal case, success or failure. A cover that only
+    // lifts on success is a cover that stays down forever on the one occasion
+    // it matters most — see CONTENT_PLAYING_EVENT's docblock.
+    const signalPlaying = () => {
+      window.dispatchEvent(
+        new CustomEvent(CONTENT_PLAYING_EVENT, { detail: { id: content.id } })
+      );
+    };
+
+    const start = () => {
+      video.play().then(signalPlaying).catch(() => {
+        if (!video.muted) {
+          video.muted = true;
+          video.play().then(signalPlaying).catch(signalPlaying);
+        } else {
+          signalPlaying();
+        }
+      });
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      start();
+      return;
+    }
+
+    // The readiness gate must never be the ONLY way playback can begin. Without
+    // `autoPlay` nothing forces the browser past metadata — `preload="auto"` is
+    // a hint Chromium is free to ignore under memory pressure or on a signage
+    // appliance — and a mid-load network error fires `error`, not `canplay`. In
+    // either case a bare `canplay` listener leaves the panel frozen on a black
+    // first frame with nothing in the logs, which is exactly what a stalled
+    // publish looked like on the wall. So: take whichever signal arrives first,
+    // and fall back to starting unconditionally rather than showing nothing.
+    let done = false;
+    const startOnce = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      start();
+    };
+    const timer = setTimeout(startOnce, START_FALLBACK_MS);
+    function cleanup() {
+      clearTimeout(timer);
+      video?.removeEventListener("canplay", startOnce);
+      video?.removeEventListener("loadeddata", startOnce);
+      video?.removeEventListener("error", startOnce);
+    }
+    video.addEventListener("canplay", startOnce, { once: true });
+    video.addEventListener("loadeddata", startOnce, { once: true });
+    video.addEventListener("error", startOnce, { once: true });
+    return cleanup;
   }, [content.source]);
 
   if (!content.source) {
@@ -154,11 +299,14 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
   }
 
   return (
+    <>
     <video
       ref={videoRef}
       key={content.source}       // force remount if source changes
       src={content.source}
-      autoPlay
+      // No `autoPlay`: the effect above starts playback once the element is
+      // actually ready. preload="auto" is what makes that safe — see there.
+      preload="auto"
       playsInline
       muted={preview || content.muted}
       loop={content.loop}
@@ -178,28 +326,22 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
         inset: 0,
         width: "100vw",
         height: "100vh",
-        objectFit: "cover",
+        // "contain", not "cover": cover crops AND upscales anything whose
+        // aspect ratio isn't the panel's, and the library holds portrait
+        // (720x900) and off-ratio (1820x1008) clips. On a 16:9 panel cover
+        // scaled those past 5x and threw most of the frame away — the reason
+        // video looked soft on the 86" screen. Letterboxing on the black
+        // ground below never enlarges beyond what fits.
+        objectFit: "contain",
         backgroundColor: "#000",
         display: "block",
       }}
     />
+    {/* Only on the real panel. A CMS-side embed has no operator standing at
+        it, and ScreenMirror makes its iframe pointer-events:none anyway. */}
+    {!preview && <VideoControlsOverlay videoRef={videoRef} />}
+    </>
   );
-}
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-/**
- * Apply an absolute playback state. Seeks only when the gap is real: the
- * gateway echoes a SET_PLAYBACK back to the very screen that sent it, so
- * assigning currentTime unconditionally would fight the element's own
- * playback about once a second and stutter the picture.
- */
-function applyPlayback(video: HTMLVideoElement, state: PlaybackState) {
-  if (Number.isFinite(state.time) && Math.abs(video.currentTime - state.time) > SEEK_TOLERANCE_SECONDS) {
-    video.currentTime = state.time;
-  }
-  if (state.playing && video.paused) void video.play().catch(() => {});
-  else if (!state.playing && !video.paused) video.pause();
 }
 
 // ─── Internal helper ──────────────────────────────────────────────────────────

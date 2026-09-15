@@ -8,11 +8,21 @@ const API_INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:4000';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // nginx does the gzip now (infra/nginx/default.conf). This defaults to TRUE,
+  // which had Next compressing every response inside the single Node process
+  // and nginx then handling an already-encoded body — paying for compression
+  // twice on the CPU that also renders every page. Let the proxy own it.
+  compress: false,
   transpilePackages: ['@platform/ui', '@platform/vision-browser'],
   output: process.platform === 'win32' ? undefined : 'standalone', // ponytail: disable standalone on Windows to avoid EPERM symlink errors
   // Trace files from monorepo root so workspace packages are included in the bundle
   outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {
+    // Barrel packages: without this, importing one helper from @platform/types
+    // or one icon from lucide-react pulls the whole module graph into the
+    // route bundle. Measured: one helper import cost /screens +75 kB before
+    // this plus "sideEffects": false on the workspace packages.
+    optimizePackageImports: ['@platform/ui', '@platform/types', 'lucide-react'],
     middlewareClientMaxBodySize: '100mb',
   },
   async rewrites() {

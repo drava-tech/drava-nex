@@ -9,7 +9,14 @@
 
 ```
 infra/scripts/             ← YOU ARE HERE
-└── bootstrap.sh           → first-time setup script
+├── bootstrap.sh           → first-time setup script
+├── free-dev-ports.mjs     → frees ports 3000/4000 from OUR leftover dev
+│                            servers before `pnpm dev` (Windows keeps them
+│                            alive when a terminal closes). Never touches a
+│                            process from outside this repo.
+└── dev-api.mjs            → apps/api dev runner: tsc --watch + compiled node.
+                             Replaces `tsx watch`, which took ~17s to boot vs
+                             ~2s compiled.
 ```
 
 ---
@@ -58,7 +65,6 @@ bootstrap.sh runs
   │
   └── pnpm run build  (calls turbo run build)
         ├── Step 1: @platform/types → tsc → dist/
-        ├── Step 1: @platform/config (parallel)
         ├── Step 2: @platform/db, @platform/iot, @platform/ui (parallel)
         └── Step 3: @platform/api, @platform/cms, @platform/screens (parallel)
 ```

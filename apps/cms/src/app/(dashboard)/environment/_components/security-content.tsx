@@ -29,18 +29,18 @@ export default function SecurityContent({ isExpanded, state, actions }: any) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex min-h-0 w-full flex-col gap-4 lg:gap-6 py-1">
-             <div className="min-w-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col justify-center items-center h-full mt-8">
+          <div className="flex-1 flex min-h-0 w-full flex-col gap-2 sm:gap-4 py-1">
+             <div className="min-w-0 flex flex-1 min-h-0 flex-col justify-center items-center h-full mt-2 sm:mt-4">
               <button
                 onClick={() => actions.setLocked(!state.locked)}
-                className={`flex items-center justify-center rounded-full p-8 transition-colors ${state.locked ? "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
+                className={`flex items-center justify-center rounded-full p-5 sm:p-7 md:p-8 transition-colors ${state.locked ? "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
               >
-                {state.locked ? <Lock className="w-32 h-32 lg:w-48 lg:h-48" /> : <Unlock className="w-32 h-32 lg:w-48 lg:h-48" />}
+                {state.locked ? <Lock className="w-20 h-20 sm:w-28 sm:h-28 lg:w-36 lg:h-36" /> : <Unlock className="w-20 h-20 sm:w-28 sm:h-28 lg:w-36 lg:h-36" />}
               </button>
-              <div className="flex items-start justify-center mt-6 mb-2 lg:mb-4 shrink-0">
-                <span className="text-5xl lg:text-7xl font-black">{state.locked ? "Locked" : "Unlocked"}</span>
+              <div className="flex items-start justify-center mt-3 sm:mt-5 mb-1 sm:mb-2 shrink-0">
+                <span className="text-3xl sm:text-5xl lg:text-6xl font-black">{state.locked ? "Locked" : "Unlocked"}</span>
               </div>
-              <p className={`text-center text-[10px] lg:text-xs font-bold tracking-widest uppercase opacity-80 mt-2 lg:mt-3 shrink-0 ${state.locked ? "text-yellow-500" : "text-muted-foreground"}`}>
+              <p className={`text-center text-[10px] sm:text-xs font-bold tracking-widest uppercase opacity-80 mt-1 sm:mt-2 shrink-0 ${state.locked ? "text-yellow-500" : "text-muted-foreground"}`}>
                 {state.locked ? "System is fully locked and secured" : "System is unlocked"}
               </p>
             </div>

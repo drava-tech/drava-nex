@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, AlertTriangle, RotateCw } from "lucide-react";
-import { mediaEmbedUrl, isPageMediaType } from "@platform/types";
+import { mediaEmbedUrl, isPageMediaType, documentKindOfMediaType } from "@platform/types";
 import { assignMedia } from "@/actions/screen-actions";
 import { PushToScreenModal, type ScreenRow } from "@/components/push-to-screen-modal";
 
@@ -69,6 +69,7 @@ export function MediaPreviewModal({
       // listed item (upload, or a link kept earlier) shouldn't show the button.
       onSaveLink={media.pendingSave ? handleSaveLink : undefined}
       showTouchpad={showTouchpad}
+      documentKind={documentKindOfMediaType(media.type)}
       // Page-type content (link/YouTube/Drive/PDF/sheet/deck) hands off to the
       // routed touchpad at /browser/live/[deviceId] instead of swapping in
       // the in-popup LiveControlDialog — one touchpad surface, not two. Other

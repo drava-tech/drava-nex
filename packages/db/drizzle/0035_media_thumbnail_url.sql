@@ -1,0 +1,11 @@
+-- Derived thumbnail for image assets.
+--
+-- The media grid and the /broadcast carousel render ~200px tiles, but they load
+-- media_asset.url — the original upload. Measured on this library: one page of
+-- 20 tiles pulled 15.8 MB of originals (a single 9.4 MB JPEG among them), and
+-- the average image is 2.3 MB. That dwarfs every other cost on the page by
+-- roughly three orders of magnitude.
+--
+-- Nullable, and the UI falls back to `url` when it is null, so existing rows
+-- keep working untouched until the backfill runs (packages/db/src/backfill-thumbnails.ts).
+ALTER TABLE "media_asset" ADD COLUMN IF NOT EXISTS "thumbnail_url" text;

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, Loader2, MonitorPlay, Radio } from "lucide-react";
+import { documentKindOfMediaType } from "@platform/types";
 import { AddLinkFields, type DetectedLink } from "@/app/(dashboard)/media/_components/add-link-dialog";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
 import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
@@ -189,7 +190,14 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
               </span>
             </div>
             <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-[#432992] shadow-2xl">
-              <ScreenTouchpad screenId={deviceId} />
+              {/* Derived from the server-fetched row rather than a live
+                  subscription: reaching this route always follows a push, and
+                  sending another link from the left column re-navigates here,
+                  so the row is re-fetched either way. */}
+              <ScreenTouchpad
+                screenId={deviceId}
+                documentKind={documentKindOfMediaType(liveScreen?.mediaType ?? "")}
+              />
             </div>
           </>
         ) : (

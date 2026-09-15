@@ -1,8 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import Link from "next/link";
-import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX, Rewind, FastForward, Pause } from "lucide-react";
+import { Wifi, WifiOff, Layers, RotateCcw, Ban, Play, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, AppWindow, Minimize2, Maximize2, Power, RefreshCw, Minus, Plus, Volume2, VolumeX, Rewind, FastForward, Pause } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@platform/ui";
 import { useScreenControls } from "@/hooks/useScreenControls";
 import { useSystemAudio } from "@/hooks/useSystemAudio";
 import { assignExperience, assignMedia, assignDefaultMedia, sendRemoteCommand } from "@/actions/screen-actions";
@@ -10,9 +18,29 @@ import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
 import { MEDIA_SEEK, MEDIA_TOGGLE_PLAY } from "@/lib/display/playback-protocol";
 import { CameraStatusBadge } from "@/components/camera-status-badge";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
-import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
-import { ScreenAssignmentPicker } from "@/app/(dashboard)/screens/_components/screens-assignment-picker";
-import type { WsContent } from "@platform/types";
+
+// These three are mutually exclusive at runtime — a screen is either showing a
+// video (VideoControlPanel), an html page needing pointer control
+// (ScreenTouchpad), or the picker is open (ScreenAssignmentPicker) — yet all
+// three shipped in this page's initial chunk, so at least two were always dead
+// weight. ScreenAssignmentPicker in particular carries tabs, infinite scroll and
+// a media grid. Loaded on demand instead.
+const ScreenTouchpad = dynamic(
+  () => import("@/app/(dashboard)/screens/_components/screen-touchpad").then((m) => m.ScreenTouchpad),
+  { ssr: false }
+);
+const ScreenAssignmentPicker = dynamic(
+  () =>
+    import("@/app/(dashboard)/screens/_components/screens-assignment-picker").then(
+      (m) => m.ScreenAssignmentPicker
+    ),
+  { ssr: false }
+);
+const VideoControlPanel = dynamic(
+  () => import("@/components/video-control-panel").then((m) => m.VideoControlPanel),
+  { ssr: false }
+);
+import { documentKindOf, type WsContent } from "@platform/types";
 
 /** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
 const VOLUME_STEP = 5;
@@ -70,9 +98,16 @@ export function LiveScreenSurface({
     name: changeContent?.defaultMediaName ?? null,
   });
   const [currentContent, setCurrentContent] = useState(initialContent);
-  /** Optimistic only: SET_PLAYBACK fans out to the screen registry, never to
-   * CMS sockets, so this panel cannot observe real playback state. Reset on
-   * every content change, where "playing" is known to be true again. */
+  /**
+   * Optimistic, and only ever used for the YouTube pill below.
+   *
+   * A native video no longer needs it: VideoControlPanel holds a preview
+   * socket for this screen and reads the real SET_PLAYBACK the screen emits
+   * (see useScreenPlayback). A kiosk YouTube embed reports through the IFrame
+   * Player API against its own embed URL, which does not line up with that
+   * path, so it keeps the guess — and the guess is at least reset on every
+   * content change, where "playing" is known to be true again.
+   */
   const [assumePlaying, setAssumePlaying] = useState(true);
 
   const {
@@ -86,6 +121,8 @@ export function LiveScreenSurface({
     resetDetection,
     resettingToIdle,
     resetToIdle,
+    resettingState,
+    resetState,
     queueIndex,
     navigatingQueue,
     navigateQueue,
@@ -109,6 +146,10 @@ export function LiveScreenSurface({
   });
 
   const hasQueue = Boolean(queueMediaIds && queueMediaIds.length > 0);
+
+  /** Any kiosk window command in flight — surfaced on the collapsed App menu's
+   * trigger, since its items' own busy states are hidden while it's closed. */
+  const appBusy = reloading || minimizing || maximizing || closingApp;
 
   // Same office-wide system audio endpoint as the touchpad's volume row and
   // the Environment Control Audio tile — one physical PC's speakers,
@@ -138,7 +179,9 @@ export function LiveScreenSurface({
     }
   };
 
-  const showTransport = isPlayableMedia(currentContent);
+  // Native video is controlled from VideoControlPanel, which has a real
+  // position and a scrub bar; only YouTube still needs this reduced pill.
+  const showTransport = isPlayableMedia(currentContent) && currentContent?.type !== "video";
 
   const handleSeek = async (delta: number) => {
     await sendRemoteCommand(screenId, MEDIA_SEEK, { delta });
@@ -268,6 +311,14 @@ export function LiveScreenSurface({
             </button>
           )}
           <button
+            onClick={resetState}
+            disabled={resettingState}
+            title="Reset the current content to its initial state (e.g. portfolio 1st frame)"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> {resettingState ? "Resetting..." : "Reset view"}
+          </button>
+          <button
             onClick={resetToIdle}
             disabled={resettingToIdle}
             title="Clear the current assignment and fall back to the default/idle media"
@@ -287,38 +338,58 @@ export function LiveScreenSurface({
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
             {togglingBlank ? "..." : blanked ? "Resume" : "Stop"}
           </button>
-          <button
-            onClick={handleReload}
-            disabled={reloading}
-            title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> {reloading ? "..." : "Refresh"}
-          </button>
-          <button
-            onClick={handleMinimize}
-            disabled={minimizing}
-            title="Minimize the kiosk app on the TV's PC, revealing its desktop"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Minimize2 className="h-3.5 w-3.5" /> {minimizing ? "..." : "Minimize"}
-          </button>
-          <button
-            onClick={handleMaximize}
-            disabled={maximizing}
-            title="Bring the kiosk app back to fullscreen on the TV's PC"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-500/30 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Maximize2 className="h-3.5 w-3.5" /> {maximizing ? "..." : "Maximize"}
-          </button>
-          <button
-            onClick={handleCloseApp}
-            disabled={closingApp}
-            title="Close the kiosk app on the TV's PC entirely"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-          >
-            <Power className="h-3.5 w-3.5" /> {closingApp ? "..." : "Close app"}
-          </button>
+          {/* Kiosk window controls (refresh/minimize/maximize/close) collapsed
+              into one menu — four permanent buttons crowded the action bar,
+              and these are occasional maintenance actions, unlike the live
+              content controls beside them. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={appBusy}
+              title="Kiosk app controls on the TV's PC — refresh, minimize, maximize, close"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 data-[state=open]:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            >
+              <AppWindow className="h-3.5 w-3.5" />
+              {appBusy ? "..." : "App"}
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onSelect={handleReload}
+                disabled={reloading}
+                className="cursor-pointer gap-2"
+                title="Reload the browser on the TV's PC — needed after a CMS redeploy so the kiosk picks up the new build"
+              >
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleMinimize}
+                disabled={minimizing}
+                className="cursor-pointer gap-2"
+                title="Minimize the kiosk app on the TV's PC, revealing its desktop"
+              >
+                <Minimize2 className="h-4 w-4" /> Minimize
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleMaximize}
+                disabled={maximizing}
+                className="cursor-pointer gap-2"
+                title="Bring the kiosk app back to fullscreen on the TV's PC"
+              >
+                <Maximize2 className="h-4 w-4" /> Maximize
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                // Deferred so the menu finishes closing before the blocking
+                // window.confirm inside the handler freezes the main thread.
+                onSelect={() => setTimeout(handleCloseApp, 0)}
+                disabled={closingApp}
+                className="cursor-pointer gap-2 text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                title="Close the kiosk app on the TV's PC entirely"
+              >
+                <Power className="h-4 w-4" /> Close app
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Transport cluster — only for content with a timeline. Grouped in
               its own pill and placed beside the volume controls so it reads as
@@ -402,13 +473,33 @@ export function LiveScreenSurface({
         </div>
       </div>
 
-      {showTouchpad ? (
+{/*
+        Three surfaces, and the ORDER matters. YouTube shares the "html" wire
+        type with PDF/slides/word/sheet/links, so it lands in the touchpad
+        branch — which is correct, a cross-origin kiosk embed can only be
+        driven by the real OS cursor. Testing for video first keeps it out of
+        that branch without disturbing anything else.
+      */}
+      {currentContent?.type === "video" ? (
+        // No mirror: decoding the same file a second time just to watch it is
+        // real bandwidth for no control value. Real transport + true position
+        // instead — see VideoControlPanel.
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+            <VideoControlPanel
+              screenId={screenId}
+              source={currentContent.source}
+              contentName={screenName}
+            />
+          </div>
+        </div>
+      ) : showTouchpad ? (
         // No preview — a blank touchpad that drives the REAL OS cursor on the
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
           <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden">
-            <ScreenTouchpad screenId={screenId} />
+            <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
           </div>
         </div>
       ) : (

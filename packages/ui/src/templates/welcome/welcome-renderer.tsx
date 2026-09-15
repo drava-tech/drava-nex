@@ -104,13 +104,29 @@ export function WelcomeRenderer({
     if (preview) return;
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => {
-      if (!video.muted) {
-        video.muted = true;
-        setMuted(true);
-        video.play().catch(() => {});
-      }
-    });
+
+    const start = () => {
+      video.play().catch(() => {
+        if (!video.muted) {
+          video.muted = true;
+          setMuted(true);
+          video.play().catch(() => {});
+        }
+      });
+    };
+
+    // Not on mount: play() against an empty buffer starts the video renderer
+    // as soon as the first frame decodes, while the audio renderer is still
+    // opening its output — the picture runs, the sound comes in about a
+    // second late, and the audio then discards the samples it fell behind by
+    // to re-lock to the clock, swallowing a word. HAVE_FUTURE_DATA means
+    // there is enough decoded for both renderers to start together.
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      start();
+      return;
+    }
+    video.addEventListener("canplay", start, { once: true });
+    return () => video.removeEventListener("canplay", start);
   }, [videoUrl, preview]);
 
   const handleUnmute = () => {

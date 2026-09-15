@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { X, Upload, Loader2, ImageIcon } from "lucide-react";
+import { mediaThumbnailSrc } from "@/lib/media-tiles";
 
 interface MediaItem {
   id: string;
   name: string;
   type: string;
   url: string;
+  /** Small derived tile; null for videos/links and pre-backfill images. */
+  thumbnailUrl?: string | null;
 }
 
 export interface MediaPickerItem {
@@ -54,20 +58,66 @@ export function MediaPicker({
   const [failed, setFailed] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  /** Keyset cursor for the next page, or null once the list is exhausted. */
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  /**
+   * One page of media, filtered to the accepted kinds by the API rather than
+   * after the fetch — this picker used to download the entire library every
+   * time it opened and then throw most of it away.
+   */
+  const load = useCallback(
+    async (cursor: string | null) => {
+      if (cursor === null) setLoading(true);
+      else setLoadingMore(true);
+      try {
+        const params = new URLSearchParams({ mode: "cursor", limit: "48" });
+        // accept="all" means NO type restriction, not "image and video" —
+        // product-media-editor.tsx opens this picker with accept="all"
+        // specifically to attach a brochure (PDF/docx/xlsx/pptx), so narrowing
+        // it here made every document in the library unselectable.
+        if (accept !== "all") params.set("types", accept);
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(`/api/media?${params.toString()}`);
+        const data = res.ok ? await res.json() : null;
+        const page: MediaItem[] = data?.media ?? [];
+        setItems((prev) => (cursor === null ? page : [...prev, ...page]));
+        setNextCursor(data?.nextCursor ?? null);
+      } catch {
+        if (cursor === null) setItems([]);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [accept],
+  );
+
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    fetch("/api/media")
-      .then((r) => r.json())
-      .then((d) => setItems(d.media ?? []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }, [open]);
+    void load(null);
+  }, [open, load]);
+
+  const sentinelRef = useInfiniteScroll({
+    hasMore: nextCursor !== null,
+    loading: loading || loadingMore,
+    onLoadMore: () => void load(nextCursor),
+  });
 
   if (!open) return null;
 
-  const visible = accept === "all" ? items : items.filter((i) => i.type === accept);
-  const uploadAccept = accept === "video" ? "video/*" : accept === "all" ? "image/*,video/*" : "image/*";
+  // The API already restricted this to the accepted kinds.
+  const visible = items;
+  // Mirrors the ALLOWED map in apps/api/src/routes/media.ts. For accept="all"
+  // this must offer the document kinds too, or the brochure picker would list
+  // PDFs it refuses to let you upload.
+  const uploadAccept =
+    accept === "video"
+      ? "video/*"
+      : accept === "all"
+        ? "image/*,video/*,application/pdf,.xlsx,.csv,.pptx,.docx"
+        : "image/*";
 
   /**
    * Uploads every picked file. POST /api/upload takes one file per request, so
@@ -209,13 +259,19 @@ export function MediaPicker({
                     <video src={m.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                    <img src={mediaThumbnailSrc(m)} alt={m.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   )}
                   <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[10px] text-white bg-black/50 truncate text-left">
                     {m.name}
                   </span>
                 </button>
               ))}
+            </div>
+          )}
+          {/* Sentinel: the next page loads when this scrolls into view. */}
+          {!loading && nextCursor && (
+            <div ref={sentinelRef} className="flex justify-center py-4">
+              {loadingMore && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
             </div>
           )}
         </div>

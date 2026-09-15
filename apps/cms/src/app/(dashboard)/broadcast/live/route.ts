@@ -1,5 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { crumbRedirect } from "@/lib/crumb-redirect";
 
-export async function GET(request: NextRequest) {
-  return NextResponse.redirect(new URL("/broadcast", request.url));
+/** Bare "Live" crumb on /broadcast/live/<deviceId> — back to the board. */
+export async function GET() {
+  return crumbRedirect("/broadcast");
 }

@@ -29,6 +29,48 @@ function clamp255(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));
 }
 
+/** Below this HSV saturation a colour is treated as white rather than a hue. */
+const ACHROMATIC_SAT = 0.25;
+
+/**
+ * Map a requested colour onto what these fixtures can actually render.
+ *
+ * Measured on the mesh: the RGB path always renders a FULLY SATURATED hue —
+ * saturation comes back as 254 no matter what is sent. A colour therefore
+ * cannot be "slightly tinted" here: any non-zero RGB shows as a vivid hue at
+ * full strength. The dedicated W channel does work, and both units accept it.
+ *
+ * The naive RGB->RGBW split (w = min(r,g,b), RGB keeps the remainder) is wrong
+ * for this hardware and was tried first: warm white became white=224 plus an
+ * RGB remainder of (31,19,0) that the fixture rendered as saturated red, i.e.
+ * a red splash over the white instead of a warm tint.
+ *
+ * So the channels are used exclusively rather than blended — near-neutral
+ * colours go to W alone, saturated colours to RGB alone. That is the whole
+ * gamut these fixtures have: clean whites, or vivid hues.
+ */
+function toFixtureChannels(r: number, g: number, b: number): { r: number; g: number; b: number; w: number } {
+  const max = Math.max(r, g, b);
+  const sat = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+  if (sat < ACHROMATIC_SAT) return { r: 0, g: 0, b: 0, w: max };
+  return { r, g, b, w: 0 };
+}
+
+/**
+ * Measured on the mesh: a green command reads back as blue and a blue command
+ * reads back as green, with red unaffected — consistently, on both units.
+ *
+ * What cannot be determined from MQTT alone is WHICH side is swapped. If the
+ * command path is swapped the fixture genuinely lights blue and this must
+ * compensate; if only the gateway's readback is swapped the fixture is already
+ * correct and compensating here would break it. Both cases produce identical
+ * traffic, so only someone looking at the fixture can tell them apart.
+ *
+ * Left false (existing behaviour, no regression risk). To resolve: send green
+ * and look at the light — if it shows blue, set this true.
+ */
+const SWAP_GREEN_BLUE = false;
+
 export class CasambiDeviceDriver implements DeviceDriver {
   constructor(private readonly mqtt: MQTTDeviceManager) {}
 
@@ -68,11 +110,15 @@ export class CasambiDeviceDriver implements DeviceDriver {
     if (state.color) {
       const rgb = hexToRgb(state.color);
       if (rgb) {
+        // An explicit white wins; otherwise derive it, so whites actually reach
+        // the one channel that can render them.
+        const split = toFixtureChannels(rgb.r, rgb.g, rgb.b);
+        const white = clamp255(state.white ?? split.w);
         await this.publish(`casambi/${network}/set/target_rgbw`, {
-          red: rgb.r,
-          green: rgb.g,
-          blue: rgb.b,
-          white: 0,
+          red: split.r,
+          green: SWAP_GREEN_BLUE ? split.b : split.g,
+          blue: SWAP_GREEN_BLUE ? split.g : split.b,
+          white,
           level,
           targetid: targetId,
           targettype: targetType,
@@ -90,6 +136,28 @@ export class CasambiDeviceDriver implements DeviceDriver {
       level,
       targettype: targetType,
       duration: 1, // 10ms units — near-instant, feels responsive for a UI slider
+    });
+  }
+
+  /**
+   * Recall a scene defined in the Casambi network itself (not a CMS "scene" row).
+   *
+   * This is the ONLY way to change a fixture's White/Colour balance from here:
+   * a Casambi scene stores that balance as part of itself, whereas no direct
+   * MQTT command sets it — verified by probing every topic the gateway
+   * subscribes to. Measured: scene 2/3 move the fabrics into colour mode
+   * (balance 0 -> 255) and scene 1 returns them to warm (255 -> 0).
+   */
+  async triggerMeshScene(sceneId: number, level = 255): Promise<void> {
+    const network = process.env["CASAMBI_NETWORK_ID"];
+    if (!network) {
+      console.warn("[casambi] cannot recall scene — CASAMBI_NETWORK_ID not set");
+      return;
+    }
+    await this.publish(`casambi/${network}/set/scene_level`, {
+      scene: sceneId,
+      level,
+      duration: 1,
     });
   }
 

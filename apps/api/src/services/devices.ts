@@ -45,6 +45,11 @@ export function setIrManager(mgr: MQTTDeviceManager): void {
   irDriver = new IrDeviceDriver(mgr);
 }
 
+/** The Casambi driver, for operations that are not per-device (mesh scenes). */
+export function getCasambiDriver(): CasambiDeviceDriver | null {
+  return casambiDriver;
+}
+
 /** The IR driver, once wired at startup (see apps/api/src/index.ts). */
 export function getIrDriver(): IrDeviceDriver | null {
   return irDriver;

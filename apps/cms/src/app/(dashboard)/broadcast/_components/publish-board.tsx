@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
-import { motion, animate, useAnimation, useMotionValue, type PanInfo } from "framer-motion";
+import {
+  motion,
+  animate,
+  useAnimation,
+  useMotionValue,
+  type PanInfo,
+} from "framer-motion";
 import {
   CalendarRange,
   Check,
@@ -19,14 +32,33 @@ import {
   RefreshCw,
   Video,
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@platform/ui";
+import { PUSHABLE_MEDIA_TYPES, mediaThumbnailSrc } from "@/lib/media-tiles";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
-import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
-import { currentLabel, type ScreenRow } from "@/components/push-to-screen-modal";
+import {
+  currentLabel,
+  type ScreenRow,
+} from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { PublishScreenBridge } from "./publish-screen-bridge";
-import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
-import type { WsContent } from "@platform/types";
+import { readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
+import {
+  PUBLISH_DRAG_START,
+  PUBLISH_DRAG_PROGRESS,
+  PUBLISH_DRAG_END,
+} from "@/lib/publish-drag-protocol";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  activeScreensUpdated,
+  screenContentUpdated,
+  screenRowRestored,
+  screensHydrated,
+} from "@/store/screens-slice";
 
 /** How far / how fast a card must be swiped up before it counts as "publish" —
  * deliberately strict (near the card's full height) so an accidental brush
@@ -38,6 +70,23 @@ const SWIPE_VELOCITY = 900;
  * the screen" cover (triggerPublish) must never start before this finishes,
  * or the two animations visibly overlap. */
 const CARD_RESET_MS = 240;
+
+/** Matches the cover's own 0.45s rise, so navigation starts as it lands. */
+const COVER_SETTLE_MS = 450;
+
+/**
+ * Hard ceiling on the "Opening …" cover. If the navigation it starts hasn't
+ * replaced this page by now it isn't going to — give the board back instead of
+ * leaving an opaque panel over the whole surface.
+ */
+const COVER_BAIL_MS = 8_000;
+
+/** useLayoutEffect so a remembered carousel position is already in place on the
+ * first painted frame rather than visibly jumping there afterwards. The
+ * useEffect fallback only covers the SSR pass, where there is by definition
+ * nothing restored to jump to (see publish-board-state.ts). */
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 interface ExperienceOption {
   id: string;
@@ -51,31 +100,27 @@ interface ExperienceTag {
   name: string;
 }
 
-interface MediaItem {
+export interface MediaItem {
   id: string;
   name: string;
   type: string;
   url: string;
   source: string | null;
   createdAt: string | null;
-}
-
-/** `from`/`to` are "YYYY-MM-DD" (possibly empty for an open-ended bound),
- * directly comparable against the leading 10 chars of an ISO createdAt —
- * same convention as apps/cms/src/app/(dashboard)/media/page.tsx's date filter. */
-function matchesDateRange(item: MediaItem, from: string, to: string): boolean {
-  if (!from && !to) return true;
-  if (!item.createdAt) return true;
-  const itemDate = item.createdAt.slice(0, 10);
-  if (from && itemDate < from) return false;
-  if (to && itemDate > to) return false;
-  return true;
+  /** Small derived tile; null for videos and pre-backfill images. */
+  thumbnailUrl?: string | null;
 }
 
 /** Every non-experience card carries the media asset's own classified type
  * (see apps/api/src/routes/media.ts's ALLOWED map) — "image"/"video" render a
  * real preview, the rest fall back to a file-type icon (see CardVisual). */
-type MediaCardType = "image" | "video" | "document" | "sheet" | "presentation" | "word";
+export type MediaCardType =
+  | "image"
+  | "video"
+  | "document"
+  | "sheet"
+  | "presentation"
+  | "word";
 
 const MEDIA_TYPE_LABELS: Record<MediaCardType, string> = {
   video: "Video",
@@ -96,6 +141,8 @@ interface ContentCard {
 
 interface PublishBoardProps {
   initialScreens: ScreenRow[];
+  /** Connected screen ids at render time; the store keeps them current after. */
+  initialActiveScreenIds: string[];
   experiences: ExperienceOption[];
   experienceTypes: ExperienceTag[];
 }
@@ -108,45 +155,239 @@ interface PublishBoardProps {
  * the checkbox-list pickers elsewhere in the CMS; the screen box plays a
  * quick "opening" flash when new content lands on it.
  */
-export function PublishBoard({ initialScreens, experiences, experienceTypes }: PublishBoardProps) {
-  const [screens, setScreens] = useState<ScreenRow[]>(initialScreens);
-  const [targetIndex, setTargetIndex] = useState(0);
-  const [filter, setFilter] = useState<"experiences" | "media">("experiences");
+export function PublishBoard({
+  initialScreens,
+  initialActiveScreenIds,
+  experiences,
+  experienceTypes,
+}: PublishBoardProps) {
+  // Publishing navigates to the live page and coming back mounts a fresh
+  // board, so everything the user had set up would be lost — restored here
+  // from the per-document snapshot (see publish-board-state.ts). On a genuinely
+  // first visit every value below is the same default as before, so the
+  // server-rendered markup is unchanged. Captured in a ref so its identity is
+  // stable for the lifetime of this mount.
+  const restored = useRef(readBoardSnapshot()).current;
+  const dispatch = useAppDispatch();
+  const storeRows = useAppSelector((s) => s.screens.rows);
+  const screens = storeRows.length > 0 ? storeRows : initialScreens;
+  // Kept live by StoreSync's ACTIVE_SCREENS_LIST — the same source the
+  // experiences list and browser view read for their online dots. This board
+  // targets exactly one panel (the 86" TV), so whether that panel is actually
+  // attached is the single most useful thing to show here. Seeded from the
+  // server prop and falling back to it until the socket's first list arrives,
+  // so the dot is never wrongly amber on the first frame (same shape as
+  // projects-list.tsx).
+  const storeActiveIds = useAppSelector((s) => s.screens.activeIds);
+  useEffect(() => {
+    dispatch(activeScreensUpdated(initialActiveScreenIds));
+  }, [dispatch, initialActiveScreenIds]);
+  const activeScreenIds =
+    storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds;
+  const [targetIndex, setTargetIndex] = useState(restored.targetIndex);
+  const [filter, setFilter] = useState<"experiences" | "media">(
+    restored.filter,
+  );
   /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(restored.tagFilter);
   /** Only meaningful (and shown) while filter === "media" — narrows to one media type. */
-  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(null);
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(
+    restored.mediaTypeFilter,
+  );
   /** Only meaningful while filter === "media" — narrows to email-ingested items only. */
-  const [emailOnly, setEmailOnly] = useState(false);
+  const [emailOnly, setEmailOnly] = useState(restored.emailOnly);
   /** Only meaningful while filter === "media" — "" | "YYYY-MM-DD", open-ended if either is empty. */
-  const [mediaDateFrom, setMediaDateFrom] = useState("");
-  const [mediaDateTo, setMediaDateTo] = useState("");
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [loadingMedia, setLoadingMedia] = useState(true);
+  const [mediaDateFrom, setMediaDateFrom] = useState(restored.mediaDateFrom);
+  const [mediaDateTo, setMediaDateTo] = useState(restored.mediaDateTo);
+  // Seeded from the snapshot so a return visit has its cards (and therefore
+  // its scroll position) on the very first frame instead of flashing the
+  // "Loading content…" spinner while /api/media is re-fetched below.
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(
+    restored.mediaItems ?? [],
+  );
+  const [loadingMedia, setLoadingMedia] = useState(
+    restored.mediaItems === null,
+  );
+  /** Keyset cursor for the next page, or null at the end of the list. */
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    restored.mediaNextCursor,
+  );
+  const [loadingMore, setLoadingMore] = useState(false);
+  /** Read by the scroll handler, which must not re-subscribe per state change. */
+  const loadingMoreRef = useRef(false);
+  const nextCursorRef = useRef<string | null>(restored.mediaNextCursor);
+  nextCursorRef.current = nextCursor;
+  /** Bumped on every filter change; a response tagged with a stale seq is
+   *  dropped, so a slow first page can't overwrite a newer filter's results. */
+  const requestSeqRef = useRef(0);
+  /** Which media types actually exist under the current source/date filter.
+   *  Comes from the server (GET /api/media/stats) rather than from the loaded
+   *  rows: with keyset paging the client has only seen the pages it scrolled
+   *  through, so deriving the dropdown locally would hide types further down. */
+  const [presentMediaTypes, setPresentMediaTypes] = useState<string[]>([]);
   const [pushingId, setPushingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    // "warning" = the push itself worked, but nothing was there to receive it.
+    tone: "success" | "warning" | "error";
+  } | null>(null);
   const boxControls = useAnimation();
   const router = useRouter();
-  const [covering, setCovering] = useState<{ screenId: string; screenName: string } | null>(null);
-  const sendDragRef = useRef<(command: string, value?: unknown) => void>(() => { });
+  const [covering, setCovering] = useState<{
+    screenId: string;
+    screenName: string;
+  } | null>(null);
+  // Drives the cover's navigation, and guarantees the cover can always be
+  // dismissed. This used to hang off the cover's own onAnimationComplete, which
+  // framer-motion does not fire when the animation is interrupted — and an
+  // incoming SCREEN_UPDATED re-render is enough to interrupt it. When it didn't
+  // fire there was no other exit anywhere in this component (there is still no
+  // other setCovering(null) call by design — this effect owns it), so the board
+  // sat behind an opaque full-screen "Opening …" panel until a manual reload.
+  const coverNavRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!covering) {
+      coverNavRef.current = null;
+      return;
+    }
+    if (coverNavRef.current === covering.screenId) return;
+    coverNavRef.current = covering.screenId;
+    const target = `/broadcast/live/${covering.screenId}`;
+    const nav = window.setTimeout(() => router.push(target), COVER_SETTLE_MS);
+    // The destination re-runs the expensive getExperiences() and has no
+    // loading.tsx, so a slow or failed navigation is entirely possible. Hand
+    // the board back rather than leaving the operator with a dead screen.
+    const bail = window.setTimeout(() => setCovering(null), COVER_BAIL_MS);
+    return () => {
+      window.clearTimeout(nav);
+      window.clearTimeout(bail);
+    };
+  }, [covering, router]);
+
+  const sendDragRef = useRef<(command: string, value?: unknown) => void>(
+    () => {},
+  );
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  /** Slides currently parked at the off-screen end state, so updateSlideTransforms
+   *  can skip rewriting styles that would not change. */
+  const parkedSlidesRef = useRef<Set<string>>(new Set());
 
-  // Reusable so "Load Email" can refetch after ingesting, not just on mount.
-  const fetchMedia = useCallback(async () => {
-    const res = await fetch("/api/media");
-    const data = await res.json();
-    // All pushable file types, not just image/video — anything else
-    // (link/email-sourced entries with no real file) is left out.
-    const files = (data.media || []).filter((item: MediaItem) => Object.hasOwn(MEDIA_TYPE_LABELS, item.type));
-    setMediaItems(files);
-  }, []);
+  // The carousel's filters, as /api/media query params. Type/source/date are
+  // applied by the server now rather than after the fetch — under keyset paging
+  // a client-side filter would show an empty row whenever the first page
+  // happened to contain no matches, while matches sat unfetched further down.
+  const mediaQuery = useCallback(
+    (extra?: Record<string, string>) => {
+      const params = new URLSearchParams({
+        // Only pushable file kinds ever become cards; the pasted-link kinds
+        // (youtube/drive/link) have no real file behind them.
+        types: mediaTypeFilter ? mediaTypeFilter : PUSHABLE_MEDIA_TYPES.join(","),
+        ...extra,
+      });
+      if (emailOnly) params.set("sources", "email");
+      if (mediaDateFrom) params.set("dateFrom", mediaDateFrom);
+      if (mediaDateTo) params.set("dateTo", mediaDateTo);
+      return params;
+    },
+    [mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo],
+  );
 
+  /**
+   * Load one keyset page. `cursor === null` starts a fresh walk (a filter
+   * change, or "Load Email"); otherwise it appends the next page.
+   *
+   * Keyset rather than page/offset because rows are constantly inserted at the
+   * HEAD of this list — Gmail ingest below, and any MEDIA_LIBRARY_UPDATED. An
+   * offset window would shift under every such insert and the following page
+   * would repeat or skip cards mid-scroll.
+   */
+  const loadMediaPage = useCallback(
+    async (cursor: string | null) => {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      const seq = cursor === null ? ++requestSeqRef.current : requestSeqRef.current;
+      if (cursor === null) setLoadingMedia(true);
+      else setLoadingMore(true);
+
+      try {
+        const params = mediaQuery({ mode: "cursor", limit: "30" });
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(`/api/media?${params.toString()}`);
+        if (!res.ok) throw new Error(`media request failed: ${res.status}`);
+        const data = (await res.json()) as {
+          media?: MediaItem[];
+          nextCursor?: string | null;
+        };
+        // A newer filter has already started its own walk — drop this page
+        // rather than mixing two filters' rows into one carousel.
+        if (seq !== requestSeqRef.current) return;
+
+        const page = data.media ?? [];
+        const cursorOut = data.nextCursor ?? null;
+        setMediaItems((prev) => {
+          // Append-and-dedupe: a row can legitimately arrive twice if it was
+          // inserted above the cursor between two pages.
+          const merged = cursor === null ? page : [...prev, ...page];
+          const seen = new Set<string>();
+          const deduped = merged.filter((m) =>
+            seen.has(m.id) ? false : (seen.add(m.id), true),
+          );
+          saveBoardSnapshot({ mediaItems: deduped, mediaNextCursor: cursorOut });
+          return deduped;
+        });
+        setNextCursor(cursorOut);
+        nextCursorRef.current = cursorOut;
+      } catch (err) {
+        console.error("Failed to load media for publish board:", err);
+      } finally {
+        loadingMoreRef.current = false;
+        setLoadingMedia(false);
+        setLoadingMore(false);
+      }
+    },
+    [mediaQuery],
+  );
+
+  // Restart the walk whenever a media filter changes. Deliberately not keyed on
+  // `filter`/`tagFilter` — those switch between the experience and media rows
+  // and narrow experiences, neither of which changes the media query.
+  //
+  // The mount pass is skipped on a return visit: the snapshot already carries
+  // the pages the user had scrolled through AND the cursor to continue from, so
+  // refetching page 1 here would throw those away and strand the scroll restore
+  // (which is waiting for exactly those cards) at the start of the list.
+  const skipInitialLoadRef = useRef(restored.mediaItems !== null);
   useEffect(() => {
-    fetchMedia()
-      .catch((err) => console.error("Failed to load media for publish board:", err))
-      .finally(() => setLoadingMedia(false));
-  }, [fetchMedia]);
+    if (skipInitialLoadRef.current) {
+      skipInitialLoadRef.current = false;
+      return;
+    }
+    void loadMediaPage(null);
+  }, [loadMediaPage]);
+
+  // Which media types exist under the current source/date filter, for the type
+  // dropdown. Deliberately asks WITHOUT the type filter applied, or selecting
+  // one type would collapse the dropdown to just that type.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (emailOnly) params.set("sources", "email");
+    if (mediaDateFrom) params.set("dateFrom", mediaDateFrom);
+    if (mediaDateTo) params.set("dateTo", mediaDateTo);
+    let cancelled = false;
+    fetch(`/api/media/stats?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { byType?: { type: string }[] } | null) => {
+        if (cancelled || !data?.byType) return;
+        setPresentMediaTypes(data.byType.map((t) => t.type));
+      })
+      .catch(() => {
+        // Non-fatal: the dropdown just keeps its previous options.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [emailOnly, mediaDateFrom, mediaDateTo]);
 
   // On-demand Gmail ingest — pulls the last 2 days of attachments/links into
   // media_asset, same action as the "Load Email" button on the Media Library
@@ -158,13 +399,20 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     try {
       const res = await fetch("/api/media/gmail/load", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.error ?? "Could not load email");
-      await fetchMedia();
+      if (!res.ok || !data.success)
+        throw new Error(data.error ?? "Could not load email");
+      // Restart the keyset walk from the top rather than appending: the new
+      // items were inserted at the HEAD of the ordering, so they belong to
+      // page 1 and no cursor further down would ever reach them.
+      await loadMediaPage(null);
       // /api/media already returns newest-first, so the just-loaded items land
       // at the front of mediaItems/cards — but the scroller's pixel position
       // doesn't know that on its own, so without this it can keep showing
       // whatever was already centered instead of the new newest item.
       if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
+      // ...and the snapshot must forget whichever card *was* centred, or a
+      // later return visit would scroll back to it and undo this jump.
+      saveBoardSnapshot({ centredCardKey: null });
       setFeedback({ message: "Loaded new media from email", tone: "success" });
     } catch (err) {
       setFeedback({
@@ -176,39 +424,48 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     }
   };
 
-  // Keeps "now showing" / online-dot correct if a screen is reassigned from
-  // elsewhere (another tab, the touch picker) while this page stays open.
-  const handleScreenUpdated = useCallback((screenId: string, content: WsContent) => {
-    setScreens((prev) =>
-      prev.map((s) => {
-        if (s.screenId !== screenId) return s;
-        if (content.type === "video" || content.type === "image") {
-          return {
-            ...s,
-            currentContentKind: "media",
-            currentMediaAssetId: content.id,
-            mediaType: content.type,
-            mediaUrl: content.source,
-            mediaName: content.title ?? null,
-          };
-        }
-        return {
-          ...s,
-          currentContentKind: "experience",
-          currentExperienceId: content.id,
-          experienceName: content.title ?? null,
-        };
-      })
-    );
-  }, []);
+  useEffect(() => {
+    dispatch(screensHydrated(initialScreens));
+  }, [dispatch, initialScreens]);
 
-  useCmsScreenSync({ onScreenUpdated: handleScreenUpdated });
+  // "Now showing" is kept correct by the store: StoreSync dispatches
+  // screenContentUpdated for every SCREEN_UPDATED, so a reassignment from
+  // anywhere else (another tab, the touch picker) lands here too — this
+  // component no longer needs its own socket or its own copy of the mapping.
 
   useEffect(() => {
     if (!feedback) return;
-    const timer = setTimeout(() => setFeedback(null), 2500);
+    // A warning is the one banner that carries information the operator can't
+    // get anywhere else on this page (the wall is dead), so it stays up long
+    // enough to actually be read.
+    const timer = setTimeout(
+      () => setFeedback(null),
+      feedback.tone === "warning" ? 6000 : 2500,
+    );
     return () => clearTimeout(timer);
   }, [feedback]);
+
+  // Everything the user picked, remembered for the trip to the live page and
+  // back. The carousel position is saved separately, from the scroll handler.
+  useEffect(() => {
+    saveBoardSnapshot({
+      filter,
+      tagFilter,
+      mediaTypeFilter,
+      emailOnly,
+      mediaDateFrom,
+      mediaDateTo,
+      targetIndex,
+    });
+  }, [
+    filter,
+    tagFilter,
+    mediaTypeFilter,
+    emailOnly,
+    mediaDateFrom,
+    mediaDateTo,
+    targetIndex,
+  ]);
 
   // Only offer tags that actually have at least one experience — same
   // convention as experiences/_components/projects-list.tsx's category filter.
@@ -217,18 +474,17 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     return experienceTypes.filter((t) => present.has(t.id));
   }, [experiences, experienceTypes]);
 
-  // Same "only offer what's actually present" convention, for media types —
-  // respects the email-source and date-range filters too, so it never offers
-  // a type that would come back empty once those are also applied.
-  const availableMediaTypes = useMemo(() => {
-    const scoped = mediaItems
-      .filter((m) => !emailOnly || m.source === "email")
-      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo));
-    const present = Array.from(new Set(scoped.map((m) => m.type as MediaCardType)));
-    return present
-      .filter((t) => t in MEDIA_TYPE_LABELS)
-      .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] }));
-  }, [mediaItems, emailOnly, mediaDateFrom, mediaDateTo]);
+  // Same "only offer what's actually present" convention, for media types.
+  // presentMediaTypes comes from GET /api/media/stats under the current
+  // source/date filter, so it covers the whole library rather than only the
+  // keyset pages scrolled so far.
+  const availableMediaTypes = useMemo(
+    () =>
+      presentMediaTypes
+        .filter((t): t is MediaCardType => t in MEDIA_TYPE_LABELS)
+        .map((t) => ({ type: t, label: MEDIA_TYPE_LABELS[t] })),
+    [presentMediaTypes],
+  );
 
   const cards = useMemo<ContentCard[]>(() => {
     const experienceCards: ContentCard[] = experiences
@@ -240,24 +496,34 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
         thumbnail: e.coverImage,
         typeIds: e.typeIds,
       }));
-    const mediaCards: ContentCard[] = mediaItems
-      .filter((m) => !mediaTypeFilter || m.type === mediaTypeFilter)
-      .filter((m) => !emailOnly || m.source === "email")
-      .filter((m) => matchesDateRange(m, mediaDateFrom, mediaDateTo))
-      .map((m) => ({
-        id: m.id,
-        type: m.type as MediaCardType,
-        title: m.name,
-        thumbnail: m.url,
-      }));
+    // No client-side type/source/date filtering here any more — mediaItems is
+    // already the filtered result set, page by page, from the server.
+    const mediaCards: ContentCard[] = mediaItems.map((m) => ({
+      id: m.id,
+      type: m.type as MediaCardType,
+      title: m.name,
+      // The derived tile where one exists. A card is ~384px wide, so loading
+      // the original here cost roughly 2.3 MB per card.
+      thumbnail: mediaThumbnailSrc(m),
+    }));
     return filter === "experiences" ? experienceCards : mediaCards;
-  }, [experiences, mediaItems, filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);
+  }, [experiences, mediaItems, filter, tagFilter]);
 
-  const targetScreen = screens[targetIndex] ?? null;
+  // Falls back to the first screen rather than null: targetIndex can be
+  // restored from a previous mount, and the screens list is re-fetched by the
+  // server on every visit, so a remembered index can outlive its screen.
+  const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
 
   const setSlideRef = useCallback((key: string, el: HTMLDivElement | null) => {
-    if (el) slideRefs.current.set(key, el);
-    else slideRefs.current.delete(key);
+    if (el) {
+      slideRefs.current.set(key, el);
+    } else {
+      slideRefs.current.delete(key);
+      // Drop the parked mark with the element. A key that came back later
+      // (after a filter switch, say) would otherwise be skipped by
+      // updateSlideTransforms while its fresh element still had no transform.
+      parkedSlidesRef.current.delete(key);
+    }
   }, []);
 
   // Coverflow effect: scale/nudge/fade each slide by its live distance from
@@ -277,22 +543,89 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     const scroller = scrollerRef.current;
     if (!scroller) return;
     const viewportCenter = scroller.clientWidth / 2;
-    slideRefs.current.forEach((el) => {
-      const elCenterInViewport = el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
+    // Whichever card ends up nearest the centre is also the one to scroll back
+    // to on a return visit — recorded here rather than in a separate pass
+    // because this already walks every slide measuring exactly that distance.
+    // Writing to the module snapshot is a plain assignment (no React state),
+    // so it stays free to do at scroll-event frequency.
+    let nearestKey: string | null = null;
+    let nearestDistance = Infinity;
+
+    // Two passes on purpose. Reading offsetLeft/offsetWidth is a layout read
+    // and writing style is a layout invalidation, so interleaving them per
+    // element (as this used to) forces the browser to re-lay-out the row once
+    // per card, every frame — the cost that made the carousel degrade as the
+    // library grew. Batching all reads, then all writes, is a single layout.
+    const measured: { el: HTMLDivElement; key: string; offset: number }[] = [];
+    slideRefs.current.forEach((el, key) => {
+      const elCenterInViewport =
+        el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
       const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
+      measured.push({ el, key, offset });
+      // Math.abs(offset), not the clamped/capped value — several off-screen
+      // cards share a proximity of exactly 1 and could not be told apart.
+      const distance = Math.abs(offset);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestKey = key;
+      }
+    });
+
+    for (const { el, key, offset } of measured) {
       const clamped = Math.max(-1.4, Math.min(1.4, offset));
       const proximity = Math.min(Math.abs(clamped), 1);
+      // Skip writing to slides whose style can no longer change, so per-frame
+      // work stays proportional to the few cards on screen rather than to every
+      // page loaded so far.
+      //
+      // The threshold is 1.4, NOT proximity >= 1. scale/opacity/zIndex derive
+      // from `proximity` and do saturate at 1.0 — but `nudge` derives from
+      // `clamped`, which keeps changing out to 1.4, another 7.2px of travel.
+      // Parking at 1.0 froze a transform that was still moving, so a card held
+      // a stale position across that band and then visibly snapped when it came
+      // back inside it. Past 1.4 every written value really is saturated.
+      const parked = Math.abs(offset) >= 1.4;
+      if (parked && parkedSlidesRef.current.has(key)) continue;
+      if (parked) parkedSlidesRef.current.add(key);
+      else parkedSlidesRef.current.delete(key);
+
       const scale = 1 - proximity * 0.35;
       const nudge = -clamped * 18;
       el.style.transform = `translateX(${nudge}px) scale(${scale})`;
       el.style.opacity = String(1 - proximity * 0.35);
       el.style.zIndex = String(5 - Math.round(proximity * 5));
-    });
+    }
+
+    if (nearestKey) saveBoardSnapshot({ centredCardKey: nearestKey });
   }, []);
+
+  /**
+   * Pull the next keyset page when the scroller nears its right-hand end.
+   *
+   * Deliberately folded into the existing rAF-throttled scroll pass rather than
+   * given its own listener: one handler, one measurement, one frame budget.
+   * loadingMoreRef (not the loadingMore state) is the guard so a single scroll
+   * burst can't fire several overlapping requests before the first resolves.
+   */
+  const maybeLoadMore = useCallback(
+    (scroller: HTMLDivElement) => {
+      if (loadingMoreRef.current || !nextCursorRef.current) return;
+      // Roughly five cards' width of runway, so the next page is in flight
+      // before the user reaches the end rather than after.
+      const runway = 5 * 384;
+      const remaining =
+        scroller.scrollWidth - scroller.scrollLeft - scroller.clientWidth;
+      if (remaining <= runway) void loadMediaPage(nextCursorRef.current);
+    },
+    [loadMediaPage],
+  );
 
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    // The card set just changed, so every slide needs one unconditional styling
+    // pass before the skip-if-parked optimisation can be trusted again.
+    parkedSlidesRef.current.clear();
     updateSlideTransforms();
 
     let ticking = false;
@@ -302,6 +635,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       requestAnimationFrame(() => {
         ticking = false;
         updateSlideTransforms();
+        maybeLoadMore(scroller);
       });
     };
     // A plain mouse wheel only ever generates vertical delta, and this row has
@@ -320,17 +654,61 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       scroller.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onScroll);
     };
-  }, [cards, updateSlideTransforms]);
+  }, [cards, updateSlideTransforms, maybeLoadMore]);
+
+  /** Guards the one-shot carousel restore below against running twice, and
+   *  against running at all once the user has moved the carousel themselves. */
+  const scrollRestoredRef = useRef(false);
+  /** The filter-reset effect below must skip its own mount invocation — that
+   *  first pass belongs to the restore, not to a real filter change. */
+  const filterResetArmedRef = useRef(false);
+
+  // Put the carousel back on the card the user was last looking at. Deferred
+  // until there are cards to scroll to: on a first visit to /broadcast with
+  // filter === "media", they only arrive once /api/media resolves (a return
+  // visit has them on the first frame, seeded from the snapshot).
+  useIsomorphicLayoutEffect(() => {
+    if (scrollRestoredRef.current || cards.length === 0) return;
+    scrollRestoredRef.current = true;
+    const el = restored.centredCardKey
+      ? slideRefs.current.get(restored.centredCardKey)
+      : null;
+    if (!el) return;
+    // "instant" because the scroller carries `scroll-smooth` — the default
+    // would animate all the way across from the far left instead of just
+    // starting where the user left off.
+    el.scrollIntoView({
+      behavior: "instant",
+      inline: "center",
+      block: "nearest",
+    });
+    updateSlideTransforms();
+  }, [cards, restored.centredCardKey, updateSlideTransforms]);
 
   // Only an explicit filter (or tag/media-type) switch should jump the
   // carousel back to the start — publishing a card, a screen-sync update,
   // etc. must never reset scroll position (cards itself doesn't change from
   // those, but nothing here should assume that and reset on its account
-  // either).
+  // either). The mount pass is skipped for the same reason: it isn't a switch,
+  // it's where a remembered position gets restored above.
   useEffect(() => {
+    if (!filterResetArmedRef.current) {
+      filterResetArmedRef.current = true;
+      return;
+    }
+    // A real filter switch also cancels a restore still waiting on its cards,
+    // so it can't fire later and undo this jump.
+    scrollRestoredRef.current = true;
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = 0;
-  }, [filter, tagFilter, mediaTypeFilter, emailOnly, mediaDateFrom, mediaDateTo]);
+  }, [
+    filter,
+    tagFilter,
+    mediaTypeFilter,
+    emailOnly,
+    mediaDateFrom,
+    mediaDateTo,
+  ]);
 
   // Click-and-drag with a mouse to browse the carousel. Touch/trackpad users
   // already get native panning (touchAction: "pan-x" on each card below), but
@@ -343,6 +721,8 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     let dragging = false;
     let startX = 0;
     let startScrollLeft = 0;
+    /** Pending "drop the smooth-scroll override" timer, if a settle is running. */
+    let settleTimer: number | undefined;
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
@@ -350,6 +730,18 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       startX = e.clientX;
       startScrollLeft = scroller.scrollLeft;
       scroller.style.cursor = "grabbing";
+      // Mandatory snap keeps pulling toward a snap point while this handler
+      // writes scrollLeft underneath it, which makes a hand drag feel sticky
+      // and steppy. Suspended for the drag only; stopDragging restores it so
+      // releasing still settles onto a card, and wheel/touch keep snapping.
+      scroller.style.scrollSnapType = "none";
+      // Cancel any settle animation still running from the previous release —
+      // otherwise this drag would be animated rather than tracking 1:1.
+      if (settleTimer !== undefined) {
+        window.clearTimeout(settleTimer);
+        settleTimer = undefined;
+      }
+      scroller.style.scrollBehavior = "";
       // Stops the browser starting a native image drag-ghost when the press
       // lands on a thumbnail <img>, without affecting SwipeCard's own
       // pointerdown-driven vertical drag (preventDefault here doesn't stop
@@ -361,8 +753,35 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       scroller.scrollLeft = startScrollLeft - (e.clientX - startX);
     };
     const stopDragging = () => {
+      // Cursor and snapping are restored on every path below — a pointercancel
+      // can arrive without a matching move, and leaving snapping switched off
+      // would silently disable it for the rest of the session. Both writes are
+      // idempotent, so running them on a non-drag pointerup costs nothing.
+      const wasDragging = dragging;
       dragging = false;
       scroller.style.cursor = "";
+
+      // The smooth settle only belongs to a real drag. This runs on every
+      // window pointerup — including a plain tap on a card to publish it — and
+      // leaving scroll-behavior:smooth armed after those would make an
+      // immediately following wheel scroll feel laggy for no reason. Snapping
+      // is still restored here, idempotently, so it can never stay disabled.
+      if (!wasDragging) {
+        scroller.style.scrollSnapType = "";
+        return;
+      }
+
+      // Order matters: restoring snap is what triggers the re-snap, and this
+      // scroller's scroll-behavior is `auto` (see className), so smooth has to
+      // be in place BEFORE snapping comes back or the card teleports to centre
+      // instead of settling. Dropped again once the settle has run, so the next
+      // drag still tracks the pointer exactly.
+      scroller.style.scrollBehavior = "smooth";
+      scroller.style.scrollSnapType = "";
+      settleTimer = window.setTimeout(() => {
+        scroller.style.scrollBehavior = "";
+        settleTimer = undefined;
+      }, 400);
     };
 
     scroller.addEventListener("pointerdown", onPointerDown);
@@ -370,6 +789,7 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
     window.addEventListener("pointerup", stopDragging);
     window.addEventListener("pointercancel", stopDragging);
     return () => {
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
       scroller.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", stopDragging);
@@ -398,7 +818,8 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
           activeIndex = i;
         }
       });
-      const nextCard = cards[Math.max(0, Math.min(cards.length - 1, activeIndex + direction))];
+      const nextCard =
+        cards[Math.max(0, Math.min(cards.length - 1, activeIndex + direction))];
       if (!nextCard) return;
       slideRefs.current.get(`${nextCard.type}:${nextCard.id}`)?.scrollIntoView({
         behavior: "smooth",
@@ -406,12 +827,12 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
         block: "nearest",
       });
     },
-    [cards]
+    [cards],
   );
 
   const sendDragEvent = useCallback(
     (command: string, value?: unknown) => sendDragRef.current(command, value),
-    []
+    [],
   );
 
   const triggerPublish = useCallback(
@@ -429,32 +850,43 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       // flash to avoid anymore.
       const alreadyShowing =
         card.type === "experience"
-          ? targetScreen.currentContentKind === "experience" && targetScreen.currentExperienceId === card.id
-          : targetScreen.currentContentKind === "media" && targetScreen.currentMediaAssetId === card.id;
+          ? targetScreen.currentContentKind === "experience" &&
+            targetScreen.currentExperienceId === card.id
+          : targetScreen.currentContentKind === "media" &&
+            targetScreen.currentMediaAssetId === card.id;
       if (alreadyShowing) {
-        setFeedback({ message: `"${card.title}" is already showing on ${screenName}`, tone: "success" });
-        window.setTimeout(() => setCovering({ screenId, screenName }), CARD_RESET_MS);
+        setFeedback({
+          message: `"${card.title}" is already showing on ${screenName}`,
+          tone: "success",
+        });
+        window.setTimeout(
+          () => setCovering({ screenId, screenName }),
+          CARD_RESET_MS,
+        );
         return;
       }
 
       setPushingId(card.id);
+      // Snapshot for the rollback in the catch below. Taken before the
+      // optimistic dispatch, and deliberately a copy — the row in the store is
+      // about to be mutated in place by the reducer.
+      const priorRow = { ...targetScreen };
       // Optimistic update so the box's "now showing" line reflects the push
-      // immediately, same pattern as screens-controller.tsx's handleAssign.
-      setScreens((prev) =>
-        prev.map((s) => {
-          if (s.screenId !== screenId) return s;
-          if (card.type !== "experience") {
-            return {
-              ...s,
-              currentContentKind: "media",
-              currentMediaAssetId: card.id,
-              mediaType: card.type,
-              mediaUrl: card.thumbnail ?? s.mediaUrl,
-              mediaName: card.title,
-            };
-          }
-          return { ...s, currentContentKind: "experience", currentExperienceId: card.id, experienceName: card.title };
-        })
+      // immediately. Same reducer the WebSocket echo uses, so the mapping from
+      // content to row lives in exactly one place now.
+      dispatch(
+        screenContentUpdated(
+          card.type === "experience"
+            ? { screenId, kind: "experience", id: card.id, title: card.title }
+            : {
+                screenId,
+                kind: "media",
+                id: card.id,
+                title: card.title,
+                mediaType: card.type,
+                mediaUrl: card.thumbnail,
+              },
+        ),
       );
       // The screen "opening" as the swiped content lands on it.
       void boxControls.start({
@@ -463,37 +895,70 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       });
       (async () => {
         try {
-          if (card.type === "experience") {
-            await assignExperience(screenId, card.id);
-          } else {
-            await assignMedia(screenId, card.id);
-          }
-          setFeedback({ message: `Pushed "${card.title}" to ${screenName}`, tone: "success" });
+          const result =
+            card.type === "experience"
+              ? await assignExperience(screenId, card.id)
+              : await assignMedia(screenId, card.id);
+          // The push can succeed at every layer — DB written, broadcast sent —
+          // and still change nothing, because the panel's page died and never
+          // reconnected. The optimistic dispatch above has already moved this
+          // board's "now showing" line, so without this the operator has no way
+          // to tell a live wall from a dead one.
+          setFeedback(
+            result.players === 0
+              ? {
+                  message: `Pushed "${card.title}", but no display is connected to ${screenName}`,
+                  tone: "warning",
+                }
+              : {
+                  message: `Pushed "${card.title}" to ${screenName}`,
+                  tone: "success",
+                },
+          );
           // Delayed to match SwipeCard's own local fly-off/reset timeout
           // (CARD_RESET_MS) below — otherwise a fast response can start the
           // full-screen cover while the card is still mid-animation.
-          window.setTimeout(() => setCovering({ screenId, screenName }), CARD_RESET_MS);
+          window.setTimeout(
+            () => setCovering({ screenId, screenName }),
+            CARD_RESET_MS,
+          );
         } catch (err) {
           console.error("Failed to push content:", err);
-          setFeedback({ message: `Failed to push "${card.title}" to ${screenName}`, tone: "error" });
+          // Undo the optimistic write. Without this the row keeps claiming the
+          // card is live, and the `alreadyShowing` guard above then short-
+          // circuits every retry — the card becomes permanently unpublishable
+          // until a real SCREEN_UPDATED or a full reload corrects the row.
+          dispatch(screenRowRestored(priorRow));
+          setFeedback({
+            message: `Failed to push "${card.title}" to ${screenName}`,
+            tone: "error",
+          });
         } finally {
           setPushingId(null);
         }
       })();
     },
-    [targetScreen, boxControls]
+    [targetScreen, boxControls],
   );
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
       {targetScreen && (
-        <PublishScreenBridge key={targetScreen.screenId} screenId={targetScreen.screenId} sendRef={sendDragRef} />
+        <PublishScreenBridge
+          key={targetScreen.screenId}
+          screenId={targetScreen.screenId}
+          sendRef={sendDragRef}
+        />
       )}
       {/* Screen switcher / publish target */}
       <div className="flex shrink-0 items-center gap-3">
         <button
           type="button"
-          onClick={() => setTargetIndex((i) => (screens.length ? (i - 1 + screens.length) % screens.length : 0))}
+          onClick={() =>
+            setTargetIndex((i) =>
+              screens.length ? (i - 1 + screens.length) % screens.length : 0,
+            )
+          }
           disabled={screens.length < 2}
           aria-label="Previous screen"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
@@ -501,11 +966,22 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <DropZone screen={targetScreen} isPushing={pushingId !== null} controls={boxControls} />
+        <DropZone
+          screen={targetScreen}
+          isOnline={
+            targetScreen ? activeScreenIds.includes(targetScreen.screenId) : false
+          }
+          isPushing={pushingId !== null}
+          controls={boxControls}
+        />
 
         <button
           type="button"
-          onClick={() => setTargetIndex((i) => (screens.length ? (i + 1) % screens.length : 0))}
+          onClick={() =>
+            setTargetIndex((i) =>
+              screens.length ? (i + 1) % screens.length : 0,
+            )
+          }
           disabled={screens.length < 2}
           aria-label="Next screen"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
@@ -518,10 +994,13 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
       <div className="flex h-6 shrink-0 items-center justify-center">
         {feedback ? (
           <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${feedback.tone === "success"
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : "bg-red-500/10 text-red-600 dark:text-red-400"
-              }`}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              feedback.tone === "success"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : feedback.tone === "warning"
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "bg-red-500/10 text-red-600 dark:text-red-400"
+            }`}
           >
             {feedback.message}
           </span>
@@ -579,7 +1058,10 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                   type="button"
                   className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
                 >
-                  {tagFilter ? availableTags.find((t) => t.id === tagFilter)?.name ?? "Tag" : "All tags"}
+                  {tagFilter
+                    ? (availableTags.find((t) => t.id === tagFilter)?.name ??
+                      "Tag")
+                    : "All tags"}
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
@@ -615,7 +1097,9 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                   type="button"
                   className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
                 >
-                  {mediaTypeFilter ? MEDIA_TYPE_LABELS[mediaTypeFilter] : "All types"}
+                  {mediaTypeFilter
+                    ? MEDIA_TYPE_LABELS[mediaTypeFilter]
+                    : "All types"}
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
@@ -690,13 +1174,22 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
               type="button"
               onClick={() => setEmailOnly((v) => !v)}
               aria-pressed={emailOnly}
-              title={emailOnly ? "Showing only media from email — click to show all" : "Show only media that came in from email"}
-              className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${emailOnly
-                ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
-                : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
-                }`}
+              title={
+                emailOnly
+                  ? "Showing only media from email — click to show all"
+                  : "Show only media that came in from email"
+              }
+              className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                emailOnly
+                  ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                  : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
+              }`}
             >
-              {emailOnly ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+              {emailOnly ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Mail className="h-3.5 w-3.5" />
+              )}
               From Email
             </button>
           )}
@@ -708,7 +1201,9 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
             title="Load last 2 days from email"
             className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`}
+            />
             {loadingInbox ? "Loading…" : "Load Email"}
           </button>
         </div>
@@ -729,13 +1224,32 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
           <>
             <div
               ref={scrollerRef}
-              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory scroll-smooth"
-              style={{ paddingLeft: "calc(50% - 12rem)", paddingRight: "calc(50% - 12rem)" }}
+              // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
+              // scrolling API call, so with scroll-behavior:smooth the browser
+              // ANIMATES it — and both the drag handler and the wheel handler
+              // below assign scrollLeft on every event. Each one kicked off a
+              // new easing animation that the next immediately interrupted, so
+              // the carousel was permanently easing toward a target that had
+              // already moved and could never track the cursor.
+              //
+              // Nothing loses smoothness: the two programmatic scrolls that
+              // want it ask for it themselves — scrollToAdjacentCard passes
+              // behavior:"smooth", and the position restore passes
+              // behavior:"instant" precisely to opt out of this class.
+              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
+              style={{
+                paddingLeft: "calc(50% - 12rem)",
+                paddingRight: "calc(50% - 12rem)",
+              }}
             >
               {cards.map((card) => {
                 const key = `${card.type}:${card.id}`;
                 return (
-                  <div key={key} ref={(el) => setSlideRef(key, el)} className="w-96 shrink-0 snap-center">
+                  <div
+                    key={key}
+                    ref={(el) => setSlideRef(key, el)}
+                    className="w-96 shrink-0 snap-center"
+                  >
                     <SwipeCard
                       card={card}
                       pushing={pushingId === card.id}
@@ -745,6 +1259,16 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
                   </div>
                 );
               })}
+              {/* Tail spinner for the next keyset page. Rendered inside the
+                  scroller so it occupies real width — that keeps the runway
+                  maybeLoadMore measures against from collapsing the moment the
+                  last card is reached. Not registered as a slide, so the
+                  coverflow pass ignores it. */}
+              {loadingMore && filter !== "experiences" && (
+                <div className="flex w-48 shrink-0 items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+                </div>
+              )}
             </div>
 
             <div className="flex shrink-0 items-center justify-center gap-4">
@@ -774,7 +1298,6 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          onAnimationComplete={() => router.push(`/broadcast/live/${covering.screenId}`)}
           className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
         >
           <span className="text-sm font-bold uppercase tracking-widest text-white/70">
@@ -788,10 +1311,13 @@ export function PublishBoard({ initialScreens, experiences, experienceTypes }: P
 
 function DropZone({
   screen,
+  isOnline,
   isPushing,
   controls,
 }: {
   screen: ScreenRow | null;
+  /** Whether a real display is attached right now — false means a push lands nowhere. */
+  isOnline: boolean;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
 }) {
@@ -800,12 +1326,26 @@ function DropZone({
       animate={controls}
       className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border-2 border-[#432992] bg-zinc-950 px-4 shadow-sm"
     >
-      <span className="truncate text-sm font-bold uppercase tracking-wide text-white">
-        {screen ? screen.screenName : "No screens registered yet"}
+      <span className="flex min-w-0 items-center gap-2">
+        {screen && (
+          <span
+            title={isOnline ? "Display connected" : "No display connected"}
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              isOnline ? "bg-emerald-400" : "bg-amber-400"
+            }`}
+          />
+        )}
+        <span className="truncate text-sm font-bold uppercase tracking-wide text-white">
+          {screen ? screen.screenName : "No screens registered yet"}
+        </span>
       </span>
       {screen && (
         <span className="shrink-0 truncate text-xs text-white/60">
-          {isPushing ? "Publishing…" : currentLabel(screen)}
+          {isPushing
+            ? "Publishing…"
+            : isOnline
+              ? currentLabel(screen)
+              : "Offline — nothing will change on the wall"}
         </span>
       )}
     </motion.div>
@@ -829,22 +1369,40 @@ function SwipeCard({
   const rafScheduled = useRef(false);
 
   const handleDragStart = () => {
-    sendDrag(PUBLISH_DRAG_START, { cardId: card.id, title: card.title, thumbnail: card.thumbnail, type: card.type });
+    sendDrag(PUBLISH_DRAG_START, {
+      cardId: card.id,
+      title: card.title,
+      thumbnail: card.thumbnail,
+      type: card.type,
+    });
   };
 
-  const handleDrag = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    latestProgress.current = Math.min(1, Math.max(0, -info.offset.y / SWIPE_DISTANCE));
+  const handleDrag = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    latestProgress.current = Math.min(
+      1,
+      Math.max(0, -info.offset.y / SWIPE_DISTANCE),
+    );
     if (!rafScheduled.current) {
       rafScheduled.current = true;
       requestAnimationFrame(() => {
         rafScheduled.current = false;
-        sendDrag(PUBLISH_DRAG_PROGRESS, { cardId: card.id, progress: latestProgress.current });
+        sendDrag(PUBLISH_DRAG_PROGRESS, {
+          cardId: card.id,
+          progress: latestProgress.current,
+        });
       });
     }
   };
 
-  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const swipedUp = info.offset.y < -SWIPE_DISTANCE || info.velocity.y < -SWIPE_VELOCITY;
+  const handleDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    const swipedUp =
+      info.offset.y < -SWIPE_DISTANCE || info.velocity.y < -SWIPE_VELOCITY;
     sendDrag(PUBLISH_DRAG_END, { cardId: card.id, committed: swipedUp });
     if (swipedUp) {
       animate(y, -400, { duration: 0.22, ease: "easeIn" });
@@ -877,17 +1435,27 @@ function SwipeCard({
 
 /** Non-visual file types (document/sheet/presentation/word) have no real
  * image to preview — a fallback icon instead of attempting <img src=file.pdf>. */
-const FILE_TYPE_ICONS: Record<Exclude<MediaCardType, "image" | "video">, typeof FileText> = {
+const FILE_TYPE_ICONS: Record<
+  Exclude<MediaCardType, "image" | "video">,
+  typeof FileText
+> = {
   document: FileText,
   word: FileText,
   sheet: FileSpreadsheet,
   presentation: Presentation,
 };
 
-function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean }) {
-  const FileIcon = card.type === "experience" || card.type === "image" || card.type === "video"
-    ? null
-    : FILE_TYPE_ICONS[card.type];
+function CardVisual({
+  card,
+  pushing,
+}: {
+  card: ContentCard;
+  pushing?: boolean;
+}) {
+  const FileIcon =
+    card.type === "experience" || card.type === "image" || card.type === "video"
+      ? null
+      : FILE_TYPE_ICONS[card.type];
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Autoplay each video preview only while its card is actually visible —
@@ -898,10 +1466,10 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
     if (!video) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) video.play().catch(() => { });
+        if (entry?.isIntersecting) video.play().catch(() => {});
         else video.pause();
       },
-      { threshold: 0.6 }
+      { threshold: 0.6 },
     );
     observer.observe(video);
     return () => observer.disconnect();
@@ -911,12 +1479,29 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
         {card.type === "video" && card.thumbnail ? (
-          <video ref={videoRef} src={card.thumbnail} className="h-full w-full object-cover" muted loop playsInline />
-        ) : card.thumbnail && (card.type === "image" || card.type === "experience") ? (
-          <img src={card.thumbnail} alt={card.title} className="h-full w-full object-cover" loading="lazy" />
+          <video
+            ref={videoRef}
+            src={card.thumbnail}
+            className="h-full w-full object-cover"
+            muted
+            loop
+            playsInline
+          />
+        ) : card.thumbnail &&
+          (card.type === "image" || card.type === "experience") ? (
+          <img
+            src={card.thumbnail}
+            alt={card.title}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            {FileIcon ? <FileIcon className="h-8 w-8 text-zinc-400" /> : <Layers className="h-6 w-6 text-zinc-400" />}
+            {FileIcon ? (
+              <FileIcon className="h-8 w-8 text-zinc-400" />
+            ) : (
+              <Layers className="h-6 w-6 text-zinc-400" />
+            )}
           </div>
         )}
         <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">
@@ -929,7 +1514,9 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
           ) : (
             <Layers className="h-2.5 w-2.5" />
           )}
-          {card.type === "experience" ? "experience" : MEDIA_TYPE_LABELS[card.type]}
+          {card.type === "experience"
+            ? "experience"
+            : MEDIA_TYPE_LABELS[card.type]}
         </div>
         {pushing && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -938,7 +1525,10 @@ function CardVisual({ card, pushing }: { card: ContentCard; pushing?: boolean })
         )}
       </div>
       <div className="p-2.5">
-        <p className="truncate text-xs font-bold text-zinc-800 dark:text-zinc-200" title={card.title}>
+        <p
+          className="truncate text-xs font-bold text-zinc-800 dark:text-zinc-200"
+          title={card.title}
+        >
           {card.title}
         </p>
       </div>

@@ -32,8 +32,13 @@ export const FRAME_BRIDGE_SOURCE = "cms-display-frame";
 export const FRAME_FORWARDED_COMMANDS = [
   "NEXT_PAGE",
   "PREV_PAGE",
+  "ZOOM_IN",
+  "ZOOM_OUT",
   "SET_PDF_VIEW",
   "SET_SLIDES_VIEW",
+  "SET_WORD_VIEW",
+  "RESET_STATE",
+  "RESET_VIEW",
 ] as const;
 
 export type FrameForwardedCommand = (typeof FRAME_FORWARDED_COMMANDS)[number];

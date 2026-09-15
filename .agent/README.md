@@ -28,4 +28,3 @@ Read in this order:
 - Detailed tech docs — see `.doc/`
 - Folder/file structure — see `structure.md` files per app/package
 - Git history and change rationale — see `git log`
-- Implementation plans — see `plan.md`

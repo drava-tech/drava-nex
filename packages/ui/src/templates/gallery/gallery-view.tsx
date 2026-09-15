@@ -361,14 +361,23 @@ export function GalleryView({
         // heading, the gaps between rail slots, the bare background.
         onClick={isOpen ? collapse : undefined}
         style={{
-          position: "relative",
-          width: isOpen ? `${100 - pct}%` : "100%",
-          height: "100%",
-          flexShrink: 0,
+          position: "absolute",
+          inset: 0,
+          // Fixed at full width, deliberately. This used to animate width from
+          // 100% to (100-pct)% while the expanded photo animated 0% -> pct%,
+          // so both siblings reflowed the whole row every frame for 560ms — on
+          // a display screen, the most visible jank in the template.
+          //
+          // Nothing actually needed those intermediate widths: the two layers
+          // below CROSS-FADE (the grid leaves fast precisely so it is never
+          // seen squashing), so no one ever sees the grid at a width between
+          // its open and closed states. Each layer is therefore pinned at the
+          // one width it is visible at, and the photo panel slides in over the
+          // top on a transform. Same motion, no layout.
+          //
           // No padding here: both layers are absolutely positioned and inset
           // themselves by `padding`, since an abs child resolves against the
           // padding box and would otherwise ignore it.
-          transition: `width ${TRANSITION}`,
           cursor: isOpen ? "pointer" : "default",
         }}
       >
@@ -513,7 +522,13 @@ export function GalleryView({
         <div
           style={{
             position: "absolute",
-            inset: padding,
+            top: padding,
+            bottom: padding,
+            left: padding,
+            // Pinned to the open layout's width instead of inheriting the
+            // panel's (now constant) full width — this is the only place that
+            // needed the old animated width, and it is invisible until open.
+            right: `calc(${pct}% + ${padding}px)`,
             display: "flex",
             flexDirection: "column",
             gap,
@@ -565,12 +580,18 @@ export function GalleryView({
       {/* ─── Expanded photo ──────────────────────────────────────────────── */}
       <div
         style={{
-          position: "relative",
-          width: isOpen ? `${pct}%` : "0%",
-          height: "100%",
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          // Constant width; it slides in from off-frame rather than growing.
+          // transform is compositor-only, so the 560ms reveal costs no layout
+          // and no paint of the grid behind it.
+          width: `${pct}%`,
           overflow: "hidden",
-          flexShrink: 0,
-          transition: `width ${TRANSITION}`,
+          transform: isOpen ? "translateX(0)" : "translateX(100%)",
+          transition: `transform ${TRANSITION}`,
+          willChange: "transform",
           backgroundColor: "#000",
         }}
       >

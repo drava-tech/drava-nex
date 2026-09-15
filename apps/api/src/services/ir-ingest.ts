@@ -24,8 +24,9 @@ async function refreshDeviceCache(): Promise<void> {
   const next = new Map<string, Device>();
   for (const device of devices) {
     const config = device.config as { driver?: string; irDevice?: string } | null;
-    if (config?.driver === "ir" && typeof config.irDevice === "string") {
-      next.set(config.irDevice, device);
+    if (config?.driver === "ir") {
+      if (typeof config.irDevice === "string") next.set(config.irDevice, device);
+      next.set(device.deviceId, device);
     }
   }
   irDeviceToDevice = next;

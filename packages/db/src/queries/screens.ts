@@ -15,7 +15,15 @@ import { recordScreenMediaPush, recordScreenExperiencePush } from "./screen-cont
  * exclusive).
  */
 
-export async function listScreens(): Promise<{
+/**
+ * One row of the screen list, as every CMS surface sees it.
+ *
+ * Named here rather than inline because it is the canonical shape: the CMS used
+ * to re-declare narrower copies of it in three separate components, which drifted
+ * (one had `blanked`, one had `defaultMediaName`, one had neither). Import this
+ * instead of writing another.
+ */
+export interface ScreenRow {
   screenId: string;
   screenName: string;
   currentContentKind: string | null;
@@ -28,7 +36,9 @@ export async function listScreens(): Promise<{
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
   blanked: boolean;
-}[]> {
+}
+
+export async function listScreens(): Promise<ScreenRow[]> {
   const defaultMedia = alias(mediaAsset, "default_media");
   return db
     .select({
@@ -207,6 +217,27 @@ export async function getScreenIdsByTemplateKey(templateKey: string): Promise<st
       and(
         eq(screen.currentContentKind, "experience"),
         eq(experience.templateKey, templateKey),
+        isNull(screen.deletedAt)
+      )
+    );
+  return rows.map((r) => r.screenId);
+}
+
+/**
+ * All screens currently showing one specific experience. The experience-scoped
+ * sibling of getScreenIdsByTemplateKey above, and the reason re-authoring a
+ * template in the CMS editor reaches the wall live: saving content has to know
+ * which screens are rendering that experience right now so it can re-push the
+ * fresh templateContent to them (see the experiences router).
+ */
+export async function getScreenIdsByExperienceId(experienceId: string): Promise<string[]> {
+  const rows = await db
+    .select({ screenId: screen.screenId })
+    .from(screen)
+    .where(
+      and(
+        eq(screen.currentContentKind, "experience"),
+        eq(screen.currentExperienceId, experienceId),
         isNull(screen.deletedAt)
       )
     );

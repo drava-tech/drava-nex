@@ -31,9 +31,7 @@ export default function IrRemotesContent({
       {remotes.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No IR remotes configured. Add them to <code className="font-mono text-xs">IR_REMOTES</code> in{" "}
-          <code className="font-mono text-xs">lib/ir-devices.ts</code> (and under{" "}
-          <code className="font-mono text-xs">remotes:</code> in CrabController&apos;s{" "}
-          <code className="font-mono text-xs">config.yaml</code>).
+          <code className="font-mono text-xs">lib/ir-devices.ts</code>.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

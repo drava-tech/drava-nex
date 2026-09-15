@@ -6,6 +6,9 @@ import { GalleryView, type GalleryLink, type GalleryPager } from "../../gallery/
 import type { GalleryContent } from "../../gallery/content";
 import { useReplayableWindowEvent } from "../../../lib/replayable-window-event";
 import { useInView } from "../../../lib/use-in-view";
+import { FilmControlsOverlay } from "../components/film-controls-overlay";
+import { useFilmPlayback } from "../components/use-film-playback";
+import { usePortfolioScreen } from "../screen-context";
 import {
   DEFAULT_PORTFOLIO_GALLERY_STYLE,
   GALLERY_PHOTO_COUNT,
@@ -235,6 +238,13 @@ function FilmsGridView({
   const [mode, setMode] = useState<"player" | "grid">("grid");
   const [index, setIndex] = useState(0);
 
+  // Audio must only ever leave the real panel, so a CMS mirror plays muted —
+  // which is also what lets it autoplay at all. See PortfolioScreenProvider.
+  const { mirror } = usePortfolioScreen();
+  // The player box, so the transport bar's idle timer is fed by pointer
+  // activity over the film rather than anywhere in the window.
+  const playerRef = useRef<HTMLDivElement>(null);
+
   // Relays every navigation to every other client of this screen (the
   // physical TV and any CMS mirror) — same pattern as Gallery's
   // applyExpansion/Portfolio's navigate. `emit: false` is for APPLYING an
@@ -263,6 +273,13 @@ function FilmsGridView({
   const showGrid = mode === "grid" || films.length === 0;
   const current = films[index];
 
+  // Play/pause/seek for whichever film is up, synced to every other client of
+  // this screen. Called unconditionally, as hooks must be — but `undefined`
+  // while the grid is showing, because this surface really is playing nothing
+  // then. `index` stays 0 behind the grid, so passing films[0] regardless would
+  // claim to be playing the first film before anyone had opened it.
+  const playback = useFilmPlayback(showGrid ? undefined : current?.url);
+
   // Prev/Next — pinned to the outer page's edges (like GalleryView's
   // PagerArrow) rather than sitting inside the video's own box, so the video
   // stays full-size instead of sharing a flex row with the buttons.
@@ -283,44 +300,13 @@ function FilmsGridView({
     zIndex: 5,
   };
 
-  // Swipe-to-page the film player, same threshold/shape as GalleryView's
-  // pager swipe — plain pointer tracking, no gesture library. Armed only
-  // while actually showing the player with more than one film to page
-  // through; no preventDefault, so the video's own controls stay untouched.
-  const filmSwipeStartRef = useRef<{ id: number; x: number; y: number } | null>(null);
-  const FILM_SWIPE_THRESHOLD = 60;
-
-  const handleFilmSwipePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (showGrid || films.length <= 1) return;
-    filmSwipeStartRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
-  };
-
-  const handleFilmSwipePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const start = filmSwipeStartRef.current;
-    filmSwipeStartRef.current = null;
-    if (!start || start.id !== e.pointerId || films.length <= 1) return;
-    const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    if (Math.abs(dx) < FILM_SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
-    applyFilmView(
-      {
-        mode: "player",
-        index: dx < 0 ? (index + 1) % films.length : (index - 1 + films.length) % films.length,
-      },
-      { emit: true }
-    );
-  };
-
-  const handleFilmSwipePointerCancel = () => {
-    filmSwipeStartRef.current = null;
-  };
-
+  // No swipe gesture here, deliberately. Paging films is the edge arrows' job
+  // (and the transport bar's, which owns horizontal drags over the picture) —
+  // a page-wide swipe listener competing with a scrub bar on the same axis is
+  // exactly the ambiguity this page does not want.
   return (
     <div
       className="w-full h-full relative flex flex-col"
-      onPointerDown={handleFilmSwipePointerDown}
-      onPointerUp={handleFilmSwipePointerUp}
-      onPointerCancel={handleFilmSwipePointerCancel}
       style={{
         overflow: "hidden",
         background: style.backgroundColor,
@@ -385,22 +371,34 @@ function FilmsGridView({
           )}
         </div>
       ) : (
-        <div className="relative flex-1" style={{ minHeight: 0, borderRadius: 18, overflow: "hidden", background: "#000" }}>
+        <div
+          ref={playerRef}
+          className="relative flex-1"
+          style={{ minHeight: 0, borderRadius: 18, overflow: "hidden", background: "#000" }}
+        >
+          {/* No `controls`: the native bar is a few authored pixels tall once
+              ScreenStage has scaled the stage, and nothing it does leaves this
+              client. FilmControlsOverlay is the transport, and it drives the
+              element through `playback`, which relays every action over the WS
+              so the panel and the CMS mirror agree. */}
           <video
             key={current!.url}
+            ref={playback.videoRef}
             src={current!.url}
             autoPlay
-            controls
             playsInline
+            muted={mirror}
             onEnded={() => applyFilmView({ mode: "player", index: (index + 1) % films.length }, { emit: true })}
             style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000", display: "block" }}
           />
 
-          {/* Company name + position, bottom-left */}
+          {/* Company name + position. Top-left of the player box (below the
+              page's own back button, which is outside it) — it used to sit
+              bottom-left, which is now where the transport bar's scrim is. */}
           <div
             style={{
               position: "absolute",
-              bottom: 20,
+              top: 20,
               left: 20,
               background: "rgba(0,0,0,0.5)",
               color: "#f2f2f2",
@@ -414,6 +412,8 @@ function FilmsGridView({
             {current!.company || "—"}
             {films.length > 1 ? ` · ${index + 1} / ${films.length}` : ""}
           </div>
+
+          <FilmControlsOverlay playback={playback} surfaceRef={playerRef} />
         </div>
       )}
 

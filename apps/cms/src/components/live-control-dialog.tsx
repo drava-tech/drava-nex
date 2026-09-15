@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
+import type { DocumentKind } from "@platform/types";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
 import { useCmsScreenSync } from "@/hooks/useCmsScreenSync";
@@ -35,6 +36,13 @@ interface LiveControlDialogProps {
    * since it drives the real cursor on the TV's own PC (see ScreenTouchpad).
    */
   showTouchpad?: boolean;
+  /**
+   * Which document viewer the pushed content opens, if any — enables the
+   * touchpad's zoom row. Separate from showTouchpad because that covers every
+   * page/embed (YouTube, Drive, a plain link) while only the CMS-hosted
+   * viewers answer a zoom command.
+   */
+  documentKind?: DocumentKind | null;
   /** Full ordered media-asset id list for an active queue push — omit for a normal (non-queue) push. */
   queueMediaIds?: string[];
   initialQueueIndex?: number;
@@ -57,6 +65,7 @@ export function LiveControlDialog({
   toolbar,
   onSaveLink,
   showTouchpad,
+  documentKind,
   queueMediaIds,
   initialQueueIndex,
   onNavigateQueue,
@@ -267,7 +276,7 @@ export function LiveControlDialog({
           activeScreen && (
             <div className="shrink-0 flex items-center justify-center">
               <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-[#432992] shadow-2xl overflow-hidden">
-                <ScreenTouchpad screenId={activeScreen.screenId} />
+                <ScreenTouchpad screenId={activeScreen.screenId} documentKind={documentKind} />
               </div>
             </div>
           )
