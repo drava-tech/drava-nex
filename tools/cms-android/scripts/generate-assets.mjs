@@ -2,15 +2,15 @@
  * Builds the source images in assets/ from the CMS logo, ready for
  * `npm run assets` to fan out into every Android density.
  *
- * apps/cms/public/Logo.png is a 2386x859 lockup: the green tusker glyph on the
- * left, then the "WHITE TUSKER" wordmark. The full lockup is far too wide to
- * read as a launcher icon, so:
+ * apps/cms/public/Logo.svg is a lockup: the red tusker glyph on the left, then
+ * the "WHITE TUSKER" wordmark. The full lockup is far too wide to read as a
+ * launcher icon, so:
  *
  *   - launcher icon  -> the glyph alone, cropped out of the lockup
  *   - splash screen  -> the full lockup, which has room to breathe
  *
- * The glyph is located by finding the bounding box of its green pixels rather
- * than by hard-coded coordinates, so a re-exported Logo.png with different
+ * The glyph is located by finding the bounding box of its red pixels rather
+ * than by hard-coded coordinates, so a re-exported Logo.svg with different
  * padding still crops correctly.
  */
 import sharp from 'sharp';
@@ -21,8 +21,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(here, '..');
 const repoRoot = resolve(projectRoot, '../..');
 
-const SOURCE = join(repoRoot, 'apps', 'cms', 'public', 'Logo.png');
+const SOURCE = join(repoRoot, 'apps', 'cms', 'public', 'Logo.svg');
 const OUT = join(projectRoot, 'assets');
+
+// The SVG's viewBox is ~247 units wide; rasterise at 20x (~4945px) so the icon
+// and splash below are always downscaled from it, never upscaled.
+const source = () => sharp(SOURCE, { density: 72 * 20 });
 
 // Brand background — the top stop of the body gradient in apps/cms/src/app/layout.tsx.
 const BG = { r: 0x01, g: 0x00, b: 0x1f, alpha: 1 };
@@ -40,18 +44,18 @@ const ICON_ONLY = 0.62; // legacy square icon — unmasked, so it can run larger
 const FOREGROUND = 0.74;
 const SPLASH_MARK = 0.34;
 
-/** Bounding box of the glyph, found by its brand green. */
+/** Bounding box of the glyph, found by its brand red. */
 async function findGlyphBox() {
-  const { data, info } = await sharp(SOURCE).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await source().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1, found = 0;
 
   for (let y = 0; y < info.height; y++) {
     for (let x = 0; x < info.width; x++) {
       const i = (y * info.width + x) * info.channels;
       const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
-      // Brand green is a bright yellow-green: high green, low blue, never
-      // blue-dominant. Excludes the white/grey wordmark and the transparency.
-      if (a > 128 && g > 170 && b < 120 && g - b > 80 && g >= r) {
+      // Brand red (#e21d3e): high red, low green and blue. Excludes the grey
+      // wordmark (#a4a2a5, channels near-equal) and the transparency.
+      if (a > 128 && r > 170 && g < 100 && r - g > 100 && r > b) {
         found++;
         if (x < x0) x0 = x;
         if (x > x1) x1 = x;
@@ -63,7 +67,7 @@ async function findGlyphBox() {
 
   if (found < 1000) {
     throw new Error(
-      `generate-assets: found only ${found} green pixels in ${SOURCE} — the logo changed. ` +
+      `generate-assets: found only ${found} red pixels in ${SOURCE} — the logo changed. ` +
         'Adjust the colour test in findGlyphBox(), or point SOURCE at a dedicated square mark.',
     );
   }
@@ -93,9 +97,9 @@ async function compose({ artwork, size, fraction, background, out }) {
 const box = await findGlyphBox();
 console.log(`generate-assets: glyph found at ${box.width}x${box.height} (${box.left},${box.top})`);
 
-const glyph = () => sharp(SOURCE).extract(box);
+const glyph = () => source().extract(box);
 // trim() so the fraction means the wordmark itself, not the export's padding.
-const lockup = () => sharp(SOURCE).trim();
+const lockup = () => source().trim();
 
 await compose({ artwork: glyph(), size: ICON, fraction: ICON_ONLY, background: BG, out: 'icon-only.png' });
 await compose({ artwork: glyph(), size: ICON, fraction: FOREGROUND, background: TRANSPARENT, out: 'icon-foreground.png' });

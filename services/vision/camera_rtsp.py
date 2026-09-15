@@ -37,7 +37,10 @@ import os
 import threading
 import time
 import urllib.parse
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    import cv2  # type: ignore
 
 import numpy as np
 
@@ -94,7 +97,7 @@ class RtspCamera(BaseCamera):
         if not rtsp_url:
             raise ValueError("RtspCamera requires a non-empty rtsp_url")
         self._url = rtsp_url
-        self._cap = None
+        self._cap: Optional[cv2.VideoCapture] = None
         self._frame: Optional[np.ndarray] = None
         self._got_frame = False
         self._lock = threading.Lock()
@@ -102,8 +105,6 @@ class RtspCamera(BaseCamera):
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
-        import cv2  # type: ignore
-
         # Must be set before VideoCapture(..., cv2.CAP_FFMPEG) is called.
         # Forces TCP (more reliable than UDP over Wi-Fi) and tells FFmpeg not
         # to hold frames in its own buffer.
@@ -112,13 +113,15 @@ class RtspCamera(BaseCamera):
             "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|max_delay;100000",
         )
 
-        self._cap = self._open(cv2)
+        self._cap = self._open()
         self._stopped = False
         self._thread = threading.Thread(target=self._update, daemon=True)
         self._thread.start()
         log.info("[camera_rtsp] RTSP stream started")
 
-    def _open(self, cv2) -> "cv2.VideoCapture":
+    def _open(self) -> cv2.VideoCapture:
+        import cv2  # type: ignore
+
         cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if not cap.isOpened():
@@ -129,19 +132,26 @@ class RtspCamera(BaseCamera):
         return cap
 
     def _update(self) -> None:
-        import cv2  # type: ignore
-
         while not self._stopped:
-            ok, frame = self._cap.read()
+            if self._cap is None:
+                try:
+                    self._cap = self._open()
+                except RuntimeError:
+                    time.sleep(_RECONNECT_DELAY_SECONDS)
+                    continue
+
+            cap = self._cap
+            if cap is None:
+                continue
+
+            ok, frame = cap.read()
             if not ok:
                 log.warning("[camera_rtsp] RTSP read failed, reconnecting…")
-                self._cap.release()
+                cap.release()
+                self._cap = None
                 time.sleep(_RECONNECT_DELAY_SECONDS)
-                try:
-                    self._cap = self._open(cv2)
-                except RuntimeError:
-                    continue
                 continue
+
             with self._lock:
                 self._frame = frame
                 self._got_frame = True
