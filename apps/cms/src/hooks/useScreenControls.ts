@@ -31,7 +31,14 @@ interface UseScreenControlsOptions {
    */
   /** `source` is carried because `type` alone can't identify YouTube — it
    * shares the "html" wire type with PDF/slides/word/sheet/links. */
-  onContentUpdated?: (content: { id: string; type: string; source?: string }) => void;
+  onContentUpdated?: (content: {
+    id: string;
+    type: string;
+    source?: string;
+    templateKey?: string;
+    experienceId?: string;
+    templateContent?: Record<string, unknown>;
+  }) => void;
 }
 
 /**
@@ -71,7 +78,14 @@ export function useScreenControls({
     onScreenUpdated: (updatedScreenId, content) => {
       if (updatedScreenId !== screenId) return;
       setShowTouchpad(content.type === "html");
-      onContentUpdated?.({ id: content.id, type: content.type, source: content.source });
+      onContentUpdated?.({
+        id: content.id,
+        type: content.type,
+        source: content.source,
+        templateKey: content.templateKey,
+        experienceId: content.type === "experience" ? content.id : undefined,
+        templateContent: content.templateContent,
+      });
       // Keeps the "N of M" counter in sync across every open control panel
       // (another tab, a second admin) — derived from the live content id
       // rather than a bespoke WS message.

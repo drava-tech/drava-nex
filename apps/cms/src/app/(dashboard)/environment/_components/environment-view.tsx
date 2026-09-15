@@ -66,10 +66,10 @@ const PANELS: PanelType[] = ["climate", "lighting", "audio", "security"];
 // Grid-area names for the non-focused cards, in the order they stack.
 const SECONDARY_ROLES = ["top", "middle", "bottom"].slice(0, PANELS.length - 1);
 
+// ponytail: Custom cubic-bezier easing provides a smooth, elegant 1.3s card expansion transition.
 const cardLayoutTransition = {
-  type: "spring",
-  bounce: 0.14,
-  duration: 0.9,
+  duration: 1.3,
+  ease: [0.16, 1, 0.3, 1],
 } as any;
 
 // How long the door stays unlocked before the UI re-locks it automatically.
@@ -785,16 +785,16 @@ export function EnvironmentView() {
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={isPrimary ? "expanded" : "compact"}
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.96 }}
                   animate={{
                     opacity: 1,
                     scale: 1,
-                    transition: { duration: 0.4, delay: 0.1 },
+                    transition: { duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] },
                   }}
                   exit={{
                     opacity: 0,
-                    scale: 0.95,
-                    transition: { duration: 0.2 },
+                    scale: 0.96,
+                    transition: { duration: 0.35, ease: [0.7, 0, 0.84, 0] },
                   }}
                   className={
                     isPrimary

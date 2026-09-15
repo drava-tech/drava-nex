@@ -40,6 +40,10 @@ const VideoControlPanel = dynamic(
   () => import("@/components/video-control-panel").then((m) => m.VideoControlPanel),
   { ssr: false }
 );
+const DataArtControlPanel = dynamic(
+  () => import("@/components/data-art-control-panel").then((m) => m.DataArtControlPanel),
+  { ssr: false }
+);
 import { documentKindOf, type WsContent } from "@platform/types";
 
 /** Per-tap step for the volume -/+ buttons — see screen-touchpad.tsx. */
@@ -73,7 +77,14 @@ interface LiveScreenSurfaceProps {
   }
   /** Whatever's actually live on the screen right now, so re-picking the same
    * content can be skipped as a no-op — see handleAssign. */
-  initialContent?: { id: string; type: string; source?: string } | null;
+  initialContent?: {
+    id: string;
+    type: string;
+    source?: string;
+    templateKey?: string;
+    experienceId?: string;
+    templateContent?: Record<string, unknown>;
+  } | null;
   backHref?: string;
 }
 
@@ -165,7 +176,13 @@ export function LiveScreenSurface({
     // its own remembered position. Reliable only because onContentUpdated
     // above keeps currentContent tracking the real live content.
     if (currentContent?.id === content.id && currentContent?.type === content.type) return;
-    setCurrentContent({ id: content.id, type: content.type });
+    setCurrentContent({
+      id: content.id,
+      type: content.type,
+      templateKey: content.templateKey,
+      experienceId: content.type === "experience" ? content.id : undefined,
+      templateContent: content.templateContent,
+    });
     // "experience" is the one type the picker's Experiences tab ever sends;
     // every other type (video/image from Files, or any other media kind —
     // document/presentation/sheet/word/youtube/drive/link — surfaced by
@@ -480,7 +497,17 @@ export function LiveScreenSurface({
         driven by the real OS cursor. Testing for video first keeps it out of
         that branch without disturbing anything else.
       */}
-      {currentContent?.type === "video" ? (
+      {currentContent?.templateKey === "flight-simulation" ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950 p-4">
+            <DataArtControlPanel
+              screenId={screenId}
+              experienceId={currentContent.experienceId ?? currentContent.id}
+              templateContent={currentContent.templateContent}
+            />
+          </div>
+        </div>
+      ) : currentContent?.type === "video" ? (
         // No mirror: decoding the same file a second time just to watch it is
         // real bandwidth for no control value. Real transport + true position
         // instead — see VideoControlPanel.

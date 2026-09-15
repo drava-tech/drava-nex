@@ -21,6 +21,8 @@ export interface FlightGardenOptions {
   apiBaseUrl?: string;
   /** Airport code to open on. Falls back to the first catalog entry. */
   airportCode?: string;
+  /** Art render to open on. Falls back to the scene's default art. */
+  artId?: string;
   /** Overrides the HUD tower title. Empty/omitted = use the airport's own name. */
   label?: string;
   /** Render the glass HUD panels. Default true. */
@@ -60,6 +62,8 @@ export interface FlightGardenOptions {
 export interface FlightGardenView {
   /** Which visualization is showing (a SCENES key, e.g. "flight"). */
   sceneId: string;
+  /** Which art render is showing (an ART_CATALOG id, e.g. "flight-garden" | "art-2"). */
+  artId?: string;
   /** Airport the flight scene is running, e.g. "BLR". */
   airportCode: string;
   /** Weather scene's chosen place (a WEATHER_LOCATIONS id, e.g. "bengaluru"). */
@@ -77,6 +81,8 @@ export interface FlightGardenHandle {
   dispose: () => void;
   /** Switch airports at runtime (same path the HUD picker uses). */
   setAirport: (code: string) => void;
+  /** Switch art outputs at runtime. */
+  setArt: (artId: string) => void;
   /** Replace the reference data after a later/successful catalog fetch. */
   setCatalog: (catalog: FlightCatalog) => void;
   /** Supply a fresh flight board; the sim draws names/routes from it. */
@@ -96,7 +102,7 @@ export interface FlightGardenHandle {
   setOptions: (
     patch: Pick<
       FlightGardenOptions,
-      "label" | "showHud" | "allowAirportSwitching" | "simulationSpeed"
+      "artId" | "label" | "showHud" | "allowAirportSwitching" | "simulationSpeed"
     >
   ) => void;
 }
