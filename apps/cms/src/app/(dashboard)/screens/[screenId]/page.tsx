@@ -39,7 +39,19 @@ export default async function ScreenControlPage({ params }: PageProps) {
         defaultMediaAssetId: row.defaultMediaAssetId,
         defaultMediaName: row.defaultMediaName,
       }}
-      initialContent={content ? { id: content.id, type: content.type, source: content.source } : null}
+      initialContent={
+        content
+          ? {
+              id: content.id,
+              type: content.type,
+              source: content.source,
+              templateKey: content.templateKey,
+              experienceId: content.type === "experience" ? content.id : undefined,
+              templateContent: content.templateContent,
+            }
+          : null
+      }
+      backHref="/screens"
     />
   );
 }

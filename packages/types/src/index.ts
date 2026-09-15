@@ -17,6 +17,7 @@ export * from "./media-listing.js";
 
 // --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
 export * from "./flight-simulation.js";
+export * from "./flight-art.js";
 
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
 export const TEMPLATE_KEYS = [

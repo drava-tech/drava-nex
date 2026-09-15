@@ -133,8 +133,8 @@ export function VideoControlsOverlay({
 
   return (
     <div
-      // z-40: above PublishDragOverlay's z-30, well below FiveTapCorner's
-      // z-[9999] escape hatch, which must always win.
+      // z-40: above the content layers' in-flight z-indexes, well below
+      // FiveTapCorner's z-[9999] escape hatch, which must always win.
       className={`fixed bottom-0 left-0 right-0 z-40 flex flex-col gap-3 bg-gradient-to-t from-black/80 to-transparent px-8 pb-8 pt-16 transition-opacity duration-300 ${
         visible ? "opacity-100" : "pointer-events-none opacity-0"
       }`}

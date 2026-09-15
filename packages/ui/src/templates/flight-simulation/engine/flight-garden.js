@@ -28,6 +28,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+import { findArt } from "../art-catalog";
 import { buildDom } from "./dom";
 import "./flight-garden.css";
 
@@ -1219,6 +1220,19 @@ function hueForTemp(tempC, anchors) {
 }
 
 /**
+ * The anchors above are absolute rotations away from the source clip's own red.
+ * Map a data source onto a render that is not red and every band lands on the
+ * wrong colour, so subtract that render's native hue to get the rotation this
+ * particular clip needs. Wrapped into (-0.5, 0.5] so the shader takes the short
+ * way around the wheel — the same reason the 40C anchor is written negative.
+ */
+function rebaseHue(turns, nativeHueTurns = 0) {
+  let delta = turns - nativeHueTurns;
+  delta -= Math.round(delta);
+  return delta;
+}
+
+/**
  * CMS: every route on this API answers in the repo-wide envelope,
  * `{ success, data }` on success and `{ success: false, error: { message } }`
  * on failure — see apps/api/src/lib/response.ts. Upstream's endpoints returned
@@ -1805,6 +1819,7 @@ async function setGardenVideo(videoId, { allowFallback = true } = {}) {
    ================================================================= */
 
 let activeSceneId = null;
+let selectedArtId = options.artId ?? null;
 let scenePollTimer = null;
 
 /**
@@ -1873,7 +1888,8 @@ function sceneContext(scene) {
       const thermal = scene.art.thermal;
       if (!thermal) return null;
 
-      livingGarden?.setHueShift(hueForTemp(value, thermal.anchors));
+      const nativeHue = findArt(selectedArtId ?? scene.art.videoId)?.nativeHueTurns ?? 0;
+      livingGarden?.setHueShift(rebaseHue(hueForTemp(value, thermal.anchors), nativeHue));
 
       const labels = thermal.labels ?? [];
       const band = labels.find((b) => value <= b.upTo) ?? labels[labels.length - 1] ?? null;
@@ -1986,7 +2002,8 @@ async function activateScene(sceneId) {
   // it which band to show, so it opens on the middle of the range rather
   // than flashing a clip it is about to replace.
   if (scene.art.mode === "single") {
-    await setGardenVideo(scene.art.videoId);
+    const targetVideo = selectedArtId ?? scene.art.videoId;
+    await setGardenVideo(targetVideo);
 
     // A thermal-tinted scene opens unshifted — the render's own native
     // colour — rather than guessing a band. It's an instant no-op default
@@ -3854,6 +3871,7 @@ function currentView() {
     // what is rendered — and it is the setting, not the render, that the other
     // clients need in order to start their own cut in parallel.
     sceneId: pendingSceneId ?? activeSceneId ?? DEFAULT_SCENE,
+    artId: selectedArtId ?? (SCENES[activeSceneId ?? DEFAULT_SCENE]?.art?.videoId),
     airportCode: pendingAirportCode ?? sim.code,
     locationId: selectedLocationId,
     manual: manualReading ? { tempC: manualReading.tempC, kph: manualReading.kph } : null,
@@ -3902,6 +3920,18 @@ function applyView(view) {
 
     if (activeSceneId) pollScene(activeSceneId);
   };
+
+  // Art before the cut, deliberately: activateScene resolves the clip from
+  // selectedArtId, so setting it afterwards would load the OLD render first and
+  // flash it behind the veil before loading the right one. Only swap directly
+  // when the scene is not changing — otherwise activateScene does it.
+  const artChanged = typeof view.artId === "string" && view.artId !== selectedArtId;
+  const sceneChanging =
+    typeof view.sceneId === "string" && view.sceneId !== (pendingSceneId ?? activeSceneId);
+  if (artChanged) {
+    selectedArtId = view.artId;
+    if (!sceneChanging) void setGardenVideo(view.artId);
+  }
 
   // Scene first, and awaited: activateScene clears manualReading and re-disables
   // the Realtime button itself, so applying the feed state before the cut would
@@ -4501,6 +4531,11 @@ function dispose() {
 return {
   dispose,
   setAirport: (code) => { if (alive()) switchAirport(code); },
+  setArt: (artId) => {
+    if (!alive()) return;
+    selectedArtId = artId;
+    if (artId) setGardenVideo(artId);
+  },
   setCatalog: (catalog) => { if (alive()) applyCatalog(catalog); },
   setRoster: (flights) => { if (alive()) setRosterQueue(flights); },
   setFeedState: (state) => { if (alive()) setFeedState(state); },
@@ -4519,6 +4554,10 @@ return {
   setOptions: (patch) => {
     if (!alive() || !patch) return;
     Object.assign(options, patch);
+    if (patch.artId !== undefined && patch.artId !== selectedArtId) {
+      selectedArtId = patch.artId;
+      if (selectedArtId) setGardenVideo(selectedArtId);
+    }
     applyChrome();
     applyTowerTitle();
     applyIntensity();

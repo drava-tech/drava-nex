@@ -56,16 +56,6 @@ export const MEDIA_TOGGLE_PLAY_EVENT = "media-toggle-play";
 export const MEDIA_SET_PAUSED_EVENT = "media-set-paused";
 export const MEDIA_SET_PLAYBACK_EVENT = "media-set-playback";
 
-/**
- * Dispatched once a renderer has actually put content on the panel — not merely
- * when it mounted. PublishDragOverlay lifts its cover on this rather than on
- * content promotion, because promotion can happen while a video is still
- * unbuffered (useContentPreloader promotes on a timeout), and lifting then
- * reveals a frozen black frame. Detail carries the content id so a stale signal
- * from outgoing content can't lift the cover early.
- */
-export const CONTENT_PLAYING_EVENT = "screen-content-playing";
-
 export interface MediaSeekPayload {
   /** Seconds to jump, signed. */
   delta: number;

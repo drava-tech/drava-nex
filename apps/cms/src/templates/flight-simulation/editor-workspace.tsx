@@ -113,7 +113,7 @@ export function FlightSimulationEditorWorkspace({
             <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               {experience.name}
             </p>
-            <p className="text-[11px] text-zinc-400">Flight Simulation</p>
+            <p className="text-[11px] text-zinc-400">Data Art</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

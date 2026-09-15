@@ -129,6 +129,10 @@ export function FlightSimulationCanvas({
   }, [engineOptions.airportCode]);
 
   useEffect(() => {
+    if (engineOptions.artId) handleRef.current?.setArt(engineOptions.artId);
+  }, [engineOptions.artId]);
+
+  useEffect(() => {
     if (engineOptions.catalog) handleRef.current?.setCatalog(engineOptions.catalog);
   }, [engineOptions.catalog]);
 
@@ -146,12 +150,14 @@ export function FlightSimulationCanvas({
   // screen kept the HUD, label and speed it started with.
   useEffect(() => {
     handleRef.current?.setOptions({
+      artId: engineOptions.artId,
       label: engineOptions.label,
       showHud: engineOptions.showHud,
       allowAirportSwitching: engineOptions.allowAirportSwitching,
       simulationSpeed: engineOptions.simulationSpeed,
     });
   }, [
+    engineOptions.artId,
     engineOptions.label,
     engineOptions.showHud,
     engineOptions.allowAirportSwitching,

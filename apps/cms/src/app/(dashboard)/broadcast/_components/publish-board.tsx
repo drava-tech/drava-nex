@@ -45,13 +45,7 @@ import {
   type ScreenRow,
 } from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
-import { PublishScreenBridge } from "./publish-screen-bridge";
 import { readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
-import {
-  PUBLISH_DRAG_START,
-  PUBLISH_DRAG_PROGRESS,
-  PUBLISH_DRAG_END,
-} from "@/lib/publish-drag-protocol";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   activeScreensUpdated,
@@ -264,9 +258,6 @@ export function PublishBoard({
     };
   }, [covering, router]);
 
-  const sendDragRef = useRef<(command: string, value?: unknown) => void>(
-    () => {},
-  );
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   /** Slides currently parked at the off-screen end state, so updateSlideTransforms
@@ -502,9 +493,9 @@ export function PublishBoard({
       id: m.id,
       type: m.type as MediaCardType,
       title: m.name,
-      // The derived tile where one exists. A card is ~384px wide, so loading
-      // the original here cost roughly 2.3 MB per card.
-      thumbnail: mediaThumbnailSrc(m),
+      // ponytail: For videos without a pre-generated thumbnail image, avoid passing original video .mp4 URL
+      // to prevent Android WebView from mounting native <video> decoders across carousel slides.
+      thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, mediaItems, filter, tagFilter]);
@@ -514,11 +505,15 @@ export function PublishBoard({
   // server on every visit, so a remembered index can outlive its screen.
   const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
 
+  /** Caches static layout centers (offsetLeft + offsetWidth / 2) so scroll frames do not force DOM layout reads per card. */
+  const cachedCentersRef = useRef<Map<string, number>>(new Map());
+
   const setSlideRef = useCallback((key: string, el: HTMLDivElement | null) => {
     if (el) {
       slideRefs.current.set(key, el);
     } else {
       slideRefs.current.delete(key);
+      cachedCentersRef.current.delete(key);
       // Drop the parked mark with the element. A key that came back later
       // (after a filter switch, say) would otherwise be skipped by
       // updateSlideTransforms while its fresh element still had no transform.
@@ -530,40 +525,30 @@ export function PublishBoard({
   // the scroller's horizontal center — the centered card sits at full size,
   // neighbors shrink and nudge in slightly, staying individually visible and
   // tappable rather than stacking behind the center card. Writes style
-  // directly (no React state) so it stays smooth at scroll-event frequency —
-  // same ref-mutation pattern already used for PublishDragOverlay's live drag
-  // progress.
-  //
-  // Positions are derived from offsetLeft/scrollLeft (pure layout values,
-  // unaffected by the transform this function itself applies), not
-  // getBoundingClientRect — that would read back the *already-transformed*
-  // position and feed it into computing the next transform, compounding on
-  // itself frame over frame.
+  // directly (no React state) so it stays smooth at scroll-event frequency.
   const updateSlideTransforms = useCallback(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
     const viewportCenter = scroller.clientWidth / 2;
+    const scrollLeft = scroller.scrollLeft;
     // Whichever card ends up nearest the centre is also the one to scroll back
     // to on a return visit — recorded here rather than in a separate pass
     // because this already walks every slide measuring exactly that distance.
-    // Writing to the module snapshot is a plain assignment (no React state),
-    // so it stays free to do at scroll-event frequency.
     let nearestKey: string | null = null;
     let nearestDistance = Infinity;
 
-    // Two passes on purpose. Reading offsetLeft/offsetWidth is a layout read
-    // and writing style is a layout invalidation, so interleaving them per
-    // element (as this used to) forces the browser to re-lay-out the row once
-    // per card, every frame — the cost that made the carousel degrade as the
-    // library grew. Batching all reads, then all writes, is a single layout.
+    // ponytail: Cached static layout centers reduce per-frame DOM layout reads from 2N to 1 during scroll.
     const measured: { el: HTMLDivElement; key: string; offset: number }[] = [];
+    const centers = cachedCentersRef.current;
     slideRefs.current.forEach((el, key) => {
-      const elCenterInViewport =
-        el.offsetLeft + el.offsetWidth / 2 - scroller.scrollLeft;
+      let center = centers.get(key);
+      if (center === undefined) {
+        center = el.offsetLeft + el.offsetWidth / 2;
+        centers.set(key, center);
+      }
+      const elCenterInViewport = center - scrollLeft;
       const offset = (elCenterInViewport - viewportCenter) / viewportCenter;
       measured.push({ el, key, offset });
-      // Math.abs(offset), not the clamped/capped value — several off-screen
-      // cards share a proximity of exactly 1 and could not be told apart.
       const distance = Math.abs(offset);
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -577,13 +562,6 @@ export function PublishBoard({
       // Skip writing to slides whose style can no longer change, so per-frame
       // work stays proportional to the few cards on screen rather than to every
       // page loaded so far.
-      //
-      // The threshold is 1.4, NOT proximity >= 1. scale/opacity/zIndex derive
-      // from `proximity` and do saturate at 1.0 — but `nudge` derives from
-      // `clamped`, which keeps changing out to 1.4, another 7.2px of travel.
-      // Parking at 1.0 froze a transform that was still moving, so a card held
-      // a stale position across that band and then visibly snapped when it came
-      // back inside it. Past 1.4 every written value really is saturated.
       const parked = Math.abs(offset) >= 1.4;
       if (parked && parkedSlidesRef.current.has(key)) continue;
       if (parked) parkedSlidesRef.current.add(key);
@@ -591,9 +569,14 @@ export function PublishBoard({
 
       const scale = 1 - proximity * 0.35;
       const nudge = -clamped * 18;
-      el.style.transform = `translateX(${nudge}px) scale(${scale})`;
+      // ponytail: translate3d forces hardware GPU layer promotion on Android WebView,
+      // preventing main-thread re-rasterization on scroll frames.
+      el.style.transform = `translate3d(${nudge}px, 0px, 0px) scale(${scale})`;
       el.style.opacity = String(1 - proximity * 0.35);
-      el.style.zIndex = String(5 - Math.round(proximity * 5));
+      const nextZ = String(5 - Math.round(proximity * 5));
+      if (el.style.zIndex !== nextZ) {
+        el.style.zIndex = nextZ;
+      }
     }
 
     if (nearestKey) saveBoardSnapshot({ centredCardKey: nearestKey });
@@ -626,6 +609,7 @@ export function PublishBoard({
     // The card set just changed, so every slide needs one unconditional styling
     // pass before the skip-if-parked optimisation can be trusted again.
     parkedSlidesRef.current.clear();
+    cachedCentersRef.current.clear();
     updateSlideTransforms();
 
     let ticking = false;
@@ -638,6 +622,10 @@ export function PublishBoard({
         maybeLoadMore(scroller);
       });
     };
+    const onResize = () => {
+      cachedCentersRef.current.clear();
+      onScroll();
+    };
     // A plain mouse wheel only ever generates vertical delta, and this row has
     // no vertical overflow to scroll — redirect it to horizontal so a normal
     // mouse (not just touch/trackpad swipes) can browse the carousel too.
@@ -648,11 +636,11 @@ export function PublishBoard({
     };
     scroller.addEventListener("scroll", onScroll, { passive: true });
     scroller.addEventListener("wheel", onWheel, { passive: false });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onResize);
     return () => {
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("wheel", onWheel);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, [cards, updateSlideTransforms, maybeLoadMore]);
 
@@ -830,11 +818,6 @@ export function PublishBoard({
     [cards],
   );
 
-  const sendDragEvent = useCallback(
-    (command: string, value?: unknown) => sendDragRef.current(command, value),
-    [],
-  );
-
   const triggerPublish = useCallback(
     (card: ContentCard) => {
       if (!targetScreen) return;
@@ -943,13 +926,6 @@ export function PublishBoard({
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
-      {targetScreen && (
-        <PublishScreenBridge
-          key={targetScreen.screenId}
-          screenId={targetScreen.screenId}
-          sendRef={sendDragRef}
-        />
-      )}
       {/* Screen switcher / publish target */}
       <div className="flex shrink-0 items-center gap-3">
         <button
@@ -1254,7 +1230,6 @@ export function PublishBoard({
                       card={card}
                       pushing={pushingId === card.id}
                       onPublish={triggerPublish}
-                      sendDrag={sendDragEvent}
                     />
                   </div>
                 );
@@ -1352,50 +1327,24 @@ function DropZone({
   );
 }
 
+/**
+ * The swipe is a local gesture only. It used to stream PUBLISH_DRAG_* commands
+ * to the target screen so the TV could mirror the operator's finger live, but
+ * that rise competed with the content's own push-up transition and had to
+ * suppress it. The TV now stays on the current content until the push lands and
+ * then plays the standard slide, so there is nothing to broadcast mid-drag.
+ */
 function SwipeCard({
   card,
   pushing,
   onPublish,
-  sendDrag,
 }: {
   card: ContentCard;
   pushing?: boolean;
   onPublish: (card: ContentCard) => void;
-  sendDrag: (command: string, value?: unknown) => void;
 }) {
   const y = useMotionValue(0);
   const opacity = useMotionValue(1);
-  const latestProgress = useRef(0);
-  const rafScheduled = useRef(false);
-
-  const handleDragStart = () => {
-    sendDrag(PUBLISH_DRAG_START, {
-      cardId: card.id,
-      title: card.title,
-      thumbnail: card.thumbnail,
-      type: card.type,
-    });
-  };
-
-  const handleDrag = (
-    _event: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo,
-  ) => {
-    latestProgress.current = Math.min(
-      1,
-      Math.max(0, -info.offset.y / SWIPE_DISTANCE),
-    );
-    if (!rafScheduled.current) {
-      rafScheduled.current = true;
-      requestAnimationFrame(() => {
-        rafScheduled.current = false;
-        sendDrag(PUBLISH_DRAG_PROGRESS, {
-          cardId: card.id,
-          progress: latestProgress.current,
-        });
-      });
-    }
-  };
 
   const handleDragEnd = (
     _event: MouseEvent | TouchEvent | PointerEvent,
@@ -1403,7 +1352,6 @@ function SwipeCard({
   ) => {
     const swipedUp =
       info.offset.y < -SWIPE_DISTANCE || info.velocity.y < -SWIPE_VELOCITY;
-    sendDrag(PUBLISH_DRAG_END, { cardId: card.id, committed: swipedUp });
     if (swipedUp) {
       animate(y, -400, { duration: 0.22, ease: "easeIn" });
       animate(opacity, 0, { duration: 0.22 });
@@ -1422,8 +1370,6 @@ function SwipeCard({
     <motion.div
       drag="y"
       style={{ y, opacity, touchAction: "pan-x" }}
-      onDragStart={handleDragStart}
-      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       className="cursor-grab active:cursor-grabbing"
@@ -1456,55 +1402,33 @@ function CardVisual({
     card.type === "experience" || card.type === "image" || card.type === "video"
       ? null
       : FILE_TYPE_ICONS[card.type];
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Autoplay each video preview only while its card is actually visible —
-  // entering the viewport (coverflow scroll) starts it, leaving stops it,
-  // rather than every video in the carousel playing at once.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) video.play().catch(() => {});
-        else video.pause();
-      },
-      { threshold: 0.6 },
-    );
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, []);
-
+  // ponytail: Carousel cards use static images/icons instead of HTML5 <video> elements to avoid
+  // instantiating native hardware decoders per video slide in Android WebView / APK containers.
   return (
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
-        {card.type === "video" && card.thumbnail ? (
-          <video
-            ref={videoRef}
-            src={card.thumbnail}
-            className="h-full w-full object-cover"
-            muted
-            loop
-            playsInline
-          />
-        ) : card.thumbnail &&
-          (card.type === "image" || card.type === "experience") ? (
+        {card.thumbnail &&
+        (card.type === "image" || card.type === "experience" || card.type === "video") ? (
           <img
             src={card.thumbnail}
             alt={card.title}
             className="h-full w-full object-cover"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            {FileIcon ? (
+            {card.type === "video" ? (
+              <Video className="h-8 w-8 text-zinc-400" />
+            ) : FileIcon ? (
               <FileIcon className="h-8 w-8 text-zinc-400" />
             ) : (
               <Layers className="h-6 w-6 text-zinc-400" />
             )}
           </div>
         )}
-        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">
+        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
           {card.type === "video" ? (
             <Video className="h-2.5 w-2.5" />
           ) : card.type === "image" ? (
