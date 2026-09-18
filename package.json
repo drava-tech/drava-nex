@@ -7,7 +7,13 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "services:up": "docker compose -f infra/docker-compose.dev.yml up -d",
+    "services:down": "docker compose -f infra/docker-compose.dev.yml down",
+    "db:generate": "pnpm --filter @workspace/db db:generate",
+    "db:migrate": "pnpm --filter @workspace/db db:migrate",
+    "db:studio": "pnpm --filter @workspace/db db:studio",
+    "auth:generate": "pnpm --filter @workspace/db auth:generate"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

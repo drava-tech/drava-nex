@@ -1,0 +1,32 @@
+{
+  "name": "@workspace/db",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "auth:generate": "auth generate --config scripts/auth-schema.config.ts --output src/schema/auth.ts --yes"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.5",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "auth": "^1.7.5",
+    "better-auth": "^1.7.5",
+    "dotenv": "^18.0.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3"
+  }
+}
