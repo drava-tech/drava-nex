@@ -1,4 +1,4 @@
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 // The shadcn default reads the theme from next-themes; this app has no Next.js,
@@ -33,4 +33,4 @@ const Toaster = ({ theme = "system", ...props }: ToasterProps) => {
   )
 }
 
-export { Toaster }
+export { Toaster, toast }

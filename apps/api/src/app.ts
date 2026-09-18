@@ -7,6 +7,7 @@ import { auth } from "./lib/auth"
 import { fail } from "./lib/response"
 import { healthRouter } from "./routes/health"
 import { meRouter } from "./routes/me"
+import { screensRouter } from "./routes/screens"
 
 export const app = new Hono<AppEnv>()
 
@@ -21,6 +22,7 @@ app.route("/health", healthRouter)
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
 
 app.route("/api/me", meRouter)
+app.route("/api/screens", screensRouter)
 
 app.notFound((c) => fail(c, "NOT_FOUND", "Not found", 404))
 
