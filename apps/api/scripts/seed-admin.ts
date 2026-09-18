@@ -6,7 +6,7 @@
  */
 import { parseArgs } from "node:util"
 import { eq } from "drizzle-orm"
-import { user } from "@workspace/db"
+import { account, user } from "@workspace/db"
 
 import { auth } from "../src/lib/auth"
 import { db, pool } from "../src/lib/db"
@@ -30,7 +30,9 @@ const existing = await ctx.internalAdapter.findUserByEmail(email)
 
 if (existing) {
   await db.update(user).set({ role: "ADMIN" }).where(eq(user.id, existing.user.id))
-  console.log(`Promoted existing user ${email} to ADMIN (password unchanged).`)
+  const hashedPassword = await ctx.password.hash(values.password)
+  await db.update(account).set({ password: hashedPassword }).where(eq(account.userId, existing.user.id))
+  console.log(`Updated ADMIN ${email} role and password successfully.`)
 } else {
   const created = await ctx.internalAdapter.createUser(
     {
