@@ -1,8 +1,8 @@
 # Local development services for push-platform.
 #
-# Its own compose project and its own port (5433): this machine also runs the
-# cms-platform stack, whose Postgres already owns 5432. Nothing here may share a
-# name, volume or port with it.
+# Its own compose project and its own ports (5433, 9100, 9101): this machine
+# also runs the cms-platform stack, whose Postgres already owns 5432. Nothing
+# here may share a name, volume or port with it.
 name: push-platform-dev
 
 services:
@@ -24,5 +24,44 @@ services:
       timeout: 3s
       retries: 10
 
+  # S3-compatible stand-in for Cloudflare R2, so the whole upload/playback path
+  # runs locally without a Cloudflare account. It speaks the same SigV4 as R2.
+  # Console: http://localhost:9101 (pushdev / pushdev-secret).
+  minio:
+    # Docker Hub no longer carries minio/minio or minio/mc; Quay does.
+    image: quay.io/minio/minio:latest
+    container_name: push-dev-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pushdev
+      MINIO_ROOT_PASSWORD: pushdev-secret
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - push-dev-minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: create the bucket. Idempotent, so `up` can be re-run freely.
+  minio-init:
+    # The server image ships the mc client, so no separate mc image is needed.
+    image: quay.io/minio/minio:latest
+    container_name: push-dev-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 pushdev pushdev-secret &&
+      mc mb --ignore-existing local/push-media
+      "
+    restart: "no"
+
 volumes:
   push-dev-postgres:
+  push-dev-minio:
