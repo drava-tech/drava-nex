@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { screenContentSchema } from "./content"
+import { mediaItemSchema } from "./media"
 
 export const screenSchema = z.object({
   id: z.string(),
@@ -18,6 +19,16 @@ export const screenSchema = z.object({
   createdAt: z.string(),
 })
 export type Screen = z.infer<typeof screenSchema>
+
+/** One screen with what it is showing resolved, for its control page. */
+export const screenDetailSchema = screenSchema.extend({
+  /** Resolved from the database, so it is present even while the display is offline. */
+  content: screenContentSchema,
+  current: mediaItemSchema.nullable(),
+  default: mediaItemSchema.nullable(),
+  queue: z.array(mediaItemSchema),
+})
+export type ScreenDetail = z.infer<typeof screenDetailSchema>
 
 export const createScreenRequestSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),

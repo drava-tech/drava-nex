@@ -22,7 +22,9 @@ export type RendererProps = {
   preview?: boolean | undefined
 }
 
-const fill = "fixed inset-0 h-svh w-svw bg-black"
+// Absolute, not fixed: layers fill the player root, which is the whole viewport
+// on a display and a 16:9 box in the console preview.
+const fill = "absolute inset-0 size-full bg-black"
 
 export function ImageRenderer({ content, onReady }: RendererProps) {
   return (

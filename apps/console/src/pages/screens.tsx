@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router"
 import { LinkIcon, MonitorIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon, UnlinkIcon } from "lucide-react"
 import type { Screen } from "@workspace/types"
 
@@ -122,7 +123,11 @@ export function ScreensPage() {
             <TableBody>
               {screens.map((screen) => (
                 <TableRow key={screen.id}>
-                  <TableCell className="pl-4 font-medium">{screen.name}</TableCell>
+                  <TableCell className="pl-4 font-medium">
+                    <Link to={`/screens/${screen.id}`} className="hover:underline underline-offset-4">
+                      {screen.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <ScreenStatus screen={screen} />
                   </TableCell>

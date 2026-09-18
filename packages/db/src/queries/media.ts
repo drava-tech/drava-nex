@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm"
+import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm"
 
 import type { Database } from "../client"
 import { mediaAsset, screen, type MediaAssetRow, type NewMediaAssetRow } from "../schema"
@@ -63,6 +63,14 @@ export function mediaRepo(db: Database) {
         .where(and(eq(mediaAsset.id, id), live))
         .limit(1)
       return row ?? null
+    },
+
+    /** Live rows for these ids, in the order given (missing ones skipped). */
+    async getMany(ids: string[]): Promise<MediaAssetRow[]> {
+      if (ids.length === 0) return []
+      const rows = await db.select().from(mediaAsset).where(and(inArray(mediaAsset.id, ids), live))
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      return ids.flatMap((id) => byId.get(id) ?? [])
     },
 
     /** Insert, or return the existing row if this id was already committed. */

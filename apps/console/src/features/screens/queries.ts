@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { CreateScreenRequest, PairingCodeResponse, Screen } from "@workspace/types"
+import type { CreateScreenRequest, PairingCodeResponse, Screen, ScreenDetail } from "@workspace/types"
 
 import { api } from "@/lib/api"
 
@@ -64,3 +64,41 @@ export function useDeleteScreen() {
     onSuccess: () => qc.invalidateQueries({ queryKey: screenKeys.all }),
   })
 }
+
+// ─── Screen control page ───────────────────────────────────────────────────
+
+export function useScreenDetail(id: string) {
+  return useQuery({
+    queryKey: screenKeys.detail(id),
+    queryFn: () => api<ScreenDetail>(`/api/screens/${id}`),
+  })
+}
+
+type PushOutcome = { screenId: string; players: number; queueIndex?: number; queueLength?: number }
+
+/** All push controls share one mutation shape: POST, then refresh the screen. */
+function useScreenAction<V>(path: (vars: V) => string, body: (vars: V) => unknown) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: V) => api<PushOutcome>(path(vars), { method: "POST", json: body(vars) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: screenKeys.all }),
+  })
+}
+
+export const usePushMedia = (id: string) =>
+  useScreenAction<string | null>(() => `/api/screens/${id}/media`, (mediaId) => ({ mediaId }))
+
+export const usePushQueue = (id: string) =>
+  useScreenAction<string[]>(() => `/api/screens/${id}/media-queue`, (mediaIds) => ({ mediaIds, startIndex: 0 }))
+
+export const useNavigateQueue = (id: string) =>
+  useScreenAction<"next" | "prev">(() => `/api/screens/${id}/queue/navigate`, (direction) => ({ direction }))
+
+export const useSetDefaultMedia = (id: string) =>
+  useScreenAction<string | null>(() => `/api/screens/${id}/default-media`, (mediaId) => ({ mediaId }))
+
+export const useSetBlanked = (id: string) =>
+  useScreenAction<boolean>(() => `/api/screens/${id}/blank`, (blanked) => ({ blanked }))
+
+export const useScreenCommand = (id: string) =>
+  useScreenAction<"RELOAD" | "MUTE" | "UNMUTE">(() => `/api/screens/${id}/command`, (command) => ({ command }))

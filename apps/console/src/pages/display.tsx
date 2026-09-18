@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useNavigate, useParams } from "react-router"
+import { useLocation, useNavigate, useParams } from "react-router"
 
 import { RouteFallback } from "@/components/route-fallback"
 import { LiveDisplay } from "@/features/display/live-display"
@@ -21,13 +21,17 @@ type State =
 export function DisplayPage() {
   const { screenId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Set when a running display was revoked and sent here, so the reason
+  // survives the route change.
+  const carriedNotice = (location.state as { notice?: string } | null)?.notice
   const [state, setState] = useState<State>({ kind: "checking" })
 
   useEffect(() => {
     let cancelled = false
     const creds = readDevice()
     if (!creds) {
-      setState({ kind: "unpaired" })
+      setState(carriedNotice ? { kind: "unpaired", notice: carriedNotice } : { kind: "unpaired" })
       return
     }
     if (screenId && creds.screenId !== screenId) {
@@ -52,7 +56,7 @@ export function DisplayPage() {
     return () => {
       cancelled = true
     }
-  }, [screenId, navigate])
+  }, [screenId, navigate, carriedNotice])
 
   if (state.kind === "checking") return <RouteFallback />
   if (state.kind === "unpaired") {
@@ -74,8 +78,9 @@ export function DisplayPage() {
       token={state.token}
       onRevoked={() => {
         forgetDevice()
-        setState({ kind: "unpaired", notice: "This display was unpaired. Type a new code to pair it again." })
-        navigate("/display", { replace: true })
+        const notice = "This display was unpaired. Type a new code to pair it again."
+        setState({ kind: "unpaired", notice })
+        navigate("/display", { replace: true, state: { notice } })
       }}
     />
   )

@@ -17,6 +17,8 @@ type Props = {
   name?: string | undefined
   /** A console preview: silent, and reduced-motion is honoured. */
   preview?: boolean
+  /** Fill the parent box instead of the viewport (the console preview). */
+  contained?: boolean
 }
 
 /**
@@ -24,7 +26,7 @@ type Props = {
  * Pure: it knows nothing about sockets — the live display feeds it from the
  * gateway, the console preview from its own state.
  */
-export function ScreenPlayer({ content, blanked, name, preview = false }: Props) {
+export function ScreenPlayer({ content, blanked, name, preview = false, contained = false }: Props) {
   const { activeContent, activeKey, queueContent } = useContentPreloader(content)
   useEffect(() => queueContent(content), [content, queueContent])
 
@@ -81,7 +83,7 @@ export function ScreenPlayer({ content, blanked, name, preview = false }: Props)
   layers.push({ layer: incoming, outgoing: false })
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black" data-player-phase={phase}>
+    <div className={cn(contained ? "absolute" : "fixed", "inset-0 overflow-hidden bg-black")} data-player-phase={phase}>
       {layers.map(({ layer, outgoing: isOutgoing }) => (
         <div
           key={layer.key}
@@ -99,7 +101,7 @@ export function ScreenPlayer({ content, blanked, name, preview = false }: Props)
           {!blanked && renderLayer(layer, isOutgoing ? { outgoing: true } : { staged })}
         </div>
       ))}
-      {blanked && <div className="fixed inset-0 z-50 bg-black" data-testid="blanked" />}
+      {blanked && <div className="absolute inset-0 z-50 bg-black" data-testid="blanked" />}
     </div>
   )
 }

@@ -38,6 +38,11 @@ export const router = createBrowserRouter([
         handle: { title: "Screens" } satisfies RouteHandle,
         lazy: async () => ({ Component: (await import("@/pages/screens")).ScreensPage }),
       },
+      {
+        path: "screens/:screenId",
+        handle: { title: "Screen" } satisfies RouteHandle,
+        lazy: async () => ({ Component: (await import("@/pages/screen-control")).ScreenControlPage }),
+      },
     ],
   },
   // Displays: public, outside the dashboard, so a screen never loads the admin UI.

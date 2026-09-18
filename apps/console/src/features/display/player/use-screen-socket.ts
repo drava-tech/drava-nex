@@ -99,7 +99,10 @@ export function useScreenSocket(opts: Options): SocketStatus {
     return () => {
       closed = true
       clearTimeout(retry)
-      ws?.close()
+      // Closing a socket that is still connecting logs an error in the browser
+      // (React StrictMode mounts twice in dev); let it open, then close it.
+      if (ws?.readyState === WebSocket.CONNECTING) ws.onopen = () => ws?.close()
+      else ws?.close()
     }
   }, [opts.screenId, opts.token])
 

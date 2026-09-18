@@ -14,6 +14,7 @@ import { fail, ok } from "../lib/response"
 import { parseJson } from "../lib/validate"
 import { requireOperator } from "../middleware/auth"
 import { pushContent, sendScreenCommand } from "../realtime/gateway"
+import { notifyAdmins } from "../services/events"
 import { screens } from "../services/screens"
 
 /**
@@ -104,6 +105,7 @@ pushRouter.post("/:id/blank", requireOperator, async (c) => {
     userId: c.get("user").id,
   })
   const players = sendScreenCommand(row.id, body.data.blanked ? "SCREEN_BLANK" : "SCREEN_UNBLANK")
+  notifyAdmins({ type: "SCREENS_CHANGED" })
   return ok(c, { screenId: row.id, blanked: row.blanked, players })
 })
 

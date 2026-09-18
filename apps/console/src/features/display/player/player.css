@@ -13,7 +13,7 @@
    a z-index creates a stacking context that would trap overlays rendered inside
    a renderer. The z-indexes below apply only while a push is in flight. */
 .screen-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: #000;
 }
