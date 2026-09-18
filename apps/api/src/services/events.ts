@@ -30,3 +30,17 @@ export function onScreensChanged(listener: (screenIds: string[]) => void) {
   bus.on("screens-changed", listener)
   return () => bus.off("screens-changed", listener)
 }
+
+/**
+ * A screen's device token is no longer valid (unpaired, re-paired or the
+ * screen deleted). The gateway closes any socket that display still holds, so
+ * revocation takes effect immediately instead of at its next reconnect.
+ */
+export function notifyScreenRevoked(screenId: string) {
+  bus.emit("screen-revoked", screenId)
+}
+
+export function onScreenRevoked(listener: (screenId: string) => void) {
+  bus.on("screen-revoked", listener)
+  return () => bus.off("screen-revoked", listener)
+}

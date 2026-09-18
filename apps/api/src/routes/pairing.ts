@@ -8,7 +8,8 @@ import { fail, ok } from "../lib/response"
 import { parseJson } from "../lib/validate"
 import { requireAdmin } from "../middleware/auth"
 import { requireDevice, type DeviceEnv } from "../middleware/device"
-import { notifyAdmins } from "../services/events"
+import { notifyAdmins, notifyScreenRevoked } from "../services/events"
+import { resolveScreenContent } from "../services/content"
 import { PAIRING_CODE_TTL_MS, pairing } from "../services/pairing"
 import { screens } from "../services/screens"
 
@@ -36,6 +37,7 @@ screenPairingRouter.post("/:id/pairing-code", requireAdmin, async (c) => {
 screenPairingRouter.delete("/:id/pairing", requireAdmin, async (c) => {
   const done = await pairing.unpair(c.req.param("id"))
   if (!done) return fail(c, "NOT_FOUND", "Screen not found", 404)
+  notifyScreenRevoked(c.req.param("id"))
   notifyAdmins({ type: "SCREENS_CHANGED" })
   return ok(c, { unpaired: true })
 })
@@ -52,11 +54,19 @@ pairRouter.post("/", rateLimit({ name: "pair", limit: 10, windowMs: 60_000 }), a
   const token = newDeviceToken()
   const screen = await pairing.claim(body.data.code, hashDeviceToken(token))
   if (!screen) return fail(c, "NOT_FOUND", "That code is wrong or has expired", 404)
+  // The previous display (if any) lost its token just now; cut it off.
+  notifyScreenRevoked(screen.id)
   notifyAdmins({ type: "SCREENS_CHANGED" })
   return ok(c, { screenId: screen.id, name: screen.name, token } satisfies PairResponse, 201)
 })
 
 export const deviceRouter = new Hono<DeviceEnv>()
+
+/** What this display should show now — a fallback for when the socket is down. */
+deviceRouter.get("/content", requireDevice, async (c) => {
+  const screen = c.get("screen")
+  return ok(c, { content: await resolveScreenContent(screen.id), blanked: screen.blanked })
+})
 
 /** Lets a display confirm its stored token still works (or learn it was revoked). */
 deviceRouter.get("/me", requireDevice, (c) => {

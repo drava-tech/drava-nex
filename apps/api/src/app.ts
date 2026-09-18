@@ -4,6 +4,7 @@ import { secureHeaders } from "hono/secure-headers"
 
 import type { AppEnv } from "./lib/app-env"
 import { auth } from "./lib/auth"
+import { wsRoute } from "./realtime/gateway"
 import { fail } from "./lib/response"
 import { healthRouter } from "./routes/health"
 import { mediaRouter } from "./routes/media"
@@ -22,6 +23,9 @@ app.route("/health", healthRouter)
 // No CORS middleware: the console reaches this API same-origin (Vite proxy in
 // dev, nginx in production), so no cross-site cookies are ever involved.
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
+
+// Displays and console tabs; see realtime/gateway.ts.
+app.get("/ws", wsRoute)
 
 app.route("/api/me", meRouter)
 app.route("/api/screens", screensRouter)
