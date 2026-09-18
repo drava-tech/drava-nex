@@ -111,3 +111,21 @@ export const pushResultSchema = z.object({
   players: z.number(),
 })
 export type PushResult = z.infer<typeof pushResultSchema>
+
+// ─── Overview ────────────────────────────────────────────────────────────────
+
+export type OverviewActivity = {
+  id: string
+  at: string
+  action: "media" | "queue" | "navigate" | "default" | "clear" | "blank" | "unblank"
+  screenId: string
+  screenName: string
+  mediaName: string | null
+  userName: string | null
+}
+
+export type Overview = {
+  screens: { total: number; paired: number; online: number }
+  media: { count: number; bytes: number; byType: Record<string, number> }
+  recent: OverviewActivity[]
+}

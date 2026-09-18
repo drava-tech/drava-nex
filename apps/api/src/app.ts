@@ -9,6 +9,7 @@ import { fail } from "./lib/response"
 import { healthRouter } from "./routes/health"
 import { mediaRouter } from "./routes/media"
 import { meRouter } from "./routes/me"
+import { overviewRouter } from "./routes/overview"
 import { deviceRouter, pairRouter, screenPairingRouter } from "./routes/pairing"
 import { pushRouter } from "./routes/push"
 import { screensRouter } from "./routes/screens"
@@ -29,6 +30,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
 app.get("/ws", wsRoute)
 
 app.route("/api/me", meRouter)
+app.route("/api/overview", overviewRouter)
 app.route("/api/screens", screensRouter)
 app.route("/api/screens", screenPairingRouter)
 app.route("/api/screens", pushRouter)

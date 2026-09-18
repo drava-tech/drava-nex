@@ -45,9 +45,11 @@ export function useLiveUpdates(): LiveStatus {
           case "SCREEN_UPDATED":
           case "SCREENS_CHANGED":
             void qc.invalidateQueries({ queryKey: ["screens"] })
+            void qc.invalidateQueries({ queryKey: ["overview"] })
             break
           case "MEDIA_LIBRARY_UPDATED":
             void qc.invalidateQueries({ queryKey: ["media"] })
+            void qc.invalidateQueries({ queryKey: ["overview"] })
             break
         }
       }
