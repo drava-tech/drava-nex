@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "screen_device_token_idx" ON "screen" USING btree ("device_token_hash") WHERE "screen"."device_token_hash" IS NOT NULL;

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { CreateScreenRequest, Screen } from "@workspace/types"
+import type { CreateScreenRequest, PairingCodeResponse, Screen } from "@workspace/types"
 
 import { api } from "@/lib/api"
 
@@ -29,6 +29,30 @@ export function useRenameScreen() {
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       api<Screen>(`/api/screens/${id}`, { method: "PATCH", json: { name } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: screenKeys.all }),
+  })
+}
+
+export function useScreen(id: string | undefined, opts: { refetchInterval?: number | false } = {}) {
+  return useQuery({
+    queryKey: screenKeys.detail(id ?? ""),
+    queryFn: () => api<Screen>(`/api/screens/${id}`),
+    enabled: Boolean(id),
+    refetchInterval: opts.refetchInterval ?? false,
+  })
+}
+
+export function useIssuePairingCode() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<PairingCodeResponse>(`/api/screens/${id}/pairing-code`, { method: "POST" }),
+  })
+}
+
+export function useUnpairScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api<{ unpaired: true }>(`/api/screens/${id}/pairing`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: screenKeys.all }),
   })
 }

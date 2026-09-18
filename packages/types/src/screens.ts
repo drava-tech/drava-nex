@@ -6,6 +6,7 @@ export const screenSchema = z.object({
   id: z.string(),
   name: z.string(),
   paired: z.boolean(),
+  pairedAt: z.string().nullable(),
   online: z.boolean(),
   blanked: z.boolean(),
   lastSeenAt: z.string().nullable(),

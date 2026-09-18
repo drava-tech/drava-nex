@@ -98,6 +98,10 @@ export const screen = pgTable(
   },
   (t) => [
     index("screen_listing_idx").on(t.createdAt).where(sql`${t.deletedAt} IS NULL`),
+    // Device authentication looks screens up by the hash of their token.
+    uniqueIndex("screen_device_token_idx")
+      .on(t.deviceTokenHash)
+      .where(sql`${t.deviceTokenHash} IS NOT NULL`),
   ]
 )
 

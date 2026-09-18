@@ -34,6 +34,7 @@ export function toScreenDto(row: ScreenRow): Screen {
     id: row.id,
     name: row.name,
     paired: row.deviceTokenHash !== null,
+    pairedAt: row.pairedAt?.toISOString() ?? null,
     online: presence.isOnline(row.id),
     blanked: row.blanked,
     lastSeenAt: row.lastSeenAt?.toISOString() ?? null,

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { MonitorIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { LinkIcon, MonitorIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon, UnlinkIcon } from "lucide-react"
 import type { Screen } from "@workspace/types"
 
 import { Button } from "@workspace/ui/components/button"
@@ -29,9 +29,11 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { DeleteScreenDialog } from "@/features/screens/delete-screen-dialog"
+import { PairScreenDialog } from "@/features/screens/pair-screen-dialog"
 import { useScreens } from "@/features/screens/queries"
 import { ScreenFormDialog } from "@/features/screens/screen-form-dialog"
 import { ScreenStatus } from "@/features/screens/screen-status"
+import { UnpairScreenDialog } from "@/features/screens/unpair-screen-dialog"
 import { useSessionUser } from "@/hooks/use-session-user"
 import { timeAgo } from "@/lib/format"
 
@@ -43,6 +45,8 @@ export function ScreensPage() {
   const [creating, setCreating] = useState(false)
   const [renaming, setRenaming] = useState<Screen | null>(null)
   const [deleting, setDeleting] = useState<Screen | null>(null)
+  const [pairing, setPairing] = useState<Screen | null>(null)
+  const [unpairing, setUnpairing] = useState<Screen | null>(null)
 
   return (
     <>
@@ -134,6 +138,17 @@ export function ScreensPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setPairing(screen)}>
+                            <LinkIcon />
+                            {screen.paired ? "Pair a new display" : "Pair display"}
+                          </DropdownMenuItem>
+                          {screen.paired && (
+                            <DropdownMenuItem onSelect={() => setUnpairing(screen)}>
+                              <UnlinkIcon />
+                              Unpair
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem onSelect={() => setRenaming(screen)}>
                             <PencilIcon />
                             Rename
@@ -161,6 +176,8 @@ export function ScreensPage() {
         screen={renaming ?? undefined}
       />
       <DeleteScreenDialog screen={deleting} onOpenChange={(open) => !open && setDeleting(null)} />
+      <PairScreenDialog screen={pairing} onOpenChange={(open) => !open && setPairing(null)} />
+      <UnpairScreenDialog screen={unpairing} onOpenChange={(open) => !open && setUnpairing(null)} />
     </>
   )
 }

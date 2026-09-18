@@ -40,5 +40,10 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  // Displays: public, outside the dashboard, so a screen never loads the admin UI.
+  {
+    path: "/display/:screenId?",
+    lazy: async () => ({ Component: (await import("@/pages/display")).DisplayPage }),
+  },
   { path: "*", Component: NotFoundPage },
 ])
