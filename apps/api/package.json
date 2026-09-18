@@ -1,0 +1,32 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsdown",
+    "start": "node dist/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "seed:admin": "tsx --env-file-if-exists=../../.env scripts/seed-admin.ts"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.5",
+    "@hono/node-server": "^2.1.1",
+    "@workspace/db": "workspace:*",
+    "@workspace/types": "workspace:*",
+    "better-auth": "^1.7.5",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.8",
+    "pg": "^8.23.0",
+    "ws": "^8.21.3",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.1",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3"
+  }
+}
