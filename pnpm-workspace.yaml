@@ -5,3 +5,8 @@ packages:
 allowBuilds:
   esbuild: true
   msw: false
+
+# pptx-preview crashes on decks whose slide layout or master has no background
+# (undefined slideLayout/slideMaster.background). Carried over from cms-platform.
+patchedDependencies:
+  pptx-preview@1.0.7: patches/pptx-preview@1.0.7.patch

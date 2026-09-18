@@ -1,0 +1,61 @@
+/* Readable from across a room: large type, generous leading, light on dark. */
+.word-doc {
+  color: #e4e4e7;
+  font-size: 22px;
+  line-height: 1.7;
+}
+.word-doc h1,
+.word-doc h2,
+.word-doc h3,
+.word-doc h4 {
+  color: #fafafa;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.5em 0 0.5em;
+}
+.word-doc h1 {
+  font-size: 2em;
+}
+.word-doc h2 {
+  font-size: 1.5em;
+}
+.word-doc h3 {
+  font-size: 1.25em;
+}
+.word-doc p {
+  margin: 0.75em 0;
+}
+.word-doc a {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+.word-doc strong {
+  color: #fafafa;
+  font-weight: 700;
+}
+.word-doc ul,
+.word-doc ol {
+  margin: 0.75em 0;
+  padding-left: 1.5em;
+}
+.word-doc ul {
+  list-style: disc;
+}
+.word-doc ol {
+  list-style: decimal;
+}
+.word-doc img {
+  max-width: 100%;
+  height: auto;
+  margin: 1em auto;
+}
+.word-doc table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+.word-doc td,
+.word-doc th {
+  border: 1px solid #3f3f46;
+  padding: 0.4em 0.6em;
+}

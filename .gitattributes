@@ -1,1 +1,4 @@
 * text=auto eol=lf
+# pnpm hashes patch files into the lockfile; any line-ending conversion would
+# change the hash and break `pnpm install --frozen-lockfile` on a fresh clone.
+patches/*.patch -text

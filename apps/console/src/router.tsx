@@ -46,6 +46,11 @@ export const router = createBrowserRouter([
     ],
   },
   // Displays: public, outside the dashboard, so a screen never loads the admin UI.
+  // Document viewers first: static segments must win over /display/:screenId.
+  { path: "/display/pdf", lazy: async () => ({ Component: (await import("@/features/display/viewers/pdf-viewer")).PdfViewer }) },
+  { path: "/display/slides", lazy: async () => ({ Component: (await import("@/features/display/viewers/slides-viewer")).SlidesViewer }) },
+  { path: "/display/word", lazy: async () => ({ Component: (await import("@/features/display/viewers/word-viewer")).WordViewer }) },
+  { path: "/display/sheet", lazy: async () => ({ Component: (await import("@/features/display/viewers/sheet-viewer")).SheetViewer }) },
   {
     path: "/display/:screenId?",
     lazy: async () => ({ Component: (await import("@/pages/display")).DisplayPage }),
