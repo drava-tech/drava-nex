@@ -5,7 +5,9 @@ import { defineConfig } from "tsdown"
 // inlined here. Their own dependencies stay external and are declared in this
 // package.json.
 export default defineConfig({
-  entry: ["src/index.ts"],
+  // seed-admin ships in the image so the first admin can be created in the
+  // container: docker compose exec api node dist/seed-admin.mjs --email ...
+  entry: { index: "src/index.ts", "seed-admin": "scripts/seed-admin.ts" },
   format: "esm",
   platform: "node",
   target: "node24",

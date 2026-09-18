@@ -4,8 +4,11 @@ import { WebSocketServer } from "ws"
 import { app } from "./app"
 import { env } from "./env"
 import { pool } from "./lib/db"
+import { runMigrations } from "./lib/migrate"
 import { storage } from "./lib/storage"
 import { startReaper } from "./services/reaper"
+
+await runMigrations()
 
 // Client messages are tiny control frames; refuse anything large at the socket.
 const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 })

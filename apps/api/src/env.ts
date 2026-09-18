@@ -28,6 +28,8 @@ const envSchema = z.object({
   R2_REGION: z.string().default("auto"),
   R2_PUBLIC_BASE_URL: optional,
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 ** 3),
+  /** Set in the production image: apply migrations from here at boot. */
+  MIGRATIONS_DIR: optional,
 })
 
 export type Env = z.infer<typeof envSchema>

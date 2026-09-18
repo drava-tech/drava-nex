@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+!.env.example
+!.env.production.example
+infra/docker-compose.dev.yml

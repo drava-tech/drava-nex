@@ -1,0 +1,82 @@
+# Production stack. From the repo root:
+#
+#   cp .env.production.example .env.production   # then fill it in
+#   docker compose --env-file .env.production -f infra/docker-compose.yml up -d --build
+#   docker compose --env-file .env.production -f infra/docker-compose.yml exec api \
+#     node dist/seed-admin.mjs --email you@example.com --password '<secret>' --name "You"
+#
+# Only `web` publishes a port. Add `--profile tunnel` to expose it through a
+# Cloudflare Tunnel instead of opening a port on the router.
+name: push-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-push}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-push}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-push}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-push}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Reachable only from `web`, never directly.
+    expose:
+      - "4000"
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/nginx/Dockerfile
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set PUBLIC_HOST}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks: [default, tunnel]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Public reachability without opening a port or managing certificates:
+  # Cloudflare terminates TLS and forwards to `web`. Configure the tunnel's
+  # public hostname to point at http://web:80.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Not ${VAR:?}: compose validates that even when this profile is off.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks: [tunnel]
+    depends_on:
+      - web
+
+networks:
+  default: {}
+  # Only web and cloudflared. nginx trusts CF-Connecting-IP from this subnet
+  # alone (infra/nginx/templates/default.conf.template); keep them in sync.
+  tunnel:
+    ipam:
+      config:
+        - subnet: 172.31.254.0/24
+
+volumes:
+  postgres-data:
