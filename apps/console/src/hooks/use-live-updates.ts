@@ -2,12 +2,9 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import type { ServerToAdminMessage } from "@workspace/types"
 
-export type LiveStatus = "connecting" | "live" | "offline"
+import { wsUrl } from "@/lib/ws-url"
 
-export function wsUrl(path = "/ws"): string {
-  const { protocol, host } = window.location
-  return `${protocol === "https:" ? "wss" : "ws"}://${host}${path}`
-}
+export type LiveStatus = "connecting" | "live" | "offline"
 
 /**
  * Keeps the console current without polling: one socket per tab, authenticated

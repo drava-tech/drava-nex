@@ -10,6 +10,7 @@ import { healthRouter } from "./routes/health"
 import { mediaRouter } from "./routes/media"
 import { meRouter } from "./routes/me"
 import { deviceRouter, pairRouter, screenPairingRouter } from "./routes/pairing"
+import { pushRouter } from "./routes/push"
 import { screensRouter } from "./routes/screens"
 
 export const app = new Hono<AppEnv>()
@@ -30,6 +31,7 @@ app.get("/ws", wsRoute)
 app.route("/api/me", meRouter)
 app.route("/api/screens", screensRouter)
 app.route("/api/screens", screenPairingRouter)
+app.route("/api/screens", pushRouter)
 app.route("/api/pair", pairRouter)
 app.route("/api/device", deviceRouter)
 app.route("/api/media", mediaRouter)

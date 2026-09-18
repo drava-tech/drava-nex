@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 
 import { RouteFallback } from "@/components/route-fallback"
+import { LiveDisplay } from "@/features/display/live-display"
 import { PairForm } from "@/features/display/pair-form"
 import { deviceFetch, forgetDevice, readDevice } from "@/lib/device"
 
@@ -66,13 +67,16 @@ export function DisplayPage() {
     )
   }
 
-  // The player replaces this in M11.
   return (
-    <div className="dark bg-background text-foreground flex min-h-svh flex-col items-center justify-center gap-2">
-      <p className="text-muted-foreground text-sm tracking-widest uppercase">Paired</p>
-      <p className="text-3xl font-semibold" data-testid="display-name">
-        {state.name}
-      </p>
-    </div>
+    <LiveDisplay
+      screenId={state.screenId}
+      name={state.name}
+      token={state.token}
+      onRevoked={() => {
+        forgetDevice()
+        setState({ kind: "unpaired", notice: "This display was unpaired. Type a new code to pair it again." })
+        navigate("/display", { replace: true })
+      }}
+    />
   )
 }

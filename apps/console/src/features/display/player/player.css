@@ -1,0 +1,69 @@
+/* Ported from cms-platform packages/ui/src/globals.css (the screen-push rules). */
+
+:root {
+  /* Keep in step with PUSH_DURATION_MS in ./use-content-transition.ts, which is
+     what retires the outgoing layer if animationend never arrives. 700 ms read
+     as a flicker from across a showroom — on a large panel the eye needs long
+     enough to register that something travelled. */
+  --screen-push-duration: 1500ms;
+  --screen-push-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* No z-index and no transform at rest, deliberately: a positioned element with
+   a z-index creates a stacking context that would trap overlays rendered inside
+   a renderer. The z-indexes below apply only while a push is in flight. */
+.screen-layer {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+
+.screen-layer--in {
+  animation: screen-push-in var(--screen-push-duration) var(--screen-push-ease) forwards;
+  animation-play-state: paused;
+  will-change: transform;
+  z-index: 1;
+}
+
+.screen-layer--out {
+  animation: screen-push-out var(--screen-push-duration) var(--screen-push-ease) forwards;
+  animation-play-state: paused;
+  will-change: transform;
+  z-index: 0;
+  /* Pins the top edge so the layer flattens UPWARD. The default `center` origin
+     would collapse it toward the middle, opening black bands above and below. */
+  transform-origin: top;
+  /* The outgoing layer is still live while it flattens away; nothing should be
+     able to interact with content one frame from unmounting. */
+  pointer-events: none;
+}
+
+.screen-layer--running {
+  animation-play-state: running;
+}
+
+@keyframes screen-push-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* The outgoing layer does NOT travel — it flattens in place against the top
+   edge, like a blind rolling up. This is the exact complement of
+   screen-push-in, so the two layers meet on a single moving line:
+     incoming top edge    = (1 - p) x 100vh   (translateY)
+     outgoing bottom edge = (1 - p) x 100vh   (scaleY, origin top)
+   where p is the EASED progress. The edges stay glued only because both
+   keyframes share one duration and one timing function — give either its own
+   and a black band opens between the layers. */
+@keyframes screen-push-out {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
+}
