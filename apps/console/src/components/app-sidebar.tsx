@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
 import { ImagesIcon, LayoutDashboardIcon, MonitorIcon, MonitorPlayIcon } from "lucide-react"
 
 import {
@@ -14,6 +14,9 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { NavMain, type NavItem } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
+import { useSessionUser } from "@/hooks/use-session-user"
+import { authClient } from "@/lib/auth-client"
+import { queryClient } from "@/lib/query-client"
 
 const NAV: NavItem[] = [
   { title: "Overview", url: "/", icon: <LayoutDashboardIcon /> },
@@ -22,6 +25,16 @@ const NAV: NavItem[] = [
 ]
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  const user = useSessionUser()
+  const navigate = useNavigate()
+
+  async function signOut() {
+    await authClient.signOut()
+    // Nothing cached for this user may survive into the next session.
+    queryClient.clear()
+    navigate("/login", { replace: true })
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -45,8 +58,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={NAV} />
       </SidebarContent>
       <SidebarFooter>
-        {/* Placeholder until login (M5) supplies the signed-in user. */}
-        <NavUser user={{ name: "Admin", email: "admin@local" }} />
+        <NavUser user={user} onSignOut={signOut} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

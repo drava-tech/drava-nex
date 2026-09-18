@@ -1,7 +1,9 @@
 import { createBrowserRouter } from "react-router"
 
+import { RouteFallback } from "@/components/route-fallback"
 import { DashboardLayout } from "@/layouts/dashboard-layout"
 import { NotFoundPage } from "@/pages/not-found"
+import { redirectIfSignedInLoader, requireSessionLoader } from "@/lib/session"
 
 export type RouteHandle = { title: string }
 
@@ -9,7 +11,16 @@ export type RouteHandle = { title: string }
 // its own chunk — and the screen player (M11) never downloads the admin UI.
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    loader: redirectIfSignedInLoader,
+    HydrateFallback: RouteFallback,
+    lazy: async () => ({ Component: (await import("@/pages/login")).LoginPage }),
+  },
+  {
+    id: "dashboard",
     path: "/",
+    loader: requireSessionLoader,
+    HydrateFallback: RouteFallback,
     Component: DashboardLayout,
     children: [
       {
