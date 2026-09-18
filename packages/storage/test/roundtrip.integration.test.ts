@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildObjectKey,
   deleteObject,
+  listObjects,
   objectExists,
   presignGet,
   presignPut,
@@ -62,6 +63,14 @@ describe.skipIf(!config)("storage round trip", () => {
   it("refuses HEAD against a GET presign (the method is signed)", async () => {
     const res = await fetch(presignGet(cfg, key), { method: "HEAD" })
     expect(res.status).toBe(403)
+  })
+
+  it("lists the object under its prefix", async () => {
+    const prefix = key.slice(0, key.lastIndexOf("/") + 1)
+    const listed = await listObjects(cfg, prefix)
+    expect(listed.map((o) => o.key)).toEqual([key])
+    expect(listed[0]!.size).toBe(4096)
+    expect(Date.now() - listed[0]!.lastModified.getTime()).toBeLessThan(5 * 60_000)
   })
 
   it("deletes, and then reports the object missing", async () => {

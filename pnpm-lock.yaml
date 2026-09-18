@@ -32,6 +32,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@workspace/types':
         specifier: workspace:*
         version: link:../../packages/types

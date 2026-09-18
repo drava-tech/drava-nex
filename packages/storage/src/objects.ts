@@ -103,6 +103,63 @@ export async function deleteObject(config: StorageConfig, key: string): Promise<
   }
 }
 
+export type ListedObject = { key: string; size: number; lastModified: Date }
+
+function xmlText(block: string, tag: string): string | null {
+  const m = block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))
+  return m ? decodeXml(m[1]!) : null
+}
+
+function decodeXml(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+}
+
+/**
+ * Lists every object under `prefix` (ListObjectsV2, following continuation
+ * tokens). Used by the orphan reaper; not on any request path.
+ */
+export async function listObjects(config: StorageConfig, prefix: string): Promise<ListedObject[]> {
+  const { host } = endpointParts(config)
+  const out: ListedObject[] = []
+  let token: string | null = null
+  do {
+    const query: Record<string, string> = { "list-type": "2", prefix, "max-keys": "1000" }
+    if (token) query["continuation-token"] = token
+    const url = withScheme(
+      config,
+      presignUrl({
+        method: "GET",
+        host,
+        path: `/${config.bucket}`,
+        region: config.region,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        expiresInSeconds: 60,
+        query,
+      })
+    )
+    const res = await fetch(url)
+    const xml = await res.text()
+    if (!res.ok) throw new Error(`Storage answered ${res.status} listing ${prefix}: ${xml.slice(0, 200)}`)
+    for (const [, block] of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+      const key = xmlText(block!, "Key")
+      if (!key) continue
+      out.push({
+        key,
+        size: Number(xmlText(block!, "Size") ?? 0),
+        lastModified: new Date(xmlText(block!, "LastModified") ?? 0),
+      })
+    }
+    token = xmlText(xml, "IsTruncated") === "true" ? xmlText(xml, "NextContinuationToken") : null
+  } while (token)
+  return out
+}
+
 /** Public URL on the bucket's custom domain, or null when none is configured. */
 export function publicObjectUrl(config: StorageConfig, key: string): string | null {
   if (!config.publicBaseUrl) return null

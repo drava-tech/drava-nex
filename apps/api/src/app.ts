@@ -6,6 +6,7 @@ import type { AppEnv } from "./lib/app-env"
 import { auth } from "./lib/auth"
 import { fail } from "./lib/response"
 import { healthRouter } from "./routes/health"
+import { mediaRouter } from "./routes/media"
 import { meRouter } from "./routes/me"
 import { screensRouter } from "./routes/screens"
 
@@ -23,6 +24,7 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
 
 app.route("/api/me", meRouter)
 app.route("/api/screens", screensRouter)
+app.route("/api/media", mediaRouter)
 
 app.notFound((c) => fail(c, "NOT_FOUND", "Not found", 404))
 
