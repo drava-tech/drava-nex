@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { listDevices, getDevice, upsertDevice, setDeviceState, type Device } from "@platform/db";
+import { listDevices, getDevice, upsertDevice } from "@platform/db";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { getDeviceDriver, getIrDriver, getCasambiDriver } from "../services/devices.js";
-import { broadcastToCms } from "../ws/gateway.js";
+import { getDeviceDriver, getIrDriver, getCasambiDriver, applyLightState, applyIrCommand } from "../services/devices.js";
 
 export const devicesRouter = new Hono();
 
@@ -17,18 +16,6 @@ const lightSchema = z.object({
 
 type LightStateInput = z.infer<typeof lightSchema>;
 
-/**
- * Drive one light's real hardware, persist the resulting state, and tell
- * both the CMS and UE about it. Shared by POST /lights/:id/state (one light)
- * and the scene-trigger branch below (fans this out over every target).
- */
-async function applyLightState(device: Device, state: LightStateInput) {
-  await getDeviceDriver(device).setLightState(device, state);
-  const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...state });
-  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  return updated;
-}
-
 const createModeSchema = z.object({
   name: z.string().min(1),
 });
@@ -37,32 +24,6 @@ const irCommandSchema = z.object({
   command: z.string().min(1),
   params: z.record(z.string(), z.unknown()).optional(),
 });
-
-/**
- * Fold a discrete IR command into the AC's persisted state so the Climate panel
- * rehydrates on reload. Mirrors CrabController's ACRemote: set_* also powers on.
- * Non-AC codebook keys (TV power, volume, …) are stateless — returns prev.
- */
-function applyIrCommandToState(
-  prev: Record<string, unknown>,
-  command: string,
-  params?: Record<string, unknown>
-): Record<string, unknown> {
-  switch (command) {
-    case "power_on":
-      return { ...prev, power: true };
-    case "power_off":
-      return { ...prev, power: false };
-    case "set_temp":
-      return { ...prev, power: true, temp: params?.["temp"] };
-    case "set_mode":
-      return { ...prev, power: true, mode: params?.["mode"] };
-    case "set_fan":
-      return { ...prev, power: true, fan: params?.["fan"] };
-    default:
-      return prev;
-  }
-}
 
 const upsertSchema = z.object({
   deviceId: z.string().min(1),
@@ -227,13 +188,9 @@ devicesRouter.post("/ir/:id/command", requireAdmin, async (c) => {
   }
 
   try {
-    await driver.sendCommand(device, body);
+    const updated = await applyIrCommand(device, driver, body);
+    return ok(c, updated);
   } catch (err: any) {
     return fail(c, "DRIVER_ERROR", err.message || "Device driver failed", 500);
   }
-  const nextState = applyIrCommandToState(device.state ?? {}, body.command, body.params);
-  const updated = await setDeviceState(device.id, nextState);
-
-  broadcastToCms({ type: "IR_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  return ok(c, updated);
 });

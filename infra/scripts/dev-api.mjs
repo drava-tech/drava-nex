@@ -105,6 +105,22 @@ function startServer() {
       console.error(`[dev-api] server exited with code ${code}${signal ? ` (${signal})` : ''}`);
     }
   });
+  startBridge();
+}
+
+let bridgeProcess = null;
+
+function startBridge() {
+  if (process.platform !== 'win32' || bridgeProcess) return;
+  const bridgeScript = join(apiDir, 'audio-helper', 'bridge.mjs');
+  if (!existsSync(bridgeScript)) return;
+  bridgeProcess = spawn(process.execPath, [bridgeScript], {
+    cwd: join(apiDir, 'audio-helper'),
+    stdio: 'inherit',
+  });
+  bridgeProcess.on('exit', () => {
+    bridgeProcess = null;
+  });
 }
 
 async function stopServer() {
@@ -179,6 +195,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     // Kill both halves so nothing is left holding port 4000 (see
     // infra/scripts/free-dev-ports.mjs for why stale listeners matter here).
     try { tsc.kill(); } catch {}
+    try { bridgeProcess?.kill(); } catch {}
     stopServer().finally(() => process.exit(0));
   });
 }

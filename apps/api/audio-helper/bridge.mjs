@@ -20,12 +20,21 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const envFile = path.join(repoRoot, '.env');
+if (!process.env.BROADCAST_SECRET && fs.existsSync(envFile)) {
+  const content = fs.readFileSync(envFile, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*["']?(.*?)["']?\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+}
 
-const WS_URL = process.env.AUDIO_BRIDGE_WS_URL || 'ws://ec-cms/ws/';
+const WS_URL = process.env.AUDIO_BRIDGE_WS_URL || 'ws://localhost:4000/ws/';
 const SECRET = process.env.BROADCAST_SECRET || '';
 
 if (!SECRET) {
-  console.error('[bridge] BROADCAST_SECRET is not set — copy .env.example to .env and fill it in. Exiting.');
+  console.error('[bridge] BROADCAST_SECRET is not set. Exiting.');
   process.exit(1);
 }
 
@@ -144,6 +153,7 @@ function connect() {
       );
       reconnectDelay = NACK_BACKOFF_MS;
     } else if (msg.type === 'AUDIO_COMMAND') {
+      console.info('[bridge] Received AUDIO_COMMAND:', msg);
       sendHelperCommand({ action: msg.action, value: msg.value });
     }
   });

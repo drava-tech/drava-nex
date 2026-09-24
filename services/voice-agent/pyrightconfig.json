@@ -1,0 +1,10 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "extraPaths": ["."],
+  "include": [".", "tests"],
+  "exclude": [".git", "**/.venv", "rag/index.npz"],
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none"
+}

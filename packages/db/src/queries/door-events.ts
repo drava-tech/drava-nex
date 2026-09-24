@@ -12,8 +12,12 @@ export interface DoorEventListResult {
   total: number;
 }
 
-export async function recordDoorEvent(lockId: string, action: "locked" | "unlocked"): Promise<DoorEvent> {
-  const [row] = await db.insert(doorEvent).values({ lockId, action }).returning();
+export async function recordDoorEvent(
+  lockId: string,
+  action: "locked" | "unlocked",
+  source: "voice" | "cms" = "cms"
+): Promise<DoorEvent> {
+  const [row] = await db.insert(doorEvent).values({ lockId, action, source }).returning();
   if (!row) throw new Error("Failed to record door event");
   return row;
 }

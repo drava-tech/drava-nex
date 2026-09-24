@@ -12,6 +12,7 @@
     "seed:casambi": "tsx src/scripts/seed-casambi-devices.ts",
     "test": "vitest run",
     "tuya:discover": "tsx src/scripts/tuya-ir-discover.ts",
+    "migrate:names": "tsx src/scripts/migrate-tusker-names.ts",
     "dev:tsx": "tsx watch --env-file=../../.env src/index.ts"
   },
   "dependencies": {

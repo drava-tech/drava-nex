@@ -41,6 +41,13 @@ export { visitor } from "./visitors.js";
 // ─── Door Events (Yale lock webhook history) ──────────────────────────────────
 export { doorEvent } from "./door-events.js";
 
+// ─── Voice Command Log (TRAVIS-issued command history) ────────────────────────
+export { voiceCommandLog } from "./voice-command-log.js";
+
+// ─── Auth Failure Log (rejected internal-route requests) ──────────────────────
+export { authFailureLog } from "./auth-failure-log.js";
+export { ambientMode } from "./ambient-mode.js";
+
 // ─── Screen Content Push History ───────────────────────────────────────────────
 export { screenContentPush } from "./screen-content-pushes.js";
 export { screenStatusSample } from "./screen-status-samples.js";
@@ -80,6 +87,9 @@ export type { MediaAsset, NewMediaAsset } from "./media.js";
 export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-ingest.js";
 export type { Visitor, NewVisitor } from "./visitors.js";
 export type { DoorEvent, NewDoorEvent } from "./door-events.js";
+export type { VoiceCommandLog, NewVoiceCommandLog } from "./voice-command-log.js";
+export type { AuthFailureLog, NewAuthFailureLog } from "./auth-failure-log.js";
+export type { AmbientMode, NewAmbientMode } from "./ambient-mode.js";
 export type { ScreenContentPush, NewScreenContentPush } from "./screen-content-pushes.js";
 export type { ScreenStatusSample, NewScreenStatusSample } from "./screen-status-samples.js";
 export type {

@@ -9,6 +9,7 @@ import {
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
+import { secretsMatch, sourceIp, RateLimiter, logAuthFailure, logRateLimited } from "../lib/internal-auth.js";
 
 /**
  * Internal event relay for headless backend services (services/vision).
@@ -29,12 +30,25 @@ import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
 export const internalRouter = new Hono();
 
 function checkSecret(c: Context): boolean {
-  const expected = process.env["BROADCAST_SECRET"];
-  return !!expected && c.req.header("x-broadcast-secret") === expected;
+  return secretsMatch(c.req.header("x-broadcast-secret"), process.env["BROADCAST_SECRET"]);
 }
 
+// This relay is fed by services/vision, an always-on headless emitter that
+// can post frequently (e.g. per-frame CAMERA_SNAPSHOT) — a wider budget than
+// voice-internal's, sized for that traffic pattern rather than occasional
+// spoken commands.
+const rateLimiter = new RateLimiter(600, 60_000);
+
 internalRouter.post("/vision-event", async (c) => {
-  if (!checkSecret(c)) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
+  const ip = sourceIp(c);
+  if (!rateLimiter.check(ip)) {
+    logRateLimited("internal/vision-event", c);
+    return fail(c, "RATE_LIMITED", "Too many requests.", 429);
+  }
+  if (!checkSecret(c)) {
+    logAuthFailure("internal/vision-event", c);
+    return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
+  }
 
   let body: Record<string, unknown>;
   try {

@@ -20,26 +20,27 @@ services:
       - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     restart: unless-stopped
 
-  # ponytail: Commented out local postgres service because we want everything
-  # to connect directly to the production Postgres database at ec-cms.
-  # NOTE: that server must have the pgvector extension installed (image
-  # pgvector/pgvector:pg16 or postgresql-16-pgvector) before running
-  # `pnpm --filter @platform/db db:migrate` — the visitor table needs it.
-  # postgres:
-  #   image: pgvector/pgvector:pg16
-  #   container_name: platform-postgres
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_DB: ${POSTGRES_DB}
-  #     POSTGRES_USER: ${POSTGRES_USER}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #   ports:
-  #     - "${POSTGRES_PORT:-5432}:5432"
-  #   volumes:
-  #     - ../../postgres-data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 30s
+  # Local dev database — deliberately NOT the production Postgres. Dev work
+  # (migrations, renames, scripts, voice-agent testing) must never write to the
+  # database the live CMS runs on. Bound to 127.0.0.1 with throwaway dev
+  # credentials; point the local .env DATABASE_URL at it:
+  #   DATABASE_URL=postgresql://cms_dev:cms_dev@localhost:5433/cms_db_local
+  # Needs pgvector (the visitor table uses it), hence the pgvector image.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cms_db_local
+      POSTGRES_USER: cms_dev
+      POSTGRES_PASSWORD: cms_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ../../postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms_dev -d cms_db_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

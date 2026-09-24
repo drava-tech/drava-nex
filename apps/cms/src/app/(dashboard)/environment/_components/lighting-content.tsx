@@ -4,6 +4,7 @@ import { Badge } from "@platform/ui";
 import { Switch, DragSlider } from "./controls";
 import { Flame, Palette } from "lucide-react";
 import { LIGHT_PRESETS, groupLights } from "@/lib/casambi-lights";
+import AmbientModesPanel from "./ambient-modes-panel";
 
 /**
  * One row per fixture group, expandable to the individual fixtures underneath.
@@ -195,6 +196,7 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
         </div>
       ) : (
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+          <AmbientModesPanel onApplied={actions.modeApplied} />
           {groups.map((g) => {
             const uuids = g.members.map((m) => m.uuid);
             const on = g.members.some((m) => state.on?.[m.uuid]);

@@ -94,9 +94,19 @@ export class CasambiDeviceDriver implements DeviceDriver {
         ),
       ]);
     } catch (err) {
-      // Broker down or slow: mqtt.js still queues/flushes on reconnect, so this
-      // is a delivery delay, not a lost command — don't fail the caller over it.
+      // Broker down or slow: mqtt.js still queues the packet client-side and
+      // will flush it on reconnect, so the command usually isn't lost — but it
+      // also isn't confirmed *now*, and we must not tell the caller it is.
+      // Swallowing this used to make setLightState/triggerMeshScene resolve
+      // successfully during an outage, so the voice agent (and a human) would
+      // hear "done" seconds before anything actually happened — or, if the
+      // process restarts before the broker reconnects, forever, since mqtt.js's
+      // queue is in-memory only. Surfacing it instead lets the real caller
+      // (applyLightState etc.) propagate an honest failure.
       console.error(`[casambi] publish to ${topic} did not ack in time:`, err);
+      throw new Error(
+        `Lights didn't confirm the change in time (mesh network may be slow or offline). The command is queued and may still apply once it reconnects.`
+      );
     }
   }
 

@@ -28,11 +28,17 @@ function wsUrlFrom(httpUrl: string): string {
 export function startHomeAssistantIngest(): void {
   const url = process.env["HA_URL"];
   const token = process.env["HA_TOKEN"];
-  const entityId = process.env["HA_ENTITY_ID"];
-  if (!url || !token || !entityId) {
-    console.warn("[ha-ingest] disabled — HA_URL/HA_TOKEN/HA_ENTITY_ID not set");
+  if (!url || !token) {
+    console.warn("[ha-ingest] disabled — HA_URL/HA_TOKEN not set");
     return;
   }
+  // There is exactly one lock in this deployment, so watch for any lock.*
+  // entity rather than pinning one id that would go stale if renamed in HA.
+  // HA_ENTITY_ID remains a supported override for a multi-lock deployment,
+  // where that ambiguity needs resolving by hand.
+  const pinnedEntityId = process.env["HA_ENTITY_ID"];
+  const matchesLock = (id: string | undefined): id is string =>
+    !!id && (pinnedEntityId ? id === pinnedEntityId : id.startsWith("lock."));
 
   let disposed = false;
 
@@ -78,18 +84,18 @@ export function startHomeAssistantIngest(): void {
       }
       if (msg.type === "result" && msg.id === SUBSCRIBE_ID) {
         if (!msg.success) retry("subscribe_events was rejected");
-        else console.info(`[ha-ingest] watching ${entityId} for state changes`);
+        else console.info(`[ha-ingest] watching ${pinnedEntityId ?? "any lock.* entity"} for state changes`);
         return;
       }
 
       if (msg.type !== "event") return;
       const data = msg.event?.data;
-      if (!data || data.entity_id !== entityId || !data.new_state) return;
+      if (!data || !matchesLock(data.entity_id) || !data.new_state) return;
 
       const next = data.new_state;
       broadcastToCms({
         type: "LOCK_STATE_UPDATE",
-        entityId,
+        entityId: data.entity_id,
         state: next.state ?? "unavailable",
         changedBy: (next.attributes?.["changed_by"] as string | null) ?? null,
         lastChanged: next.last_changed ?? new Date().toISOString(),

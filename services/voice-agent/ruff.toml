@@ -1,0 +1,9 @@
+# Ruff configuration for the voice-agent service.
+# Targets the supported runtime (Python 3.11/3.12) and keeps the default lint
+# scope on real correctness issues (pyflakes + syntax) rather than stylistic
+# noise, so `ruff check .` stays a useful signal.
+
+target-version = "py311"
+
+[lint]
+select = ["F", "E9"]

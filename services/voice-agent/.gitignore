@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+config/api_keys.json
+memory/long_term.json
+*.log
+
+# RAG: generated index (keep the starter doc tracked)
+rag/index.npz
+rag/index_meta.json
+knowledge/*
+!knowledge/cms_platform.md
+
+# Downloaded pretrained model weights (re-fetched on demand from the
+# HuggingFace/asteroid cache — never belong in the repo tree).
+core/.cache/
+
+# Manually downloaded model bundles (e.g. sherpa-onnx releases) — large
+# binaries fetched by hand, not by a library-managed cache; re-download from
+# source instead of committing.
+core/models/

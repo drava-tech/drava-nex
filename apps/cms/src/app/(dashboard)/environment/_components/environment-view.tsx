@@ -409,6 +409,43 @@ export function EnvironmentView() {
     [pushLight],
   );
 
+  /**
+   * An ambient mode was just applied server-side (see ambient-modes-panel.tsx):
+   * bring the fixture rows in line with what it did. The API only returns after
+   * every light was set and persisted, so re-reading the roster gives the real
+   * on/off and brightness; the warm/colour toggle and the colour swatch are
+   * held client-side, so they follow the mode's colour directly.
+   */
+  const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }) => {
+    // Same rule as the API (sceneKindFor): a near-neutral colour is carried by
+    // the white LEDs (Warm), anything saturated by the colour LEDs (Colour).
+    const { r, g, b } = hexToRgb(mode.color);
+    const peak = Math.max(r, g, b);
+    const warm = peak > 0 && (peak - Math.min(r, g, b)) / peak < 0.25;
+    setGroupMode((m) => {
+      const next = { ...m };
+      for (const group of Object.keys(SCENE_MODE_GROUPS)) {
+        // A strip light the mode switched off keeps whatever mode it was in.
+        if (group === "Strip Light" && !mode.stripOn) continue;
+        next[group] = warm ? "warm" : "colour";
+      }
+      try { localStorage.setItem("cms_light_modes", JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+    if (!warm) setLightColor((c) => Object.fromEntries(Object.keys(c).map((uuid) => [uuid, mode.color])));
+    listLights()
+      .then((rows) => {
+        setLights(rows);
+        setLightOn(Object.fromEntries(rows.map((r) => [r.uuid, r.state?.on === true])));
+        setLightBrightness(
+          Object.fromEntries(
+            rows.map((r) => [r.uuid, typeof r.state?.brightness === "number" ? r.state.brightness : 100]),
+          ),
+        );
+      })
+      .catch((err) => console.error("Failed to refresh lights after a mode change:", err));
+  }, []);
+
   /** Dim a set of fixtures. 0 turns them off; the switch reflects that. */
   const setLightsBrightness = useCallback((uuids: string[], value: number) => {
     const level = Math.max(0, Math.min(100, Math.round(value)));
@@ -689,6 +726,7 @@ export function EnvironmentView() {
             setBrightness: setLightsBrightness,
             setColor: setLightsColor,
             setMode: setLightsMode,
+            modeApplied: handleModeApplied,
             identify: identifyLights,
             openColourPanel: (uuids: string[], label: string) => { setFocused("lighting"); setColourTarget({ uuids, label }); setShowColourPanel(true); },
           }}

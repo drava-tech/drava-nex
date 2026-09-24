@@ -1,0 +1,26 @@
+[
+  {
+    "id": "device_control",
+    "label": "Device Control",
+    "type": "cms_platform",
+    "requires": ["cms_api"],
+    "status": "ready",
+    "description": "Lights, AC/IR remote, and front door lock, driven through the CMS's existing device drivers."
+  },
+  {
+    "id": "screen_control",
+    "label": "Screen Control",
+    "type": "cms_platform",
+    "requires": ["cms_api"],
+    "status": "ready",
+    "description": "Push an experience or media item to a named screen, or blank/resume it."
+  },
+  {
+    "id": "knowledge_search",
+    "label": "Knowledge Search",
+    "type": "native_python",
+    "requires": [],
+    "status": "ready",
+    "description": "Local retrieval over operator-provided docs under knowledge/."
+  }
+]

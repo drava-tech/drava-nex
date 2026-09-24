@@ -115,3 +115,6 @@ services/vision/models/**/w600k_r50.onnx
 # never useful in git. See .doc/device-setup.md "Screen PC helpers".
 *.log
 *.log.1
+
+# Local Claude Code notes
+CLAUDE.md

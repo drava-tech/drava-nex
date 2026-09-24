@@ -15,6 +15,12 @@ export const doorEvent = pgTable(
     lockId: text("lock_id").notNull(),
     // 'locked' | 'unlocked'
     action: text("action").notNull(),
+    // 'voice' | 'cms' — which actor triggered this toggle. Both paths call
+    // the same toggleDoorLock(), so without this a lock event can't be told
+    // apart from a CMS operator's click after the fact; important
+    // specifically for a door lock, where "who unlocked it and how" is
+    // exactly what an audit trail is for.
+    source: text("source").notNull().default("cms"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

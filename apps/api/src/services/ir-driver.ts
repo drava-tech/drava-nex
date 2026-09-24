@@ -24,9 +24,26 @@ export interface IrCommandInput {
   params?: Record<string, unknown>;
 }
 
+// The Tuya SDK's request() has no timeout of its own (it hands off to axios's
+// default client, which never times out) — if Tuya's cloud is unreachable via
+// a black-holed route, this would otherwise hang forever. There's no
+// AbortSignal hook available here, so the request itself keeps running in the
+// background, but the caller stops waiting and gets a clear, bounded failure
+// instead of an indefinite hang.
+const TUYA_TIMEOUT_MS = 6_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
 async function callTuya(path: string, body: Record<string, unknown>) {
   const t = getTuya();
-  const res = await t.request({ method: 'POST', path, body });
+  const res = await withTimeout(t.request({ method: 'POST', path, body }), TUYA_TIMEOUT_MS, `Tuya IR request to ${path}`);
   if (!res.success) {
     throw new Error(`Tuya IR failed: ${res.msg} (code ${res.code})`);
   }
