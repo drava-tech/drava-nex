@@ -1,0 +1,20 @@
+# Secrets — never commit. Use .env.example as the template.
+.env
+.env.*
+!.env.example
+
+# Per-machine overrides
+config/local.json
+
+# Vosk models are downloaded by `pnpm setup:model`, never committed (~40 MB+).
+models/
+
+# Dependencies, builds, caches, logs
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.vitest/
+.DS_Store
+Thumbs.db

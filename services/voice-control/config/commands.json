@@ -1,0 +1,705 @@
+{
+  "$comment": [
+    "Command registry. Phrases are matched after normalization: lowercase, number words -> digits, filler words (the, a, to, please, can, you, ...) removed — so write phrases naturally, fillers are ignored on both sides.",
+    "Phrase syntax: (a|b) = alternatives, [word] = optional, {slot} = parameter defined under 'slots'. Entries are tried top to bottom and the first exact match wins, so keep specific phrases above general ones.",
+    "cms.body: a value that is exactly \"{slot}\" (or \"{a|b}\" = first of a, b that was spoken) is replaced by the slot's typed value; if the slot wasn't spoken, cms.fallbacks names a config 'defaults' key to use instead (a real CMS name you configure); if still missing, cms.ask is spoken and nothing is executed. Unfilled optional fields are dropped.",
+    "Every cms.endpoint is a route under apps/api's /api/voice-control (lights, ac, volume, door, screen, content). The API resolves spoken names against the real devices/screens/content and answers with real names on errors. Volume goes to the TV's IR remote (the soundbar follows it); the remote is one-way, so there is no absolute volume and no level is ever reported.",
+    "Slot types: number (min/max, out of range = no match), enum (canonical value -> spoken aliases), text (a name, passed to the CMS as spoken with numbers as digits; 'anchor' = must start or end with one of those words, e.g. \"screen 2\" / \"lobby screen\"). The CMS resolves names — never put real device/screen names in phrases.",
+    "rewrites: spoken forms Vosk produces, rewritten before matching (it spells letters out: \"AC\" -> \"a c\").",
+    "reply may contain {timeGreeting}: Good morning / afternoon / evening for the current Indian Standard Time.",
+    "Aliases: slots 'light' and 'screenAlias' map the names people say to the real CMS names. Free-text name slots with aliasesFrom are also translated when the whole name is an alias (e.g. \"play intro on tusker 27\")."
+  ],
+  "rewrites": {
+    "a c": "ac",
+    "air con": "ac",
+    "t v": "tv"
+  },
+  "slots": {
+    "brightness": {
+      "type": "number",
+      "min": 0,
+      "max": 100
+    },
+    "temperature": {
+      "type": "number",
+      "min": 16,
+      "max": 30
+    },
+    "steps": {
+      "type": "number",
+      "min": 1,
+      "max": 10
+    },
+    "volume": {
+      "type": "number",
+      "min": 0,
+      "max": 100
+    },
+    "color": {
+      "type": "enum",
+      "values": {
+        "red": [
+          "red"
+        ],
+        "green": [
+          "green"
+        ],
+        "blue": [
+          "blue"
+        ],
+        "white": [
+          "white"
+        ],
+        "warm white": [
+          "warm white",
+          "warm"
+        ],
+        "cool white": [
+          "cool white",
+          "cold white",
+          "cool",
+          "cold"
+        ],
+        "yellow": [
+          "yellow"
+        ],
+        "orange": [
+          "orange"
+        ],
+        "purple": [
+          "purple",
+          "violet"
+        ],
+        "pink": [
+          "pink"
+        ],
+        "cyan": [
+          "cyan"
+        ]
+      }
+    },
+    "mode": {
+      "type": "enum",
+      "values": {
+        "cool": [
+          "cool",
+          "cooling",
+          "cold"
+        ],
+        "heat": [
+          "heat",
+          "heating",
+          "hot",
+          "warm"
+        ],
+        "auto": [
+          "auto",
+          "automatic"
+        ],
+        "fan": [
+          "fan",
+          "fan only"
+        ],
+        "dry": [
+          "dry",
+          "dehumidify"
+        ]
+      }
+    },
+    "target": {
+      "type": "text",
+      "aliasesFrom": "light"
+    },
+    "screen": {
+      "type": "text",
+      "aliasesFrom": "screenAlias"
+    },
+    "content": {
+      "type": "text"
+    },
+    "namedScreen": {
+      "type": "text",
+      "anchor": [
+        "screen",
+        "display"
+      ],
+      "aliasesFrom": "screenAlias"
+    },
+    "light": {
+      "type": "enum",
+      "values": {
+        "Strip Light": [
+          "tusker edge"
+        ],
+        "Stretch Fabric 0": [
+          "tusker l 1",
+          "tusker el 1",
+          "tusker l1"
+        ],
+        "Stretch Fabric 1": [
+          "tusker l 2",
+          "tusker el 2",
+          "tusker l2"
+        ],
+        "Stretch Fabric": [
+          "tusker l 3",
+          "tusker el 3",
+          "tusker l3"
+        ]
+      }
+    },
+    "screenAlias": {
+      "type": "enum",
+      "values": {
+        "tv 86 inch": [
+          "tusker 86"
+        ],
+        "screen 2": [
+          "tusker 27"
+        ]
+      }
+    }
+  },
+  "commands": [
+    {
+      "intent": "SHUTDOWN",
+      "fuzzy": false,
+      "phrases": [
+        "shut (down|yourself down)",
+        "shutdown",
+        "turn yourself off",
+        "(stop|exit|quit) travis"
+      ],
+      "reply": "Shutting down. Goodbye.",
+      "system": "shutdown"
+    },
+    {
+      "intent": "AC_ON",
+      "phrases": [
+        "(turn|switch) on (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) on",
+        "start (ac|air conditioner|air conditioning)"
+      ],
+      "cms": {
+        "endpoint": "ac",
+        "body": {
+          "action": "power_on",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "acTarget"
+        }
+      }
+    },
+    {
+      "intent": "AC_OFF",
+      "phrases": [
+        "(turn|switch) off (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) off",
+        "stop (ac|air conditioner|air conditioning)"
+      ],
+      "cms": {
+        "endpoint": "ac",
+        "body": {
+          "action": "power_off",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "acTarget"
+        }
+      }
+    },
+    {
+      "intent": "AC_SET_TEMPERATURE",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning|temperature) [at] {temperature} [degrees]",
+        "(ac|air conditioner|air conditioning|temperature) {temperature} [degrees]",
+        "set (ac|air conditioner|air conditioning) temperature [at] {temperature} [degrees]",
+        "make it {temperature} degrees"
+      ],
+      "cms": {
+        "endpoint": "ac",
+        "body": {
+          "action": "set_temp",
+          "temp": "{temperature}",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "acTarget"
+        }
+      }
+    },
+    {
+      "intent": "AC_SET_MODE",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning) [on] {mode} [mode]",
+        "(ac|air conditioner|air conditioning) {mode} mode",
+        "(switch|change|put) (ac|air conditioner|air conditioning) [on] {mode} [mode]",
+        "set (ac|air conditioner|air conditioning) mode [on] {mode}"
+      ],
+      "cms": {
+        "endpoint": "ac",
+        "body": {
+          "action": "set_mode",
+          "mode": "{mode}",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "acTarget"
+        }
+      }
+    },
+    {
+      "intent": "LIGHT_BRIGHTNESS",
+      "phrases": [
+        "set {light} [lights|light] [brightness] [at] {brightness} [percent]",
+        "(dim|brighten) {light} [lights|light] [at] {brightness} [percent]",
+        "{light} [lights|light] [at] {brightness} percent",
+        "set [{target}] (lights|light) [brightness] [at] {brightness} [percent]",
+        "(dim|brighten) [{target}] (lights|light) [at] {brightness} [percent]",
+        "[{target}] (lights|light) [at] {brightness} percent",
+        "set [{target}] brightness [at] {brightness} [percent]",
+        "brightness [at] {brightness} [percent]"
+      ],
+      "cms": {
+        "endpoint": "lights",
+        "body": {
+          "action": "set",
+          "brightness": "{brightness}",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "lightTarget"
+        }
+      }
+    },
+    {
+      "intent": "LIGHT_COLOR",
+      "phrases": [
+        "(set|make|change|turn) {light} [lights|light] [color] {color}",
+        "{light} [lights|light] {color}",
+        "(set|make|change|turn) [{target}] (lights|light) [color] {color}",
+        "[{target}] (lights|light) {color}",
+        "(set|change) [{target}] (lights|light) color [at] {color}"
+      ],
+      "cms": {
+        "endpoint": "lights",
+        "body": {
+          "action": "set",
+          "color": "{color}",
+          "target": "{target|light}"
+        },
+        "fallbacks": {
+          "target": "lightTarget"
+        }
+      }
+    },
+    {
+      "intent": "LIGHT_ON",
+      "phrases": [
+        "(turn|switch) on {light} [lights|light]",
+        "{light} [lights|light] on",
+        "(turn|switch) {light} [lights|light] on",
+        "(turn|switch) on (lights|light)",
+        "(lights|light) on",
+        "(turn|switch) (lights|light) on",
+        "(turn|switch) on all (lights|light)",
+        "all (lights|light) on",
+        "(turn|switch) on {target} (lights|light)",
+        "{target} (lights|light) on",
+        "(turn|switch) {target} (lights|light) on"
+      ],
+      "cms": {
+        "endpoint": "lights",
+        "body": {
+          "action": "on",
+          "target": "{target|light}"
+        }
+      }
+    },
+    {
+      "intent": "LIGHT_OFF",
+      "phrases": [
+        "(turn|switch) off {light} [lights|light]",
+        "{light} [lights|light] off",
+        "(turn|switch) {light} [lights|light] off",
+        "(turn|switch) off (lights|light)",
+        "(lights|light) off",
+        "(turn|switch) (lights|light) off",
+        "(turn|switch) off all (lights|light)",
+        "all (lights|light) off",
+        "(turn|switch) off {target} (lights|light)",
+        "{target} (lights|light) off",
+        "(turn|switch) {target} (lights|light) off"
+      ],
+      "cms": {
+        "endpoint": "lights",
+        "body": {
+          "action": "off",
+          "target": "{target|light}"
+        }
+      }
+    },
+    {
+      "intent": "DOOR_LOCK",
+      "phrases": [
+        "lock [front] door",
+        "lock [it] up",
+        "lock"
+      ],
+      "cms": {
+        "endpoint": "door",
+        "body": {
+          "action": "lock"
+        }
+      },
+      "fuzzy": false
+    },
+    {
+      "intent": "DOOR_UNLOCK",
+      "phrases": [
+        "unlock [front] door",
+        "open [front] door",
+        "unlock"
+      ],
+      "cms": {
+        "endpoint": "door",
+        "body": {
+          "action": "unlock"
+        }
+      },
+      "fuzzy": false
+    },
+    {
+      "intent": "VOLUME_UP",
+      "phrases": [
+        "(volume|sound) up [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) (volume|sound|it) up [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) up (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "(increase|raise) (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "louder"
+      ],
+      "cms": {
+        "endpoint": "volume",
+        "body": {
+          "action": "up",
+          "times": "{steps}"
+        }
+      }
+    },
+    {
+      "intent": "VOLUME_DOWN",
+      "phrases": [
+        "(volume|sound) down [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) (volume|sound|it) down [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) down (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "(decrease|lower|reduce) (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "quieter"
+      ],
+      "cms": {
+        "endpoint": "volume",
+        "body": {
+          "action": "down",
+          "times": "{steps}"
+        }
+      }
+    },
+    {
+      "intent": "SET_VOLUME",
+      "phrases": [
+        "set (volume|sound) [at] {volume} [percent]",
+        "(volume|sound) [at] {volume} [percent]"
+      ],
+      "reply": "I can't set an exact volume, the TV's remote only goes up or down. Say volume up or volume down, with a number of steps."
+    },
+    {
+      "intent": "UNMUTE",
+      "phrases": [
+        "(turn|switch) off mute",
+        "un mute",
+        "(turn|switch) (sound|audio) [back] on",
+        "sound on"
+      ],
+      "cms": {
+        "endpoint": "volume",
+        "body": {
+          "action": "mute"
+        }
+      }
+    },
+    {
+      "intent": "MUTE",
+      "phrases": [
+        "mute [volume|sound|audio|tv]",
+        "(turn|switch) on mute",
+        "(turn|switch) off (sound|audio)",
+        "sound off"
+      ],
+      "cms": {
+        "endpoint": "volume",
+        "body": {
+          "action": "mute"
+        }
+      }
+    },
+    {
+      "intent": "CONTENT_PUSH",
+      "phrases": [
+        "(push|send|cast) {content} (on|onto|in) {screen}",
+        "(push|send|cast) {content} {namedScreen}",
+        "(push|send|cast) {content}"
+      ],
+      "cms": {
+        "endpoint": "content",
+        "body": {
+          "kind": "any",
+          "content": "{content}",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen should I push it to?"
+        }
+      }
+    },
+    {
+      "intent": "MEDIA_SELECT",
+      "phrases": [
+        "(play|show|select) (media|video|image|picture|photo) {content} (on|in) {screen}",
+        "(play|show|select) (media|video|image|picture|photo) {content} {namedScreen}",
+        "(play|show|select) (media|video|image|picture|photo) {content}"
+      ],
+      "cms": {
+        "endpoint": "content",
+        "body": {
+          "kind": "media",
+          "content": "{content}",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen should I show it on?"
+        }
+      }
+    },
+    {
+      "intent": "CONTENT_PLAY",
+      "phrases": [
+        "(play|show|select|open) {content} (on|in) {screen}"
+      ],
+      "cms": {
+        "endpoint": "content",
+        "body": {
+          "kind": "any",
+          "content": "{content}",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen should I play it on?"
+        }
+      }
+    },
+    {
+      "intent": "SCREEN_PLAY",
+      "phrases": [
+        "(play|resume|unpause|continue) {screenAlias}",
+        "(play|resume|unpause|continue) (screen|display)",
+        "(play|resume|unpause|continue) {namedScreen}"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "play",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen?"
+        }
+      }
+    },
+    {
+      "intent": "SCREEN_PAUSE",
+      "phrases": [
+        "pause {screenAlias}",
+        "pause (screen|display)",
+        "pause {namedScreen}"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "pause",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen?"
+        }
+      }
+    },
+    {
+      "intent": "SCREEN_STOP",
+      "phrases": [
+        "(stop|blank) {screenAlias}",
+        "(stop|blank) (screen|display)",
+        "(stop|blank) {namedScreen}"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "stop",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen?"
+        }
+      }
+    },
+    {
+      "intent": "AUDIO_PLAY",
+      "phrases": [
+        "play",
+        "resume",
+        "unpause",
+        "(play|resume) (audio|music|sound)"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "play",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen is playing it?"
+        }
+      }
+    },
+    {
+      "intent": "AUDIO_PAUSE",
+      "phrases": [
+        "pause",
+        "pause (audio|music|sound)"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "pause",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen is playing it?"
+        }
+      }
+    },
+    {
+      "intent": "AUDIO_STOP",
+      "phrases": [
+        "stop",
+        "stop (audio|music|sound)"
+      ],
+      "cms": {
+        "endpoint": "screen",
+        "body": {
+          "action": "stop",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen is playing it?"
+        }
+      }
+    },
+    {
+      "intent": "CONTENT_PLAY",
+      "phrases": [
+        "(play|show|select|open) {content} {namedScreen}",
+        "(play|show|select|open) {content}"
+      ],
+      "cms": {
+        "endpoint": "content",
+        "body": {
+          "kind": "any",
+          "content": "{content}",
+          "screen": "{screen|namedScreen|screenAlias}"
+        },
+        "fallbacks": {
+          "screen": "screen"
+        },
+        "ask": {
+          "screen": "Which screen should I play it on?"
+        }
+      }
+    },
+    {
+      "intent": "GREETING",
+      "phrases": [
+        "good (morning|afternoon|evening|day)",
+        "(hello|hi) [travis]"
+      ],
+      "reply": "{timeGreeting}!"
+    },
+    {
+      "intent": "HEAR_CHECK",
+      "phrases": [
+        "[can|do] you hear me",
+        "are you (there|listening|awake)",
+        "(testing|test) [1|1 2|1 2 3]"
+      ],
+      "reply": "Yes, how can I help you?"
+    },
+    {
+      "intent": "HOW_ARE_YOU",
+      "phrases": [
+        "how are you [doing|today]",
+        "how is it going",
+        "how are things"
+      ],
+      "reply": "I am doing great, thanks for asking. How can I help you?"
+    },
+    {
+      "intent": "CAPABILITIES",
+      "phrases": [
+        "what can you do",
+        "what (are|is) your (features|abilities|skills|capabilities|commands)",
+        "what do you do",
+        "how can you help [me]",
+        "help [me]",
+        "what commands [do you know|can i use|are there]"
+      ],
+      "reply": "I can turn the lights on or off, set their brightness and colour, control the AC temperature and mode, lock or unlock the door, change the volume, and play, pause, stop or push content to the screens. Just say Travis, then the command."
+    },
+    {
+      "intent": "ABOUT_YOU",
+      "phrases": [
+        "tell me about yourself",
+        "who are you",
+        "what are you",
+        "introduce yourself",
+        "what is your name"
+      ],
+      "reply": "I am Travis, the voice assistant for this space. I control the lights, AC, door, sound and screens through the CMS. Just say Travis, then what you need."
+    }
+  ]
+}

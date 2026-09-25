@@ -1,0 +1,69 @@
+{
+  "cms": {
+    "baseUrl": "http://127.0.0.1:4000",
+    "timeoutMs": 3000
+  },
+  "audio": {
+    "sampleRate": 16000,
+    "frameMs": 30,
+    "inputDevicePreference": [
+      "Headset (Smiledrive)",
+      "Microphone Array (Intel"
+    ],
+    "outputDevicePreference": [
+      "Headphones (Smiledrive)",
+      "Speakers (Realtek"
+    ],
+    "speakerGain": 1
+  },
+  "vad": {
+    "mode": 3,
+    "speechStartMs": 90,
+    "speechEndMs": 450,
+    "preRollMs": 300,
+    "maxUtteranceMs": 8000
+  },
+  "wakeWord": {
+    "word": "travis",
+    "decoys": [
+      "travel",
+      "traveled",
+      "traverse",
+      "trevor",
+      "tennis",
+      "service",
+      "chris",
+      "david",
+      "trap",
+      "curtis",
+      "dennis"
+    ],
+    "minConfidence": 0.8,
+    "acceptPartial": true
+  },
+  "stt": {
+    "modelPath": "models/vosk-model-small-en-us-0.15",
+    "minConfidence": 0.55
+  },
+  "session": {
+    "wakeChime": true,
+    "nudgeAfterMs": 2000,
+    "awakeTimeoutMs": 8000,
+    "pendingAskMs": 20000
+  },
+  "matching": {
+    "fuzzy": true,
+    "fuzzyThreshold": 0.82,
+    "minMatchConfidence": 0.75
+  },
+  "defaults": {
+    "lightTarget": null,
+    "acTarget": null,
+    "screen": null
+  },
+  "tts": {
+    "provider": "elevenlabs",
+    "voiceId": "bIHbv24MWmeRgasZH58o",
+    "modelId": "eleven_flash_v2_5"
+  }
+}

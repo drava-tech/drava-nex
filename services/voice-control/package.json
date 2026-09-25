@@ -1,0 +1,28 @@
+{
+  "name": "@platform/voice-control",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TRAVIS traditional voice control: WebRTC VAD + Vosk wake word/STT + rule-based command matching over the CMS internal voice API.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "devices": "tsx src/audio/list-devices.ts",
+    "match": "tsx src/commands/cli.ts",
+    "setup:model": "node scripts/download-model.mjs",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@echogarden/fvad-wasm": "0.2.0",
+    "@picovoice/pvrecorder-node": "1.2.9",
+    "@picovoice/pvspeaker-node": "1.0.3",
+    "vosk-koffi": "1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.8"
+  }
+}

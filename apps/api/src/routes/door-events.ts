@@ -1,15 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { MQTTDeviceManager } from "@platform/iot";
-import { recordDoorEvent, listDoorEvents } from "@platform/db";
+import { listDoorEvents } from "@platform/db";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { broadcastToCms } from "../ws/gateway.js";
-import {
-  setHomeAssistantLockState,
-  getHomeAssistantLockState,
-  HomeAssistantError,
-} from "../services/home-assistant.js";
+import { getHomeAssistantLockState, HomeAssistantError } from "../services/home-assistant.js";
+import { setDoorLock } from "../services/door-lock.js";
 
 const toggleSchema = z.object({
   action: z.enum(["locked", "unlocked"]),
@@ -56,11 +52,6 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
 
   // POST /api/door-events/toggle — manually toggle the lock state
   router.post("/toggle", async (c) => {
-    // Home Assistant is the sole source of truth now — HA_ENTITY_ID (checked
-    // inside setHomeAssistantLockState) is what's actually required; this is
-    // only a human-readable label for the recorded event/MQTT topic.
-    const lockId = process.env["HA_ENTITY_ID"] ?? "home-assistant-lock";
-
     let body: z.infer<typeof toggleSchema>;
     try {
       body = toggleSchema.parse(await c.req.json());
@@ -71,39 +62,14 @@ export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
       return fail(c, "INVALID_BODY", "Request body must be valid JSON.", 400);
     }
 
-    const { action } = body;
-
-    // Actual actuation of the physical lock via Home Assistant.
+    // Actuates via Home Assistant, then publishes/records/broadcasts.
     try {
-      await setHomeAssistantLockState(action);
+      await setDoorLock(mqtt, body.action);
     } catch (err) {
       console.error("[door-events-manual] Home Assistant call failed:", err);
       const message =
         err instanceof HomeAssistantError ? err.message : "Failed to reach Home Assistant.";
       return fail(c, "HOME_ASSISTANT_ERROR", message, 502);
-    }
-
-    const topic = `cms/door/${lockId}/unlocked`;
-    const value = action === "unlocked" ? "true" : "false";
-
-    // Publish state to the broker so physical/logical local IoT devices sync
-    const publish = mqtt.publishRaw(topic, value, { qos: 1, retain: true });
-    publish.catch((err) => console.error("[door-events-manual] publish failed:", err));
-
-    try {
-      const event = await recordDoorEvent(lockId, action);
-      console.info(`[door-events-manual] door event recorded: ${action} at ${event.createdAt.toISOString()}`);
-      const { total } = await listDoorEvents(1);
-      broadcastToCms({
-        type: "DOOR_EVENT",
-        id: event.id,
-        lockId: event.lockId,
-        action: event.action as "locked" | "unlocked",
-        createdAt: event.createdAt.toISOString(),
-        total,
-      });
-    } catch (err) {
-      console.error("[door-events-manual] failed to record/broadcast door event:", err);
     }
 
     return ok(c, { success: true });
