@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { listScreens } from "@platform/db";
 import { apiFetch } from "@/lib/api-client";
@@ -14,18 +15,34 @@ export async function getScreens() {
 }
 
 /**
+ * How many real displays actually received a push. `players: 0` means the
+ * assignment was written and broadcast correctly but no panel was connected to
+ * see it — the caller should warn rather than report a clean success.
+ */
+export interface PushResult {
+  players: number;
+}
+
+/**
  * Assign an experience to a screen. The API writes the DB (source of truth) and
  * pushes the derived content over WebSocket to the screen + CMS + UE subscribers.
  */
-export async function assignExperience(screenId: string, experienceId: string) {
+export async function assignExperience(
+  screenId: string,
+  experienceId: string
+): Promise<PushResult> {
   await requireGuestOrAdmin();
-  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/experience`, {
-    method: "POST",
-    body: JSON.stringify({ experienceId }),
-  });
+  const res = await apiFetch<{ players?: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/experience`,
+    {
+      method: "POST",
+      body: JSON.stringify({ experienceId }),
+    }
+  );
   if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
+  return { players: res.data?.players ?? 0 };
 }
 
 export async function addScreen(screenId: string, screenName: string) {
@@ -58,20 +75,31 @@ export async function sendRemoteCommand(screenId: string, command: string, value
   }
 }
 
-export async function getActiveScreens(): Promise<string[]> {
-  await requireGuestOrAdmin();
+/**
+ * One fetch of /api/screens/active, memoized for the lifetime of the request.
+ *
+ * The endpoint returns { activeScreenIds, activeWhiteboards } together, but the
+ * two accessors below were each fetching it independently — and /screens calls
+ * both in the same Promise.all, so every render made two round trips for one
+ * payload. React's `cache` collapses them without changing either signature.
+ */
+const fetchActiveScreenState = cache(async (): Promise<{
+  activeScreenIds?: string[];
+  activeWhiteboards?: Record<string, string>;
+}> => {
   const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
-
   try {
     const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      return data.activeScreenIds ?? [];
-    }
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error("[remote] getActiveScreens failed", err);
+    console.error("[remote] fetchActiveScreenState failed", err);
   }
-  return [];
+  return {};
+});
+
+export async function getActiveScreens(): Promise<string[]> {
+  await requireGuestOrAdmin();
+  return (await fetchActiveScreenState()).activeScreenIds ?? [];
 }
 
 /** screenId -> whiteboard_document id, for every screen a saved whiteboard is
@@ -80,18 +108,7 @@ export async function getActiveScreens(): Promise<string[]> {
  * instead of the generic per-screen control page. */
 export async function getActiveWhiteboardSessions(): Promise<Record<string, string>> {
   await requireGuestOrAdmin();
-  const apiUrl = process.env["INTERNAL_API_URL"] || "http://localhost:4000";
-
-  try {
-    const res = await fetch(`${apiUrl}/api/screens/active`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      return data.activeWhiteboards ?? {};
-    }
-  } catch (err) {
-    console.error("[remote] getActiveWhiteboardSessions failed", err);
-  }
-  return {};
+  return (await fetchActiveScreenState()).activeWhiteboards ?? {};
 }
 
 /** Record (or clear, with null) which saved whiteboard is being live-pushed to a screen. */
@@ -109,15 +126,22 @@ export async function setScreenWhiteboardSession(screenId: string, documentId: s
  * asset), or clear the current assignment with null so it falls back to the
  * screen's default/idle media.
  */
-export async function assignMedia(screenId: string, mediaAssetId: string | null) {
+export async function assignMedia(
+  screenId: string,
+  mediaAssetId: string | null
+): Promise<PushResult> {
   await requireGuestOrAdmin();
-  const res = await apiFetch(`/api/screens/${encodeURIComponent(screenId)}/media`, {
-    method: "POST",
-    body: JSON.stringify({ mediaAssetId }),
-  });
+  const res = await apiFetch<{ players?: number }>(
+    `/api/screens/${encodeURIComponent(screenId)}/media`,
+    {
+      method: "POST",
+      body: JSON.stringify({ mediaAssetId }),
+    }
+  );
   if (!res.ok) throw new Error(res.error.message);
   revalidatePath("/screens");
   revalidatePath("/");
+  return { players: res.data?.players ?? 0 };
 }
 
 /**

@@ -31,7 +31,9 @@ interface PushToScreenModalProps {
    * caller's job, not this component's. */
   subtitle?: React.ReactNode;
   /** Caller owns the actual assign call (assignMedia / assignExperience / etc). */
-  onPush: (screenId: string) => Promise<void>;
+  /** Result is awaited but not inspected here — assignExperience/assignMedia
+   * resolve with a delivery count that only the publish board acts on. */
+  onPush: (screenId: string) => Promise<unknown>;
   /** Pre-selects a screen and skips it in the push loop — for "don't reset a
    * screen already showing this exact content" (Experiences only today). */
   isAlreadyShowing?: (screen: ScreenRow) => boolean;

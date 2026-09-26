@@ -84,6 +84,22 @@ const screensSlice = createSlice({
       }
     },
 
+    /**
+     * Put one row back exactly as it was — the rollback for a failed optimistic
+     * push.
+     *
+     * A dedicated action rather than a second screenContentUpdated call because
+     * that reducer *patches* (it never clears the other kind's id, and cannot
+     * express "nothing was assigned before"), so replaying it with the old
+     * values could not faithfully undo the write. Without a rollback at all, a
+     * failed push left the row claiming the card was live, and publish-board's
+     * `alreadyShowing` guard then refused to ever retry that card.
+     */
+    screenRowRestored(state, action: PayloadAction<ScreenRow>) {
+      const idx = state.rows.findIndex((s) => s.screenId === action.payload.screenId);
+      if (idx !== -1) state.rows[idx] = action.payload;
+    },
+
     /** Which screens are currently connected, from ACTIVE_SCREENS_LIST. */
     activeScreensUpdated(state, action: PayloadAction<string[]>) {
       state.activeIds = action.payload;
@@ -100,6 +116,7 @@ const screensSlice = createSlice({
 export const {
   screensHydrated,
   screenContentUpdated,
+  screenRowRestored,
   activeScreensUpdated,
   screenBlankedSet,
 } = screensSlice.actions;

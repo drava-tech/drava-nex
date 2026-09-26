@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import fs from "fs";
 import fsPromises from "fs/promises";
+import { Readable } from "node:stream";
 import path from "path";
 import { randomUUID } from "crypto";
 import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
@@ -311,9 +312,24 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     // Server-generated filename — never trust the client name for the path.
     const storedName = `${randomUUID()}${classified.ext}`;
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await fsPromises.writeFile(path.join(UPLOAD_DIR, storedName), buffer);
+    const destPath = path.join(UPLOAD_DIR, storedName);
+
+    // Buffered, deliberately — NOT `Readable.fromWeb(file.stream())`.
+    //
+    // That streaming form was tried and reverted: it is the mirror image of the
+    // serveMediaFile bug above (see fileWebStream). Consuming an undici File's
+    // web stream through Readable.fromWeb leaves undici trying to close a
+    // stream the pipeline already finished with, which throws
+    // ERR_INVALID_STATE in a microtask and takes the whole process down — and
+    // with it every screen in the building.
+    //
+    // Buffering costs memory, but the arithmetic is comfortable: the container
+    // is capped at 4 GB with --max-old-space-size=3072 against a 1 GiB upload
+    // ceiling, so a large upload fails its own request instead of the process.
+    // Genuinely streaming this needs a real multipart parser (busboy), not
+    // file.stream() — worth doing only if uploads actually grow.
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await fsPromises.writeFile(destPath, buffer);
 
     // Preserve a human-friendly display name (sanitized, never used as a path).
     const displayName = file.name.replace(/[^a-zA-Z0-9_.\- ]/g, "_").slice(0, 200) || storedName;
@@ -375,6 +391,38 @@ function resolveWithin(dir: string, fileName: string): string | null {
 // Shared range-aware file responder. Checks UPLOAD_DIR (runtime uploads) first,
 // then falls back to SEED_MEDIA_DIR (baked-in template imagery) — both are
 // addressed by the same /media/<file> URL scheme.
+/**
+ * A file as a real web ReadableStream, safe to hand to `Response`.
+ *
+ * This used to be `new Response(fs.createReadStream(p) as unknown as ReadableStream)`.
+ * That cast silenced the type error without fixing anything: `Response` here is
+ * undici's, and it expects a WEB stream, not a Node one. When a client aborted
+ * mid-response — which an Android <video> does constantly as it scrubs and as
+ * tiles scroll out of view — undici tried to close a controller the Node stream
+ * had already ended and threw ERR_INVALID_STATE from inside a microtask, where
+ * nothing can catch it. The process exited.
+ *
+ * That was not theoretical: it crashed the API 46 times in one day, and because
+ * the API reset every screen to idle on boot, each crash blanked every screen in
+ * the building — including one mid-presentation.
+ *
+ * `Readable.toWeb` produces a genuine web stream, and its `cancel()` destroys the
+ * underlying handle, so an aborted request closes the fd instead of leaking it.
+ */
+function fileWebStream(
+  filePath: string,
+  range?: { start: number; end: number }
+): ReadableStream<Uint8Array> {
+  const nodeStream = range
+    ? fs.createReadStream(filePath, { start: range.start, end: range.end })
+    : fs.createReadStream(filePath);
+  // A read error (file deleted mid-stream, disk issue) must not become an
+  // unhandled 'error' event on the raw stream either — surface it through the
+  // web stream so the request fails instead of the process.
+  nodeStream.on("error", () => nodeStream.destroy());
+  return Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+}
+
 function serveMediaFile(
   c: import("hono").Context,
   fileName: string,
@@ -399,8 +447,7 @@ function serveMediaFile(
         status: 416, headers: { "Content-Range": `bytes */${fileSize}` },
       });
     }
-    const stream = fs.createReadStream(resolved, { start, end });
-    return new Response(stream as unknown as ReadableStream, {
+    return new Response(fileWebStream(resolved, { start, end }), {
       status: 206,
       headers: {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
@@ -416,8 +463,7 @@ function serveMediaFile(
     });
   }
 
-  const stream = fs.createReadStream(resolved);
-  return new Response(stream as unknown as ReadableStream, {
+  return new Response(fileWebStream(resolved), {
     headers: {
       "Content-Length": String(fileSize),
       "Content-Type": mimeType,

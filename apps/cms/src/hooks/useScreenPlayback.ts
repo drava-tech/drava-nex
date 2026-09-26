@@ -49,8 +49,7 @@ const noop = () => {};
  * preview:true is in it — `isPreview` only excludes it from
  * getConnectedScreenIds(), i.e. from the online COUNT. So the CMS can hold a
  * preview socket for one screen and see everything that screen is told and
- * reports, which is exactly what WhiteboardScreenBridge and PublishScreenBridge
- * already do.
+ * reports, which is exactly what WhiteboardScreenBridge already does.
  *
  * That is why this needs no gateway change and no @platform/types change, and
  * why it is per-screen rather than a broadcast every CMS tab in the building

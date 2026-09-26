@@ -167,12 +167,12 @@ time.
 
 ## Icons and splash
 
-`npm run assets` regenerates everything from `apps/cms/public/Logo.png`:
+`npm run assets` regenerates everything from `apps/cms/public/Logo.svg`:
 
-1. `scripts/generate-assets.mjs` crops the green tusker glyph out of the logo
+1. `scripts/generate-assets.mjs` crops the red tusker glyph out of the logo
    lockup for the launcher icon (the full wordmark is far too wide to read at
    launcher size) and uses the whole lockup for the splash. The glyph is found
-   by its brand green rather than by hard-coded coordinates, so a re-exported
+   by its brand red rather than by hard-coded coordinates, so a re-exported
    logo with different padding still crops correctly.
 2. `capacitor-assets` fans those out into every density.
 3. `scripts/fix-adaptive-icon.mjs` corrects the adaptive icon the generator

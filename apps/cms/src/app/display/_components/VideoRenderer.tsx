@@ -19,22 +19,57 @@ import {
 } from "@/lib/display/playback-protocol";
 import { VideoControlsOverlay } from "./VideoControlsOverlay";
 
+/**
+ * How long to wait for a readiness event before starting playback anyway.
+ * Deliberately longer than useContentPreloader's own 3s buffer budget, so in
+ * the normal case the element is already warm and this never fires — it exists
+ * only so a video that never reports ready still plays instead of freezing.
+ */
+const START_FALLBACK_MS = 4_000;
+
 interface VideoRendererProps {
   content: VideoContent;
   /** True for any CMS-side embed of this screen (Screens control page, Live
    * Control popup, ...) — audio must only ever come out of the real TV, so
    * this always wins over the asset's own `muted` setting. */
   preview?: boolean;
+  /**
+   * Mounted, but parked below the bottom edge waiting to be pushed on screen.
+   * Playback must not begin until the layer lands: starting at slide-start
+   * would put the first 700ms of picture behind the bezel while the audio
+   * played in full, which is exactly the audio-leads-picture failure the
+   * readiness gate below exists to prevent. Slides in holding frame 0 instead.
+   */
+  staged?: boolean;
+  /**
+   * Sliding away and about to unmount. Emits nothing, obeys nothing, renders no
+   * operator chrome — while two layers are mounted the gateway attributes every
+   * SET_* to whatever content it believes is current, which is already the
+   * INCOMING one, so a still-reporting outgoing element would overwrite the new
+   * content's resume position on every video→video push.
+   */
+  outgoing?: boolean;
+  /** Called once the first frame is decoded: this will paint the instant it is on screen. */
+  onReady?: () => void;
 }
 
-export function VideoRenderer({ content, preview }: VideoRendererProps) {
+export function VideoRenderer({ content, preview, staged, outgoing, onReady }: VideoRendererProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Initialised from the prop rather than defaulted, so the start effect below
+  // reads the right value on its very first run — effects have not executed yet
+  // at that point. Kept current by the companion effect after it.
+  const stagedRef = useRef(!!staged);
+  const maybeStartRef = useRef<() => void>(() => {});
+  const readyFiredRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     // A remote MUTE/UNMUTE command reaches every client of this screen,
     // including CMS-side mirrors — never let it unmute a preview, which must
-    // always stay silent regardless of what the real TV is doing.
-    if (preview) return;
+    // always stay silent regardless of what the real TV is doing. An outgoing
+    // layer is one frame from unmounting and should not react at all.
+    if (preview || outgoing) return;
     const handleMuteEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ muted: boolean }>;
       if (videoRef.current) {
@@ -45,7 +80,7 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     return () => {
       window.removeEventListener("screen-mute", handleMuteEvent);
     };
-  }, [preview]);
+  }, [preview, outgoing]);
 
   // ─── Playback transport ─────────────────────────────────────────────────
   //
@@ -63,6 +98,13 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
   useEffect(() => {
     const source = content.source;
     if (!source) return;
+    // On the commit where `outgoing` flips true React runs this effect's
+    // previous cleanup — removing all nine listeners and disposing the emitter —
+    // and then this no-op body, so a layer that is sliding out goes completely
+    // silent on the wire. Muting it would not be enough: the timeupdate handler
+    // below emits ~4x a second, and by transition time the gateway files those
+    // under the incoming content's key.
+    if (outgoing) return;
 
     const emitter = createPlaybackEmitter((state) => {
       // Relayed by LiveScreenPlayer's `screen-control` listener as a
@@ -161,7 +203,10 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       // position left over from a previously-shown video would otherwise be
       // applied to this one.
       if (state.src && state.src !== source) return;
-      applyPlayback(video, state);
+      // applyPlayback calls play() whenever the state says playing, which would
+      // start this element while it is still parked below the bezel. The start
+      // effect below owns when playback begins; position still applies.
+      applyPlayback(video, stagedRef.current ? { ...state, playing: false } : state);
     };
 
     window.addEventListener(MEDIA_SEEK_EVENT, onSeek);
@@ -200,26 +245,136 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       video?.removeEventListener("seeked", onSeeked);
       emitter.dispose();
     };
-  }, [content.source, preview]);
+  }, [content.source, preview, outgoing]);
 
-  // The `autoPlay` attribute below can't surface a blocked-playback promise
+  // Playback is started here rather than by an `autoPlay` attribute, for two
+  // reasons. First, `autoPlay` can't surface a blocked-playback promise
   // rejection — if the browser blocks unmuted autoplay (kiosk host missing
   // the --autoplay-policy flag, or any other viewer without it), the element
-  // just sits frozen on its first frame with no error anywhere. This calls
-  // play() explicitly so a rejection can be caught, falling back to muted
-  // playback so the video still plays instead of staying dead. No "tap to
-  // unmute" affordance: this is an unattended kiosk display, nobody's there
-  // to click it (unlike welcome-renderer.tsx, which has a real click path).
+  // just sits frozen on its first frame with no error anywhere; calling play()
+  // explicitly lets a rejection be caught and fall back to muted playback so
+  // the video still plays instead of staying dead. No "tap to unmute"
+  // affordance: this is an unattended kiosk display, nobody's there to click
+  // it (unlike welcome-renderer.tsx, which has a real click path).
+  //
+  // Second, having BOTH `autoPlay` and this call issues two competing play
+  // requests, and the browser treats the second as interrupting the first —
+  // the "~1s-in stutter" already diagnosed and fixed in welcome-renderer.tsx
+  // (see the comment on its <video>), which was never carried over here.
+  //
+  // The readiness gate matters just as much as which of the two starts it.
+  // play() on a freshly-mounted element with an empty buffer starts the video
+  // renderer as soon as the first frame decodes while the audio renderer is
+  // still opening its output — so the picture runs, the sound arrives late,
+  // and the audio then drops the samples it fell behind by to re-lock to the
+  // clock (an audibly missing word). Waiting for HAVE_FUTURE_DATA lets both
+  // renderers start together. Needs preload="auto" on the element below:
+  // without `autoPlay` the browser would otherwise stop at metadata and
+  // `canplay` would never fire.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => {
-      if (!video.muted) {
-        video.muted = true;
-        video.play().catch(() => {});
-      }
-    });
+
+    readyFiredRef.current = false;
+    /** The original start gate: canplay | loadeddata | error | fallback timer. */
+    let mediaReady = false;
+    let started = false;
+
+    /**
+     * "This will paint the instant it is on screen", which is all the push
+     * transition needs to start moving. Deliberately a LOWER bar than the
+     * HAVE_FUTURE_DATA start gate below — one decoded frame is a picture, it
+     * just isn't playable yet — and one-shot, so a re-render cannot re-fire it.
+     */
+    const signalReady = () => {
+      if (readyFiredRef.current) return;
+      readyFiredRef.current = true;
+      onReadyRef.current?.();
+    };
+
+    // A rejection means the browser blocked unmuted playback (a viewer without
+    // the kiosk's --autoplay-policy flag). Retry muted once so the video still
+    // plays; if that fails too there is nothing further to try, and this is an
+    // unattended panel with nobody there to tap.
+    const start = () => {
+      video.play().catch(() => {
+        if (!video.muted) {
+          video.muted = true;
+          video.play().catch(() => {});
+        }
+      });
+    };
+
+    // Both conditions, in either order: the media has to be playable AND the
+    // layer has to be on screen. Whichever lands second calls this — the media
+    // side from the listeners below, the layer side from the `staged` effect.
+    const maybeStart = () => {
+      if (started || !mediaReady || stagedRef.current) return;
+      started = true;
+      start();
+    };
+    maybeStartRef.current = maybeStart;
+
+    // A cached asset can already hold a decoded frame at mount. Report it now
+    // rather than waiting on an event that has already fired.
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) signalReady();
+
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      mediaReady = true;
+      maybeStart();
+      return;
+    }
+
+    // The readiness gate must never be the ONLY way playback can begin. Without
+    // `autoPlay` nothing forces the browser past metadata — `preload="auto"` is
+    // a hint Chromium is free to ignore under memory pressure or on a signage
+    // appliance — and a mid-load network error fires `error`, not `canplay`. In
+    // either case a bare `canplay` listener leaves the panel frozen on a black
+    // first frame with nothing in the logs, which is exactly what a stalled
+    // publish looked like on the wall. So: take whichever signal arrives first,
+    // and fall back to starting unconditionally rather than showing nothing.
+    //
+    // The fallback timer now guarantees readiness; it never bypasses `staged`.
+    // That cannot stall, because the transition's own ready timeout and hard
+    // stop clear `staged` whether or not this element ever reports anything.
+    let done = false;
+    const readyEnough = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      mediaReady = true;
+      signalReady();
+      maybeStart();
+    };
+    const timer = setTimeout(readyEnough, START_FALLBACK_MS);
+    function cleanup() {
+      clearTimeout(timer);
+      video?.removeEventListener("canplay", readyEnough);
+      video?.removeEventListener("loadeddata", readyEnough);
+      video?.removeEventListener("error", readyEnough);
+    }
+    video.addEventListener("canplay", readyEnough, { once: true });
+    video.addEventListener("loadeddata", readyEnough, { once: true });
+    video.addEventListener("error", readyEnough, { once: true });
+    return cleanup;
   }, [content.source]);
+
+  // Declared after the start effect so maybeStartRef is populated by the time
+  // this first runs. Deps stay off the effect above on purpose: re-running it
+  // would reset `started` and could restart an element the operator paused.
+  useEffect(() => {
+    stagedRef.current = !!staged;
+    if (!staged) maybeStartRef.current();
+  }, [staged]);
+
+  // Declared LAST so it runs after the transport effect's cleanup has removed
+  // the `pause` listener — otherwise this pause would emit the very SET_PLAYBACK
+  // that disabling the transport effect exists to prevent. Frees the hardware
+  // decoder for the incoming layer while leaving the last frame painted, which
+  // is what keeps a video→video push to one live decode on a signage appliance.
+  useEffect(() => {
+    if (outgoing) videoRef.current?.pause();
+  }, [outgoing]);
 
   if (!content.source) {
     return (
@@ -233,7 +388,9 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
       ref={videoRef}
       key={content.source}       // force remount if source changes
       src={content.source}
-      autoPlay
+      // No `autoPlay`: the effect above starts playback once the element is
+      // actually ready. preload="auto" is what makes that safe — see there.
+      preload="auto"
       playsInline
       muted={preview || content.muted}
       loop={content.loop}
@@ -245,7 +402,14 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
         // CONTENT_UPDATE — well before this element existed.
         const restore = lastReplayableDetail(MEDIA_SET_PLAYBACK_EVENT) as PlaybackState | undefined;
         if (restore && restore.src === content.source) {
-          applyPlayback(e.currentTarget, restore);
+          // playing is neutralised while staged: applyPlayback calls play() on a
+          // restored playing:true, which would start this element below the
+          // bezel and leak its audio ahead of the picture. Position is restored
+          // either way, so resume-on-re-push is unaffected.
+          applyPlayback(
+            e.currentTarget,
+            stagedRef.current ? { ...restore, playing: false } : restore
+          );
         }
       }}
       style={{
@@ -266,7 +430,7 @@ export function VideoRenderer({ content, preview }: VideoRendererProps) {
     />
     {/* Only on the real panel. A CMS-side embed has no operator standing at
         it, and ScreenMirror makes its iframe pointer-events:none anyway. */}
-    {!preview && <VideoControlsOverlay videoRef={videoRef} />}
+    {!preview && !outgoing && <VideoControlsOverlay videoRef={videoRef} />}
     </>
   );
 }

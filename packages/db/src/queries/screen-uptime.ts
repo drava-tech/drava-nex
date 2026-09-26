@@ -116,7 +116,19 @@ export async function getDailyScreenUptime(days = 7): Promise<DailyUptimePoint[]
         (s.sampled_at AT TIME ZONE ${UPTIME_TIME_ZONE})::date AS day,
         s.online
       FROM screen_status_sample s
-      WHERE extract(hour  FROM s.sampled_at AT TIME ZONE ${UPTIME_TIME_ZONE})
+      -- Sargable lower bound, and it must come first. Every other predicate
+      -- here wraps sampled_at in extract(... AT TIME ZONE ...), which the
+      -- planner cannot match against screen_status_sample_sampled_at_idx — so
+      -- without this the CTE sequentially scanned the ENTIRE retention window
+      -- (90 days, ~1.7k rows/day/screen) on every dashboard load and threw away
+      -- everything older than the calendar below. This is a plain timestamp
+      -- comparison, so the btree range-scans it. The bound mirrors the days
+      -- CTE's own (days * 3) lookback above, so it can never exclude a day the
+      -- calendar still wants.
+      WHERE s.sampled_at >= (
+              (now() AT TIME ZONE ${UPTIME_TIME_ZONE})::date - (${days}::int * 3)
+            ) AT TIME ZONE ${UPTIME_TIME_ZONE}
+        AND extract(hour  FROM s.sampled_at AT TIME ZONE ${UPTIME_TIME_ZONE})
               >= ${UPTIME_WINDOW.startHour}
         AND extract(hour  FROM s.sampled_at AT TIME ZONE ${UPTIME_TIME_ZONE})
               <  ${UPTIME_WINDOW.endHour}

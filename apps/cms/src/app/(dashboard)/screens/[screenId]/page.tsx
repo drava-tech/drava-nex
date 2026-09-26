@@ -18,10 +18,15 @@ export default async function ScreenControlPage({ params }: PageProps) {
   await requireGuestOrAdmin();
   const { screenId } = await params;
 
-  const row = await getScreenLiveRow(screenId);
+  // All three are independent — the not-found check only needs `row` to have
+  // settled, not to have gated the other two. Awaiting it first cost a full
+  // serial DB round trip of dead wall-clock time on every open of this page.
+  const [row, experiences, content] = await Promise.all([
+    getScreenLiveRow(screenId),
+    getExperiences(),
+    getScreenContent(screenId),
+  ]);
   if (!row) notFound();
-
-  const [experiences, content] = await Promise.all([getExperiences(), getScreenContent(screenId)]);
 
   return (
     <LiveScreenSurface
@@ -34,7 +39,19 @@ export default async function ScreenControlPage({ params }: PageProps) {
         defaultMediaAssetId: row.defaultMediaAssetId,
         defaultMediaName: row.defaultMediaName,
       }}
-      initialContent={content ? { id: content.id, type: content.type, source: content.source } : null}
+      initialContent={
+        content
+          ? {
+              id: content.id,
+              type: content.type,
+              source: content.source,
+              templateKey: content.templateKey,
+              experienceId: content.type === "experience" ? content.id : undefined,
+              templateContent: content.templateContent,
+            }
+          : null
+      }
+      backHref="/screens"
     />
   );
 }

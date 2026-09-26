@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { WsContent } from "@platform/types";
+import { readWelcomeContent } from "@platform/ui/templates/welcome";
 
 interface PreloadState {
   active: WsContent;
@@ -52,12 +53,14 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
       }
     };
 
+    const videoUrl = preloadVideoUrl(content);
+
     if (content.type === "image") {
       const img = new Image();
       img.onload = promote;
       img.onerror = promote; // still switch even if preload fails
       img.src = content.source;
-    } else if (content.type === "video") {
+    } else if (videoUrl) {
       const video = document.createElement("video");
       video.preload = "auto";
       const timer = setTimeout(promote, 3_000); // max 3s wait
@@ -76,12 +79,12 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
       };
       video.oncanplaythrough = () => { release(); promote(); };
       video.onerror = () => { release(); promote(); };
-      video.src = content.source;
+      video.src = videoUrl;
       video.load();
       // Also covers the staged item changing again before this one buffered.
       return release;
     } else {
-      // html / stream / experience — promote immediately
+      // html / stream / experience with nothing to buffer — promote immediately
       promote();
     }
     return undefined;
@@ -89,6 +92,27 @@ export function useContentPreloader(initial: WsContent): UseContentPreloaderRetu
   }, [state.stagedKey]);
 
   return { activeContent: state.active, activeKey: state.activeKey, queueContent };
+}
+
+/**
+ * The URL worth buffering before this content goes on screen, or null if there
+ * is nothing to warm.
+ *
+ * A plain video is its own source. A Welcome experience carries its video
+ * inside templateContent and is `type: "experience"`, so it used to fall
+ * through to the immediate-promote branch above — mounting a full-screen
+ * <video> with a completely empty buffer. That is the worst possible starting
+ * condition for the two media renderers to lock to each other: the picture
+ * starts as soon as the first frame decodes while the audio output is still
+ * opening, then the audio drops whatever it fell behind by to catch up, which
+ * is audible as a swallowed word. Buffering first lets both start together.
+ */
+function preloadVideoUrl(content: WsContent): string | null {
+  if (content.type === "video") return content.source || null;
+  if (content.type === "experience" && content.templateKey === "welcome") {
+    return readWelcomeContent(content.templateContent)?.videoUrl || null;
+  }
+  return null;
 }
 
 function getContentKey(content: WsContent): string {

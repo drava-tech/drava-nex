@@ -8,6 +8,18 @@
 # Logs:   docker compose -f docker-compose.yml logs -f
 # Build:  docker compose --env-file ../../.env -f docker-compose.yml build
 
+# ─── Shared log policy ───────────────────────────────────────────────────────
+# Applied to EVERY service below. Docker's stock json-file driver has no size
+# cap, so container logs grow without bound inside the WSL2 VHDX — and that
+# VHDX never shrinks on its own. That is the exact mechanism that filled C: and
+# crashed Docker Desktop mid-build once already (see the LAN deployment notes).
+# 50m x 5 caps each container at 250 MB.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
 
   # ─── PostgreSQL ─────────────────────────────────────────────────────────────
@@ -25,7 +37,69 @@ services:
     ports:
       - "5432:5432" # exposed to host for drizzle-kit and local dev tools
     volumes:
-      - E:/EC/cms-platform-data/postgres-data:/var/lib/postgresql/data
+      # NOTE: a Windows bind mount is the wrong home for a Postgres data
+      # directory under Docker Desktop — it is proxied to NTFS over
+      # 9p/virtiofs, which makes every WAL fsync and buffer write brutally
+      # slow, and it is the largest single contributor to platform-wide
+      # slowness. Move it to a native Docker volume with:
+      #   pwsh infra/scripts/migrate-postgres-to-volume.ps1
+      # (takes the stack down; dumps, switches and restores, verifying row
+      # counts, and leaves the old directory untouched for rollback).
+      - postgres-data:/var/lib/postgresql/data
+    # Docker's default /dev/shm is 64 MB. Postgres uses it for parallel query
+    # and hash-join work areas, and past that ceiling it fails outright with
+    # "could not resize shared memory segment" under exactly the concurrent
+    # load where the dashboard's aggregate queries need it most.
+    shm_size: 1gb
+    logging: *default-logging
+    # Sized for headroom, not for today: the database is ~13 MB and already
+    # 99.96% cache-resident, so these are about not having to revisit this when
+    # the pgvector visitor_embedding table grows. The two settings that matter
+    # RIGHT NOW are random_page_cost and effective_io_concurrency — the stock
+    # values (4 and 1) describe a spinning disk, and this box is NVMe, so the
+    # planner was systematically over-pricing index scans.
+    #
+    # pg_stat_statements is the point of the exercise: without it "which query
+    # is slow" is unanswerable and every future perf question becomes guesswork.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - track_io_timing=on
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=16GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - max_worker_processes=16
+      - -c
+      - max_parallel_workers=16
+      - -c
+      - max_parallel_workers_per_gather=4
+      - -c
+      - wal_buffers=64MB
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_completion_target=0.9
+    deploy:
+      resources:
+        limits:
+          cpus: "6"
+          memory: 8G
+        reservations:
+          memory: 2G
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
@@ -52,6 +126,12 @@ services:
       - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - E:/EC/cms-platform-data/mosquitto-data:/mosquitto/data
       - E:/EC/cms-platform-data/logs/mosquitto:/mosquitto/log
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
     networks:
       - internal
       - public # must be on public so the host port binding resolves (internal: true blocks it)
@@ -89,12 +169,33 @@ services:
       # Face crops written by the (host-native) vision service; the API
       # streams them to the CMS behind admin auth.
       - VISION_IMAGE_DIR=/data/faces
+      # libuv defaults to FOUR threads. Every sharp thumbnail encode and every
+      # fs.createReadStream media read contends over that pool, on a 24-thread
+      # box. This is the one place where "use more CPU" is genuinely the fix.
+      - UV_THREADPOOL_SIZE=16
+      # An explicit ceiling so a large upload fails inside the container's own
+      # limit instead of ballooning the process and destabilising the host.
+      - NODE_OPTIONS=--max-old-space-size=3072
     expose:
       - "4000" # internal only
     volumes:
       - E:/EC/cms-platform-data/uploads:/data/uploads
       - E:/EC/cms-platform-data/logs:/data/logs
       - E:/EC/cms-platform-data/faces:/data/faces
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+    healthcheck:
+      # /health is served by apps/api/src/index.ts and reports db + mqtt state.
+      # node -e rather than curl/wget: the alpine image has neither guaranteed.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,11 +230,31 @@ services:
       - LOG_DIR=/data/logs
       - INTERNAL_API_URL=http://api:4000
       - NEXT_PUBLIC_VISION_WS_URL=${NEXT_PUBLIC_VISION_WS_URL:-/vision/ws}
+      - UV_THREADPOOL_SIZE=16
+      - NODE_OPTIONS=--max-old-space-size=3072
     expose:
       - "3000" # internal only
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+    healthcheck:
+      # Hits the CMS's own health route, NOT /health — that path is rewritten
+      # to the API (next.config.mjs), so it would report the API's liveness and
+      # this container could be wedged while still looking healthy.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/cms-health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     depends_on:
       api:
-        condition: service_started
+        # Was service_started, so nothing waited for the API to be USABLE —
+        # the CMS could boot and serve pages against a database that had not
+        # finished coming up.
+        condition: service_healthy
     networks:
       - internal
 
@@ -157,8 +278,12 @@ services:
       # this just stops a runaway/misbehaving client.
       - VISION_SERVER_MIN_FRAME_INTERVAL_MS=10
     expose: ["8000"]
+    logging: *default-logging
     deploy:
       resources:
+        limits:
+          cpus: "8"
+          memory: 8G
         reservations:
           devices:
             - driver: nvidia
@@ -193,11 +318,15 @@ services:
       - VISION_CAMERAS=[{"id":"cam-entrance","mode":"PEOPLE","backend":"realsense","index":0}]
     volumes:
       - E:/EC/cms-platform-data/faces:/data/faces
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
     deploy:
       resources:
+        limits:
+          cpus: "8"
+          memory: 8G
         reservations:
           devices:
             - driver: nvidia
@@ -222,6 +351,12 @@ services:
     volumes:
       - E:/EC/cms-platform-data/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     networks:
       - public
       - internal # so cms-api can reach it directly (http://homeassistant:8123) —
@@ -238,10 +373,34 @@ services:
     volumes:
       - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ../nginx/certs:/etc/nginx/certs:ro
-      - E:/EC/cms-platform-data/logs/nginx:/var/log/nginx
+      # The /var/log/nginx bind mount is deliberately GONE. nginx now logs to
+      # stdout/stderr (the official image symlinks them), so Docker's rotation
+      # policy above covers it like every other service. On the bind mount there
+      # was no logrotate in the container at all and the files had reached
+      # 249 MB (access) + 226 MB (error) and were still growing.
+      # `docker logs cms-nginx` still greps for the timed format's rt=/urt=.
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 512M
+    healthcheck:
+      # Must send the canonical Host — server_name is ec-cms/192.168.1.250 and
+      # anything else hits the catch-all `return 444`, which would look like an
+      # outage while the stack is fine.
+      test: ["CMD", "wget", "-q", "--spider", "--header=Host: ec-cms", "http://127.0.0.1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
-      - cms
-      - api
+      # Was the short list form, i.e. start-order only. With conditions, nginx
+      # cannot come up pointing at upstreams that are not yet serving.
+      cms:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     networks:
       - internal
       - public
@@ -253,3 +412,11 @@ networks:
     internal: true # no direct internet access from any container on this network
   public:
     driver: bridge # Nginx bridges the host and internal services
+
+# Native Docker volume for the Postgres data directory.
+# Deliberately NOT a Windows bind mount: under Docker Desktop that path is
+# proxied from the WSL2 VM to NTFS over 9p/virtiofs, which serialises every WAL
+# fsync (measured 2.2 ms/commit vs ~0.2 ms here) and gives weaker durability
+# guarantees than Postgres expects from its data directory.
+volumes:
+  postgres-data:

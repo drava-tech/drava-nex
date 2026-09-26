@@ -46,7 +46,14 @@ export function useCmsScreenSync({
 }: UseCmsScreenSyncOptions): void {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+  // Set by the effect cleanup below before it closes the socket. `onclose`
+  // fires asynchronously — i.e. AFTER cleanup has already cleared the pending
+  // reconnect timer — so without this flag every unmount scheduled a fresh
+  // connect() that nothing was left alive to cancel, and the resulting socket
+  // reconnected itself forever. Each CMS navigation stranded one such zombie,
+  // and every one of them still received the full broadcast fan-out.
+  const closedRef = useRef(false);
+
   const onScreenUpdatedRef = useRef(onScreenUpdated);
   onScreenUpdatedRef.current = onScreenUpdated;
   
@@ -120,6 +127,7 @@ export function useCmsScreenSync({
     };
 
     ws.onclose = () => {
+      if (closedRef.current) return; // unmounted — do not resurrect
       onConnectionChangeRef.current?.(false);
       reconnectRef.current = setTimeout(connect, 3_000);
     };
@@ -128,8 +136,10 @@ export function useCmsScreenSync({
   }, []);
 
   useEffect(() => {
+    closedRef.current = false;
     connect();
     return () => {
+      closedRef.current = true;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };

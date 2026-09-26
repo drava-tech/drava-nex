@@ -77,12 +77,28 @@ const YT_API_SCRIPT_ID = "youtube-iframe-api";
 export function HtmlRenderer({
   content,
   preview,
+  outgoing,
+  onReady,
 }: {
   content: HtmlContent;
   /** True for any CMS-side embed of this screen — never delegate the
    * autoplay permission here, so an embedded YouTube/Vimeo/SoundCloud/etc.
    * player can't produce sound in the CMS, only on the real TV. */
   preview?: boolean;
+  /** Sliding away and about to unmount: emit nothing, relay nothing. See
+   * VideoRenderer.tsx — the kiosk YouTube poll below has the same problem of
+   * reporting a position the gateway files under the incoming content. */
+  outgoing?: boolean;
+  /**
+   * The embedded document has loaded.
+   *
+   * Honest limitation: for the same-origin /display/pdf and /display/slides
+   * viewers this fires when the viewer document loads, not when page one has
+   * rendered, so a deck lands a beat before it paints. The frame bridge's own
+   * `ready` message is posted at connect time and so is no better. Tightening
+   * it means posting `ready` after first render inside PdfViewer/SlidesViewer.
+   */
+  onReady?: () => void;
 }) {
   // Slides and PDF must NOT get the +20px overhang: an iframe's CSS width is
   // that document's own viewport width, so the extra 20px gets scaled into the
@@ -176,6 +192,10 @@ export function HtmlRenderer({
   // no preview player to keep in step.
   useEffect(() => {
     if (!isKioskYouTube) return;
+    // The YT player itself is deliberately NOT torn down when this goes
+    // outgoing (that effect is untouched) — destroying it blanks the iframe
+    // mid-slide. Only the reporting stops.
+    if (outgoing) return;
     const source = content.source;
 
     const emitter = createPlaybackEmitter((state) => {
@@ -269,27 +289,15 @@ export function HtmlRenderer({
       emitPlaybackRef.current = null;
       emitter.dispose();
     };
-  }, [isKioskYouTube, content.source]);
+  }, [isKioskYouTube, content.source, outgoing]);
 
-  // The display page pins `touch-action: none` on html/body so signage can't be
-  // panned or pinch-zoomed by a passer-by. Touch-action is intersected down the
-  // ancestor chain and that chain crosses into the frame, so leaving it set
-  // would mean a touch screen could tap inside an embedded page but never
-  // scroll it. Relaxed only while a page is on screen, and put back on unmount
-  // so image/video content keeps the gesture lock it wants.
-  useEffect(() => {
-    const { style } = document.documentElement;
-    const bodyStyle = document.body.style;
-    const previous = { root: style.touchAction, body: bodyStyle.touchAction };
-
-    style.touchAction = "auto";
-    bodyStyle.touchAction = "auto";
-
-    return () => {
-      style.touchAction = previous.root;
-      bodyStyle.touchAction = previous.body;
-    };
-  }, []);
+  // NOTE: the html/body `touch-action` relaxation this renderer used to own now
+  // lives in LiveScreenPlayer, derived from the active content type. Saving on
+  // mount and restoring on unmount broke once two layers could be mounted at
+  // once: on an html → html push the incoming frame saved the outgoing frame's
+  // "auto", then the outgoing unmounted 700ms later and restored "none" — over
+  // an html page that was by then on screen, i.e. a pushed PDF or sheet that
+  // could no longer be scrolled by touch.
 
   // Relay remote commands into a framed viewer. The display page owns the one
   // WebSocket, but a viewer runs in its own JS realm inside this iframe, so
@@ -307,6 +315,10 @@ export function HtmlRenderer({
   useEffect(() => {
     bridgeReadyRef.current = false;
     bridgeQueueRef.current = [];
+    // A layer on its way off screen must not be paged: NEXT_PAGE reaches every
+    // mounted renderer, and relaying it here would advance the outgoing deck
+    // one slide as it slides away — and, worse, report that position back.
+    if (outgoing) return;
 
     const post = (msg: FrameBridgeMessage) => {
       iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
@@ -364,13 +376,15 @@ export function HtmlRenderer({
       window.removeEventListener("message", onMessage);
       for (const off of unsubscribes) off();
     };
-  }, [content.source, preview]);
+  }, [content.source, preview, outgoing]);
 
   return (
     <iframe
       key={content.source}
       ref={iframeRef}
       src={content.source}
+      onLoad={onReady}
+      onError={onReady}
       style={{
         position: "fixed",
         top: 0,
