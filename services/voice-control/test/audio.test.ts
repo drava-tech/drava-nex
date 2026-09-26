@@ -65,6 +65,12 @@ describe("WebRtcVad (libfvad WASM)", () => {
     const vad = await WebRtcVad.create(16000, FRAME, 3);
     expect(() => vad.isSpeech(new Int16Array(100))).toThrow(/expects 480/);
   });
+
+  it("preserves sample rate and mode after reset", async () => {
+    const vad = await WebRtcVad.create(16000, FRAME, 3);
+    vad.reset();
+    expect(vad.isSpeech(frame(0))).toBe(false);
+  });
 });
 
 describe("devices", () => {

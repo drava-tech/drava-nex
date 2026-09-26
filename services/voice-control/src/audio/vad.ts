@@ -9,7 +9,9 @@ export class WebRtcVad {
     private readonly mod: Awaited<ReturnType<typeof createFvad>>,
     private readonly handle: number,
     private readonly buffer: number,
-    private readonly frameLength: number
+    private readonly frameLength: number,
+    private readonly sampleRate: number,
+    private readonly mode: 0 | 1 | 2 | 3
   ) {}
 
   /** mode 0-3: higher = more aggressive at rejecting non-speech. */
@@ -19,7 +21,7 @@ export class WebRtcVad {
     if (!handle) throw new Error("fvad_new failed");
     if (mod._fvad_set_mode(handle, mode) !== 0) throw new Error(`Invalid VAD mode ${mode}`);
     if (mod._fvad_set_sample_rate(handle, sampleRate) !== 0) throw new Error(`Unsupported VAD sample rate ${sampleRate}`);
-    return new WebRtcVad(mod, handle, mod._malloc(frameLength * 2), frameLength);
+    return new WebRtcVad(mod, handle, mod._malloc(frameLength * 2), frameLength, sampleRate, mode);
   }
 
   isSpeech(frame: Int16Array): boolean {
@@ -33,6 +35,9 @@ export class WebRtcVad {
 
   reset(): void {
     this.mod._fvad_reset(this.handle);
+    // libfvad's fvad_reset reverts rate to 8000 Hz and mode to 0, which makes subsequent 16 kHz frames error out.
+    this.mod._fvad_set_mode(this.handle, this.mode);
+    this.mod._fvad_set_sample_rate(this.handle, this.sampleRate);
   }
 }
 
