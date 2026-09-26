@@ -15,6 +15,7 @@ import {
   listVoiceControlNames,
   pushContent,
   type VoiceControlResult,
+  controlAmbientMode,
 } from "../services/voice-control.js";
 
 /**
@@ -92,6 +93,10 @@ const schemas = {
     content: z.string().min(1),
     screen: z.string().min(1),
   }),
+  ambientMode: z.object({
+  mode: z.string().min(1),
+  }),
+
 };
 
 export function createVoiceControlRouter(mqtt: MQTTDeviceManager): Hono {
@@ -136,6 +141,7 @@ export function createVoiceControlRouter(mqtt: MQTTDeviceManager): Hono {
 
   command("/lights", schemas.lights, controlLights);
   command("/ac", schemas.ac, controlAc);
+  command("/ambient-mode", schemas.ambientMode, controlAmbientMode);
   command("/volume", schemas.volume, controlVolume);
   command("/door", schemas.door, (b) => controlDoor(mqtt, b.action));
   command("/screen", schemas.screen, controlScreen);

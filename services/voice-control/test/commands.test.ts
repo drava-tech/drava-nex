@@ -112,6 +112,13 @@ describe("intents", () => {
   it("passes names as spoken, with numbers as digits so the CMS matches e.g. screen-2", () => {
     expect(request("pause screen two").body).toEqual({ action: "pause", screen: "screen 2" });
   });
+
+  it("matches ambient modes and sends the mode to CMS", () => {
+    expect(request("meeting mode")).toEqual({ endpoint: "ambient-mode", body: { mode: "meeting" } });
+    expect(request("turn on presentation mode")).toEqual({ endpoint: "ambient-mode", body: { mode: "presentation" } });
+    expect(request("switch mode to pre entry")).toEqual({ endpoint: "ambient-mode", body: { mode: "pre_entry" } });
+    expect(request("activate entry mode")).toEqual({ endpoint: "ambient-mode", body: { mode: "entry" } });
+  });
 });
 
 describe("parameters", () => {

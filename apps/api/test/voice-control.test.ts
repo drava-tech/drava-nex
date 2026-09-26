@@ -23,6 +23,11 @@ const deviceRoutes = vi.hoisted(() => ({
 const irDriver = vi.hoisted(() => ({ sendCommand: vi.fn(async () => {}) }));
 const pushScreenContent = vi.hoisted(() => vi.fn(async () => null));
 const setDoorLock = vi.hoisted(() => vi.fn(async () => {}));
+const ambientModes = vi.hoisted(() => ({
+  resolveAmbientMode: vi.fn(),
+  applyAmbientMode: vi.fn(),
+  listAmbientModes: vi.fn(),
+}));
 
 vi.mock("@platform/db", () => db);
 vi.mock("../src/ws/gateway.js", () => gateway);
@@ -30,6 +35,7 @@ vi.mock("../src/routes/devices.js", () => deviceRoutes);
 vi.mock("../src/routes/screens.js", () => ({ pushScreenContent }));
 vi.mock("../src/services/devices.js", () => ({ getIrDriver: () => irDriver }));
 vi.mock("../src/services/door-lock.js", () => ({ setDoorLock }));
+vi.mock("../src/services/ambient-modes.js", () => ambientModes);
 
 import { createVoiceControlRouter } from "../src/routes/voice-control.js";
 import { matchByName, normalizeName } from "../src/services/voice-control.js";
@@ -225,5 +231,29 @@ describe("screens and content", () => {
     const res = await post("/screen", { action: "pause", screen: "kitchen" });
     expect(res.status).toBe(404);
     expect(((await res.json()) as { error: { message: string } }).error.message).toContain("Screen 2, Lobby Wall");
+  });
+});
+
+describe("ambient modes", () => {
+  it("activates an ambient mode and returns success", async () => {
+    ambientModes.resolveAmbientMode.mockResolvedValue({ key: "meeting", label: "Meeting" });
+    ambientModes.applyAmbientMode.mockResolvedValue({ applied: 3, failed: 0 });
+    const res = await post("/ambient-mode", { mode: "meeting" });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data).toEqual({
+      message: "Meeting mode activated.",
+      targets: ["Meeting"],
+    });
+  });
+
+  it("404s for unknown ambient mode with list of available modes", async () => {
+    ambientModes.resolveAmbientMode.mockResolvedValue(null);
+    ambientModes.listAmbientModes.mockResolvedValue([
+      { key: "pre_entry", label: "Pre-entry" },
+      { key: "meeting", label: "Meeting" },
+    ]);
+    const res = await post("/ambient-mode", { mode: "party" });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as any).error.message).toContain("Pre-entry, Meeting");
   });
 });

@@ -148,6 +148,16 @@
         ]
       }
     },
+    "ambientMode": {
+      "type": "enum",
+      "values": {
+        "pre_entry": ["pre entry", "preentry", "pre-entry"],
+        "entry": ["entry", "welcome"],
+        "meeting": ["meeting", "conference"],
+        "presentation": ["presentation", "present"]
+      }
+    },
+
     "screenAlias": {
       "type": "enum",
       "values": {
@@ -172,6 +182,21 @@
       ],
       "reply": "Shutting down. Goodbye.",
       "system": "shutdown"
+    },
+        {
+      "intent": "AMBIENT_MODE",
+      "phrases": [
+        "(set|switch|change|activate|turn on) [ambient] mode [to] {ambientMode}",
+        "(set|switch|change|activate|turn on) {ambientMode} mode",
+        "{ambientMode} mode",
+        "[ambient] mode {ambientMode}"
+      ],
+      "cms": {
+        "endpoint": "ambient-mode",
+        "body": {
+          "mode": "{ambientMode}"
+        }
+      }
     },
     {
       "intent": "AC_ON",

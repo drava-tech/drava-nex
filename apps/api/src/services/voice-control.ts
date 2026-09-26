@@ -1,4 +1,5 @@
 import type { MQTTDeviceManager } from "@platform/iot";
+import { resolveAmbientMode, applyAmbientMode, listAmbientModes } from "./ambient-modes.js";
 import {
   listDevices,
   setDeviceState,
@@ -378,5 +379,29 @@ export async function listVoiceControlNames() {
     media: (await listMediaAssets({ pageSize: 100 })).items.map((m) => m.name),
     colours: Object.keys(LIGHT_COLORS),
     acModes: [...AC_MODES],
+  };
+}
+export interface AmbientModeInput {
+  mode: string;
+}
+
+export async function controlAmbientMode(input: AmbientModeInput): Promise<VoiceControlResult> {
+  const resolved = await resolveAmbientMode(input.mode);
+  if (!resolved) {
+    const modes = await listAmbientModes();
+    const names = modes.map((m) => m.label).join(", ");
+    throw new VoiceControlError(
+      `I couldn't find "${input.mode}". Available modes are ${names}.`,
+      "NOT_FOUND",
+      404
+    );
+  }
+  const result = await applyAmbientMode(resolved);
+  if (result.applied === 0 && result.failed > 0) {
+    throw new VoiceControlError("None of the lights responded.", "DRIVER_ERROR", 502);
+  }
+  return {
+    message: `${resolved.label} mode activated.`,
+    targets: [resolved.label],
   };
 }
