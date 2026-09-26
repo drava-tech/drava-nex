@@ -36,6 +36,7 @@ import { createGateway } from './ws/gateway.js';
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
 import { whiteboardsRouter } from './routes/whiteboards.js';
+import { ambientModesRouter } from './routes/ambient-modes.js';
 
 const app = new Hono();
 
@@ -109,6 +110,7 @@ app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
 app.route('/api/flight-simulation', flightSimulationRouter);
 app.route('/api/internal', internalRouter);
+app.route('/api/ambient-modes', ambientModesRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
 app.route('/media', mediaFilesRouter);
