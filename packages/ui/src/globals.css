@@ -39,6 +39,10 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #262626;
   --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
+  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
@@ -57,7 +61,7 @@
   --shadow-lg: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 4px 6px -1px hsl(0 0% 0% / 0.18);
   --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
   --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
-  --tracking-normal: 0em;
+  --tracking-normal: 0.04em;
   --spacing: 0.25rem;
 }
 
@@ -94,6 +98,10 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #262626;
   --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
+  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
@@ -128,6 +136,10 @@
   --sidebar-accent-foreground: #18181B;
   --sidebar-border: #E4E4E7;
   --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #E21D3E 0%, #C41432 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(226, 29, 62, 0.45), 0 2px 5px -1px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+  --card-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -3px 8px 0 rgba(0, 0, 0, 0.05);
 }
 
 @theme inline {
@@ -172,6 +184,20 @@
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
 
+  /* App-wide weights: only light (300) and normal (400). Heavier utilities
+     (font-medium/semibold/bold/...) all resolve to normal. */
+  --font-weight-thin: 300;
+  --font-weight-extralight: 300;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 400;
+  --font-weight-extrabold: 400;
+  --font-weight-black: 400;
+  --tracking-tighter: 0em;
+  --tracking-tight: 0em;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -188,9 +214,17 @@
 }
 
 @layer base {
+
+  b,
+  strong,
+  th {
+    font-weight: 400;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     /* No scrollbar-gutter reservation: the dashboard shell
        (DashboardLayoutClient) bounds <main> to the viewport and owns a
@@ -204,9 +238,11 @@
        rely on the browser propagating body's value up to the viewport. */
     overflow-x: hidden;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: 0.04em;
     /* Safety net: nothing on the page should ever be scrollable sideways
        (e.g. via a trackpad swipe) — a stray oversized element should get
        clipped here rather than opening up page-level horizontal scroll. */
@@ -292,6 +328,7 @@
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
@@ -314,6 +351,7 @@
   from {
     transform: scaleY(1);
   }
+
   to {
     transform: scaleY(0);
   }
@@ -333,6 +371,38 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ==========================================================================
+   Dynamic Active Menu Item (gradient, inset highlight, border, text color)
+   Automatically applies to any sidebar menu button or sub-item when active.
+   ========================================================================== */
+[data-sidebar="menu-button"],
+[data-sidebar="menu-sub-button"] {
+  border: 1px solid transparent;
+  transition: all 150ms ease;
+}
+
+[data-sidebar="menu-button"][data-active="true"],
+[data-sidebar="menu-sub-button"][data-active="true"],
+[data-sidebar="menu-button"][aria-current="page"],
+[data-sidebar="menu-sub-button"][aria-current="page"] {
+  background: var(--sidebar-active-gradient) !important;
+  background-origin: border-box !important;
+  background-clip: border-box !important;
+  color: #FFFFFF !important;
+  border-color: var(--sidebar-active-border) !important;
+  box-shadow: var(--sidebar-active-shadow) !important;
+  border-radius: 0.625rem !important;
+  font-weight: 400 !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] svg,
+[data-sidebar="menu-sub-button"][data-active="true"] svg,
+[data-sidebar="menu-button"][aria-current="page"] svg,
+[data-sidebar="menu-sub-button"][aria-current="page"] svg {
+  color: #FFFFFF !important;
 }

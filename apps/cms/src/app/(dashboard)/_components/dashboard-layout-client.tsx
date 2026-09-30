@@ -42,33 +42,33 @@ export function DashboardLayoutClient({
     // it mounts survives navigation between pages — the four surfaces that show
     // volume live in different route segments.
     <StoreProvider>
-    <SidebarProvider style={{ "--sidebar-width": "14rem" } as React.CSSProperties}>
-      <AppSidebar />
-      {/* Bounded to the viewport + overflow-hidden so this is the ONE
+      <SidebarProvider style={{ "--sidebar-width": "14rem" } as React.CSSProperties}>
+        <AppSidebar />
+        {/* Bounded to the viewport + overflow-hidden so this is the ONE
           scrolling boundary for the whole dashboard — without this, `<main>`
           has no defined height and just grows with its content, so the
           browser's own document scroll moves everything (this header
           included) instead of a contained region, and no `sticky` element
           on any page below has a real scrolling ancestor to stick against. */}
-      <SidebarInset className="h-svh overflow-hidden bg-background">
-        <header className="flex h-auto shrink-0 items-center gap-2 border-b p-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
-          <SidebarTrigger className="-ml-1 h-5 w-5 [&>svg]:size-4" />
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-[orientation=vertical]:h-4"
-          />
-          <Suspense fallback={<div className="h-4 w-20 animate-pulse bg-zinc-800 rounded" />}>
-            <DashboardBreadcrumb />
-          </Suspense>
-          {/* Global — every dashboard page, not just Visitors. Admin-only
+        <SidebarInset className="h-svh overflow-hidden bg-background">
+          <header className="flex h-auto shrink-0 items-center gap-2 border-b p-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
+            <SidebarTrigger className="-ml-1 h-5 w-5 [&>svg]:size-4" />
+            <Separator
+              orientation="vertical"
+              className="mr-2 data-[orientation=vertical]:h-4"
+            />
+            <Suspense fallback={<div className="h-4 w-20 animate-pulse bg-zinc-800 rounded" />}>
+              <DashboardBreadcrumb />
+            </Suspense>
+            {/* Global — every dashboard page, not just Visitors. Admin-only
               since arming/disarming requires it server-side anyway. */}
-          {isAdmin && (
-            <div className="ml-auto">
-              <WelcomeTriggerToggle initialArmed={initialTriggerArmed} />
-            </div>
-          )}
-        </header>
-        {/* The guaranteed scroll fallback for every dashboard page — some
+            {isAdmin && (
+              <div className="ml-auto">
+                {/* <WelcomeTriggerToggle initialArmed={initialTriggerArmed} /> */}
+              </div>
+            )}
+          </header>
+          {/* The guaranteed scroll fallback for every dashboard page — some
             pages (Settings, Users) have no internal scroll region of their
             own at all and relied entirely on the old document-level scroll,
             so this can't be sizing-only. Pages that DO implement their own
@@ -80,11 +80,11 @@ export function DashboardLayoutClient({
             `scrollbar-gutter: stable` on <html> reserving space for a
             document scrollbar that no longer exists (removed in
             globals.css), not the nesting itself. */}
-        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-      </SidebarInset>
-      {/* Floating whiteboard — available on every dashboard page */}
-      <WhiteboardOverlay />
-    </SidebarProvider>
+          <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+        </SidebarInset>
+        {/* Floating whiteboard — available on every dashboard page */}
+        <WhiteboardOverlay />
+      </SidebarProvider>
     </StoreProvider>
   );
 }

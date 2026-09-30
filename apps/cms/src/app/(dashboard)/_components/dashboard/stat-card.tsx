@@ -5,7 +5,7 @@ import { type LucideIcon } from "lucide-react";
 export type StatAccent = "blue" | "violet" | "amber" | "emerald" | "rose" | "slate";
 
 // Flat panel shell — clean border + hover lift.
-const CARD_SHELL = "relative overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5";
+const CARD_SHELL = "relative overflow-hidden rounded-2xl border border-border/30 bg-card shadow-[var(--card-shadow)] transition-all duration-200 hover:-translate-y-0.5";
 
 const CHIP: Record<StatAccent, string> = {
   blue: "bg-blue-500/10 text-blue-500 dark:text-blue-400",
@@ -31,20 +31,26 @@ interface StatCardProps {
   icon: LucideIcon;
   accent?: StatAccent;
   href?: string;
+  /** Use the sidebar's selected-item gradient + shadow. */
+  highlight?: boolean;
 }
 
-export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardProps) {
+const HIGHLIGHT_SHELL =
+  "relative overflow-hidden rounded-[0.625rem] border-0 text-white transition-all duration-200 hover:-translate-y-0.5 [background-image:var(--sidebar-active-gradient)] [background-repeat:no-repeat] [background-size:100%_100%] [box-shadow:var(--sidebar-active-shadow)]";
+
+export function StatCard({ stat, icon: Icon, accent = "slate", href, highlight = false }: StatCardProps) {
+  const shell = highlight ? HIGHLIGHT_SHELL : CARD_SHELL;
   const inner = (
     <>
-      <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-xl ${CHIP[accent]}`}>
+      <div className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-xl ${highlight ? "bg-white/15 text-white" : CHIP[accent]}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="relative z-10 space-y-0.5">
-        <p className="text-xl font-bold tabular-nums text-foreground">{stat.value}</p>
-        <p className="text-xs text-muted-foreground">{stat.label}</p>
+        <p className={`text-xl font-bold tabular-nums ${highlight ? "text-white" : "text-foreground"}`}>{stat.value}</p>
+        <p className={`text-xs ${highlight ? "text-white/75" : "text-muted-foreground"}`}>{stat.label}</p>
       </div>
       {stat.breakdown && (
-        <span className="relative z-10 mt-auto text-[11px] leading-tight text-muted-foreground">
+        <span className={`relative z-10 mt-auto text-[11px] leading-tight ${highlight ? "text-white/75" : "text-muted-foreground"}`}>
           {stat.breakdown}
         </span>
       )}
@@ -55,7 +61,7 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardP
     return (
       <Link
         href={href}
-        className={`${CARD_SHELL} flex flex-col gap-3 p-4`}
+        className={`${shell} flex flex-col gap-3 p-4`}
       >
         {inner}
       </Link>
@@ -64,7 +70,7 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardP
 
   return (
     <div
-      className={`${CARD_SHELL} flex flex-col gap-3 p-4`}
+      className={`${shell} flex flex-col gap-3 p-4`}
     >
       {inner}
     </div>
