@@ -23,7 +23,7 @@ export function ControlChooserDialog({ contentName, screens, onChoose, onClose }
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
       <div
-        className="relative w-full max-w-md bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden transition-all transform scale-100"
+        className="relative w-full max-w-md bg-white dark:bg-zinc-950 border border-border rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -49,7 +49,7 @@ export function ControlChooserDialog({ contentName, screens, onChoose, onClose }
               key={s.screenId}
               type="button"
               onClick={() => onChoose(s)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-[#432992] bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50 p-4 text-left transition-all"
+              className="flex w-full items-center gap-3 rounded-2xl border border-border bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-850/50 p-4 text-left transition-all"
             >
               <span
                 className={`h-2 w-2 shrink-0 rounded-full ${

@@ -17,7 +17,6 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from "@platform/ui"
-import { panelBorderStyle, ACTIVE_NAV_BACKGROUND } from "@/app/(dashboard)/_components/dashboard/liquid-glass"
 
 export function NavMain({
     items,
@@ -55,8 +54,7 @@ export function NavMain({
                                         <SidebarMenuButton
                                             tooltip={item.title}
                                             isActive={isItemActive}
-                                            className={isItemActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
-                                            style={isItemActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                                            className="group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto"
                                         >
                                             {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
                                             <span className="text-base ml-2.5">{item.title}</span>
@@ -92,8 +90,7 @@ export function NavMain({
                                 asChild
                                 tooltip={item.title}
                                 isActive={isThisActive}
-                                className={isThisActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
-                                style={isThisActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                                className="group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto"
                             >
                                 <Link href={item.url}>
                                     {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}

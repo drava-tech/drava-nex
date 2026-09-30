@@ -30,10 +30,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body
-        className="bg-background text-foreground"
-        style={{ background: "linear-gradient(to bottom, #01001F, #000000)" }}
-      >
+      <body className="bg-background text-foreground">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

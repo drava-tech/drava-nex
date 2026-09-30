@@ -177,10 +177,10 @@ export function MediaPicker({
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-3xl max-h-[80vh] flex flex-col bg-white dark:bg-zinc-950 border border-[#432992] rounded-2xl shadow-xl"
+        className="relative w-full max-w-3xl max-h-[80vh] flex flex-col bg-white dark:bg-zinc-950 border border-border rounded-2xl shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between gap-3 p-4 border-b border-[#432992]">
+        <header className="flex items-center justify-between gap-3 p-4 border-b border-border">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Select media</h2>
           <div className="flex items-center gap-2">
             <input
@@ -252,7 +252,7 @@ export function MediaPicker({
                     onSelectItem?.(m);
                     if (!multi) onClose();
                   }}
-                  className="group relative aspect-video rounded-xl overflow-hidden border border-[#432992] hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"
+                  className="group relative aspect-video rounded-xl overflow-hidden border border-border hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"
                   title={m.name}
                 >
                   {m.type === "video" ? (

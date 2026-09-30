@@ -6,7 +6,7 @@ import { searchCompaniesAction } from "@/actions/portfolio-actions";
 import type { CompanySearchResult } from "@/lib/companies-api";
 
 const FIELD =
-  "w-full bg-zinc-100 border border-[#432992] focus:border-zinc-500 dark:bg-zinc-800 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";
+  "w-full bg-zinc-100 border border-border focus:border-zinc-500 dark:bg-zinc-800 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";
 
 /**
  * Searchable company combobox: types into the existing `company` table
@@ -96,7 +96,7 @@ export function CompanyPicker({
           }}
         />
         {open ? (
-          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-[#432992] bg-white shadow-lg dark:bg-zinc-900">
+          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-white shadow-lg dark:bg-zinc-900">
             {loading ? (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-zinc-400">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
@@ -128,7 +128,7 @@ export function CompanyPicker({
         disabled={disabled || !canCreate}
         onClick={createNew}
         title={canCreate ? `Create "${trimmed}" as a new company` : "Type a new company name to create one"}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-[#432992] text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 disabled:opacity-40 dark:hover:text-zinc-300"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 disabled:opacity-40 dark:hover:text-zinc-300"
       >
         <Plus className="h-4 w-4" />
       </button>

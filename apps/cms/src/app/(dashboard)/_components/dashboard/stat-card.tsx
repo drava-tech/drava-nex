@@ -1,28 +1,23 @@
 import React from "react";
 import Link from "next/link";
 import { type LucideIcon } from "lucide-react";
-import { panelBorderStyle, textGradientStyle, type LiquidAccent } from "./liquid-glass";
 
-// Flat panel shell — no blur/shine/glow, just the border + hover lift.
-const CARD_SHELL = "relative overflow-hidden rounded-2xl border transition-all duration-200 hover:-translate-y-0.5";
+export type StatAccent = "blue" | "violet" | "amber" | "emerald" | "rose" | "slate";
 
-const CHIP: Record<LiquidAccent, string> = {
-  blue: "bg-blue-500/15 text-blue-300",
-  violet: "bg-violet-500/15 text-violet-300",
-  amber: "bg-amber-500/15 text-amber-300",
-  emerald: "bg-emerald-500/15 text-emerald-300",
-  rose: "bg-rose-500/15 text-rose-300",
-  slate: "bg-white/10 text-slate-300",
+// Flat panel shell — clean border + hover lift.
+const CARD_SHELL = "relative overflow-hidden rounded-2xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5";
+
+const CHIP: Record<StatAccent, string> = {
+  blue: "bg-blue-500/10 text-blue-500 dark:text-blue-400",
+  violet: "bg-violet-500/10 text-violet-500 dark:text-violet-400",
+  amber: "bg-amber-500/10 text-amber-500 dark:text-amber-400",
+  emerald: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400",
+  rose: "bg-rose-500/10 text-rose-500 dark:text-rose-400",
+  slate: "bg-muted text-muted-foreground",
 };
 
 /**
  * A headline figure with a one-line breakdown under it.
- *
- * There is deliberately no percentage-change chip any more. Nothing in this
- * platform records a historical count of screens, experiences, users or media,
- * so every "+12.5% vs last week" this card used to show was invented — and the
- * breakdown line, which was real, was never rendered at all. A true subtitle
- * beats a fabricated trend.
  */
 export interface DashboardStat {
   label: string;
@@ -34,7 +29,7 @@ export interface DashboardStat {
 interface StatCardProps {
   stat: DashboardStat;
   icon: LucideIcon;
-  accent?: LiquidAccent;
+  accent?: StatAccent;
   href?: string;
 }
 
@@ -45,14 +40,11 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardP
         <Icon className="h-4 w-4" />
       </div>
       <div className="relative z-10 space-y-0.5">
-        <p className="text-xl font-bold tabular-nums" style={textGradientStyle}>{stat.value}</p>
-        <p className="text-xs" style={textGradientStyle}>{stat.label}</p>
+        <p className="text-xl font-bold tabular-nums text-foreground">{stat.value}</p>
+        <p className="text-xs text-muted-foreground">{stat.label}</p>
       </div>
       {stat.breakdown && (
-        // mt-auto: grid items stretch to the tallest card, so without this a
-        // one-line subtitle floats mid-card next to a two-line one. Pinning
-        // them to the bottom keeps the four baselines level.
-        <span className="relative z-10 mt-auto text-[11px] leading-tight text-slate-400">
+        <span className="relative z-10 mt-auto text-[11px] leading-tight text-muted-foreground">
           {stat.breakdown}
         </span>
       )}
@@ -64,7 +56,6 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardP
       <Link
         href={href}
         className={`${CARD_SHELL} flex flex-col gap-3 p-4`}
-        style={panelBorderStyle("solid")}
       >
         {inner}
       </Link>
@@ -74,7 +65,6 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href }: StatCardP
   return (
     <div
       className={`${CARD_SHELL} flex flex-col gap-3 p-4`}
-      style={panelBorderStyle("solid")}
     >
       {inner}
     </div>

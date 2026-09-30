@@ -97,9 +97,10 @@ app.get('/health', async (c) => c.json(await buildHealthPayload()));
 app.get('/api/health', async (c) => c.json(await buildHealthPayload()));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+// Setup endpoint for first admin (must be before the catch-all auth handler)
+app.route('/api/auth/setup', setupRouter);
 // Better Auth handles /api/auth/* (sign-in/out, session, bearer, etc.).
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
-app.route('/api/auth/setup', setupRouter);
 
 // Every domain lives in its own router. Public reads and per-route guards are
 // defined inside each router; this file only composes them. Mounts are listed in

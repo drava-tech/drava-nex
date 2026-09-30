@@ -77,7 +77,7 @@ export function EditVisitorModal({ uuid, name, email, mergeTargets, onClose, onS
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[#432992] bg-white p-6 dark:bg-zinc-950"
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-white p-6 dark:bg-zinc-950"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">

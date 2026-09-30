@@ -22,7 +22,6 @@ import {
 } from "@/lib/dashboard-cache";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getActiveScreens } from "@/actions/screen-actions";
-import { panelBorderStyle } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import { StatCard } from "@/app/(dashboard)/_components/dashboard/stat-card";
 import { UptimeAreaChart } from "@/app/(dashboard)/_components/dashboard/uptime-area-chart";
 import { MediaTypeRatio } from "@/app/(dashboard)/_components/dashboard/media-type-ratio";
@@ -163,7 +162,7 @@ export default async function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2" style={panelBorderStyle("gradient")}>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle>Screen Uptime</CardTitle>
@@ -184,7 +183,7 @@ export default async function DashboardPage() {
             />
           </CardContent>
         </Card>
-        <Card style={panelBorderStyle("solid")}>
+        <Card>
           <CardHeader>
             <CardTitle>Media Ratio</CardTitle>
             <CardDescription>Videos, images, and documents</CardDescription>
@@ -197,7 +196,7 @@ export default async function DashboardPage() {
 
       {/* Operations row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2" style={panelBorderStyle("solid")}>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Screens</CardTitle>
             <CardDescription>Live status across your network</CardDescription>
@@ -209,7 +208,7 @@ export default async function DashboardPage() {
             />
           </CardContent>
         </Card>
-        <Card style={panelBorderStyle("solid")}>
+        <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Latest pushes and uploads</CardDescription>
@@ -222,7 +221,7 @@ export default async function DashboardPage() {
 
       {/* Storage row */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-3" style={panelBorderStyle("solid")}>
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Media Library</CardTitle>
             <CardDescription>Live storage totals and recent uploads</CardDescription>

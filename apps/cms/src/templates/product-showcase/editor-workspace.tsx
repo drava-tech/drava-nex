@@ -98,7 +98,7 @@ export function ProductShowcaseEditorWorkspace({
 
   return (
     <div className="flex h-screen w-screen flex-col bg-zinc-100 dark:bg-zinc-950">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#432992] bg-white px-4 dark:bg-zinc-900">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-4 dark:bg-zinc-900">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/experiences"
@@ -139,7 +139,7 @@ export function ProductShowcaseEditorWorkspace({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-[#432992] bg-white p-4 dark:bg-zinc-900">
+        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-white p-4 dark:bg-zinc-900">
           {/* Product picker */}
           <div className="flex flex-col gap-3">
             <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
@@ -152,7 +152,7 @@ export function ProductShowcaseEditorWorkspace({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products…"
-                className="w-full rounded-md border border-[#432992] bg-zinc-100 py-2 pl-8 pr-2.5 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-md border border-border bg-zinc-100 py-2 pl-8 pr-2.5 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
 

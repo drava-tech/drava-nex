@@ -52,7 +52,7 @@ export function WelcomeEditorWorkspace({
 
   return (
     <div className="flex h-screen w-screen flex-col bg-zinc-100 dark:bg-zinc-950">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#432992] bg-white px-4 dark:bg-zinc-900">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-4 dark:bg-zinc-900">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/experiences"
@@ -93,7 +93,7 @@ export function WelcomeEditorWorkspace({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-[#432992] bg-white p-4 dark:bg-zinc-900">
+        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-white p-4 dark:bg-zinc-900">
           <div className="flex flex-col gap-3">
             <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
               Headline
@@ -103,7 +103,7 @@ export function WelcomeEditorWorkspace({
               value={content.title}
               onChange={(e) => update({ title: e.target.value })}
               placeholder="Welcome to Tusker Digital Experience Center"
-              className="w-full rounded-md border border-[#432992] bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
+              className="w-full rounded-md border border-border bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
 
@@ -116,7 +116,7 @@ export function WelcomeEditorWorkspace({
               value={content.subtitle ?? ""}
               onChange={(e) => update({ subtitle: e.target.value })}
               placeholder="A short tagline"
-              className="w-full rounded-md border border-[#432992] bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
+              className="w-full rounded-md border border-border bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
 
@@ -125,7 +125,7 @@ export function WelcomeEditorWorkspace({
               Video
             </h2>
             {content.videoUrl ? (
-              <div className="group relative aspect-video overflow-hidden rounded-xl border border-[#432992]">
+              <div className="group relative aspect-video overflow-hidden rounded-xl border border-border">
                 <video src={content.videoUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                 <button
                   onClick={() => update({ videoAssetId: undefined, videoUrl: undefined })}
@@ -138,7 +138,7 @@ export function WelcomeEditorWorkspace({
             ) : (
               <button
                 onClick={() => setPickerOpen(true)}
-                className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#432992] py-8 text-zinc-400 transition-colors hover:border-zinc-400 hover:text-zinc-600 dark:hover:border-zinc-600 dark:hover:text-zinc-300"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-8 text-zinc-400 transition-colors hover:border-zinc-400 hover:text-zinc-600 dark:hover:border-zinc-600 dark:hover:text-zinc-300"
               >
                 <Film className="h-6 w-6" />
                 <span className="text-xs font-medium">Choose a video</span>
@@ -147,7 +147,7 @@ export function WelcomeEditorWorkspace({
             {content.videoUrl && (
               <button
                 onClick={() => setPickerOpen(true)}
-                className="rounded-md border border-[#432992] px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 Change video
               </button>

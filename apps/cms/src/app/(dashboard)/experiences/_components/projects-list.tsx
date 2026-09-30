@@ -51,7 +51,6 @@ import { reorderExperiences, deleteProject } from "@/actions/project-actions";
 import { assignExperienceTemplate } from "@/actions/experience-actions";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { TEMPLATE_KEYS, TEMPLATE_LABELS, type TemplateKey } from "@/lib/templates";
-import { GRADIENT_BORDER_IMAGE } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import type { Experience } from "@platform/db";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { activeScreensUpdated } from "@/store/screens-slice";
@@ -130,7 +129,7 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
         ref={setNodeRef}
         style={style}
         className={cn(
-          "group relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-[#0b0518] transition-all",
+          "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all",
           "hover:ring-2 hover:ring-sky-500 focus-within:ring-2 focus-within:ring-sky-500",
           dragEnabled && "cursor-grab active:cursor-grabbing"
         )}
@@ -147,13 +146,9 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") router.push(`/experiences/${proj.id}`);
           }}
-          style={{
-            background: `linear-gradient(to bottom right, #1c1033, #0a0518) padding-box, ${GRADIENT_BORDER_IMAGE} border-box`,
-            border: "1px solid transparent",
-          }}
-          className="relative flex aspect-[5/4] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl outline-none"
+          className="relative flex aspect-[5/4] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl outline-none bg-muted/40 hover:bg-muted/60 transition-colors"
         >
-          <span className="flex items-center gap-1.5 text-sm font-light text-violet-300">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
             {categoryLabel(category)}
           </span>
@@ -181,7 +176,7 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
                 type="button"
                 aria-label="Experience actions"
                 onPointerDown={(e) => e.stopPropagation()}
-                className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-[#432992] text-white/80 backdrop-blur-sm transition-colors hover:text-white"
+                className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-black/60 text-white/80 backdrop-blur-sm transition-colors hover:text-white hover:bg-black/80"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>

@@ -50,10 +50,7 @@ export function DashboardLayoutClient({
           browser's own document scroll moves everything (this header
           included) instead of a contained region, and no `sticky` element
           on any page below has a real scrolling ancestor to stick against. */}
-      <SidebarInset
-        className="h-svh overflow-hidden"
-        style={{ background: "linear-gradient(to bottom, #01001F, #000000)" }}
-      >
+      <SidebarInset className="h-svh overflow-hidden bg-background">
         <header className="flex h-auto shrink-0 items-center gap-2 border-b p-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-auto">
           <SidebarTrigger className="-ml-1 h-5 w-5 [&>svg]:size-4" />
           <Separator

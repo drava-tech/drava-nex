@@ -14,7 +14,7 @@ import {
 } from "@platform/ui/templates/flight-simulation";
 
 const FIELD_CLASS =
-  "w-full rounded-md border border-[#432992] bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100";
+  "w-full rounded-md border border-border bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100";
 
 const SECTION_CLASS =
   "text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400";
@@ -100,7 +100,7 @@ export function FlightSimulationEditorWorkspace({
 
   return (
     <div className="flex h-screen w-screen flex-col bg-zinc-100 dark:bg-zinc-950">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[#432992] bg-white px-4 dark:bg-zinc-900">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-4 dark:bg-zinc-900">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/experiences"
@@ -141,7 +141,7 @@ export function FlightSimulationEditorWorkspace({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-[#432992] bg-white p-4 dark:bg-zinc-900">
+        <aside className="flex w-[400px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-white p-4 dark:bg-zinc-900">
           <div className="flex flex-col gap-3">
             <h2 className={SECTION_CLASS}>Airport</h2>
             <select
@@ -247,7 +247,7 @@ export function FlightSimulationEditorWorkspace({
             rebuilds it while changing airport or speed does not — remounting
             WebGL on every keystroke would re-download ~37MB of geometry.
           */}
-          <div className="aspect-video w-full overflow-hidden rounded-xl border border-[#432992] bg-[#05070a]">
+          <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-[#05070a]">
             <FlightSimulationRenderer
               key={`${content.showHud}-${content.allowAirportSwitching}-${content.label}`}
               content={content}

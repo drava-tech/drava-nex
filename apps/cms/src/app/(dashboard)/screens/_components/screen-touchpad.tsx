@@ -208,7 +208,7 @@ export function ScreenTouchpad({ screenId, documentKind }: ScreenTouchpadProps) 
           onPointerMove={handleScrollPointerMove}
           onPointerUp={handleScrollPointerUp}
           onPointerCancel={handleScrollPointerUp}
-          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-[#432992] bg-zinc-200/60 py-6 dark:bg-zinc-950"
+          className="relative flex w-20 shrink-0 select-none flex-col items-center justify-between border-l border-border bg-zinc-200/60 py-6 dark:bg-zinc-950"
           style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
         >
           <ChevronUp className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
@@ -224,7 +224,7 @@ export function ScreenTouchpad({ screenId, documentKind }: ScreenTouchpadProps) 
         onPointerMove={handleHScrollPointerMove}
         onPointerUp={handleHScrollPointerUp}
         onPointerCancel={handleHScrollPointerUp}
-        className="relative flex h-20 shrink-0 select-none flex-row items-center justify-between border-t border-[#432992] bg-zinc-200/60 px-6 dark:bg-zinc-950"
+        className="relative flex h-20 shrink-0 select-none flex-row items-center justify-between border-t border-border bg-zinc-200/60 px-6 dark:bg-zinc-950"
         style={{ touchAction: "none", overscrollBehavior: "contain", cursor: "default" }}
       >
         <ChevronLeft className="h-4 w-4 text-zinc-400 dark:text-zinc-600" />
@@ -237,7 +237,7 @@ export function ScreenTouchpad({ screenId, documentKind }: ScreenTouchpadProps) 
           rather than shown disabled: the pad is used at arm's length on a
           tablet, and a greyed row there just reads as a broken control. */}
       {documentKind && (
-        <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-[#432992] dark:divide-white/10">
+        <div className="flex h-11 shrink-0 divide-x divide-zinc-300 border-t border-border dark:divide-white/10">
           <button
             type="button"
             onClick={() => zoom("out")}

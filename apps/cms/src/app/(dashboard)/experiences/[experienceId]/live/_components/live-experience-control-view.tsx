@@ -218,7 +218,7 @@ export function LiveExperienceControlView({
       {/* Mirror stage */}
       <div ref={stageRef} className="relative flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
         {showTouchpad ? (
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-[#432992] shadow-2xl">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl border-[3px] border-border shadow-2xl">
             <ScreenTouchpad screenId={deviceId} />
           </div>
         ) : (
@@ -233,8 +233,8 @@ export function LiveExperienceControlView({
               isFullscreen
                 ? "fixed inset-0 z-50 flex items-center justify-center bg-black"
                 : `relative w-full max-w-[1600px] aspect-[16/9] max-h-full overflow-hidden rounded-2xl border-[6px] shadow-2xl transition-[opacity,filter] ${online
-                  ? "border-[#432992] shadow-[0_0_60px_-15px_rgba(34,197,94,0.35)]"
-                  : "border-[#432992]/60 opacity-75 grayscale-[0.35]"
+                  ? "border-border shadow-[0_0_60px_-15px_rgba(34,197,94,0.35)]"
+                  : "border-border/60 opacity-75 grayscale-[0.35]"
                 }`
             }
           >

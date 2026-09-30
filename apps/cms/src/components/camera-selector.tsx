@@ -47,7 +47,7 @@ export function CameraSelector({ value, onChange, allowDefault = true }: CameraS
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 rounded-md border border-[#432992] bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
+          className="flex-1 rounded-md border border-border bg-zinc-100 px-2.5 py-2 text-sm text-zinc-900 outline-none focus:border-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
         >
           {allowDefault && <option value="">Screen default</option>}
           {CAMERAS.map((camera) => (
@@ -59,7 +59,7 @@ export function CameraSelector({ value, onChange, allowDefault = true }: CameraS
       </div>
 
       {value && (
-        <div className="flex items-center gap-2 rounded-md border border-[#432992] bg-zinc-50 px-2.5 py-2 text-[11px] dark:bg-zinc-900/60">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-zinc-50 px-2.5 py-2 text-[11px] dark:bg-zinc-900/60">
           <Camera className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
           <span className="font-medium text-zinc-600 dark:text-zinc-300">
             {liveStatus ? STATUS_COPY[liveStatus.status] : "No signal yet"}

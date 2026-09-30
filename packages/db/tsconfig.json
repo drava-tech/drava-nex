@@ -6,7 +6,7 @@
     "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/seed-*.ts"],
+  "exclude": ["src/seed-*.ts", "src/migrate-*.ts", "src/backfill-*.ts"],
   "references": [
     { "path": "../../packages/types" }
   ]

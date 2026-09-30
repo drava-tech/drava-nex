@@ -307,7 +307,7 @@ export function PushToScreenModal({
       aria-label={`Preview ${contentName}`}
     >
       <div
-        className={`flex h-full max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-[#432992] bg-white shadow-2xl dark:bg-[#0f0f0f] ${
+        className={`flex h-full max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl dark:bg-[#0f0f0f] ${
           preview ? "max-w-6xl lg:flex-row" : "max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -327,8 +327,8 @@ export function PushToScreenModal({
         )}
 
         {/* Screens + push pane */}
-        <div className={`flex w-full shrink-0 flex-col ${preview ? "border-t border-[#432992] lg:w-96 lg:border-l lg:border-t-0" : ""}`}>
-          <div className="flex items-start justify-between gap-3 border-b border-[#432992] p-5">
+        <div className={`flex w-full shrink-0 flex-col ${preview ? "border-t border-border lg:w-96 lg:border-l lg:border-t-0" : ""}`}>
+          <div className="flex items-start justify-between gap-3 border-b border-border p-5">
             <div className="min-w-0">
               <h2
                 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50"
@@ -451,7 +451,7 @@ export function PushToScreenModal({
               </p>
             )}
 
-            <div className="flex flex-col gap-2 border-t border-[#432992] p-4">
+            <div className="flex flex-col gap-2 border-t border-border p-4">
               {onSkip && (
                 <button
                   type="button"

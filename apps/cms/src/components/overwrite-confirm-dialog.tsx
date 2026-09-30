@@ -27,7 +27,7 @@ export function OverwriteConfirmDialog({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#432992] bg-white shadow-2xl dark:bg-[#0f0f0f]"
+        className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-white shadow-2xl dark:bg-[#0f0f0f]"
       >
         <div className="flex items-start gap-3 p-5">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
@@ -45,7 +45,7 @@ export function OverwriteConfirmDialog({
             </ul>
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#432992] p-4">
+        <div className="flex justify-end gap-2 border-t border-border p-4">
           <button
             type="button"
             onClick={onCancel}
