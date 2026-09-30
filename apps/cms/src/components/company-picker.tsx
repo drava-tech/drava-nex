@@ -96,13 +96,13 @@ export function CompanyPicker({
           }}
         />
         {open ? (
-          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-white shadow-lg dark:bg-zinc-900">
+          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-lg">
             {loading ? (
-              <div className="flex items-center gap-2 px-3 py-2 text-xs text-zinc-400">
+              <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
               </div>
             ) : results.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-zinc-400">
+              <div className="px-3 py-2 text-xs text-muted-foreground">
                 {trimmed ? "No matching companies." : "Type to search companies."}
               </div>
             ) : (
@@ -111,10 +111,10 @@ export function CompanyPicker({
                   key={company.id}
                   type="button"
                   onClick={() => select(company)}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-popover-foreground hover:bg-accent"
                 >
                   <span className="truncate">{company.name}</span>
-                  <span className="shrink-0 text-[11px] text-zinc-400">
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
                     {company.projectCount} {company.projectCount === 1 ? "project" : "projects"}
                   </span>
                 </button>

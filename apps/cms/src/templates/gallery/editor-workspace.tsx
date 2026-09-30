@@ -243,22 +243,22 @@ export function GalleryEditorWorkspace({
   const photos = normalizePhotos(page.photos);
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-zinc-100 dark:bg-zinc-950">
+    <div className="flex h-screen w-screen flex-col bg-background text-foreground">
       {/* Top bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-4 dark:bg-zinc-900">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 text-card-foreground">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/experiences"
-            className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             title="Back to experiences"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            <p className="truncate text-sm font-semibold text-foreground">
               {experience.name}
             </p>
-            <p className="truncate text-[11px] text-zinc-400">
+            <p className="truncate text-[11px] text-muted-foreground">
               Gallery · {page.name} ({activeIndex + 1}/{pages.length})
             </p>
           </div>
@@ -268,14 +268,14 @@ export function GalleryEditorWorkspace({
             href={`/preview/experiences/${experience.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground transition-colors hover:bg-secondary/80"
           >
             <ExternalLink className="h-3.5 w-3.5" /> View
           </a>
           <button
             onClick={save}
             disabled={isPending}
-            className="flex min-w-[84px] items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900"
+            className="flex min-w-[84px] items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -288,7 +288,7 @@ export function GalleryEditorWorkspace({
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-[400px] shrink-0 overflow-y-auto border-r border-border bg-white p-4 dark:bg-zinc-900">
+        <aside className="w-[400px] shrink-0 overflow-y-auto border-r border-border bg-card p-4 text-card-foreground">
           {/* ─── Pages ─────────────────────────────────────────────────── */}
           <div className="mb-3 flex items-center justify-between">
             <h2 className={`${SECTION_HEAD} mb-0`}>Pages</h2>

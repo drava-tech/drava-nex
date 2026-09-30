@@ -173,9 +173,9 @@ CardFooter.displayName = "CardFooter";
 // ==========================================
 export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
   const colors = {
-    online: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10",
-    offline: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10",
-    maintenance: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:bg-amber-400/10",
+    online: "bg-[#4DDD00]/10 text-[#4DDD00] border-[#4DDD00]/30",
+    offline: "bg-[#E21D3E]/10 text-[#E21D3E] border-[#E21D3E]/30",
+    maintenance: "bg-[#FF3000]/10 text-[#FF3000] border-[#FF3000]/30",
   };
 
   const statusLabel = {
@@ -195,10 +195,10 @@ export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
         className={cn(
           "h-1.5 w-1.5 rounded-full",
           status === "online"
-            ? "bg-emerald-500"
+            ? "bg-[#4DDD00]"
             : status === "offline"
-            ? "bg-rose-500"
-            : "bg-amber-500"
+            ? "bg-[#E21D3E]"
+            : "bg-[#FF2400]"
         )}
       />
       {statusLabel[status]}

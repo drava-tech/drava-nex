@@ -307,14 +307,14 @@ export function PushToScreenModal({
       aria-label={`Preview ${contentName}`}
     >
       <div
-        className={`flex h-full max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl dark:bg-[#0f0f0f] ${
+        className={`flex h-full max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl ${
           preview ? "max-w-6xl lg:flex-row" : "max-w-md"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Preview pane — omitted entirely when the caller has nothing to show. */}
         {preview && (
-          <div className="relative flex min-h-0 flex-1 items-center justify-center bg-zinc-950">
+          <div className="relative flex min-h-0 flex-1 items-center justify-center bg-background">
             {preview}
             <button
               onClick={onClose}
@@ -331,17 +331,17 @@ export function PushToScreenModal({
           <div className="flex items-start justify-between gap-3 border-b border-border p-5">
             <div className="min-w-0">
               <h2
-                className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50"
+                className="truncate text-base font-semibold text-foreground"
                 title={contentName}
               >
                 {contentName}
               </h2>
-              {subtitle && <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</div>}
+              {subtitle && <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div>}
             </div>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/10 dark:hover:text-white lg:flex"
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:flex"
             >
               <X className="h-4 w-4" />
             </button>
@@ -378,8 +378,8 @@ export function PushToScreenModal({
                         key={screen.screenId}
                         className={`flex items-center gap-1 rounded-lg pr-1 transition-colors ${
                           isSelected
-                            ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
-                            : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground hover:bg-accent"
                         }`}
                       >
                         <button
@@ -391,12 +391,12 @@ export function PushToScreenModal({
                           <span className="flex min-w-0 flex-1 items-center gap-2">
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e]" : "bg-zinc-400"
+                                isOnline ? "bg-[#4DDD00] shadow-[0_0_6px_#4DDD00]" : "bg-muted-foreground/40"
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">
                               <span className="block truncate font-medium">{screen.screenName}</span>
-                              <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">
+                              <span className="block truncate text-xs text-muted-foreground">
                                 {currentLabel(screen)}
                               </span>
                             </span>
@@ -414,7 +414,7 @@ export function PushToScreenModal({
                               onControl(screen);
                             }}
                             disabled={isRemoving}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-900 disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
                           >
                             <Radio className="h-4 w-4" />
                           </button>
@@ -429,7 +429,7 @@ export function PushToScreenModal({
                               handleRemove(screen);
                             }}
                             disabled={isRemoving || pushing}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-red-100 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                           >
                             {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                           </button>
@@ -440,12 +440,12 @@ export function PushToScreenModal({
                 </div>
               )}
               {needsSelection && !loadingScreens && screens.length > 0 && (
-                <p className="px-2 pt-2 text-xs font-semibold text-red-500">Select a screen to push to</p>
+                <p className="px-2 pt-2 text-xs font-semibold text-destructive">Select a screen to push to</p>
               )}
             </div>
 
             {error && (
-              <p className="mx-5 mb-2 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-500/10 dark:text-red-400">
+              <p className="mx-5 mb-2 flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
                 {error}
               </p>
@@ -456,7 +456,7 @@ export function PushToScreenModal({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="inline-flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+                  className="inline-flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {skipLabel}
                 </button>
@@ -464,7 +464,7 @@ export function PushToScreenModal({
               <button
                 onClick={handlePush}
                 disabled={pushing || screens.length === 0 || removingScreenId !== null}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {pushing ? (
                   <>
