@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createAdaptorServer } from '@hono/node-server';
 import { MQTTDeviceManager } from '@platform/iot';
-import { db, sql, resetAllScreensToIdle } from '@platform/db';
+import { db, sql } from '@platform/db';
 import { productsRouter } from './routes/products.js';
 import { portfolioRouter } from './routes/portfolio.js';
 import { companiesRouter } from './routes/companies.js';
@@ -16,8 +16,10 @@ import { devicesRouter } from './routes/devices.js';
 import { setMqttPublisher, setMqttManager, setIrManager } from './services/devices.js';
 import { startCasambiIngest } from './services/casambi-ingest.js';
 import { startIrIngest } from './services/ir-ingest.js';
+import { startHomeAssistantIngest } from './services/home-assistant-ingest.js';
 import { startGmailIngest } from './services/gmail-ingest.js';
-import { screensRouter, pushScreenContent } from './routes/screens.js';
+import { startScreenUptimeSampler } from './services/screen-uptime.js';
+import { screensRouter } from './routes/screens.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
 import { flightSimulationRouter } from './routes/flight-simulation.js';
@@ -30,10 +32,11 @@ import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
 import { auth } from './lib/auth.js';
-import { createGateway, getConnectedScreenIds, setScreenBlankState } from './ws/gateway.js';
+import { createGateway } from './ws/gateway.js';
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
 import { whiteboardsRouter } from './routes/whiteboards.js';
+import { ambientModesRouter } from './routes/ambient-modes.js';
 
 const app = new Hono();
 
@@ -68,6 +71,7 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
+startHomeAssistantIngest();
 void startGmailIngest();
 
 // ─── Health (public) ──────────────────────────────────────────────────────────
@@ -106,6 +110,7 @@ app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
 app.route('/api/flight-simulation', flightSimulationRouter);
 app.route('/api/internal', internalRouter);
+app.route('/api/ambient-modes', ambientModesRouter);
 app.route('/api/media', mediaRouter);
 app.route('/api/media/stream', mediaStreamRouter);
 app.route('/media', mediaFilesRouter);
@@ -155,55 +160,57 @@ httpServer.on('error', (err: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-// ─── Shutdown → reset screens to idle immediately ────────────────────────────
-// The DB reset at boot (below) only takes effect once a screen reconnects —
-// without this, a screen still connected when the app is closed just freezes
-// on whatever it was last showing until the app comes back. Push every
-// currently-connected screen to idle live, the same way an operator's
-// "reset to idle" button does (setScreenBlankState + pushScreenContent),
-// on top of the same DB reset so screens that are offline right now (or that
-// reconnect while the app is down) pick up idle on their next connect too.
+// ─── Crash containment ───────────────────────────────────────────────────────
+// Without these, ANY stray async throw anywhere in the process is fatal — and
+// because a restarting API used to reset every screen to idle, a single bad
+// HTTP response blanked every screen in the building. That is not theoretical:
+// an aborted media range request threw ERR_INVALID_STATE from inside a
+// microtask 46 times in one day (see fileWebStream in routes/media.ts), taking
+// the API down 25 times and interrupting a live presentation.
+//
+// Log and keep serving, deliberately. The textbook argument for exiting on an
+// uncaught exception is that process state may be corrupt; weighed against
+// every screen in an office going dark, staying up is the better failure mode
+// for this workload. These are logged loudly so they stay visible rather than
+// silently accumulating — a hit here is still a bug to fix.
+process.on('uncaughtException', (err: Error) => {
+  console.error('[fatal] uncaught exception (staying up):', err);
+});
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('[fatal] unhandled rejection (staying up):', reason);
+});
+
+// ─── Shutdown ────────────────────────────────────────────────────────────────
+// Screens are deliberately NOT reset to idle here any more. This used to wipe
+// every screen's assignment on the way down and again on the way up, so an
+// unattended crash-restart blanked the whole fleet. The database is the source
+// of truth and each screen re-syncs from it on reconnect (the gateway resolves
+// content on REGISTER, and LiveScreenPlayer re-fetches /api/screens/:id/config
+// whenever its socket reconnects), so a restart now costs a brief reconnect
+// instead of everyone's content.
 let shuttingDown = false;
-async function resetScreensAndExit(signal: string): Promise<void> {
+async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.info(`[shutdown] ${signal} received — resetting screens to idle`);
-  try {
-    await resetAllScreensToIdle();
-    await Promise.all(
-      getConnectedScreenIds().map(async (screenId) => {
-        setScreenBlankState(screenId, false);
-        await pushScreenContent(screenId);
-      })
-    );
-    console.info('[shutdown] all screens reset to idle');
-  } catch (err: unknown) {
-    console.error('[shutdown] failed to reset screens to idle:', err);
-  } finally {
-    process.exit(0);
-  }
+  console.info(`[shutdown] ${signal} received — closing`);
+  process.exit(0);
 }
 
-process.on('SIGINT', () => void resetScreensAndExit('SIGINT'));
-process.on('SIGTERM', () => void resetScreensAndExit('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
-// Every screen resets to idle on boot — see resetAllScreensToIdle. Runs
-// before the server starts accepting connections so no screen can register
-// over WS and get replayed stale content first. Best-effort: a failure here
-// shouldn't block the whole API from starting.
-resetAllScreensToIdle()
-  .then(() => console.info('[startup] all screens reset to idle'))
-  .catch((err: unknown) => console.error('[startup] failed to reset screens to idle:', err))
-  .finally(() => {
-    httpServer.listen(PORT, () => {
-      audioService.start();
-      console.info('');
-      console.info('┌─────────────────────────────────────────────────────────┐');
-      console.info('│          @platform/api  —  CMS Platform Gateway         │');
-      console.info('├─────────────────────────────────────────────────────────┤');
-      console.info(`│  HTTP  →  http://localhost:${PORT}                      │`);
-      console.info(`│  WS    →  ws://localhost:${PORT}/ws/                    │`);
-      console.info('└─────────────────────────────────────────────────────────┘');
-      console.info('');
-    });
-  });
+// Screens are NOT reset to idle on boot any more — see the shutdown comment
+// above. Each screen re-resolves its own content from the database when it
+// registers, so a restart restores what was playing instead of blanking it.
+httpServer.listen(PORT, () => {
+  audioService.start();
+  startScreenUptimeSampler();
+  console.info('');
+  console.info('┌─────────────────────────────────────────────────────────┐');
+  console.info('│          @platform/api  —  CMS Platform Gateway         │');
+  console.info('├─────────────────────────────────────────────────────────┤');
+  console.info(`│  HTTP  →  http://localhost:${PORT}                      │`);
+  console.info(`│  WS    →  ws://localhost:${PORT}/ws/                    │`);
+  console.info('└─────────────────────────────────────────────────────────┘');
+  console.info('');
+});

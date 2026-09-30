@@ -1,8 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Check, Search, Image as ImageIcon, Video, Loader2, Star, LayoutTemplate } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import {
+  X,
+  Check,
+  Search,
+  Image as ImageIcon,
+  Video,
+  Loader2,
+  Star,
+  LayoutTemplate,
+} from "lucide-react";
 import type { WsContent } from "@platform/types";
+import { mediaThumbnailSrc } from "@/lib/media-tiles";
 
 interface MediaItem {
   id: string;
@@ -11,6 +23,8 @@ interface MediaItem {
   url: string;
   size: string;
   date: string;
+  /** Small derived tile; null for videos and pre-backfill images. */
+  thumbnailUrl?: string | null;
 }
 
 /** One "Recently Opened" entry — either a media asset or an experience. */
@@ -37,11 +51,17 @@ interface ScreenAssignmentPickerProps {
 
 function formatFileSize(bytes: number | null): string {
   if (bytes === null) return "";
-  return bytes > 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
+  return bytes > 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 function formatPushedAt(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
 /** One media thumbnail card — shared by the Files and Recently Opened tabs. */
@@ -71,18 +91,33 @@ function MediaCard({
       {/* Thumbnail preview */}
       <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-[#432992]">
         {media.type === "video" ? (
-          <video src={media.url} className="w-full h-full object-cover" muted playsInline />
+          <video
+            src={media.url}
+            className="w-full h-full object-cover"
+            // Without this the browser buffers megabytes of every video in the
+            // grid just to draw a tile — same fix the media library already
+            // carries. "metadata" still paints the first frame.
+            preload="metadata"
+            muted
+            playsInline
+          />
         ) : (
           <img
-            src={media.url}
+            // The derived tile, not the original upload.
+            src={mediaThumbnailSrc(media)}
             alt={media.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
           />
         )}
         {/* Badge tag */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
-          {media.type === "video" ? <Video className="w-2.5 h-2.5" /> : <ImageIcon className="w-2.5 h-2.5" />}
+          {media.type === "video" ? (
+            <Video className="w-2.5 h-2.5" />
+          ) : (
+            <ImageIcon className="w-2.5 h-2.5" />
+          )}
           {media.type}
         </div>
         {/* Set-as-default toggle */}
@@ -101,14 +136,20 @@ function MediaCard({
                 : "bg-black/40 text-white/70 hover:text-white hover:bg-black/60"
             }`}
           >
-            <Star className="w-2.5 h-2.5" fill={isDefault ? "currentColor" : "none"} />
+            <Star
+              className="w-2.5 h-2.5"
+              fill={isDefault ? "currentColor" : "none"}
+            />
           </div>
         )}
       </div>
 
       {/* Title and metadata */}
       <div className="p-3 w-full flex flex-col gap-0.5">
-        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full" title={media.name}>
+        <h4
+          className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full"
+          title={media.name}
+        >
           {media.name}
         </h4>
         <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
@@ -126,9 +167,6 @@ function MediaCard({
   );
 }
 
-/** Recently-opened card for an experience — same shape/sizing as MediaCard
- * so the two can sit side by side in the same grid, but with a placeholder
- * icon instead of a thumbnail (experiences have no direct asset URL). */
 function ExperienceRecentCard({
   item,
   isActive,
@@ -155,7 +193,10 @@ function ExperienceRecentCard({
         </div>
       </div>
       <div className="p-3 w-full flex flex-col gap-0.5">
-        <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full" title={item.name}>
+        <h4
+          className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate w-full"
+          title={item.name}
+        >
           {item.name}
         </h4>
       </div>
@@ -178,28 +219,71 @@ export function ScreenAssignmentPicker({
   onSetDefault,
   onClose,
 }: ScreenAssignmentPickerProps) {
-  const [activeTab, setActiveTab] = useState<"experiences" | "files" | "recent">("experiences");
+  const [activeTab, setActiveTab] = useState<
+    "experiences" | "files" | "recent"
+  >("experiences");
   const [searchQuery, setSearchQuery] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [recentItems, setRecentItems] = useState<RecentContentItem[]>([]);
 
+  /** Keyset cursor for the next page of media, or null at the end of the list. */
+  const [mediaCursor, setMediaCursor] = useState<string | null>(null);
+  const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
+  /** Search runs on the server now, so a screen can be pointed at any asset in
+   *  the library — not only one that happened to be in the first page. */
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const mediaSeqRef = useRef(0);
+
+  /**
+   * One page of image/video assets. Type filtering and search are both applied
+   * by the API — this used to download the whole media library and discard
+   * every non-image/video row in the browser.
+   */
+  const loadMedia = useCallback(
+    async (cursor: string | null) => {
+      const seq = cursor === null ? ++mediaSeqRef.current : mediaSeqRef.current;
+      if (cursor === null) setLoadingMedia(true);
+      else setLoadingMoreMedia(true);
+      try {
+        const params = new URLSearchParams({
+          mode: "cursor",
+          limit: "48",
+          // Only image and video render on a screen.
+          types: "image,video",
+        });
+        if (debouncedSearch.trim())
+          params.set("search", debouncedSearch.trim());
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(`/api/media?${params.toString()}`);
+        const data = res.ok ? await res.json() : null;
+        if (seq !== mediaSeqRef.current) return;
+        const page: MediaItem[] = data?.media ?? [];
+        setMediaItems((prev) => (cursor === null ? page : [...prev, ...page]));
+        setMediaCursor(data?.nextCursor ?? null);
+      } catch (err) {
+        console.error("Failed to load media in picker:", err);
+      } finally {
+        if (seq === mediaSeqRef.current) {
+          setLoadingMedia(false);
+          setLoadingMoreMedia(false);
+        }
+      }
+    },
+    [debouncedSearch],
+  );
+
+  // Restart the walk when the tab opens, and whenever the search term settles.
   useEffect(() => {
-    if (activeTab === "files" && mediaItems.length === 0) {
-      setLoadingMedia(true);
-      fetch("/api/media")
-        .then((res) => res.json())
-        .then((data) => {
-          // Only show video and image files for screen display
-          const files = (data.media || []).filter(
-            (item: any) => item.type === "image" || item.type === "video"
-          );
-          setMediaItems(files);
-        })
-        .catch((err) => console.error("Failed to load media in picker:", err))
-        .finally(() => setLoadingMedia(false));
-    }
-  }, [activeTab, mediaItems.length]);
+    if (activeTab !== "files") return;
+    void loadMedia(null);
+  }, [activeTab, loadMedia]);
+
+  const mediaSentinelRef = useInfiniteScroll({
+    hasMore: mediaCursor !== null,
+    loading: loadingMedia || loadingMoreMedia,
+    onLoadMore: () => void loadMedia(mediaCursor),
+  });
 
   const [loadingRecentItems, setLoadingRecentItems] = useState(false);
 
@@ -213,18 +297,22 @@ export function ScreenAssignmentPicker({
     fetch(`/api/screens/${screenId}/recent-content`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        const items: RecentContentItem[] = (data.items || []).map((item: any) => ({
-          id: item.id,
-          kind: item.kind,
-          name: item.name,
-          type: item.type,
-          url: item.url,
-          size: formatFileSize(item.sizeBytes),
-          date: formatPushedAt(item.pushedAt),
-        }));
+        const items: RecentContentItem[] = (data.items || []).map(
+          (item: any) => ({
+            id: item.id,
+            kind: item.kind,
+            name: item.name,
+            type: item.type,
+            url: item.url,
+            size: formatFileSize(item.sizeBytes),
+            date: formatPushedAt(item.pushedAt),
+          }),
+        );
         setRecentItems(items);
       })
-      .catch((err) => console.error("Failed to load recent content for screen:", err))
+      .catch((err) =>
+        console.error("Failed to load recent content for screen:", err),
+      )
       .finally(() => setLoadingRecentItems(false));
   }, [activeTab, screenId]);
 
@@ -255,22 +343,28 @@ export function ScreenAssignmentPicker({
   };
 
   const filteredExperiences = experiences.filter((exp) =>
-    exp.title.toLowerCase().includes(searchQuery.toLowerCase())
+    exp.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const filteredMedia = mediaItems.filter((media) =>
-    media.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Already searched and type-filtered by the API.
+  const filteredMedia = mediaItems;
 
   const filteredRecentItems = recentItems.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleSelectRecent = (item: RecentContentItem) => {
     if (item.kind === "experience") {
       handleSelectExperience({ id: item.id, title: item.name });
     } else {
-      handleSelectMedia({ id: item.id, name: item.name, type: item.type, url: item.url ?? "", size: item.size, date: item.date });
+      handleSelectMedia({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        url: item.url ?? "",
+        size: item.size,
+        date: item.date,
+      });
     }
   };
 
@@ -282,9 +376,9 @@ export function ScreenAssignmentPicker({
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
-      {/* Dialog Panel */}
+      {/* Dialog Panel — ponytail: fixed h-[80vh] and max-w-5xl width prevents modal layout jumps on tab switch/filtering */}
       <div
-        className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden transition-all transform scale-100"
+        className="relative w-full max-w-5xl bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col h-[80vh] overflow-hidden transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -372,9 +466,9 @@ export function ScreenAssignmentPicker({
         {/* Dynamic List Content Panel */}
         <div className="flex-1 overflow-y-auto pr-1">
           {activeTab === "experiences" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {filteredExperiences.length === 0 ? (
-                <p className="col-span-3 text-center text-xs text-zinc-400 dark:text-zinc-600 py-12">
+                <p className="col-span-1 sm:col-span-3 md:col-span-4 text-center text-xs text-zinc-400 dark:text-zinc-600 py-12">
                   No experiences found matching "{searchQuery}"
                 </p>
               ) : (
@@ -424,7 +518,7 @@ export function ScreenAssignmentPicker({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {filteredMedia.map((media) => (
                     <MediaCard
                       key={media.id}
@@ -435,6 +529,17 @@ export function ScreenAssignmentPicker({
                       onSetDefault={onSetDefault}
                     />
                   ))}
+                </div>
+              )}
+              {/* Sentinel: the next page loads when this scrolls into view. */}
+              {!loadingMedia && mediaCursor && (
+                <div
+                  ref={mediaSentinelRef}
+                  className="flex justify-center py-4"
+                >
+                  {loadingMoreMedia && (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                  )}
                 </div>
               )}
             </div>
@@ -456,7 +561,7 @@ export function ScreenAssignmentPicker({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {filteredRecentItems.map((item) =>
                     item.kind === "experience" ? (
                       <ExperienceRecentCard
@@ -468,13 +573,20 @@ export function ScreenAssignmentPicker({
                     ) : (
                       <MediaCard
                         key={`media:${item.id}`}
-                        media={{ id: item.id, name: item.name, type: item.type, url: item.url ?? "", size: item.size, date: item.date }}
+                        media={{
+                          id: item.id,
+                          name: item.name,
+                          type: item.type,
+                          url: item.url ?? "",
+                          size: item.size,
+                          date: item.date,
+                        }}
                         isActive={currentContentLabel === item.name}
                         isDefault={currentDefaultMediaAssetId === item.id}
                         onSelect={() => handleSelectRecent(item)}
                         onSetDefault={onSetDefault}
                       />
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -485,4 +597,3 @@ export function ScreenAssignmentPicker({
     </div>
   );
 }
-

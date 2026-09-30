@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MonitorPlay, Radio, X, AlertCircle } from "lucide-react";
-import { getScreens, getActiveScreens } from "@/actions/screen-actions";
+import { getScreens } from "@/actions/screen-actions";
+import type { DocumentKind } from "@platform/types";
 import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { ControlChooserDialog } from "@/components/control-chooser-dialog";
 
-export interface ScreenRow {
-  screenId: string;
-  screenName: string;
-  currentContentKind: string | null;
-  currentExperienceId: string | null;
-  experienceName: string | null;
-  currentMediaAssetId: string | null;
-  mediaType: string | null;
-  mediaUrl: string | null;
-  mediaName: string | null;
-}
+/**
+ * Re-exported from the query that produces it so the five components importing
+ * `ScreenRow` from here keep working. It used to be re-declared by hand in
+ * three places, which drifted — this copy was missing `blanked` and
+ * `defaultMediaName` that the other two had. Prefer importing from
+ * "@platform/db" directly in new code.
+ */
+import type { ScreenRow } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchScreens } from "@/store/screens-thunks";
+export type { ScreenRow };
 
 interface PushToScreenModalProps {
   contentName: string;
@@ -30,7 +31,9 @@ interface PushToScreenModalProps {
    * caller's job, not this component's. */
   subtitle?: React.ReactNode;
   /** Caller owns the actual assign call (assignMedia / assignExperience / etc). */
-  onPush: (screenId: string) => Promise<void>;
+  /** Result is awaited but not inspected here — assignExperience/assignMedia
+   * resolve with a delivery count that only the publish board acts on. */
+  onPush: (screenId: string) => Promise<unknown>;
   /** Pre-selects a screen and skips it in the push loop — for "don't reset a
    * screen already showing this exact content" (Experiences only today). */
   isAlreadyShowing?: (screen: ScreenRow) => boolean;
@@ -43,6 +46,9 @@ interface PushToScreenModalProps {
    * touchpad (see LiveControlDialog for why). Omit for any other content type.
    */
   showTouchpad?: boolean;
+  /** Which document viewer this content opens, if any — passed straight
+   * through to LiveControlDialog for the touchpad's zoom row. */
+  documentKind?: DocumentKind | null;
   /** Set to push an ordered multi-item queue instead of a single piece of content. */
   queue?: QueuePushConfig;
   /**
@@ -116,6 +122,7 @@ export function PushToScreenModal({
   isAlreadyShowing,
   onSaveLink,
   showTouchpad,
+  documentKind,
   queue,
   onPushed,
   onControl,
@@ -123,8 +130,13 @@ export function PushToScreenModal({
   onSkip,
   skipLabel = "Skip",
 }: PushToScreenModalProps) {
-  const [screens, setScreens] = useState<ScreenRow[]>([]);
-  const [activeScreenIds, setActiveScreenIds] = useState<Set<string>>(new Set());
+  // Both come from the store, shared with every other surface that shows
+  // screens — so opening this modal reflects any change made elsewhere, and a
+  // push made here updates those surfaces without either side re-fetching.
+  const dispatch = useAppDispatch();
+  const screens = useAppSelector((st) => st.screens.rows);
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
+  const activeScreenIds = useMemo(() => new Set(storeActiveIds), [storeActiveIds]);
   const [loadingScreens, setLoadingScreens] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
@@ -138,10 +150,9 @@ export function PushToScreenModal({
   // Reusable so a successful Remove can refetch without duplicating the
   // mount-time pre-selection logic (which must stay mount-only, see below).
   const loadScreens = async (): Promise<ScreenRow[]> => {
-    const [screenRows, activeIds] = await Promise.all([getScreens(), getActiveScreens()]);
-    setScreens(screenRows);
-    setActiveScreenIds(new Set(activeIds));
-    return screenRows;
+    const rows = await getScreens();
+    await dispatch(fetchScreens());
+    return rows;
   };
 
   // Every screen in the system, for LiveControlDialog's "switch screen" dropdown.
@@ -265,6 +276,7 @@ export function PushToScreenModal({
         onSaveLink={onSaveLink}
         onClose={onClose}
         showTouchpad={showTouchpad}
+        documentKind={documentKind}
         queueMediaIds={queue?.mediaAssetIds}
         initialQueueIndex={queue?.startIndex ?? 0}
         onNavigateQueue={

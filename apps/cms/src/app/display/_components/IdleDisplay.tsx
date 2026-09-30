@@ -18,10 +18,12 @@ export function IdleDisplay({ screenId }: IdleDisplayProps) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/Logo.png"
+        src="/Logo.svg"
         alt="Logo"
         style={{
-          maxWidth: "30vw",
+          // Explicit width: an SVG has no intrinsic pixel size, so maxWidth
+          // alone would leave it at the browser's 300px default.
+          width: "30vw",
           maxHeight: "30vh",
           objectFit: "contain",
         }}

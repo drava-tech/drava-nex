@@ -226,11 +226,74 @@
   }
 }
 
-/* Slide-up reveal for the TV display when its content changes (idle video, Welcome,
-   any experience). Fixed + inset-0 so it still fills the viewport even though a
-   non-default transform briefly makes it a containing block for fixed-position
-   children (VideoRenderer/ImageRenderer render position: fixed internally). */
-@keyframes screen-content-reveal {
+/* ── TV content transition: PowerPoint-style "Push Up" ──────────────────────
+   Two stacked layers move in lockstep on a content change: the outgoing one is
+   carried off the top while the incoming one rises from the bottom edge.
+
+   Fixed + inset-0, and the transform is what makes the content move at all:
+   every renderer paints position: fixed INTERNALLY (VideoRenderer.tsx,
+   ImageRenderer.tsx, HtmlRenderer.tsx), so the layer has to become their
+   containing block or nothing would shift.
+
+   An ANIMATION held at animation-play-state: paused, NOT a transition. The
+   from-keyframe is in effect from the mount commit's first style resolution,
+   so there is no frame in which an armed layer could sit at its end position,
+   and un-pausing cannot be collapsed into the style flush that mounted it. A
+   transition needs a double-rAF for that and still loses the race when the
+   readiness signal arrives in the mounting commit — the same "class lands one
+   render late onto an already-running animation" failure that
+   LiveScreenPlayer's reveal-suppression comment documents. With this shape a
+   renderer may report ready whenever it likes, synchronously included.
+
+   The previous 600ms ease-in barely moved for its first half and read as a
+   delayed pop rather than a push. */
+:root {
+  /* Keep in step with PUSH_DURATION_MS in apps/cms/src/hooks/useContentTransition.ts,
+     which is what retires the outgoing layer if animationend never arrives.
+     700ms read as a flicker from across a showroom — on an 86" panel the eye
+     needs long enough to register that something travelled. */
+  --screen-push-duration: 1500ms;
+  --screen-push-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* No z-index and no transform at rest, deliberately: a positioned element with
+   a z-index creates a stacking context, which would trap VideoControlsOverlay
+   (z-40, rendered INSIDE VideoRenderer) below the display's sibling overlays.
+   The z-indexes below apply only while a push is actually in flight. */
+.screen-layer {
+  position: fixed;
+  inset: 0;
+}
+
+.screen-layer--in {
+  animation: screen-push-in var(--screen-push-duration) var(--screen-push-ease) forwards;
+  animation-play-state: paused;
+  will-change: transform;
+  z-index: 1;
+}
+
+.screen-layer--out {
+  animation: screen-push-out var(--screen-push-duration) var(--screen-push-ease) forwards;
+  animation-play-state: paused;
+  will-change: transform;
+  z-index: 0;
+  /* Pins the top edge so the layer flattens UPWARD. The default `center` origin
+     would collapse it toward the middle of the panel, opening black bands above
+     and below it and breaking the seam described on the keyframes below. */
+  transform-origin: top;
+  /* The outgoing layer is still live and still hit-testable while it flattens
+     away. A finger landing on it would drive a renderer that is one frame from
+     unmounting and — for video/YouTube — make it emit a SET_PLAYBACK that the
+     gateway files under the INCOMING content. One line here covers every
+     template at once, so no template has to learn what "outgoing" means. */
+  pointer-events: none;
+}
+
+.screen-layer--running {
+  animation-play-state: running;
+}
+
+@keyframes screen-push-in {
   from {
     transform: translateY(100%);
   }
@@ -239,18 +302,35 @@
   }
 }
 
-.screen-content-fade {
-  position: fixed;
-  inset: 0;
-  animation: screen-content-reveal 600ms ease-in;
+/* The outgoing layer does NOT travel — it flattens in place against the top
+   edge, like a blind rolling up, and the picture visibly squashes as it goes.
+   That distortion is the intended "squeeze"; cropping instead would need an
+   animated clip-path, which is not compositor-friendly for a <video>.
+
+   This is the exact complement of screen-push-in, so the two layers meet on a
+   single moving line with no gap and no overlap at any point:
+     incoming top edge    = (1 - p) x 100vh   (from translateY)
+     outgoing bottom edge = (1 - p) x 100vh   (from scaleY, origin top)
+   where p is the EASED progress. Those edges stay glued only because both
+   keyframes share one duration and one timing function. Giving this animation
+   its own easing or duration to "tune" it splits the seam and opens a black
+   band between the layers — keep both reading the custom properties above. */
+@keyframes screen-push-out {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
 }
 
-/* Applied when PublishDragOverlay already played this reveal live during a
-   drag-to-publish swipe — the real content is already in its final position
-   underneath by the time this div mounts, so replaying the slide would pop. */
-.screen-content-fade--no-anim {
-  animation: none;
-}
+/* Deliberately NO prefers-reduced-motion rule here. On Windows that query is
+   driven by the same Accessibility toggle that disables window animations, which
+   is routinely switched off on a kiosk host — and a rule here would kill the
+   transition on the wall itself, where there is no viewer for the setting to
+   protect. Reduced motion is honoured for CMS-side mirrors only, decided in
+   transition-config.ts, which skips arming rather than blanking the animation
+   out from under a layer that is already moving. */
 
 /* Hides the scrollbar on a scrollable container without disabling scrolling
    (used by the publish-board coverflow carousel). */

@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { listDevices, getDevice, upsertDevice, setDeviceState, type Device } from "@platform/db";
+import { listDevices, getDevice, upsertDevice, setDeviceState } from "@platform/db";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
-import { getDeviceDriver, getIrDriver } from "../services/devices.js";
+import { applyLightState, getDeviceDriver, getIrDriver, getCasambiDriver } from "../services/devices.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
 export const devicesRouter = new Hono();
@@ -17,17 +17,6 @@ const lightSchema = z.object({
 
 type LightStateInput = z.infer<typeof lightSchema>;
 
-/**
- * Drive one light's real hardware, persist the resulting state, and tell
- * both the CMS and UE about it. Shared by POST /lights/:id/state (one light)
- * and the scene-trigger branch below (fans this out over every target).
- */
-async function applyLightState(device: Device, state: LightStateInput) {
-  await getDeviceDriver(device).setLightState(device, state);
-  const updated = await setDeviceState(device.id, { ...(device.state ?? {}), ...state });
-  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
-  return updated;
-}
 
 const createModeSchema = z.object({
   name: z.string().min(1),
@@ -122,6 +111,26 @@ devicesRouter.post("/lights/:id/state", requireAdmin, async (c) => {
 
   const updated = await applyLightState(device, body);
   return ok(c, updated);
+});
+
+// POST /api/devices/lights/casambi-scene — recall a scene defined in the
+// Casambi network. Needed because a scene is the only thing that can change a
+// fixture's White/Colour balance; no direct MQTT command does.
+devicesRouter.post("/lights/casambi-scene", requireAdmin, async (c) => {
+  let body: { scene: number; level?: number };
+  try {
+    body = z
+      .object({ scene: z.number().int().min(1).max(255), level: z.number().int().min(0).max(255).optional() })
+      .parse(await c.req.json());
+  } catch (err) {
+    return fail(c, "VALIDATION", "Invalid request body", 400, (err as z.ZodError).issues);
+  }
+
+  const driver = getCasambiDriver();
+  if (!driver) return fail(c, "UNSUPPORTED", "Casambi driver not configured", 400);
+
+  await driver.triggerMeshScene(body.scene, body.level ?? 255);
+  return ok(c, { recalled: body.scene });
 });
 
 // POST /api/devices/lights/:id/identify — briefly flash the light so it can be

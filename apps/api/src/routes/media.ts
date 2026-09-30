@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import fs from "fs";
 import fsPromises from "fs/promises";
+import { Readable } from "node:stream";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
-import { classifyLink } from "@platform/types";
+import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { classifyLink, listMediaQuerySchema } from "@platform/types";
 import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
+import { generateThumbnail } from "../services/thumbnails.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
@@ -87,6 +89,9 @@ function toMediaItem(a: MediaAsset) {
     createdAt: new Date(a.createdAt).toISOString(),
     source: a.source, emailFrom: a.emailFrom, emailSubject: a.emailSubject,
     pendingSave: a.pendingSave,
+    // Null for videos, links, and any image predating the backfill — consumers
+    // resolve the fallback with mediaThumbnailSrc().
+    thumbnailUrl: a.thumbnailUrl,
   };
 }
 
@@ -118,15 +123,77 @@ export const mediaRouter = new Hono();
 
 // --- Reads ---
 
-// GET /api/media — list all media assets. ?source=email filters to just the
-// email-ingested ones (see apps/api/src/services/gmail-ingest.ts).
+// GET /api/media — paginated media listing, in one of two modes:
+//
+//   offset (default)  ?page=&pageSize=      → { media, total, page, pageSize }
+//   cursor            ?mode=cursor&cursor=&limit=  → { media, nextCursor }
+//
+// Cursor mode is what /broadcast's carousel uses: it scrolls forward through a
+// list that gains rows at the head (Gmail ingest, MEDIA_LIBRARY_UPDATED), and
+// an offset window would repeat or skip cards every time that happens.
+//
+// Filters (search, types, sources, dateFrom, dateTo) apply identically to both.
+// The response key stays `media` — this route is one of the legacy ad-hoc
+// shapes deliberately kept out of the {success,data} envelope so always-on
+// display clients don't break (see apps/api/src/lib/response.ts).
 mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
   try {
-    const source = c.req.query("source");
-    const assets = await listMediaAssets(source ? { source } : undefined);
-    return c.json({ media: assets.map(toMediaItem) });
+    const raw = { ...c.req.query() };
+    // Legacy alias: ?source=email was the single-value form of ?sources=.
+    if (raw["source"] && !raw["sources"]) raw["sources"] = raw["source"];
+
+    const parsed = listMediaQuerySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid media query", details: parsed.error.issues }, 400);
+    }
+    const query = parsed.data;
+
+    if (query.mode === "cursor") {
+      const { items, nextCursor } = await listMediaAssetsCursor(query);
+      return c.json({ media: items.map(toMediaItem), nextCursor });
+    }
+
+    const { items, total, page, pageSize } = await listMediaAssets(query);
+    return c.json({ media: items.map(toMediaItem), total, page, pageSize });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
+  }
+});
+
+// GET /api/media/stats — whole-library aggregates for the dashboard media
+// cards (total count, bytes stored, per-type ratio, additions this week, and
+// the newest few uploads).
+//
+// These are library-wide figures, so they cannot be derived from a page of the
+// listing above. This exists so the dashboard stops downloading every media row
+// on mount, on every WS reconnect and on every browser tab focus just to sum
+// sizeBytes in the browser — COUNT/SUM/GROUP BY return a handful of rows here
+// however large the library gets.
+mediaRouter.get("/stats", requireGuestOrAdmin, async (c) => {
+  try {
+    // Same filter set as the listing, so /broadcast can ask "which media types
+    // exist under my current source/date filter?" and get an answer that agrees
+    // with the rows the listing will hand it.
+    const parsed = listMediaQuerySchema.safeParse({ ...c.req.query() });
+    if (!parsed.success) {
+      return c.json({ error: "Invalid media query", details: parsed.error.issues }, 400);
+    }
+    const stats = await getMediaLibraryStats(parsed.data);
+    return c.json({
+      total: stats.total,
+      totalBytes: stats.totalBytes,
+      byType: stats.byType,
+      recentCount: stats.recentCount,
+      recent: stats.recent.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        sizeBytes: r.sizeBytes,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? "Failed to load media stats" }, 500);
   }
 });
 
@@ -245,13 +312,39 @@ uploadRouter.post("/", requireAdmin, async (c) => {
 
     // Server-generated filename — never trust the client name for the path.
     const storedName = `${randomUUID()}${classified.ext}`;
-    const bytes = await file.arrayBuffer();
-    await fsPromises.writeFile(path.join(UPLOAD_DIR, storedName), Buffer.from(bytes));
+    const destPath = path.join(UPLOAD_DIR, storedName);
+
+    // Buffered, deliberately — NOT `Readable.fromWeb(file.stream())`.
+    //
+    // That streaming form was tried and reverted: it is the mirror image of the
+    // serveMediaFile bug above (see fileWebStream). Consuming an undici File's
+    // web stream through Readable.fromWeb leaves undici trying to close a
+    // stream the pipeline already finished with, which throws
+    // ERR_INVALID_STATE in a microtask and takes the whole process down — and
+    // with it every screen in the building.
+    //
+    // Buffering costs memory, but the arithmetic is comfortable: the container
+    // is capped at 4 GB with --max-old-space-size=3072 against a 1 GiB upload
+    // ceiling, so a large upload fails its own request instead of the process.
+    // Genuinely streaming this needs a real multipart parser (busboy), not
+    // file.stream() — worth doing only if uploads actually grow.
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await fsPromises.writeFile(destPath, buffer);
 
     // Preserve a human-friendly display name (sanitized, never used as a path).
     const displayName = file.name.replace(/[^a-zA-Z0-9_.\- ]/g, "_").slice(0, 200) || storedName;
 
     const uploadedByUserId = (c.get("user" as never) as SessionUser | undefined)?.id;
+
+    // Images get a small WebP tile so the media grid and the broadcast carousel
+    // stop downloading multi-megabyte originals to paint ~200px thumbnails.
+    // Best-effort by contract: null here just means consumers fall back to the
+    // original, so a sharp failure can never cost the user their upload. Done
+    // before the insert so the row is written once, already complete.
+    const thumbnailUrl =
+      classified.type === "image"
+        ? await generateThumbnail(UPLOAD_DIR, storedName, buffer)
+        : null;
 
     const asset = await createMediaAsset({
       type: classified.type,
@@ -259,6 +352,7 @@ uploadRouter.post("/", requireAdmin, async (c) => {
       name: displayName,
       sizeBytes: file.size,
       source: "upload",
+      thumbnailUrl,
       ...(uploadedByUserId ? { uploadedByUserId } : {}),
     });
     broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
@@ -297,6 +391,38 @@ function resolveWithin(dir: string, fileName: string): string | null {
 // Shared range-aware file responder. Checks UPLOAD_DIR (runtime uploads) first,
 // then falls back to SEED_MEDIA_DIR (baked-in template imagery) — both are
 // addressed by the same /media/<file> URL scheme.
+/**
+ * A file as a real web ReadableStream, safe to hand to `Response`.
+ *
+ * This used to be `new Response(fs.createReadStream(p) as unknown as ReadableStream)`.
+ * That cast silenced the type error without fixing anything: `Response` here is
+ * undici's, and it expects a WEB stream, not a Node one. When a client aborted
+ * mid-response — which an Android <video> does constantly as it scrubs and as
+ * tiles scroll out of view — undici tried to close a controller the Node stream
+ * had already ended and threw ERR_INVALID_STATE from inside a microtask, where
+ * nothing can catch it. The process exited.
+ *
+ * That was not theoretical: it crashed the API 46 times in one day, and because
+ * the API reset every screen to idle on boot, each crash blanked every screen in
+ * the building — including one mid-presentation.
+ *
+ * `Readable.toWeb` produces a genuine web stream, and its `cancel()` destroys the
+ * underlying handle, so an aborted request closes the fd instead of leaking it.
+ */
+function fileWebStream(
+  filePath: string,
+  range?: { start: number; end: number }
+): ReadableStream<Uint8Array> {
+  const nodeStream = range
+    ? fs.createReadStream(filePath, { start: range.start, end: range.end })
+    : fs.createReadStream(filePath);
+  // A read error (file deleted mid-stream, disk issue) must not become an
+  // unhandled 'error' event on the raw stream either — surface it through the
+  // web stream so the request fails instead of the process.
+  nodeStream.on("error", () => nodeStream.destroy());
+  return Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
+}
+
 function serveMediaFile(
   c: import("hono").Context,
   fileName: string,
@@ -321,20 +447,23 @@ function serveMediaFile(
         status: 416, headers: { "Content-Range": `bytes */${fileSize}` },
       });
     }
-    const stream = fs.createReadStream(resolved, { start, end });
-    return new Response(stream as unknown as ReadableStream, {
+    return new Response(fileWebStream(resolved, { start, end }), {
       status: 206,
       headers: {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
         "Accept-Ranges": "bytes",
         "Content-Length": String(end - start + 1),
         "Content-Type": mimeType,
+        // Must be set on the 206 path too, not just the full-file one below:
+        // a <video> element fetches almost exclusively by range, so a
+        // cache-control that only covers 200 responses never applies to the
+        // content that actually benefits from it.
+        ...(cacheControl ? { "Cache-Control": cacheControl } : {}),
       },
     });
   }
 
-  const stream = fs.createReadStream(resolved);
-  return new Response(stream as unknown as ReadableStream, {
+  return new Response(fileWebStream(resolved), {
     headers: {
       "Content-Length": String(fileSize),
       "Content-Type": mimeType,
@@ -370,9 +499,17 @@ mediaStreamRouter.get("/", async (c) => {
 // images/video with no session, same as /display.
 export const mediaFilesRouter = new Hono();
 
+// Uploaded files are stored under a freshly-generated uuid name and never
+// rewritten in place — a re-upload produces a different URL — so a given
+// /media/<uuid>.<ext> is immutable for its whole life, exactly like the
+// code-shipped assets below. Without this a signage screen re-downloaded the
+// entire file on every push and every reload; for the 150 MB clips in this
+// library that is the difference between an instant cut and a visible stall.
+const UPLOAD_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 mediaFilesRouter.get("/:filename", async (c) => {
   const fileName = path.basename(c.req.param("filename"));
-  return serveMediaFile(c, fileName);
+  return serveMediaFile(c, fileName, UPLOAD_CACHE_CONTROL);
 });
 
 // Subdirectories holding large static assets that ship WITH the code (3D models,

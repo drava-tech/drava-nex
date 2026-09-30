@@ -76,4 +76,3 @@ This document details the core technologies, libraries, and frameworks utilized 
 | `@platform/db` | Drizzle client, schema, migrations, `checkDatabaseHealth()` |
 | `@platform/iot` | MQTT device manager wrapper |
 | `@platform/ui` | React component library (shadcn-style, Tailwind v4) |
-| `@platform/config` | Shared ESLint + TypeScript base configs (JSON exports, no build) |

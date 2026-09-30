@@ -14,13 +14,29 @@ import { ok, fail } from "../lib/response.js";
 import { getCatalog } from "../services/flight-catalog.js";
 import { currentSeed, generateRoster } from "../services/flight-generator.js";
 import { resolveLocation } from "../services/flight-locations.js";
-import { presignR2Get, readR2Config, resolveVideoKey } from "../services/flight-video.js";
+import { presignR2Get, readR2Config, resolveVideoKey, artExists } from "../services/flight-video.js";
+import { ART_CATALOG, type ArtEntry } from "@platform/types";
 
 export const flightSimulationRouter = new Hono();
 
 // GET /api/flight-simulation/airports — the selectable airport + carrier catalog.
 flightSimulationRouter.get("/airports", (c) => {
   return ok(c, getCatalog());
+});
+
+// GET /api/flight-simulation/arts — output art catalog with availability flags.
+flightSimulationRouter.get("/arts", async (c) => {
+  // `available` is a real bucket probe, not allowlist membership: ids for
+  // renders nobody has uploaded yet are reserved below in VIDEO_KEYS, and the
+  // CMS greys those out rather than letting an operator push a clip that would
+  // arrive on the wall as the fallback render.
+  const arts = await Promise.all(
+    ART_CATALOG.map(async (art: ArtEntry) => ({
+      ...art,
+      available: await artExists(art.id),
+    }))
+  );
+  return ok(c, arts);
 });
 
 // GET /api/flight-simulation/flights?airport=BLR&limit=24&seed=123

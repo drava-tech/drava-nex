@@ -12,7 +12,6 @@ interface UseScreenCursorControlReturn {
   click: (button?: "left" | "right") => void;
   scroll: (deltaY: number) => void;
   scrollHorizontal: (deltaX: number) => void;
-  zoom: (direction: "in" | "out") => void;
 }
 
 /**
@@ -97,10 +96,5 @@ export function useScreenCursorControl(screenId: string): UseScreenCursorControl
     [send, screenId]
   );
 
-  const zoom = useCallback(
-    (direction: "in" | "out") => send({ type: "CURSOR_CONTROL", screenId, action: "zoom", direction }),
-    [send, screenId]
-  );
-
-  return { agentOnline, moveCursor, click, scroll, scrollHorizontal, zoom };
+  return { agentOnline, moveCursor, click, scroll, scrollHorizontal };
 }

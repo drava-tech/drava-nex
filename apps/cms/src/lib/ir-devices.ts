@@ -7,7 +7,7 @@
  *
  * ⚠️ The uuids below are placeholders. Register each IR device once via
  * `pnpm --filter @platform/api seed:ir` and paste the returned row ids here —
- * same flow as apps/cms/src/lib/casambi-zones.ts.
+ * same flow as apps/cms/src/lib/casambi-lights.ts.
  */
 
 export interface IrDeviceConfig {
@@ -18,8 +18,8 @@ export interface IrDeviceConfig {
 
 /** The air-conditioner wired to the environment Climate panel. */
 export const IR_AC: IrDeviceConfig = {
-  uuid: "93f84fcf-4ed3-4d83-81b3-0a88c2cafbd6",
-  deviceId: "d73ea59a396b84072boahv", // ponytail: using Experience AC
+  uuid: "b7481310-8761-4cd3-be02-d1c67e305d9f",
+  deviceId: "d7b20d1b6760571b8b0cnw", // "Experience Centre AC" under hub Smart IR
   irDevice: "ac",
 };
 
@@ -32,8 +32,8 @@ export const IR_AC_CONFIGURED = !IR_AC.uuid.startsWith("REPLACE_");
 
 /**
  * Non-AC codebook remotes rendered in the Remotes overlay. `keys` are the exact
- * key names configured under `remotes:` in CrabController's config.yaml (and
- * harvested via scripts/harvest_codes.py) — each becomes the `command` sent.
+ * key names from the Tuya codebook for the remote — each becomes the `command`
+ * sent through the API's Tuya Cloud IR driver (apps/api/src/services/ir-driver.ts).
  */
 export interface IrRemoteConfig extends IrDeviceConfig {
   label: string;

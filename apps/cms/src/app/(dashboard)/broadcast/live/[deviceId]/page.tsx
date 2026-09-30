@@ -36,7 +36,18 @@ export default async function BroadcastLivePage({ params }: PageProps) {
         defaultMediaAssetId: row.defaultMediaAssetId,
         defaultMediaName: row.defaultMediaName,
       }}
-      initialContent={content ? { id: content.id, type: content.type } : null}
+      initialContent={
+        content
+          ? {
+              id: content.id,
+              type: content.type,
+              source: content.source,
+              templateKey: content.templateKey,
+              experienceId: content.type === "experience" ? content.id : undefined,
+              templateContent: content.templateContent,
+            }
+          : null
+      }
       backHref="/broadcast"
     />
   );

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Centered, resolveSource } from "../../_components/viewer-common";
 import { connectFrameBridge, type FrameBridge } from "@/lib/display/frame-bridge";
+import { ZOOM_IN, ZOOM_OUT, clampZoom, stepZoom } from "@/lib/display/zoom-protocol";
 
 /** Minimal shape of the pdf.js pieces this viewer drives. */
 interface PdfPageProxy {
@@ -19,75 +19,127 @@ interface PdfDocumentProxy {
 }
 
 /**
- * Absolute view state. Offsets are NORMALIZED fractions of the rendered page,
- * never pixels: the TV and the CMS mirror render at different sizes, so pixel
- * offsets would desync them, and a remembered view would break on a
- * resolution change. `src` travels with the value and is checked on apply,
- * because the parent's replay buffer is keyed by command name rather than by
- * content — a leftover view from a previously-shown PDF must not be applied
- * to this one.
+ * Absolute view state. Offsets are NORMALIZED fractions, never pixels: the TV
+ * and the CMS mirror render at different sizes, so pixel offsets would desync
+ * them, and a remembered view would break on a resolution change. `src`
+ * travels with the value and is checked on apply, because the parent's replay
+ * buffer is keyed by command name rather than by content — a leftover view
+ * from a previously-shown PDF must not be applied to this one.
+ *
+ * This viewer scrolls continuously rather than paging, so:
+ *   page — the page currently at the TOP of the viewport
+ *   oy   — how far INTO that page the viewport has scrolled (0..1)
+ *
+ * The gateway caches and replays SET_PDF_VIEW verbatim (see viewStateCache in
+ * apps/api/src/ws/gateway.ts) without ever reading inside the value, so a
+ * position remembered under an older shape still restores correctly here —
+ * any extra keys it carries are simply never read.
  */
 interface PdfView {
   src: string;
   page: number;
-  zoom: number;
-  ox: number;
   oy: number;
+  /**
+   * Magnification over fit-to-width, 1 = fit. Optional so a value cached by
+   * the gateway before zoom existed still restores (the replay is verbatim and
+   * never read into) — clampZoom turns a missing or corrupt one back into 1.
+   */
+  zoom?: number;
 }
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 4;
-const ZOOM_FACTOR = 1.1;
-/** Matches SlidesViewer's resize debounce — a re-render is the expensive part. */
-const RENDER_DEBOUNCE_MS = 200;
 const EMIT_THROTTLE_MS = 200;
 /** Beyond 2 the extra pixels are invisible but the canvas cost is not. */
 const MAX_DPR = 2;
-/** ~8.4M px. Zoom 4 on a 4K screen at dpr 2 would otherwise ask for a canvas
- * no embedded player can allocate. */
+/** ~8.4M px. A tall page fit to a 4K screen at dpr 2 would otherwise ask for
+ * a canvas no embedded player can allocate. */
 const MAX_CANVAS_PIXELS = 2 ** 23;
 const CONTROLS_IDLE_MS = 3000;
+/** Gutter between pages, in CSS px — the visual cue that says "new page". */
+const PAGE_GAP = 12;
+/** Pages kept rendered beyond the viewport on each side. One is enough to
+ * cover a fast fling without holding a whole document's canvases in memory. */
+const OVERSCAN = 1;
+/**
+ * Hard ceiling on how many pages may be mounted at once.
+ *
+ * The window below is derived from what fits on screen, which was self-limiting
+ * while fit-to-width was the minimum zoom — a handful of pages. Zoomed out to
+ * 10%, a whole 200-page document is "visible", and each mounted page allocates
+ * its own canvas. MAX_CANVAS_PIXELS caps the size of one canvas but nothing
+ * capped the count, so the far end of that range is an out-of-memory crash on
+ * the kiosk. Pages past this render as their blank white box, which is what an
+ * unrendered page already looks like on the way in.
+ */
+const MAX_RENDERED_PAGES = 40;
+/** A programmatic scroll fires `scroll` asynchronously; ignore our own echo
+ * for this long so restoring a position doesn't re-emit it. */
+const SCROLL_ECHO_MS = 200;
+/** A "page down" keeps a sliver of the previous screen for continuity. */
+const VIEWPORT_STEP = 0.92;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-/** How far the page may be panned before its edge would pull into view. */
-function panBounds(zoom: number, containerW: number, containerH: number, pageW: number, pageH: number) {
-  const renderedW = containerW * zoom;
-  const renderedH = (renderedW / pageW) * pageH;
-  return {
-    maxX: renderedW > containerW ? 1 - containerW / renderedW : 0,
-    maxY: renderedH > containerH ? 1 - containerH / renderedH : 0,
-    renderedW,
-    renderedH,
-  };
+interface PageSize {
+  w: number;
+  h: number;
+}
+
+/** Where every page sits in the scrolling column. */
+interface Layout {
+  tops: number[];
+  heights: number[];
+  total: number;
+}
+
+const EMPTY_LAYOUT: Layout = { tops: [], heights: [], total: 0 };
+
+/** Index of the page containing `offset`, by binary search over page tops. */
+function pageIndexAt(layout: Layout, offset: number): number {
+  if (layout.tops.length === 0) return 0;
+  let lo = 0;
+  let hi = layout.tops.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if ((layout.tops[mid] ?? 0) <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 export function PdfViewer() {
   const params = useSearchParams();
   const src = params.get("src");
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<PdfDocumentProxy | null>(null);
-  const renderTaskRef = useRef<{ cancel(): void } | null>(null);
-  const pageSizeRef = useRef({ w: 1, h: 1 });
   const bridgeRef = useRef<FrameBridge | null>(null);
   /** False on the CMS mirror. Only the authoritative instance answers a delta
-   * command with an absolute SET_PDF_VIEW, or one remote zoom gets answered twice. */
+   * command with an absolute SET_PDF_VIEW, or one remote step gets answered twice. */
   const authoritativeRef = useRef(true);
   const lastEmitRef = useRef(0);
   const emitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingViewRef = useRef<PdfView | null>(null);
+  /** The most recent inbound SET_PDF_VIEW, kept even while the document is
+   * still downloading — the postMessage that carries it lands long before
+   * pdf.js finishes fetching and parsing, so without this the load would have
+   * nothing left to restore from. */
+  const pendingRestoreRef = useRef<PdfView | null>(null);
+  /** Set while we move the scroll position ourselves, so the resulting
+   * `scroll` event isn't mistaken for the user and echoed back out. */
+  const suppressUntilRef = useRef(0);
 
   const [numPages, setNumPages] = useState(0);
-  /** Intrinsic page size. Mirrored into a ref for synchronous reads inside
-   * event handlers, but held in state too so the canvas box re-lays-out
-   * once the first page reveals the real aspect ratio. */
-  const [pageSize, setPageSize] = useState({ w: 1, h: 1 });
-  const [view, setView] = useState<PdfView>({ src: src ?? "", page: 1, zoom: 1, ox: 0, oy: 0 });
-  /** Backing-store zoom — trails `view.zoom` by the debounce, so a gesture is
-   * instant (CSS) and only the settled state pays for a re-render. */
-  const [renderedZoom, setRenderedZoom] = useState(1);
+  /** Intrinsic size per page. Seeded from page 1 for the whole document and
+   * corrected per page as each one actually renders — asking pdf.js for all N
+   * pages up front would turn `disableAutoFetch` into N network round-trips,
+   * and virtually every real document is uniformly sized anyway. */
+  const [pageSizes, setPageSizes] = useState<PageSize[]>([]);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [view, setView] = useState<PdfView>({ src: src ?? "", page: 1, oy: 0 });
+  /** A view the scroll container must be moved to once layout allows it —
+   * a restore, or a resize re-anchor. */
+  const [pendingScroll, setPendingScroll] = useState<PdfView | null>(null);
+  const [range, setRange] = useState({ start: 0, end: -1 });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [controlsVisible, setControlsVisible] = useState(false);
@@ -95,9 +147,40 @@ export function PdfViewer() {
   const viewRef = useRef(view);
   viewRef.current = view;
 
+  // ─── Layout ───────────────────────────────────────────────────────────────
+
+  const zoom = clampZoom(view.zoom);
+  /**
+   * Fit-to-width times the zoom factor.
+   *
+   *   = 1  the column IS the container, scrollLeft stays pinned at 0 and the
+   *        viewer is purely vertical
+   *   > 1  the column overhangs and pans horizontally too
+   *   < 1  the column is narrower than the container and is centred in it
+   *        (see `margin: 0 auto` on the column below)
+   */
+  const columnWidth = containerSize.w > 0 ? containerSize.w * zoom : 0;
+
+  const layout = useMemo<Layout>(() => {
+    if (pageSizes.length === 0 || columnWidth === 0) return EMPTY_LAYOUT;
+    const tops: number[] = [];
+    const heights: number[] = [];
+    let y = 0;
+    for (const size of pageSizes) {
+      const h = size.w > 0 ? (columnWidth / size.w) * size.h : 0;
+      tops.push(y);
+      heights.push(h);
+      y += h + PAGE_GAP;
+    }
+    return { tops, heights, total: Math.max(0, y - PAGE_GAP) };
+  }, [pageSizes, columnWidth]);
+
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+
   // ─── Emitting our position ────────────────────────────────────────────────
 
-  /** Throttled with a guaranteed trailing emit — a wheel-pan would otherwise
+  /** Throttled with a guaranteed trailing emit — a scroll would otherwise
    * flood the socket and thrash the gateway's LRU cache. Always sends the
    * newest value: `viewRef` still holds the previous one at this point,
    * because React has not re-rendered yet. */
@@ -123,7 +206,7 @@ export function PdfViewer() {
   const applyView = useCallback((updater: (prev: PdfView) => PdfView, emit = true) => {
     setView((prev) => {
       const next = updater(prev);
-      if (next.page === prev.page && next.zoom === prev.zoom && next.ox === prev.ox && next.oy === prev.oy) {
+      if (next.page === prev.page && next.oy === prev.oy && next.zoom === prev.zoom) {
         return prev;
       }
       if (emit) emitView(next);
@@ -149,6 +232,8 @@ export function PdfViewer() {
     (async () => {
       setLoading(true);
       setError(null);
+      setPageSizes([]);
+      setRange({ start: 0, end: -1 });
       try {
         // Imported lazily so pdf.js never lands in the shared bundle — this
         // route is the only thing that needs it. The `legacy` build is
@@ -177,10 +262,38 @@ export function PdfViewer() {
           void doc.destroy();
           return;
         }
+
+        if (doc.numPages === 0) {
+          pdfRef.current = doc;
+          setNumPages(0);
+          return;
+        }
+
+        // Page 1's size seeds the whole column so the scrollbar has a sane
+        // extent before anything has rendered.
+        const first = await doc.getPage(1);
+        const base = first.getViewport({ scale: 1 });
+        first.cleanup();
+        if (cancelled) {
+          void doc.destroy();
+          return;
+        }
+
         pdfRef.current = doc;
         setNumPages(doc.numPages);
-        setView({ src: source, page: 1, zoom: 1, ox: 0, oy: 0 });
-        setRenderedZoom(1);
+        setPageSizes(Array.from({ length: doc.numPages }, () => ({ w: base.width, h: base.height })));
+
+        // Resume where this document was left off, if the gateway replayed a
+        // position for it while we were still loading. Anything else — a
+        // first-ever view, or a stale position belonging to a different file —
+        // starts at the top.
+        const restore = pendingRestoreRef.current;
+        const initial: PdfView =
+          restore && restore.src === source
+            ? { src: source, page: clamp(restore.page, 1, doc.numPages), oy: restore.oy }
+            : { src: source, page: 1, oy: 0 };
+        setView(initial);
+        setPendingScroll(initial);
       } catch (err) {
         if (cancelled) return;
         const e = err as { name?: string; status?: number; message?: string };
@@ -194,8 +307,6 @@ export function PdfViewer() {
 
     return () => {
       cancelled = true;
-      renderTaskRef.current?.cancel();
-      renderTaskRef.current = null;
       if (emitTimerRef.current) clearTimeout(emitTimerRef.current);
       emitTimerRef.current = null;
       void pdfRef.current?.destroy();
@@ -203,170 +314,137 @@ export function PdfViewer() {
     };
   }, [src]);
 
-  // ─── Render the current page at the settled zoom ──────────────────────────
+  // ─── Scroll position ⇄ view state ─────────────────────────────────────────
 
-  const renderPage = useCallback(async () => {
-    const doc = pdfRef.current;
-    const container = containerRef.current;
-    const canvas = canvasRef.current;
-    if (!doc || !container || !canvas) return;
+  /** Which pages to keep rendered. Cheap enough to run on every scroll: it
+   * binary-searches to the first visible page and walks forward from there,
+   * so cost is proportional to what's on screen, not to the document. */
+  const updateRange = useCallback(() => {
+    const el = scrollRef.current;
+    const l = layoutRef.current;
+    if (!el || l.tops.length === 0) return;
+    const top = el.scrollTop;
+    const bottom = top + el.clientHeight;
+    const first = pageIndexAt(l, top);
+    let last = first;
+    while (last + 1 < l.tops.length && (l.tops[last + 1] ?? 0) <= bottom) last++;
+    const start = Math.max(0, first - OVERSCAN);
+    // Capped, not just clipped to the document: see MAX_RENDERED_PAGES. Counted
+    // forward from `start` so the pages the reader is actually looking at are
+    // the ones that get rendered.
+    const end = Math.min(l.tops.length - 1, last + OVERSCAN, start + MAX_RENDERED_PAGES - 1);
+    setRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+  }, []);
 
-    const containerW = container.clientWidth;
-    if (containerW === 0) return;
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateRange();
+    revealControls();
+    // Our own programmatic scroll — applying it again would be a no-op, but
+    // emitting it would echo a restore straight back to the gateway.
+    if (Date.now() < suppressUntilRef.current) return;
 
-    renderTaskRef.current?.cancel();
-    renderTaskRef.current = null;
+    const l = layoutRef.current;
+    if (l.tops.length === 0) return;
+    const i = pageIndexAt(l, el.scrollTop);
+    const height = l.heights[i] || 1;
+    const oy = clamp((el.scrollTop - (l.tops[i] ?? 0)) / height, 0, 1);
+    applyView((prev) => ({ ...prev, page: i + 1, oy }));
+  }, [applyView, revealControls, updateRange]);
 
-    try {
-      const page = await doc.getPage(viewRef.current.page);
-      const base = page.getViewport({ scale: 1 });
-      pageSizeRef.current = { w: base.width, h: base.height };
-      setPageSize((prev) =>
-        prev.w === base.width && prev.h === base.height ? prev : { w: base.width, h: base.height }
-      );
+  // Move the container to a requested view, once there's a layout to resolve
+  // it against. Deferred through state rather than done inline because a
+  // restore can arrive before the document has loaded, and a resize re-anchor
+  // has to wait for the new layout to be computed.
+  useEffect(() => {
+    if (!pendingScroll) return;
+    const el = scrollRef.current;
+    if (!el || layout.tops.length === 0) return;
 
-      // Fit to width, then scale up by the settled zoom, capped so a large
-      // page at high zoom degrades to a softer render rather than failing to
-      // allocate.
-      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-      let scale = (containerW / base.width) * renderedZoom * dpr;
-      const px = base.width * scale * base.height * scale;
-      if (px > MAX_CANVAS_PIXELS) scale *= Math.sqrt(MAX_CANVAS_PIXELS / px);
+    const i = clamp(pendingScroll.page, 1, layout.tops.length) - 1;
+    const top = (layout.tops[i] ?? 0) + pendingScroll.oy * (layout.heights[i] ?? 0);
 
-      const viewport = page.getViewport({ scale });
+    suppressUntilRef.current = Date.now() + SCROLL_ECHO_MS;
+    el.scrollTo({ top });
+    setPendingScroll(null);
+    updateRange();
+  }, [pendingScroll, layout, updateRange]);
 
-      // Render into a detached canvas and blit it, so assigning width/height
-      // (which implicitly clears) never shows as a flash of blank page.
-      const off = document.createElement("canvas");
-      off.width = Math.floor(viewport.width);
-      off.height = Math.floor(viewport.height);
-      const offCtx = off.getContext("2d");
-      if (!offCtx) return;
+  // Keep the window in step with a layout change that didn't come from a
+  // scroll (first render, a page correcting its own height).
+  useEffect(() => {
+    updateRange();
+  }, [layout, updateRange]);
 
-      const task = page.render({ canvasContext: offCtx, viewport });
-      renderTaskRef.current = task;
-      await task.promise;
-      renderTaskRef.current = null;
+  // A zoom change re-lays-out the column at a new width, so the raw scrollTop
+  // now points at a different part of the document — re-anchor on the page and
+  // offset that were actually being read, the same way the resize observer
+  // does. Also re-centres horizontally, since the overhang the zoom just
+  // created would otherwise leave the reader pinned to the left edge.
+  const prevZoomRef = useRef(zoom);
+  useEffect(() => {
+    if (prevZoomRef.current === zoom) return;
+    prevZoomRef.current = zoom;
+    setPendingScroll(viewRef.current);
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+  }, [zoom]);
 
-      canvas.width = off.width;
-      canvas.height = off.height;
-      canvas.getContext("2d")?.drawImage(off, 0, 0);
-      page.cleanup();
-    } catch (err) {
-      // A cancelled render is the normal result of zooming or paging quickly.
-      if ((err as { name?: string })?.name === "RenderingCancelledException") return;
-      setError("Could not read this PDF");
-    }
-  }, [renderedZoom]);
+  // ─── Sizing ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (loading || error) return;
-    void renderPage();
-  }, [renderPage, view.page, loading, error]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      setContainerSize((prev) => {
+        if (prev.w === w && prev.h === h) return prev;
+        // The column is about to be re-laid-out at a new width, which would
+        // leave the raw scrollTop pointing somewhere else entirely — re-anchor
+        // on the page we were actually reading.
+        if (prev.w !== 0) setPendingScroll(viewRef.current);
+        return { w, h };
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    measure();
+    return () => observer.disconnect();
+  }, []);
 
-  // Settle zoom into the backing store after the gesture stops.
-  useEffect(() => {
-    if (view.zoom === renderedZoom) return;
-    const timer = setTimeout(() => setRenderedZoom(view.zoom), RENDER_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [view.zoom, renderedZoom]);
-
-  // Re-render on resize. Cheap relative to load: the parsed document is held
-  // in a ref, so nothing is re-downloaded or re-parsed.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const observer = new ResizeObserver(() => {
-      clearTimeout(timer);
-      timer = setTimeout(() => void renderPage(), RENDER_DEBOUNCE_MS);
+  /** A page reporting the size it really is, once rendered. */
+  const handleMeasured = useCallback((pageNumber: number, w: number, h: number) => {
+    setPageSizes((prev) => {
+      const i = pageNumber - 1;
+      const current = prev[i];
+      if (!current || (current.w === w && current.h === h)) return prev;
+      const next = prev.slice();
+      next[i] = { w, h };
+      return next;
     });
-    observer.observe(container);
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [renderPage]);
+  }, []);
 
-  // ─── Navigation, zoom, pan ────────────────────────────────────────────────
+  // ─── Stepping ─────────────────────────────────────────────────────────────
 
-  const goToPage = useCallback((page: number, emit = true) => {
-    const total = pdfRef.current?.numPages ?? 0;
-    if (total === 0) return;
-    // Clamp rather than wrap: a document has an end, unlike a looping deck.
-    const next = clamp(page, 1, total);
+  /** One screenful, the way PageDown behaves in any reader — there are no
+   * page buttons in a continuously scrolling viewer to snap to instead. */
+  const stepViewport = useCallback((direction: 1 | -1) => {
+    const el = scrollRef.current;
+    if (!el) return;
     revealControls();
-    // Offsets reset on a page change, but zoom is kept — zooming back out on
-    // every page turn is not how a reader behaves.
-    applyView((prev) => ({ ...prev, page: next, ox: 0, oy: 0 }), emit);
-  }, [applyView, revealControls]);
-
-  const zoomBy = useCallback((factor: number, emit = true) => {
-    revealControls();
-    applyView((prev) => {
-      const zoom = clamp(prev.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-      const container = containerRef.current;
-      if (!container) return { ...prev, zoom };
-      const { w, h } = pageSizeRef.current;
-      const b = panBounds(zoom, container.clientWidth, container.clientHeight, w, h);
-      // Keep the viewport centre fixed while zooming.
-      const centreX = prev.ox + (1 / prev.zoom) * 0.5;
-      const centreY = prev.oy + (1 / prev.zoom) * 0.5;
-      return {
-        ...prev,
-        zoom,
-        ox: clamp(centreX - (1 / zoom) * 0.5, 0, b.maxX),
-        oy: clamp(centreY - (1 / zoom) * 0.5, 0, b.maxY),
-      };
-    }, emit);
-  }, [applyView, revealControls]);
-
-  const panBy = useCallback((dx: number, dy: number, emit = true) => {
-    revealControls();
-    applyView((prev) => {
-      const container = containerRef.current;
-      if (!container) return prev;
-      const { w, h } = pageSizeRef.current;
-      const b = panBounds(prev.zoom, container.clientWidth, container.clientHeight, w, h);
-      return { ...prev, ox: clamp(prev.ox + dx, 0, b.maxX), oy: clamp(prev.oy + dy, 0, b.maxY) };
-    }, emit);
-  }, [applyView, revealControls]);
-
-  // Wheel: ctrl zooms, plain scrolls/pans. Deliberately NOT gated on zoom > 1
-  // the way SlidesViewer is — at fit-width a portrait page is taller than the
-  // screen, so vertical travel exists at zoom 1 and is exactly what the
-  // touchpad's scroll strip drives. `{ passive: false }` so preventDefault
-  // actually suppresses WebView2's own page zoom.
-  useEffect(() => {
-    const onWheel = (e: WheelEvent) => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      if (e.ctrlKey) {
-        e.preventDefault();
-        zoomBy(e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR);
-        return;
-      }
-      if (e.deltaX === 0 && e.deltaY === 0) return;
-
-      const { w, h } = pageSizeRef.current;
-      const b = panBounds(viewRef.current.zoom, container.clientWidth, container.clientHeight, w, h);
-      if (b.maxX === 0 && b.maxY === 0) return;
-      e.preventDefault();
-      panBy(e.deltaX / b.renderedW, e.deltaY / b.renderedH);
-    };
-    window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
-  }, [zoomBy, panBy]);
+    el.scrollBy({ top: direction * el.clientHeight * VIEWPORT_STEP, behavior: "smooth" });
+  }, [revealControls]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "PageDown") goToPage(viewRef.current.page + 1);
-      else if (e.key === "ArrowLeft" || e.key === "PageUp") goToPage(viewRef.current.page - 1);
+      if (e.key === "ArrowRight" || e.key === "PageDown") stepViewport(1);
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") stepViewport(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goToPage]);
+  }, [stepViewport]);
 
   // ─── Remote commands ──────────────────────────────────────────────────────
 
@@ -376,14 +454,19 @@ export function PdfViewer() {
         authoritativeRef.current = !preview;
       },
       onCommand: (command, value) => {
-        if (command === "NEXT_PAGE") goToPage(viewRef.current.page + 1);
-        else if (command === "PREV_PAGE") goToPage(viewRef.current.page - 1);
-        else if (command === "PDF_ZOOM") {
-          const dir = (value as { direction?: string } | undefined)?.direction;
-          zoomBy(dir === "out" ? 1 / ZOOM_FACTOR : ZOOM_FACTOR);
-        } else if (command === "PDF_PAN") {
-          const v = (value as { dx?: number; dy?: number } | undefined) ?? {};
-          panBy(v.dx ?? 0, v.dy ?? 0);
+        if (command === "NEXT_PAGE") stepViewport(1);
+        else if (command === "PREV_PAGE") stepViewport(-1);
+        else if (command === ZOOM_IN || command === ZOOM_OUT) {
+          // A delta, like NEXT_PAGE — the resulting absolute view is emitted
+          // as SET_PDF_VIEW by applyView, and the gateway caches that so the
+          // document comes back at this zoom next time it's pushed. At the
+          // clamp limits stepZoom returns the same factor, applyView
+          // short-circuits, and nothing is emitted.
+          revealControls();
+          applyView((prev) => ({
+            ...prev,
+            zoom: stepZoom(prev.zoom, command === ZOOM_IN ? "in" : "out"),
+          }));
         } else if (command === "SET_PDF_VIEW") {
           const v = value as PdfView | undefined;
           if (!v || typeof v.page !== "number") return;
@@ -391,9 +474,15 @@ export function PdfViewer() {
           // parent's replay buffer is keyed by command, not by content.
           const source = resolveSource(src);
           if (v.src && source && v.src !== source) return;
+          const next: PdfView = { ...v, src: v.src || source || "" };
+          // Held for the load effect too: this may well arrive before pdf.js
+          // has finished, in which case applying it now would be undone by
+          // the fresh state the load sets up.
+          pendingRestoreRef.current = next;
+          setPendingScroll(next);
           // emit: false — this IS the echo of our own state, or another
           // client's; re-emitting it would loop.
-          applyView((prev) => ({ ...prev, page: v.page, zoom: v.zoom, ox: v.ox, oy: v.oy }), false);
+          applyView(() => next, false);
         }
       },
     });
@@ -402,7 +491,7 @@ export function PdfViewer() {
       bridge.disconnect();
       bridgeRef.current = null;
     };
-  }, [goToPage, zoomBy, panBy, applyView, src]);
+  }, [stepViewport, applyView, revealControls, src]);
 
   // ─── Auto-hiding chrome ───────────────────────────────────────────────────
 
@@ -422,30 +511,57 @@ export function PdfViewer() {
     };
   }, [revealControls]);
 
-  const showControls = numPages > 1 && !loading && !error;
-  const { renderedW, renderedH } = panBounds(
-    view.zoom,
-    containerRef.current?.clientWidth ?? 0,
-    containerRef.current?.clientHeight ?? 0,
-    pageSize.w,
-    pageSize.h
-  );
+  // Zoomed counts as worth showing even on a one-page document: the readout is
+  // the only feedback that a remote zoom landed at all.
+  const showControls = (numPages > 1 || zoom !== 1) && !loading && !error;
 
   return (
     <div className="fixed inset-0 bg-[#0a0a0a] text-zinc-100">
-      {/* Static clip boundary pinned to the viewport, with the page transformed
-          inside it — so zooming never spills past the screen and the display
-          page's own overflow lockdown can stay fully on. */}
-      <div ref={containerRef} className="absolute inset-0 overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          className="absolute left-0 top-0 origin-top-left"
+      {/* Signage must never show a scrollbar. Hidden here rather than pushed
+          off-screen by HtmlRenderer's width overhang, which would scale and
+          then crop the content itself — see isExactFitViewer there. */}
+      <style>{`.pdf-scroll::-webkit-scrollbar { display: none; }`}</style>
+
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="pdf-scroll absolute inset-0 overflow-auto"
+        style={{ scrollbarWidth: "none", overscrollBehavior: "none" }}
+      >
+        {/* The full column, sized up front from page 1 so the scroll extent is
+            right before anything has rendered. Only the pages near the
+            viewport actually exist in the DOM. */}
+        <div
           style={{
-            width: renderedW ? `${renderedW}px` : "100%",
-            height: renderedH ? `${renderedH}px` : "auto",
-            transform: `translate3d(${-view.ox * renderedW}px, ${-view.oy * renderedH}px, 0)`,
+            position: "relative",
+            width: columnWidth || "100%",
+            height: layout.total,
+            // Below fit-to-width the column is NARROWER than the container, so
+            // without this it sits hard against the left edge with dead space
+            // beside it. Above 100% the column overhangs and this is a no-op.
+            margin: "0 auto",
           }}
-        />
+        >
+          {pageSizes.map((_, i) =>
+            i >= range.start && i <= range.end ? (
+              <PageSlot
+                key={i}
+                doc={pdfRef.current}
+                pageNumber={i + 1}
+                top={layout.tops[i] ?? 0}
+                width={columnWidth}
+                height={layout.heights[i] ?? 0}
+                // Re-rendered at the zoomed width rather than CSS-scaled, so
+                // zooming in actually resolves more detail instead of
+                // magnifying the same pixels. PageSlot's own MAX_CANVAS_PIXELS
+                // cap keeps a tall page at a high zoom from failing to
+                // allocate.
+                renderWidth={columnWidth}
+                onMeasured={handleMeasured}
+              />
+            ) : null
+          )}
+        </div>
       </div>
 
       {loading && <Centered>Loading PDF…</Centered>}
@@ -454,29 +570,111 @@ export function PdfViewer() {
 
       {showControls && (
         <div
-          className={`absolute bottom-4 left-4 flex items-center gap-3 rounded-full border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-sm transition-opacity duration-300 ${
-            controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+          className={`pointer-events-none absolute bottom-4 left-4 rounded-full border border-white/10 bg-black/60 px-4 py-2 backdrop-blur-sm transition-opacity duration-300 ${
+            controlsVisible ? "opacity-100" : "opacity-0"
           }`}
         >
-          <button
-            onClick={() => goToPage(view.page - 1)}
-            aria-label="Previous page"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-zinc-400">
+          <span className="text-sm tabular-nums text-zinc-400">
             {view.page} / {numPages}
+            {zoom !== 1 && ` · ${Math.round(zoom * 100)}%`}
           </span>
-          <button
-            onClick={() => goToPage(view.page + 1)}
-            aria-label="Next page"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One page of the column. Mounted only while it is near the viewport, so its
+ * canvas — the expensive part — is allocated on approach and released on the
+ * way out, which is what lets a several-hundred-page document scroll at all.
+ */
+function PageSlot({
+  doc,
+  pageNumber,
+  top,
+  width,
+  height,
+  renderWidth,
+  onMeasured,
+}: {
+  doc: PdfDocumentProxy | null;
+  pageNumber: number;
+  top: number;
+  width: number;
+  height: number;
+  /** Backing-store width in CSS px, before the device-pixel-ratio scale-up. */
+  renderWidth: number;
+  onMeasured: (pageNumber: number, w: number, h: number) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const taskRef = useRef<{ cancel(): void } | null>(null);
+
+  useEffect(() => {
+    if (!doc || renderWidth <= 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const page = await doc.getPage(pageNumber);
+        if (cancelled) {
+          page.cleanup();
+          return;
+        }
+        const base = page.getViewport({ scale: 1 });
+        onMeasured(pageNumber, base.width, base.height);
+
+        // Fit to the column, capped so a very tall page degrades to a softer
+        // render rather than failing to allocate.
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        let scale = (renderWidth / base.width) * dpr;
+        const px = base.width * scale * base.height * scale;
+        if (px > MAX_CANVAS_PIXELS) scale *= Math.sqrt(MAX_CANVAS_PIXELS / px);
+        const viewport = page.getViewport({ scale });
+
+        // Render into a detached canvas and blit it, so assigning width/height
+        // (which implicitly clears) never shows as a flash of blank page.
+        const off = document.createElement("canvas");
+        off.width = Math.floor(viewport.width);
+        off.height = Math.floor(viewport.height);
+        const offCtx = off.getContext("2d");
+        if (!offCtx) return;
+
+        const task = page.render({ canvasContext: offCtx, viewport });
+        taskRef.current = task;
+        await task.promise;
+        taskRef.current = null;
+        if (cancelled) {
+          page.cleanup();
+          return;
+        }
+
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = off.width;
+          canvas.height = off.height;
+          canvas.getContext("2d")?.drawImage(off, 0, 0);
+        }
+        page.cleanup();
+      } catch (err) {
+        // A cancelled render is the normal result of scrolling quickly.
+        // Anything else is left as a blank page rather than taken as
+        // a reason to blank the whole document — one unreadable page in a long
+        // PDF should not cost the reader the other 200.
+        if ((err as { name?: string })?.name === "RenderingCancelledException") return;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      taskRef.current?.cancel();
+      taskRef.current = null;
+    };
+  }, [doc, pageNumber, renderWidth, onMeasured]);
+
+  return (
+    <div style={{ position: "absolute", top, left: 0, width, height, backgroundColor: "#fff" }}>
+      <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />
     </div>
   );
 }

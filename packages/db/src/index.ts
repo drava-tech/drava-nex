@@ -12,6 +12,9 @@ export * from "./schema/index.js";
 // ─── Queries ──────────────────────────────────────────────────────────────────
 export * from "./queries/screens.js";
 export * from "./queries/screen-content-history.js";
+export * from "./queries/screen-uptime.js";
+export * from "./queries/dashboard-activity.js";
+export * from "./queries/dashboard-stats.js";
 export * from "./queries/experiences.js";
 export * from "./queries/experience-types.js";
 export * from "./queries/media.js";
@@ -24,6 +27,6 @@ export * from "./queries/door-events.js";
 export * from "./queries/whiteboards.js";
 export * from "./queries/portfolio.js";
 export * from "./queries/companies.js";
-
+export * from "./queries/ambient-mode.js";
 // ─── Drizzle Utilities ────────────────────────────────────────────────────────
 export { sql, eq, and, or, gt, gte, lt, lte, ne, inArray, count, isNull, isNotNull } from "drizzle-orm";

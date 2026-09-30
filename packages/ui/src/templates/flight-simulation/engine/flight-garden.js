@@ -28,6 +28,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+import { findArt } from "../art-catalog";
 import { buildDom } from "./dom";
 import "./flight-garden.css";
 
@@ -84,8 +85,16 @@ const ui = dom.ui;
 const canvas = dom.canvas;
 const labelLayer = dom.labelLayer;
 
-if (options.showHud === false) dom.root.classList.add("fg-no-hud");
-if (options.allowAirportSwitching === false) dom.root.classList.add("fg-no-switching");
+/**
+ * CMS: the authored chrome flags. Re-applied whenever the CMS pushes fresh
+ * templateContent (see setOptions) — an operator toggling the HUD has to change
+ * the screen that is already running, not just the next one that boots.
+ */
+function applyChrome() {
+  dom.root.classList.toggle("fg-no-hud", options.showHud === false);
+  dom.root.classList.toggle("fg-no-switching", options.allowAirportSwitching === false);
+}
+applyChrome();
 
 /**
  * CMS: the standalone app served its feeds from its own origin as /api/wind,
@@ -1211,6 +1220,19 @@ function hueForTemp(tempC, anchors) {
 }
 
 /**
+ * The anchors above are absolute rotations away from the source clip's own red.
+ * Map a data source onto a render that is not red and every band lands on the
+ * wrong colour, so subtract that render's native hue to get the rotation this
+ * particular clip needs. Wrapped into (-0.5, 0.5] so the shader takes the short
+ * way around the wheel — the same reason the 40C anchor is written negative.
+ */
+function rebaseHue(turns, nativeHueTurns = 0) {
+  let delta = turns - nativeHueTurns;
+  delta -= Math.round(delta);
+  return delta;
+}
+
+/**
  * CMS: every route on this API answers in the repo-wide envelope,
  * `{ success, data }` on success and `{ success: false, error: { message } }`
  * on failure — see apps/api/src/lib/response.ts. Upstream's endpoints returned
@@ -1797,7 +1819,20 @@ async function setGardenVideo(videoId, { allowFallback = true } = {}) {
    ================================================================= */
 
 let activeSceneId = null;
+let selectedArtId = options.artId ?? null;
 let scenePollTimer = null;
+
+/**
+ * CMS: the scene / airport a cut is heading for while its 300ms veil is down,
+ * or null when nothing is in flight. Both cuts are asynchronous, so during that
+ * window the HUD's setting and what is rendered disagree — these hold the
+ * setting. currentView() reports them (the other clients need the destination,
+ * not the frame being left), and switchScene/switchAirport compare against them
+ * so the gateway's echo of a relayed view lands as a no-op instead of starting
+ * a second, overlapping cut.
+ */
+let pendingSceneId = null;
+let pendingAirportCode = null;
 
 /** Last values a scene's apply() returned, for the HUD to render. */
 let sceneReadout = {};
@@ -1853,7 +1888,8 @@ function sceneContext(scene) {
       const thermal = scene.art.thermal;
       if (!thermal) return null;
 
-      livingGarden?.setHueShift(hueForTemp(value, thermal.anchors));
+      const nativeHue = findArt(selectedArtId ?? scene.art.videoId)?.nativeHueTurns ?? 0;
+      livingGarden?.setHueShift(rebaseHue(hueForTemp(value, thermal.anchors), nativeHue));
 
       const labels = thermal.labels ?? [];
       const band = labels.find((b) => value <= b.upTo) ?? labels[labels.length - 1] ?? null;
@@ -1966,7 +2002,8 @@ async function activateScene(sceneId) {
   // it which band to show, so it opens on the middle of the range rather
   // than flashing a clip it is about to replace.
   if (scene.art.mode === "single") {
-    await setGardenVideo(scene.art.videoId);
+    const targetVideo = selectedArtId ?? scene.art.videoId;
+    await setGardenVideo(targetVideo);
 
     // A thermal-tinted scene opens unshifted — the render's own native
     // colour — rather than guessing a band. It's an instant no-op default
@@ -3476,12 +3513,21 @@ function seedDeparture() {
   b.mesh.position.copy(b.position);
 }
 
+/**
+ * CMS: authored simulationSpeed scales the current airport's own traffic level.
+ * The concurrent-flight ceiling stays derived from the base intensity, so a fast
+ * setting arrives more often rather than overcrowding the gates. Split out of
+ * seedAirport so a live speed change applies without reseeding the field.
+ */
+function applyIntensity() {
+  const meta = AIRPORTS[sim.code];
+  if (!meta) return;
+  sim.intensity = meta.intensity * (options.simulationSpeed ?? 1);
+}
+
 function seedAirport(code) {
   sim.code = code;
-  // CMS: authored simulationSpeed scales the airport's own traffic level. The
-  // concurrent-flight ceiling stays derived from the base intensity, so a fast
-  // setting arrives more often rather than overcrowding the gates.
-  sim.intensity = AIRPORTS[code].intensity * (options.simulationSpeed ?? 1);
+  applyIntensity();
   sim.maxInAir = 4 + Math.round(AIRPORTS[code].intensity * 4);
   sim.arrivalTimer = 1.4;
 
@@ -3812,6 +3858,91 @@ function renderSceneReadout() {
   }
 }
 
+/**
+ * CMS: the HUD's whole control state as one absolute value — what a
+ * SET_FLIGHT_VIEW carries between the wall and every CMS mirror of it. One
+ * value rather than five so a change can't land half-applied, and absolute
+ * rather than a delta so the gateway's echo back to the sender is inert.
+ */
+function currentView() {
+  return {
+    // Both of these read the *pending* value: a scene or airport change sits
+    // behind a 300ms veil, so for that window what the HUD is set to is not yet
+    // what is rendered — and it is the setting, not the render, that the other
+    // clients need in order to start their own cut in parallel.
+    sceneId: pendingSceneId ?? activeSceneId ?? DEFAULT_SCENE,
+    artId: selectedArtId ?? (SCENES[activeSceneId ?? DEFAULT_SCENE]?.art?.videoId),
+    airportCode: pendingAirportCode ?? sim.code,
+    locationId: selectedLocationId,
+    manual: manualReading ? { tempC: manualReading.tempC, kph: manualReading.kph } : null,
+  };
+}
+
+/**
+ * CMS: announce a HUD change so the player shell can relay it to every other
+ * client of this screen. Only ever called from a real user interaction —
+ * calling it while applying an inbound view is exactly what would loop.
+ */
+function emitView() {
+  options.onViewChange?.(currentView());
+}
+
+/**
+ * CMS: apply a view another client of this screen produced. Deliberately does
+ * NOT emit: the gateway echoes a SET_* back to its sender, so re-announcing
+ * what we just applied would loop. Every field is guarded so that echo costs
+ * nothing — an unchanged scene skips the veil cut, switchAirport ignores its
+ * own code, and assigning a <select>'s value from script fires no "change".
+ */
+function applyView(view) {
+  if (!view) return;
+
+  const applyFeed = () => {
+    if (!alive()) return;
+
+    if (typeof view.airportCode === "string") switchAirport(view.airportCode);
+
+    if (typeof view.locationId === "string" && view.locationId !== selectedLocationId) {
+      selectedLocationId = view.locationId;
+      if (ui.locationSelect) ui.locationSelect.value = view.locationId;
+    }
+
+    const manual = view.manual;
+    if (manual && Number.isFinite(manual.tempC) && Number.isFinite(manual.kph)) {
+      manualReading = { tempC: manual.tempC, kph: manual.kph };
+      if (ui.manualTemp) ui.manualTemp.value = manual.tempC;
+      if (ui.manualWind) ui.manualWind.value = manual.kph;
+      if (ui.realtimeBtn) ui.realtimeBtn.disabled = false;
+    } else {
+      manualReading = null;
+      if (ui.realtimeBtn) ui.realtimeBtn.disabled = true;
+    }
+
+    if (activeSceneId) pollScene(activeSceneId);
+  };
+
+  // Art before the cut, deliberately: activateScene resolves the clip from
+  // selectedArtId, so setting it afterwards would load the OLD render first and
+  // flash it behind the veil before loading the right one. Only swap directly
+  // when the scene is not changing — otherwise activateScene does it.
+  const artChanged = typeof view.artId === "string" && view.artId !== selectedArtId;
+  const sceneChanging =
+    typeof view.sceneId === "string" && view.sceneId !== (pendingSceneId ?? activeSceneId);
+  if (artChanged) {
+    selectedArtId = view.artId;
+    if (!sceneChanging) void setGardenVideo(view.artId);
+  }
+
+  // Scene first, and awaited: activateScene clears manualReading and re-disables
+  // the Realtime button itself, so applying the feed state before the cut would
+  // simply be undone by it. An unchanged scene resolves immediately.
+  if (typeof view.sceneId === "string") {
+    void switchScene(view.sceneId).then(applyFeed);
+  } else {
+    applyFeed();
+  }
+}
+
 function buildSceneSelector() {
   if (!ui.sceneSelect) return;
 
@@ -3826,21 +3957,42 @@ function buildSceneSelector() {
   ui.sceneSelect.value = DEFAULT_SCENE;
 
   ui.sceneSelect.addEventListener("change", (e) => {
-    const id = e.target.value;
+    void switchScene(e.target.value);
+    emitView();
+  });
+}
 
-    // Same breath of darkness the airport switch uses, so a scene change
-    // reads as a deliberate cut rather than a glitch.
-    ui.veil.classList.add("switching");
-    ui.veil.classList.remove("lifted");
+/**
+ * CMS: the scene cut, shared by the HUD picker and the imperative setView()
+ * handle — the same split as switchAirport. Already-showing is a no-op so a
+ * view echoed back from the gateway doesn't replay the veil. Resolves once the
+ * new scene's render is actually up.
+ */
+function switchScene(id) {
+  // Compared against the pending target, not the rendered one: the gateway
+  // echoes a relayed view straight back, and that echo lands well inside the
+  // 300ms veil — against activeSceneId alone it would read as a new request and
+  // start a second, overlapping cut.
+  if (!SCENES[id] || id === (pendingSceneId ?? activeSceneId)) return Promise.resolve();
+  pendingSceneId = id;
+  if (ui.sceneSelect && ui.sceneSelect.value !== id) ui.sceneSelect.value = id;
 
-    setTimeout(async () => {
+  // Same breath of darkness the airport switch uses, so a scene change
+  // reads as a deliberate cut rather than a glitch.
+  ui.veil.classList.add("switching");
+  ui.veil.classList.remove("lifted");
+
+  return new Promise((resolve) => {
+    later(async () => {
       // Awaited: activateScene doesn't resolve until its render is loaded
       // AND correctly coloured, so the veil hides the whole load — a new
       // clip (or a network-bound one, like the weather scene's) never gets
       // exposed mid-fetch or on a placeholder colour.
       await activateScene(id);
+      if (pendingSceneId === id) pendingSceneId = null;
       ui.veil.classList.remove("switching");
       ui.veil.classList.add("lifted");
+      resolve();
     }, 300);
   });
 }
@@ -3864,6 +4016,7 @@ function wireWeatherManualControls() {
     manualReading = { tempC, kph };
     if (ui.realtimeBtn) ui.realtimeBtn.disabled = false;
     pollScene(activeSceneId);
+    emitView();
   };
 
   ui.manualTemp?.addEventListener("input", applyManual);
@@ -3873,6 +4026,7 @@ function wireWeatherManualControls() {
     manualReading = null;
     ui.realtimeBtn.disabled = true;
     if (activeSceneId) pollScene(activeSceneId);
+    emitView();
   });
 }
 
@@ -3901,6 +4055,7 @@ function buildLocationSelector() {
     if (ui.realtimeBtn) ui.realtimeBtn.disabled = true;
 
     if (activeSceneId) pollScene(activeSceneId);
+    emitView();
   });
 }
 
@@ -3924,11 +4079,20 @@ cleanups.push(() => {
   timers.clear();
 });
 
+/**
+ * CMS: an authored label overrides the catalog's tower name. Takes the airport
+ * meta explicitly because loadAirport() runs it before sim.code has moved to
+ * the new airport; called with no argument it re-renders the current one.
+ */
+function applyTowerTitle(meta = AIRPORTS[sim.code]) {
+  if (!meta) return;
+  ui.towerTitle.textContent = options.label?.trim() || meta.tower;
+}
+
 function loadAirport(code) {
   const meta = AIRPORTS[code];
   if (!meta) return;
-  // CMS: an authored label overrides the catalog's tower name.
-  ui.towerTitle.textContent = options.label?.trim() || meta.tower;
+  applyTowerTitle(meta);
   ui.towerSub.textContent = `Live Traffic · ${meta.full}`;
 
   clearAirport();
@@ -3938,7 +4102,11 @@ function loadAirport(code) {
 
 /** CMS: shared by the HUD picker and the imperative setAirport() handle. */
 function switchAirport(code) {
-  if (!AIRPORTS[code] || code === sim.code) return;
+  // Pending-aware for the same reason as switchScene above. Deliberately NOT
+  // guarded on ui.select.value — in the local case the user just set it, so
+  // that would reject the very change being made.
+  if (!AIRPORTS[code] || code === (pendingAirportCode ?? sim.code)) return;
+  pendingAirportCode = code;
   if (ui.select.value !== code) ui.select.value = code;
 
   // a breath of darkness, then the new field of traffic
@@ -3947,15 +4115,15 @@ function switchAirport(code) {
 
   later(() => {
     loadAirport(code);
+    if (pendingAirportCode === code) pendingAirportCode = null;
     ui.veil.classList.remove("switching");
     ui.veil.classList.add("lifted");
   }, 300);
 }
 
 on(ui.select, "change", (e) => {
-  const code = e.target.value;
-  switchAirport(code);
-  options.onAirportChange?.(code);
+  switchAirport(e.target.value);
+  emitView();
 });
 
 /* =================================================================
@@ -4363,9 +4531,37 @@ function dispose() {
 return {
   dispose,
   setAirport: (code) => { if (alive()) switchAirport(code); },
+  setArt: (artId) => {
+    if (!alive()) return;
+    selectedArtId = artId;
+    if (artId) setGardenVideo(artId);
+  },
   setCatalog: (catalog) => { if (alive()) applyCatalog(catalog); },
   setRoster: (flights) => { if (alive()) setRosterQueue(flights); },
   setFeedState: (state) => { if (alive()) setFeedState(state); },
+  /**
+   * CMS: merge a fresh slice of authored options into the running scene. Only
+   * the presentation fields are re-applied, and none of them rebuild anything —
+   * a content push must never restart the intro or re-download the geometry on
+   * a live screen. Airport changes still go through setAirport(), which
+   * cross-fades.
+   */
+  /**
+   * CMS: adopt the HUD state of another client of this screen — the inbound
+   * half of the SET_FLIGHT_VIEW relay. Pair with the onViewChange option.
+   */
+  setView: (view) => { if (alive()) applyView(view); },
+  setOptions: (patch) => {
+    if (!alive() || !patch) return;
+    Object.assign(options, patch);
+    if (patch.artId !== undefined && patch.artId !== selectedArtId) {
+      selectedArtId = patch.artId;
+      if (selectedArtId) setGardenVideo(selectedArtId);
+    }
+    applyChrome();
+    applyTowerTitle();
+    applyIntensity();
+  },
 };
 
 } // ── end createFlightGarden ──────────────────────────────────────────────

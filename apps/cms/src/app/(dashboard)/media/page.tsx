@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Search,
   Upload,
@@ -39,7 +39,9 @@ import {
   DropdownMenuSeparator,
   cn,
 } from "@platform/ui";
-import { isLinkMediaType, parseYouTubeId } from "@platform/types";
+import { parseYouTubeId } from "@platform/types";
+import { isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
@@ -55,38 +57,12 @@ const CATEGORIES = [
   { id: 'links', label: 'Links', icon: Link2 },
 ];
 
-/** Does this media item belong to the given filter category? */
-function matchesCategory(item: MediaItem, categoryId: string): boolean {
-  switch (categoryId) {
-    case 'images': return item.type === 'image';
-    case 'videos': return item.type === 'video';
-    case 'documents': return item.type === 'document' || item.type === 'word';
-    case 'sheets': return item.type === 'sheet';
-    case 'presentations': return item.type === 'presentation';
-    case 'links': return isLinkMediaType(item.type);
-    default: return false;
-  }
-}
-
 // Same "upload" | "email" | "link" values as SOURCE_LABELS/SourceBadge below.
 const SOURCES = [
   { id: 'upload', label: 'Upload', icon: Upload },
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'link', label: 'Link', icon: Link2 },
 ];
-
-/** `from`/`to` are `<input type="date">` values ("YYYY-MM-DD"), directly
- * comparable against the leading 10 chars of an ISO `createdAt` string.
- * Either bound may be empty for an open-ended range; an item with no
- * createdAt (shouldn't happen post-backfill, but be safe) is never excluded. */
-function matchesDateRange(item: MediaItem, from: string, to: string): boolean {
-  if (!from && !to) return true;
-  if (!item.createdAt) return true;
-  const itemDate = item.createdAt.slice(0, 10);
-  if (from && itemDate < from) return false;
-  if (to && itemDate > to) return false;
-  return true;
-}
 
 /** Small icon for a media kind, used in the type badge on each card/row. */
 function TypeIcon({ type, className }: { type: string; className?: string }) {
@@ -146,6 +122,10 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function MediaPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  /** Total matching the current filters, across all pages — the paging controls
+   *  need it, and it can no longer be read off mediaItems.length now that only
+   *  one page is in memory. */
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   // Empty set = "All Media" (no filter applied). Multiple categories checked
@@ -168,19 +148,62 @@ export default function MediaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchMedia = async () => {
+  // Server-side search, so a large library isn't downloaded on every keystroke.
+  const debouncedSearch = useDebouncedValue(searchQuery, 300);
+
+  /** Guards against out-of-order responses: a slow early request must not
+   *  overwrite the results of a later, narrower one. */
+  const requestSeqRef = useRef(0);
+
+  /**
+   * Every filter is applied by the API now, not after the fetch.
+   *
+   * The paging controls below were always here, but they used to slice an
+   * array that had already been fully downloaded — so page size changed what
+   * was drawn and nothing else. Filtering client-side is also incompatible with
+   * real paging: it would filter one page and leave the rest of the matches
+   * unfetched, so pages would come back short or empty.
+   */
+  const mediaQuery = useCallback(() => {
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      pageSize: String(pageSize),
+    });
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+    // Category chips are an OR, and each expands to the media_asset.type values
+    // it covers (see typesForCategories in @platform/types).
+    const types = typesForCategories([...selectedCategories]);
+    if (types.length > 0) params.set("types", types.join(","));
+    if (selectedSources.size > 0) params.set("sources", [...selectedSources].join(","));
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    return params;
+  }, [
+    currentPage,
+    pageSize,
+    debouncedSearch,
+    selectedCategories,
+    selectedSources,
+    dateFrom,
+    dateTo,
+  ]);
+
+  const fetchMedia = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     try {
-      const res = await fetch("/api/media");
+      const res = await fetch(`/api/media?${mediaQuery().toString()}`);
       if (res.ok) {
         const data = await res.json();
+        if (seq !== requestSeqRef.current) return;
         setMediaItems(data.media || []);
+        setTotal(typeof data.total === "number" ? data.total : (data.media?.length ?? 0));
       }
     } catch (err) {
       console.error("Failed to load media:", err);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
-  };
+  }, [mediaQuery]);
 
   // On-demand Gmail ingest — pulls the last 2 days of attachments/links
   // straight into this same media_asset table, so a plain refetch is all
@@ -201,8 +224,8 @@ export default function MediaPage() {
   };
 
   useEffect(() => {
-    fetchMedia();
-  }, []);
+    void fetchMedia();
+  }, [fetchMedia]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -227,7 +250,12 @@ export default function MediaPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.media) {
+          // Optimistic insert so the new file appears immediately. `total` has
+          // to move with it now that it comes from the server rather than from
+          // mediaItems.length — otherwise the "1-20 of 189" label and the page
+          // count sit one behind until the next fetch.
           setMediaItems((prev) => [data.media, ...prev]);
+          setTotal((prev) => prev + 1);
         }
       }
     } catch (err) {
@@ -246,6 +274,11 @@ export default function MediaPage() {
       if (res.ok) {
         setMediaItems((prev) => prev.filter((item) => item.id !== id));
         setPreviewItem((current) => (current?.id === id ? null : current));
+        // Refetch rather than just splicing locally: with server-side paging
+        // the page is now one short and `total` is stale, and dropping the last
+        // row of the last page needs the page clamp to run. The refetch pulls
+        // the next row up and corrects the count.
+        void fetchMedia();
       }
     } catch (err) {
       console.error("Delete failed:", err);
@@ -261,9 +294,14 @@ export default function MediaPage() {
     });
   };
 
+  // Scoped to the current page: with server-side paging the other pages aren't
+  // in memory, and silently deleting rows the user never saw would be worse
+  // than a select-all that means exactly what is on screen.
   const handleSelectAll = () => {
     setSelectedIds((prev) =>
-      prev.size === filteredItems.length ? new Set() : new Set(filteredItems.map((item) => item.id))
+      prev.size === paginatedItems.length
+        ? new Set()
+        : new Set(paginatedItems.map((item) => item.id))
     );
   };
 
@@ -287,6 +325,9 @@ export default function MediaPage() {
       setMediaItems((prev) => prev.filter((item) => !deletedIds.has(item.id)));
       setPreviewItem((current) => (current && deletedIds.has(current.id) ? null : current));
       setSelectedIds((prev) => new Set(Array.from(prev).filter((id) => !deletedIds.has(id))));
+      // Same reason as the single delete above — refill the page and correct
+      // `total` from the server.
+      void fetchMedia();
     } catch (err) {
       console.error("Bulk delete failed:", err);
     } finally {
@@ -331,29 +372,26 @@ export default function MediaPage() {
     });
   };
 
-  const filteredItems = mediaItems.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    if (selectedCategories.size > 0 && !Array.from(selectedCategories).some((cat) => matchesCategory(item, cat))) {
-      return false;
-    }
-    if (selectedSources.size > 0 && !(item.source && selectedSources.has(item.source))) {
-      return false;
-    }
-    if (!matchesDateRange(item, dateFrom, dateTo)) return false;
-    return true;
-  });
-
   // Any filter/search change can shrink the result set out from under the
-  // current page — snap back to page 1 rather than showing an empty page.
+  // current page — snap back to page 1 rather than requesting an empty page.
+  // Uses the debounced search so it fires once per pause, in step with the
+  // request itself, rather than on every keystroke.
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, selectedSources, dateFrom, dateTo, pageSize]);
+  }, [debouncedSearch, selectedCategories, selectedSources, dateFrom, dateTo, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  // mediaItems IS the current page now — the server did the filtering and the
+  // slicing, so there is nothing left to narrow here.
+  const paginatedItems = mediaItems;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * pageSize;
-  const paginatedItems = filteredItems.slice(pageStart, pageStart + pageSize);
+
+  // Deleting the last item on the last page leaves currentPage past the end;
+  // pull it back so the next request asks for a page that exists.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
@@ -571,7 +609,7 @@ export default function MediaPage() {
                   onClick={handleSelectAll}
                   className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  {selectedIds.size === filteredItems.length && filteredItems.length > 0 ? "Deselect all" : "Select all"}
+                  {selectedIds.size === paginatedItems.length && paginatedItems.length > 0 ? "Deselect all" : "Select all"}
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -601,7 +639,7 @@ export default function MediaPage() {
             </>
           ) : (
             <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-              Showing {selectedCategories.size === 0 ? 'All Files' : Array.from(selectedCategories).map((id) => CATEGORIES.find((c) => c.id === id)?.label).join(', ')} <span className="text-zinc-400 dark:text-zinc-500">({filteredItems.length})</span>
+              Showing {selectedCategories.size === 0 ? 'All Files' : Array.from(selectedCategories).map((id) => CATEGORIES.find((c) => c.id === id)?.label).join(', ')} <span className="text-zinc-400 dark:text-zinc-500">({total})</span>
             </p>
           )}
         </div>
@@ -610,7 +648,7 @@ export default function MediaPage() {
           <div className="flex items-center justify-center py-24 text-zinc-400">
             Loading Media Assets...
           </div>
-        ) : filteredItems.length === 0 && !uploading ? (
+        ) : total === 0 && !uploading ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
             <Folder className="h-8 w-8 text-zinc-400 opacity-60" />
             <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
@@ -734,11 +772,11 @@ export default function MediaPage() {
           </div>
         )}
 
-        {!loading && filteredItems.length > 0 && (
+        {!loading && total > 0 && (
           <div className="flex items-center justify-between mt-4">
             <div className="flex items-center gap-4">
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                {pageStart + 1}–{Math.min(pageStart + pageSize, filteredItems.length)} of {filteredItems.length}
+                {total === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + pageSize, total)} of {total}
               </p>
               <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                 Rows per page
@@ -799,9 +837,15 @@ export default function MediaPage() {
 function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?: boolean }) {
   if (media.type === 'video') {
     return (
+      // preload="metadata": without it the browser buffers megabytes of every
+      // video in the grid just to draw a tile — one Media page view measured
+      // 26.5 MB, of which 22 MB was video nobody asked to play. These uploads
+      // are faststart (moov at byte 0), so "metadata" still paints the first
+      // frame as the thumbnail while fetching only the header.
       <video
         src={media.url}
         className="w-full h-full object-cover"
+        preload="metadata"
         muted
         playsInline
         loop
@@ -814,10 +858,13 @@ function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?
   if (media.type === 'image') {
     return (
       <img
-        src={media.url}
+        // The derived tile, not the original: these grid cells are ~200px but
+        // used to load the full upload (measured: 15.8 MB for one page of 20).
+        src={mediaThumbnailSrc(media)}
         alt={media.name}
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         loading="lazy"
+        decoding="async"
       />
     );
   }

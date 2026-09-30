@@ -24,7 +24,7 @@ packages/db/src/
 │   ├── experiences.ts     → listExperiences …
 │   └── media.ts           → media queries
 ├── migrate-screen.ts / migrate-experience-template.ts / migrate-media.ts  → one-off DDL
-└── seed-screens.ts / seed-projects.ts / assign-idle-video.ts              → seeds/utilities
+└── seed-screens.ts / seed-projects.ts                                    → seeds/utilities
 ```
 
 Builds to `dist/`; `drizzle.config.ts` points at the compiled schema.

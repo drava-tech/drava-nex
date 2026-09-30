@@ -130,6 +130,10 @@ export function presignR2Get(config: R2Config, key: string, expiresInSeconds = 6
 const VIDEO_KEYS: Record<string, string> = {
   "flight-garden": "flight-simulation/4k_render_final_001.mp4",
   "weather-warm": "flight-simulation/weather_warm.mp4",
+  "art-3": "flight-simulation/art_3.mp4",
+  "art-4": "flight-simulation/art_4.mp4",
+  "art-5": "flight-simulation/art_5.mp4",
+  "art-6": "flight-simulation/art_6.mp4",
 };
 
 const DEFAULT_VIDEO_ID = "flight-garden";
@@ -138,4 +142,56 @@ const DEFAULT_VIDEO_ID = "flight-garden";
 export function resolveVideoKey(id: string | undefined): string | null {
   if (!id) return VIDEO_KEYS[DEFAULT_VIDEO_ID] ?? null;
   return Object.prototype.hasOwnProperty.call(VIDEO_KEYS, id) ? (VIDEO_KEYS[id] ?? null) : null;
+}
+
+/** Whether an art id is allowlisted at all. Says nothing about the object existing. */
+export function isArtAllowlisted(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(VIDEO_KEYS, id);
+}
+
+/**
+ * Whether an art's render is actually IN the bucket.
+ *
+ * Allowlist membership is not the same question: an id can be reserved here
+ * long before anyone uploads the MP4, and the CMS panel greys those out so an
+ * operator cannot push a render that would land on the wall as a fallback. So
+ * this really asks R2. Deliberately a one-byte ranged GET and not a HEAD:
+ * presignR2Get signs "GET" into the canonical request, and S3/R2 re-derive the
+ * signature from the method actually used, so a HEAD against a GET-presigned
+ * URL is rejected as SignatureDoesNotMatch and every render reads as missing.
+ *
+ * Cached briefly — the panel asks for the whole catalog at once, and an upload
+ * should still show up on the next page load without a redeploy.
+ */
+const existsCache = new Map<string, { value: boolean; expires: number }>();
+const EXISTS_TTL_MS = 60_000;
+
+export async function artExists(id: string): Promise<boolean> {
+  const key = resolveVideoKey(id);
+  if (!key) return false;
+
+  const config = readR2Config();
+  // No bucket configured: the question is unanswerable, and reporting every
+  // render as missing would grey out the entire catalogue on a misconfigured
+  // box. Fail open and let the renderer's own fallback handle a bad clip.
+  if (!config) return true;
+
+  const cached = existsCache.get(id);
+  if (cached && cached.expires > Date.now()) return cached.value;
+
+  let value = false;
+  try {
+    const res = await fetch(presignR2Get(config, key, 60), {
+      headers: { Range: "bytes=0-0" },
+    });
+    value = res.ok; // 206 for a served range, 200 if R2 ignores it
+    // Drain rather than leave the body unconsumed; it is one byte.
+    await res.arrayBuffer().catch(() => undefined);
+  } catch {
+    // Network trouble reaching R2 is not proof the object is missing.
+    value = true;
+  }
+
+  existsCache.set(id, { value, expires: Date.now() + EXISTS_TTL_MS });
+  return value;
 }

@@ -4,20 +4,33 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
 import { cn, dispatchReplayableEvent } from "@platform/ui";
+import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates/portfolio";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
+import { useContentTransition, type ContentLayer } from "@/hooks/useContentTransition";
+import { useAudioKeepAlive } from "@/hooks/useAudioKeepAlive";
+import { isPushTransitionEnabled } from "@/lib/display/transition-config";
 import { frameCommandEvent, isFrameForwardedCommand } from "@/lib/display/frame-bridge";
+import {
+  MEDIA_SEEK,
+  MEDIA_SEEK_TO,
+  MEDIA_SET_PAUSED,
+  MEDIA_TOGGLE_PLAY,
+  SET_PLAYBACK,
+  MEDIA_SEEK_EVENT,
+  MEDIA_SEEK_TO_EVENT,
+  MEDIA_SET_PAUSED_EVENT,
+  MEDIA_TOGGLE_PLAY_EVENT,
+  MEDIA_SET_PLAYBACK_EVENT,
+} from "@/lib/display/playback-protocol";
 // ponytail: browser-based detection is disconnected — cameras are now
 // host-native on the GPU box (services/vision). The hook + @platform/vision-browser
 // are left in place; re-enable the call below to restore browser detection.
-// import { useServerDetection } from "@/hooks/useServerDetection";
 import { SCREEN_TO_CAMERA } from "@/lib/display/camera-config";
-import { PUBLISH_DRAG_START, PUBLISH_DRAG_PROGRESS, PUBLISH_DRAG_END } from "@/lib/publish-drag-protocol";
 import { DetectionDebugOverlay } from "./DetectionDebugOverlay";
 import { ContentRenderer } from "./ContentRenderer";
 import { WhiteboardScreenOverlay } from "./WhiteboardScreenOverlay";
-import { PublishDragOverlay } from "./PublishDragOverlay";
 import { BlackoutOverlay } from "./BlackoutOverlay";
 import { FiveTapCorner } from "./FiveTapCorner";
 import { IdleDisplay } from "./IdleDisplay";
@@ -86,21 +99,12 @@ export function LiveScreenPlayer({
   const initial = initialContent ? toWsContent(initialContent) : IDLE_WS_CONTENT;
   const { activeContent, activeKey, queueContent } = useContentPreloader(initial);
 
-  // Set from a PUBLISH_DRAG_END{committed:true} command; consumed by the
-  // effect below the moment the matching content actually arrives, so the
-  // real content's own entrance animation doesn't replay on top of the one
-  // PublishDragOverlay already played live during the drag.
-  const lastDragCommittedIdRef = useRef<string | null>(null);
-  const [suppressNextReveal, setSuppressNextReveal] = useState(false);
-  useEffect(() => {
-    if (lastDragCommittedIdRef.current === activeContent.id) {
-      setSuppressNextReveal(true);
-      lastDragCommittedIdRef.current = null;
-    } else {
-      setSuppressNextReveal(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey]);
+  // Keeps the panel's audio output open across content swaps so no push — and
+  // no pause -> play — has to wait for the HDMI sink to wake. Mounted here
+  // rather than in a renderer precisely because it has to outlive every
+  // content change. Never on a CMS mirror, same contract as the mute effect in
+  // VideoRenderer.tsx.
+  useAudioKeepAlive(!preview);
 
   // "Stop" must actually stop everything (video/audio/animations), not just
   // hide it behind BlackoutOverlay's black div — a hidden-but-still-mounted
@@ -117,6 +121,34 @@ export function LiveScreenPlayer({
       window.removeEventListener("screen-unblank", onUnblank);
     };
   }, []);
+
+  // Whether this panel animates at all is a property of the installation, not
+  // of a push — read once. See transition-config.ts.
+  const pushOkRef = useRef<boolean | null>(null);
+  if (pushOkRef.current === null) pushOkRef.current = isPushTransitionEnabled(preview);
+
+  // Derived during render, NOT in an effect. What it produces decides how a
+  // div keyed by activeKey mounts, in that very same commit, so an effect
+  // resolves one render too late and lands on a transition that has already
+  // started — a class arriving mid-slide makes the layer snap rather than
+  // ease, and one arriving a frame late restarts a slide that was already
+  // running. Both were visible on the wall as a "very odd" transition.
+  const revealRef = useRef<{ key: string; enabled: boolean }>({ key: activeKey, enabled: false });
+  if (revealRef.current.key !== activeKey) {
+    revealRef.current = { key: activeKey, enabled: !!pushOkRef.current && !blanked };
+  }
+
+  // Two stacked layers: the outgoing content is carried off the top while the
+  // incoming one rises from the bottom, and the incoming one does not start
+  // moving until it can actually paint. Feeding `blanked` into `enabled` is the
+  // whole of the blanking bypass — a push received while blanked lands as a cut
+  // with no retained layer, and unblanking later cannot animate retroactively.
+  const { incoming, outgoing, phase, markReady, incomingRef } = useContentTransition({
+    content: activeContent,
+    contentKey: activeKey,
+    enabled: revealRef.current.enabled,
+  });
+  const staged = phase !== "idle";
 
   const handleContentUpdate = useCallback(
     (incoming: WsContent) => queueContent(incoming),
@@ -145,6 +177,29 @@ export function LiveScreenPlayer({
         detail: { direction: command === "NEXT_PAGE" ? "next" : "prev" },
       });
       window.dispatchEvent(event);
+    } else if (command === MEDIA_SEEK) {
+      // Transient like MUTE — a seek is an instruction to act now, not a
+      // position to catch up to, so it deliberately isn't replayable.
+      window.dispatchEvent(new CustomEvent(MEDIA_SEEK_EVENT, { detail: value }));
+    } else if (command === MEDIA_SEEK_TO) {
+      // Absolute, but transient for the same reason as MEDIA_SEEK above: it is
+      // where a finger let go of the scrub bar just now, not a position later
+      // joiners should be caught up to. The screen answers with SET_PLAYBACK,
+      // which IS the replayable record.
+      window.dispatchEvent(new CustomEvent(MEDIA_SEEK_TO_EVENT, { detail: value }));
+    } else if (command === MEDIA_SET_PAUSED) {
+      // Transient, like the seeks above: this is "pause because a drag is
+      // starting", not a state later joiners should be caught up to. The
+      // screen's own SET_PLAYBACK remains the replayable record.
+      window.dispatchEvent(new CustomEvent(MEDIA_SET_PAUSED_EVENT, { detail: value }));
+    } else if (command === MEDIA_TOGGLE_PLAY) {
+      window.dispatchEvent(new CustomEvent(MEDIA_TOGGLE_PLAY_EVENT));
+    } else if (command === SET_PLAYBACK) {
+      // Replayable, unlike the two above: this is the absolute position the
+      // gateway replays right after CONTENT_UPDATE when a video is re-pushed,
+      // and it lands before VideoRenderer has mounted — see the comment on
+      // SET_SLIDE below.
+      dispatchReplayableEvent(MEDIA_SET_PLAYBACK_EVENT, value);
     } else if (command === "SET_SLIDE") {
       // Replayable: a late-joining client (e.g. the CMS mirror reconnecting)
       // can receive this before ExperienceDisplay's listener has mounted —
@@ -160,9 +215,45 @@ export function LiveScreenPlayer({
       // Which gallery photo is expanded — a tap on a control tablet has to open
       // the same photo on the wall. Replayable — see comment on SET_SLIDE above.
       dispatchReplayableEvent("gallery-set-view", value);
+    } else if (command === "SET_FLIGHT_VIEW") {
+      // Flight Garden's HUD — which visualization is showing, its airport, and
+      // the weather feed driving the art. Replayable, and it matters more here
+      // than for most: the engine chunk is a slow dynamic import, so a replayed
+      // view routinely arrives before the canvas has mounted its listener.
+      dispatchReplayableEvent("flight-set-view", value);
     } else if (command === "SET_FILM_VIEW") {
       // Films page grid/player + which film — replayable, same reason as above.
       dispatchReplayableEvent("film-set-view", value);
+    } else if (command === SET_VIDEO_PLAYBACK) {
+      // Position and play state of the portfolio video that is open — the films
+      // player or the overview's "Watch Video" popup. Replayable for the same
+      // reason as SET_SLIDE: the gateway replays it right after CONTENT_UPDATE,
+      // well before the <video> it belongs to has mounted, and the surface picks
+      // it up on arrival instead of starting from zero.
+      dispatchReplayableEvent(VIDEO_PLAYBACK_EVENT, value);
+    } else if (command === "RESET_STATE" || command === "RESET_VIEW") {
+      // Reset interactive templates & experiences back to their initial state (1st frame / overview)
+      dispatchReplayableEvent("portfolio-set-view", {
+        cardIndex: null,
+        sectionIndex: null,
+        projectIndex: null,
+        splitView: false,
+        cameFromSplit: false,
+      });
+      dispatchReplayableEvent("portfolio-set-video", { videoUrl: null });
+      dispatchReplayableEvent("screen-set-slide", { slideIndex: 0 });
+      dispatchReplayableEvent("gallery-set-view", { photoId: null, index: null });
+      dispatchReplayableEvent("film-set-view", { mode: "grid", index: null });
+      // Undefined, not a default view: the Flight Garden's own defaults live in
+      // the engine (DEFAULT_SCENE / the authored airportCode), so clearing the
+      // replay buffer lets a freshly-mounted scene use them rather than being
+      // driven back to a guess made here.
+      dispatchReplayableEvent("flight-set-view", undefined);
+      // Null, not a position: the gateway drops its own cache on RESET_STATE,
+      // but the replay buffer here is per-tab and would otherwise resume a film
+      // at the position it was reset away from the next time one is opened.
+      dispatchReplayableEvent(VIDEO_PLAYBACK_EVENT, null);
+      window.dispatchEvent(new CustomEvent("screen-reset-state"));
     } else if (command === WHITEBOARD_START) {
       window.dispatchEvent(new CustomEvent("whiteboard-start"));
     } else if (command === WHITEBOARD_STOP) {
@@ -187,13 +278,6 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
       window.dispatchEvent(new CustomEvent("screen-unblank"));
-    } else if (command === PUBLISH_DRAG_START) {
-      window.dispatchEvent(new CustomEvent("publish-drag-start", { detail: value }));
-    } else if (command === PUBLISH_DRAG_PROGRESS) {
-      window.dispatchEvent(new CustomEvent("publish-drag-progress", { detail: value }));
-    } else if (command === PUBLISH_DRAG_END) {
-      window.dispatchEvent(new CustomEvent("publish-drag-end", { detail: value }));
-      if (value?.committed) lastDragCommittedIdRef.current = value.cardId;
     } else if (command === "EXIT_FULLSCREEN" && !preview) {
       // Remote escape hatch (5-tap on a CMS mirror). Ignored by mirrors so the
       // gateway's echo-to-sender doesn't drop the operator's own tab out of
@@ -265,15 +349,10 @@ export function LiveScreenPlayer({
   // ponytail: browser detection disconnected — the GPU-box vision service
   // (services/vision) owns the cameras now, so the hook that grabbed the
   // operator's webcam is commented out and replaced by a disabled stub. No
-  // camera is ever accessed. Restore by uncommenting the import + hook call.
+  // camera is ever accessed. The old browser-side hook has been removed; see
+  // git history for apps/cms/src/hooks/useServerDetection.ts if it is ever needed.
   const runServer = !preview && !isShowcase && hasMappedCamera;
 
-  // const serverDetection = useServerDetection({
-  //   screenId,
-  //   sendRaw,
-  //   enabled: runServer,
-  //   cameraId: effectiveCameraId,
-  // });
   const serverDetection = {
     stream: null as MediaStream | null,
     lastResult: null,
@@ -327,23 +406,76 @@ export function LiveScreenPlayer({
     return () => clearInterval(interval);
   }, [status, screenId, queueContent]);
 
-  const displayContent = toDisplayContent(activeContent);
+  const displayContent = toDisplayContent(incoming.content);
+
+  /**
+   * The display page pins `touch-action: none` on html/body so signage can't be
+   * panned or pinch-zoomed by a passer-by. Touch-action is intersected down the
+   * ancestor chain and that chain crosses into an iframe, so leaving it set
+   * would mean a touch screen could tap inside an embedded page but never
+   * scroll it. Relaxed only while a page is on screen.
+   *
+   * Owned here rather than in HtmlRenderer, which used to save the value on
+   * mount and restore it on unmount: with two layers mounted at once that
+   * ordering inverts (the incoming frame saves the outgoing frame's "auto",
+   * then the outgoing unmounts and restores "none"), leaving a pushed PDF or
+   * sheet on screen that no longer scrolls. Deriving from the active content
+   * type has no ordering to get wrong. "" falls back to the page's own inline
+   * touch-action: none, so non-html behaves exactly as before.
+   */
+  useEffect(() => {
+    const relax = displayContent.type === "html";
+    document.documentElement.style.touchAction = relax ? "auto" : "";
+    document.body.style.touchAction = relax ? "auto" : "";
+  }, [displayContent.type]);
+
+  // IdleDisplay is picked here rather than inside ContentRenderer, so it is the
+  // one incoming layer with no renderer to report on its behalf. It paints as
+  // soon as it commits; without this, going idle would sit out the transition's
+  // full ready timeout before moving.
+  const incomingIsIdle = incoming.content.id === "__idle__";
+  useEffect(() => {
+    if (incomingIsIdle) markReady(incoming.key);
+  }, [incomingIsIdle, incoming.key, markReady]);
+
+  const renderLayer = (layer: ContentLayer, role: { staged?: boolean; outgoing?: boolean }) =>
+    layer.content.id === "__idle__" ? (
+      <IdleDisplay screenId={screenId} />
+    ) : (
+      <ContentRenderer
+        content={toDisplayContent(layer.content)}
+        screenId={screenId}
+        preview={preview}
+        staged={role.staged}
+        outgoing={role.outgoing}
+        onReady={role.outgoing ? undefined : () => markReady(layer.key)}
+      />
+    );
+
+  // ONE keyed array, not two JSX slots. The outgoing layer is the same subtree
+  // that was the incoming one a moment ago, and React only carries a subtree
+  // across by key WITHIN a single array — as two static slots it would unmount
+  // and remount instead, so the content being pushed off the top would restart
+  // from zero (and re-download) as it slid away.
+  const layers: { layer: ContentLayer; outgoing: boolean }[] = [];
+  if (outgoing) layers.push({ layer: outgoing, outgoing: true });
+  layers.push({ layer: incoming, outgoing: false });
 
   return (
     <>
-      <div
-        key={activeKey}
-        className={cn("screen-content-fade", suppressNextReveal && "screen-content-fade--no-anim")}
-      >
-        {!blanked && (
-          activeContent.id === "__idle__" ? (
-            <IdleDisplay screenId={screenId} />
-          ) : (
-            <ContentRenderer content={displayContent} screenId={screenId} preview={preview} />
-          )
-        )}
-      </div>
-      <PublishDragOverlay activeContentId={activeContent.id} />
+      {layers.map(({ layer, outgoing: isOutgoing }) => (
+        <div
+          key={layer.key}
+          ref={isOutgoing ? undefined : incomingRef}
+          className={cn(
+            "screen-layer",
+            isOutgoing ? "screen-layer--out" : staged && "screen-layer--in",
+            phase === "running" && "screen-layer--running"
+          )}
+        >
+          {!blanked && renderLayer(layer, isOutgoing ? { outgoing: true } : { staged })}
+        </div>
+      ))}
       <WhiteboardScreenOverlay sendInteraction={sendInteraction} />
       <BlackoutOverlay />
       {/* Only the html renderer puts content in a cross-origin iframe, where a

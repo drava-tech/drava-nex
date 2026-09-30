@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WelcomeContent } from "./content";
 
 const TYPE_SPEED_MS = 95;
@@ -56,6 +56,8 @@ export function WelcomeRenderer({
   content,
   speak = false,
   preview = false,
+  staged = false,
+  onReady,
 }: {
   content?: WelcomeContent;
   speak?: boolean;
@@ -63,6 +65,16 @@ export function WelcomeRenderer({
    * control page, Live Control popup, ...) — audio must only ever come out of
    * the real TV, same contract as VideoRenderer.tsx's `preview` prop. */
   preview?: boolean;
+  /**
+   * Mounted but still parked below the panel's bottom edge, waiting for the
+   * display's push transition to bring it on screen. Nothing a viewer would
+   * hear or see begin may start yet — that means the video AND the spoken
+   * narration, which would otherwise read the headline aloud several hundred
+   * milliseconds before the headline is visible.
+   */
+  staged?: boolean;
+  /** Ready to paint. The display's push transition waits on this before moving. */
+  onReady?: () => void;
 }) {
   const title = content?.title || "Welcome to Tusker Digital Experience Center";
   const subtitle = content?.subtitle;
@@ -91,27 +103,88 @@ export function WelcomeRenderer({
   // Reset whenever the url itself changes, so a fresh, valid video gets a
   // clean retry rather than staying stuck on a previous failure.
   const [videoFailed, setVideoFailed] = useState(false);
+
+  // Initialised from the prop so the start effect reads the right value on its
+  // first run — effects have not executed at that point. Kept current below.
+  const stagedRef = useRef(staged);
+  const maybeStartRef = useRef<() => void>(() => {});
+  const readyFiredRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  /** One-shot, so a re-render cannot re-fire it and restart a push. */
+  const signalReady = useCallback(() => {
+    if (readyFiredRef.current) return;
+    readyFiredRef.current = true;
+    onReadyRef.current?.();
+  }, []);
+
   useEffect(() => {
     setVideoFailed(false);
     setMuted(preview);
+    readyFiredRef.current = false;
   }, [videoUrl, preview]);
 
+  // The text branch has nothing to decode. Report at once rather than making
+  // the push transition sit out its full ready timeout on every headline.
   useEffect(() => {
-    // A CMS-side embed never attempts unmuted playback at all — skipping
-    // straight past the play()/catch dance below means it also never trips
-    // the fallback-to-muted state, so there's nothing for the tap-to-unmute
-    // button to react to and it correctly never renders in preview.
-    if (preview) return;
+    if (!videoUrl || videoFailed) signalReady();
+  }, [videoUrl, videoFailed, signalReady]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => {
-      if (!video.muted) {
-        video.muted = true;
-        setMuted(true);
-        video.play().catch(() => {});
-      }
-    });
-  }, [videoUrl, preview]);
+
+    let started = false;
+
+    const start = () => {
+      video.play().catch(() => {
+        if (!video.muted) {
+          video.muted = true;
+          setMuted(true);
+          video.play().catch(() => {});
+        }
+      });
+    };
+
+    const maybeStart = () => {
+      // A CMS-side embed never attempts unmuted playback at all — skipping
+      // straight past the play()/catch dance means it also never trips the
+      // fallback-to-muted state, so there's nothing for the tap-to-unmute
+      // button to react to and it correctly never renders in preview. A staged
+      // layer is off-screen: starting here would leak the video's audio before
+      // any of its picture was visible.
+      if (started || preview || stagedRef.current) return;
+      started = true;
+      start();
+    };
+    maybeStartRef.current = maybeStart;
+
+    // Not on mount: play() against an empty buffer starts the video renderer
+    // as soon as the first frame decodes, while the audio renderer is still
+    // opening its output — the picture runs, the sound comes in about a
+    // second late, and the audio then discards the samples it fell behind by
+    // to re-lock to the clock, swallowing a word. HAVE_FUTURE_DATA means
+    // there is enough decoded for both renderers to start together.
+    const ready = () => {
+      signalReady();
+      maybeStart();
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      ready();
+      return;
+    }
+    video.addEventListener("canplay", ready, { once: true });
+    return () => video.removeEventListener("canplay", ready);
+  }, [videoUrl, preview, signalReady]);
+
+  // Declared after the effect above so maybeStartRef is populated by the time
+  // this first runs. The falling edge is the layer landing on screen.
+  useEffect(() => {
+    stagedRef.current = staged;
+    if (!staged) maybeStartRef.current();
+  }, [staged]);
 
   const handleUnmute = () => {
     if (preview) return;
@@ -128,8 +201,12 @@ export function WelcomeRenderer({
     // headline over it would just talk over the video's own sound. A failed
     // video falls back to the text branch below, so it should speak same as
     // if no video had been set at all.
+    // `staged` holds it back until the layer is actually on the panel: the
+    // display mounts incoming content off-screen and pushes it up once it can
+    // paint, so speaking on mount would narrate the headline before any of it
+    // was visible.
     const showingVideo = videoUrl && !videoFailed;
-    if (!speak || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!speak || staged || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     let cancelled = false;
@@ -183,7 +260,7 @@ export function WelcomeRenderer({
       synth.cancel();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speak, title, subtitle, videoFailed]);
+  }, [speak, staged, title, subtitle, videoFailed]);
 
   // A video takes over the whole screen on its own — no headline, subtitle,
   // gradient, or padding around it, just the video edge-to-edge.
@@ -203,6 +280,9 @@ export function WelcomeRenderer({
           muted={muted}
           preload="auto"
           playsInline
+          // A decoded first frame is all the display's push transition needs —
+          // a lower bar than the HAVE_FUTURE_DATA gate that governs playback.
+          onLoadedData={signalReady}
           onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />

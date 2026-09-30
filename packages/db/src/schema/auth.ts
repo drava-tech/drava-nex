@@ -4,6 +4,7 @@ import {
   text,
   boolean,
   timestamp,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -53,12 +54,25 @@ export const session = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [uniqueIndex("session_token_unique_idx").on(table.token)]
+  (table) => [
+    uniqueIndex("session_token_unique_idx").on(table.token),
+    // Better Auth resolves a user's sessions by user_id, and the FK cascade
+    // from `user` needs it too — without an index both were sequential scans.
+    index("session_user_id_idx").on(table.userId),
+    // Backs getUserStats' "active users" tile:
+    //   SELECT count(DISTINCT user_id) FROM session WHERE expires_at > now()
+    // which sits on the dashboard's critical path. expires_at leads so the
+    // range is a direct scan; user_id rides along so the count never has to
+    // touch the heap.
+    index("session_expires_at_user_id_idx").on(table.expiresAt, table.userId),
+  ]
 );
 
 // ─── Account ──────────────────────────────────────────────────────────────────
 
-export const account = pgTable("account", {
+export const account = pgTable(
+  "account",
+  {
   id: text("id").primaryKey(),
   userId: text("user_id")
     .notNull()
@@ -82,7 +96,12 @@ export const account = pgTable("account", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+  },
+  // Better Auth reads a user's accounts by user_id on every email/password
+  // sign-in (that is where the password hash lives), and the FK cascade from
+  // `user` uses it as well. The table had no indexes at all.
+  (table) => [index("account_user_id_idx").on(table.userId)]
+);
 
 // ─── Verification ─────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { motion, useMotionValue } from "framer-motion";
 import { Settings2, Copy } from "lucide-react";
 import { Button } from "@platform/ui";
 import { hexToRgb, rgbToHex, hsvToRgb, rgbToHsv, noProp } from "./utils";
@@ -45,10 +45,69 @@ export default function LightColourContent({ state, actions }: any) {
     actions.setColor(newColor);
   };
 
-  const [isDraggingPicker, setIsDraggingPicker] = useState(false);
-  const [internalHsv, setInternalHsv] = useState({ h: 0, v: 0 });
+  const isDraggingRef = useRef(false);
   const lastPickerCallRef = useRef(0);
   const [, startTransition] = React.useTransition();
+
+  /**
+   * Handle position and live preview are MotionValues, not React state.
+   *
+   * This used to be a setInternalHsv on every pointermove — unthrottled, so a
+   * fast mouse re-rendered this whole panel 100+ times a second — feeding a
+   * framer animate={{ left, top }}. left/top are layout properties, so every
+   * one of those frames also forced a reflow. (The 32ms gate below only ever
+   * throttled the network call, never the render.)
+   *
+   * Written straight to the compositor instead: dragging now costs zero React
+   * renders and moves only transform/opacity. Same ref-mutation pattern as
+   * SwipeCard in broadcast/_components/publish-board.tsx.
+   *
+   * Pixels rather than percentages, because a translate percentage resolves
+   * against the handle's own box, not the spectrum's — syncPickerFromColor
+   * converts, and re-runs on resize.
+   */
+  const handleXMv = useMotionValue(0);
+  const handleYMv = useMotionValue(0);
+  const previewOpacity = useMotionValue(1);
+  const previewColor = useMotionValue(state.color.hex as string);
+
+  /** Push an h (0..360) / v (0..1) pair into the motion values. */
+  const paintPicker = useCallback(
+    (h: number, v: number, hex: string) => {
+      const rect = pickerRef.current?.getBoundingClientRect();
+      if (rect && rect.width > 0) {
+        handleXMv.set((h / 360) * rect.width);
+        handleYMv.set((1 - v) * rect.height);
+      }
+      previewOpacity.set(Math.max(0.2, v));
+      previewColor.set(hex);
+    },
+    [handleXMv, handleYMv, previewOpacity, previewColor]
+  );
+
+  /** Re-derive the handle from the authoritative colour — for external changes
+   *  (another client, a preset, the hex box) and for resizes. */
+  const syncPickerFromColor = useCallback(() => {
+    if (isDraggingRef.current) return;
+    const { h, s, v } = rgbToHsv(state.color.r, state.color.g, state.color.b);
+    // White/gray/black have no real hue (saturation 0) — fall back to the last
+    // hue that did, rather than letting the handle snap to red (hue 0).
+    paintPicker(s === 0 ? lastHueRef.current : h, v, state.color.hex);
+  }, [state.color, paintPicker]);
+
+  useLayoutEffect(() => {
+    syncPickerFromColor();
+  }, [syncPickerFromColor]);
+
+  // The spectrum is responsive, so a layout change moves the handle's correct
+  // pixel position even when the colour itself has not changed.
+  useEffect(() => {
+    const el = pickerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => syncPickerFromColor());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncPickerFromColor]);
 
   // Spectrum drag logic
   const handlePickerDrag = (e: React.PointerEvent<HTMLDivElement>, isFinal = false) => {
@@ -60,39 +119,27 @@ export default function LightColourContent({ state, actions }: any) {
     const h = (x / rect.width) * 360;
     const s = 1; // Full saturation horizontally in this UI
     const v = 1 - (y / rect.height);
+    const { r, g, b } = hsvToRgb(h, s, v);
+    const hex = rgbToHex(r, g, b);
 
-    setInternalHsv({ h, v });
+    // Every pointer event moves the handle — through the compositor, not React.
+    paintPicker(h, v, hex);
 
     const now = Date.now();
     if (isFinal || now - lastPickerCallRef.current > 32) {
       lastPickerCallRef.current = now;
-      const { r, g, b } = hsvToRgb(h, s, v);
-      startTransition(() => actions.setColor({ ...state.color, r, g, b, hex: rgbToHex(r, g, b) }));
+      startTransition(() => actions.setColor({ ...state.color, r, g, b, hex }));
     }
   };
-
-  // Derive handle position and brightness. White/gray/black all have no real
-  // hue (saturation 0) — fall back to the last hue that did, rather than
-  // letting the handle snap to red (hue 0).
-  const currentHsv = rgbToHsv(state.color.r, state.color.g, state.color.b);
-  const isAchromatic = currentHsv.s === 0;
-  const handleX = (isDraggingPicker ? internalHsv.h : (isAchromatic ? lastHueRef.current : currentHsv.h)) / 360 * 100;
-  const handleY = (1 - (isDraggingPicker ? internalHsv.v : currentHsv.v)) * 100;
-  
-  const currentBrightness = isDraggingPicker
-    ? Math.round(internalHsv.v * 100)
-    : Math.round((Math.max(state.color.r, state.color.g, state.color.b) / 255) * 100);
 
   return (
     <div className="flex flex-col z-10 relative text-card-foreground" onClick={noProp}>
       <div className="flex items-center gap-2 mb-8">
         <Settings2 className="w-5 h-5" />
         <h3 className="font-semibold tracking-tight text-lg uppercase">Light Colour</h3>
-        {state.zoneLabel && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-full">
-            {state.zoneLabel}
-          </span>
-        )}
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-full">
+          {state.targetLabel ?? "Light"}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -105,14 +152,15 @@ export default function LightColourContent({ state, actions }: any) {
             style={{
               background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)`
             }}
-            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingPicker(true); handlePickerDrag(e); }}
-            onPointerMove={(e) => { if (e.buttons > 0 && isDraggingPicker) handlePickerDrag(e); }}
-            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingPicker(false); handlePickerDrag(e, true); }}
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); isDraggingRef.current = true; handlePickerDrag(e); }}
+            onPointerMove={(e) => { if (e.buttons > 0 && isDraggingRef.current) handlePickerDrag(e); }}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); isDraggingRef.current = false; handlePickerDrag(e, true); }}
           >
+            {/* left/top pinned at 0; the handle is placed purely by transform,
+                so moving it never invalidates layout. */}
             <motion.div
-              className="absolute w-5 h-5 rounded-full border-[2.5px] border-white shadow-[0_0_8px_rgba(0,0,0,0.6)] -ml-2.5 -mt-2.5 pointer-events-none"
-              animate={{ left: `${handleX}%`, top: `${handleY}%` }}
-              transition={{ type: "spring", bounce: 0, duration: isDraggingPicker ? 0 : 0.2 }}
+              className="absolute top-0 left-0 w-5 h-5 rounded-full border-[2.5px] border-white shadow-[0_0_8px_rgba(0,0,0,0.6)] -ml-2.5 -mt-2.5 pointer-events-none"
+              style={{ x: handleXMv, y: handleYMv }}
             />
           </div>
 
@@ -123,8 +171,7 @@ export default function LightColourContent({ state, actions }: any) {
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Preview</span>
           <motion.div
             className="w-full aspect-square md:aspect-[4/3] lg:aspect-[4/5] rounded-[24px] shadow-inner"
-            animate={{ backgroundColor: state.color.hex, opacity: Math.max(0.2, currentBrightness / 100) }}
-            transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+            style={{ backgroundColor: previewColor, opacity: previewOpacity }}
           />
         </div>
 

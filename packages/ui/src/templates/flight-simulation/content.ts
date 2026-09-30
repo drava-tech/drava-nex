@@ -8,9 +8,15 @@
 // real data provider can be swapped in later without re-authoring experiences.
 // Shared by the CMS (editor + preview) and the display renderer.
 
+import { DEFAULT_ART_ID, DATA_SOURCES, type DataSource } from "./art-catalog";
+
 export interface FlightSimulationContent {
   /** ICAO/IATA code of the airport the garden opens on (e.g. "BLR"). */
   airportCode: string;
+  /** Which data source visualization is showing ("flight" | "weather" | "attendance"). Default "flight". */
+  dataSource: DataSource;
+  /** Which art output render is showing ("flight-garden", "art-2", ...). Default "flight-garden". */
+  artId: string;
   /** Overrides the HUD tower title. Empty = use the catalog's tower name. */
   label: string;
   /** Show the glass HUD (tower, stats, legend, flight detail). Off = ambient wall. */
@@ -28,6 +34,8 @@ export interface FlightSimulationContent {
 
 export const DEFAULT_FLIGHT_SIMULATION_CONTENT: FlightSimulationContent = {
   airportCode: "BLR",
+  dataSource: "flight",
+  artId: DEFAULT_ART_ID,
   label: "",
   showHud: true,
   allowAirportSwitching: true,
@@ -57,12 +65,18 @@ export function readFlightSimulationContent(
     ...(slice as Partial<FlightSimulationContent>),
   };
 
+  const validSource = DATA_SOURCES.includes(merged.dataSource as DataSource)
+    ? (merged.dataSource as DataSource)
+    : DEFAULT_FLIGHT_SIMULATION_CONTENT.dataSource;
+
   return {
     ...merged,
     airportCode:
       typeof merged.airportCode === "string" && merged.airportCode.trim()
         ? merged.airportCode.trim().toUpperCase()
         : DEFAULT_FLIGHT_SIMULATION_CONTENT.airportCode,
+    dataSource: validSource,
+    artId: typeof merged.artId === "string" && merged.artId.trim() ? merged.artId.trim() : DEFAULT_ART_ID,
     label: typeof merged.label === "string" ? merged.label : "",
     showHud: merged.showHud !== false,
     allowAirportSwitching: merged.allowAirportSwitching !== false,

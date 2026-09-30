@@ -1,5 +1,5 @@
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
-import { getScreens } from "@/actions/screen-actions";
+import { getScreens, getActiveScreens } from "@/actions/screen-actions";
 import { getExperiences } from "@/actions/project-actions";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
 import { PublishBoard } from "./_components/publish-board";
@@ -14,8 +14,9 @@ const BROADCAST_TARGET_SCREEN_NAME = "tv-86inch";
 
 export default async function BroadcastPage() {
   await requireGuestOrAdmin();
-  const [allScreens, experiences, experienceTypes] = await Promise.all([
+  const [allScreens, activeScreenIds, experiences, experienceTypes] = await Promise.all([
     getScreens(),
+    getActiveScreens(),
     getExperiences(),
     getExperienceTypes(),
   ]);
@@ -25,7 +26,12 @@ export default async function BroadcastPage() {
 
   return (
     <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-hidden bg-zinc-100 dark:bg-transparent">
-      <PublishBoard initialScreens={screens} experiences={experiences} experienceTypes={experienceTypes} />
+      <PublishBoard
+        initialScreens={screens}
+        initialActiveScreenIds={activeScreenIds}
+        experiences={experiences}
+        experienceTypes={experienceTypes}
+      />
     </div>
   );
 }

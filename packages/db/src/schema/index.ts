@@ -43,6 +43,7 @@ export { doorEvent } from "./door-events.js";
 
 // ─── Screen Content Push History ───────────────────────────────────────────────
 export { screenContentPush } from "./screen-content-pushes.js";
+export { screenStatusSample } from "./screen-status-samples.js";
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 export {
@@ -80,6 +81,7 @@ export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-inge
 export type { Visitor, NewVisitor } from "./visitors.js";
 export type { DoorEvent, NewDoorEvent } from "./door-events.js";
 export type { ScreenContentPush, NewScreenContentPush } from "./screen-content-pushes.js";
+export type { ScreenStatusSample, NewScreenStatusSample } from "./screen-status-samples.js";
 export type {
   Product,
   NewProduct,
@@ -110,3 +112,6 @@ export type {
   Company,
   NewCompany,
 } from "./portfolio.js";
+export { ambientMode } from "./ambient-mode.js";
+export type { AmbientMode, NewAmbientMode } from "./ambient-mode.js";
+

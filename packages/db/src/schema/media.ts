@@ -44,6 +44,11 @@ export const mediaAsset = pgTable(
     // (see markMediaSaved). Screens can still be pointed at it either way;
     // this only gates library visibility, not playback.
     pendingSave: boolean("pending_save").notNull().default(false),
+    // Small derived preview for grid/carousel tiles, for image assets only.
+    // Null means "not generated" (a pre-backfill row, a video, a link) and
+    // every consumer falls back to `url`. See mediaThumbnailSrc() in
+    // @platform/types, which is the single place that fallback is decided.
+    thumbnailUrl: text("thumbnail_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -56,6 +61,22 @@ export const mediaAsset = pgTable(
     index("media_asset_type_idx").on(table.type),
     index("media_asset_deleted_at_idx").on(table.deletedAt),
     index("media_asset_source_idx").on(table.source),
+    // Backs listMediaAssets / listMediaAssetsCursor.
+    //
+    // PARTIAL on purpose. Every listing carries the same fixed filter, so
+    // putting (deleted_at, pending_save) in the key bought nothing — measured
+    // with EXPLAIN, the planner ignored that shape entirely and fell back to
+    // media_asset_deleted_at_idx plus a Sort. Moving the filter into the index
+    // predicate makes the key exactly the sort order, so a keyset page is a
+    // direct ordered scan with no Sort node.
+    //
+    // The id tie-break is load-bearing: a bulk Gmail ingest writes many rows
+    // with an identical created_at, and a cursor comparing created_at alone
+    // skips whichever of them falls on the page boundary (verified — a naive
+    // seek lost 4 of 5 tied rows).
+    index("media_asset_listing_idx")
+      .on(table.createdAt.desc(), table.id.desc())
+      .where(sql`${table.deletedAt} IS NULL AND ${table.pendingSave} = false`),
   ]
 );
 

@@ -23,6 +23,7 @@
     "@platform/types": "workspace:*",
     "@platform/ui": "workspace:*",
     "@platform/vision-browser": "workspace:*",
+    "@reduxjs/toolkit": "^2.12.0",
     "better-auth": "^1.6.18",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.41.0",
@@ -36,6 +37,7 @@
     "pptx-preview": "^1.0.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-redux": "^9.3.0",
     "read-excel-file": "^9.3.4"
   },
   "devDependencies": {
