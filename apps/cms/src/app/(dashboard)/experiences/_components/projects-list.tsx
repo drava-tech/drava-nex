@@ -477,7 +477,7 @@ export function ProjectsList({
             )}
           </div>
           {isAdmin && (
-            <Button size="sm" className="font-light" onClick={() => setShowModal(true)}>
+            <Button variant="pill" size="pill" onClick={() => setShowModal(true)}>
               <Plus className="h-4 w-4" />
               New Experience
             </Button>
