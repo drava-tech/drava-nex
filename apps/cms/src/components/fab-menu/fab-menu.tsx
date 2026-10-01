@@ -217,8 +217,8 @@ export function FabMenu({
           onClick={() => setOpen(!open)}
           onKeyDown={handleTriggerKeyDown}
           className={cn(
-            "flex items-center justify-center rounded-full border-0 text-white transition-transform",
-            "[background:var(--sidebar-active-gradient)] [box-shadow:var(--sidebar-active-shadow)]",
+            "flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl transition-shadow",
+            "hover:shadow-primary/30 hover:shadow-2xl",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             "active:scale-95"
           )}

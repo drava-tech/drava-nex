@@ -189,7 +189,7 @@ function EmbedSurface({ media }: { media: MediaItem }) {
             <button
               type="button"
               onClick={() => window.open(media.url, "_blank", "noopener,noreferrer")}
-              className="ml-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full btn-primary px-3 text-xs font-normal transition-colors"
+              className="ml-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700"
             >
               <ExternalLink className="h-3.5 w-3.5" /> Open
             </button>

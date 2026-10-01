@@ -200,7 +200,7 @@ export default function LightColourContent({ state, actions }: any) {
               </div>
               <Button
                 size="sm"
-                className="h-14 px-8"
+                className="h-14 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
                 onClick={handleHexApply}
                 disabled={!isValidHex}
               >

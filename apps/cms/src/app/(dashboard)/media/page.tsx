@@ -415,9 +415,9 @@ export default function MediaPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
-              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border-0 text-sm font-normal transition-all active:scale-95 ${selecting
-                  ? "btn-active"
-                  : "btn-surface"
+              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border text-sm font-medium transition-all active:scale-95 ${selecting
+                  ? "border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
+                  : "border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                 }`}
             >
               <CheckSquare className="h-4 w-4" />
@@ -427,7 +427,7 @@ export default function MediaPage() {
               onClick={handleLoadFromEmail}
               disabled={loadingInbox}
               title="Load last 2 days from email"
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full btn-surface text-sm font-normal transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`h-4 w-4 shrink-0 ${loadingInbox ? "animate-spin" : ""}`} />
               {loadingInbox ? "Loading…" : "Load Email"}
@@ -435,7 +435,7 @@ export default function MediaPage() {
             <button
               onClick={handleUploadClick}
               disabled={uploading}
-              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {uploading ? (
                 <>
@@ -473,17 +473,17 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedCategories.size > 0
-                    ? "btn-active"
-                    : "btn-surface"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
                   }`}
               >
-                <Folder className="h-3.5 w-3.5" />
+                <Folder className={`h-3.5 w-3.5 ${selectedCategories.size > 0 ? "text-white" : "text-zinc-400"}`} />
                 {selectedCategories.size === 0
                   ? "All Media"
                   : selectedCategories.size === 1
                     ? CATEGORIES.find((c) => selectedCategories.has(c.id))?.label
                     : `${selectedCategories.size} filters`}
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className={`h-3.5 w-3.5 ${selectedCategories.size > 0 ? "text-white" : "text-zinc-400"}`} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
@@ -518,17 +518,17 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedSources.size > 0
-                    ? "btn-active"
-                    : "btn-surface"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
                   }`}
               >
-                <Mail className="h-3.5 w-3.5" />
+                <Mail className={`h-3.5 w-3.5 ${selectedSources.size > 0 ? "text-white" : "text-zinc-400"}`} />
                 {selectedSources.size === 0
                   ? "Source"
                   : selectedSources.size === 1
                     ? SOURCES.find((s) => selectedSources.has(s.id))?.label
                     : `${selectedSources.size} sources`}
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className={`h-3.5 w-3.5 ${selectedSources.size > 0 ? "text-white" : "text-zinc-400"}`} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
@@ -566,11 +566,11 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${dateFrom || dateTo
-                    ? "btn-active"
-                    : "btn-surface"
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
                   }`}
               >
-                <CalendarRange className="h-3.5 w-3.5" />
+                <CalendarRange className={`h-3.5 w-3.5 ${dateFrom || dateTo ? "text-white" : "text-zinc-400"}`} />
                 {!dateFrom && !dateTo
                   ? "Date Range"
                   : dateFrom && dateTo
@@ -578,7 +578,7 @@ export default function MediaPage() {
                     : dateFrom
                       ? `From ${dateFrom}`
                       : `Until ${dateTo}`}
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className={`h-3.5 w-3.5 ${dateFrom || dateTo ? "text-white" : "text-zinc-400"}`} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="p-3">
@@ -616,7 +616,7 @@ export default function MediaPage() {
                 <button
                   onClick={handlePushSelected}
                   disabled={selectedIds.size === 0}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-full btn-primary text-xs font-normal uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <MonitorPlay className="h-3.5 w-3.5" />
                   {selectedIds.size ? `Push selected (${selectedIds.size})` : "Push selected"}
@@ -631,7 +631,7 @@ export default function MediaPage() {
                 </button>
                 <button
                   onClick={handleExitSelecting}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-full btn-surface text-xs font-normal uppercase tracking-wider transition-colors"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-full text-zinc-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
                 >
                   <X className="h-3.5 w-3.5" /> Cancel
                 </button>

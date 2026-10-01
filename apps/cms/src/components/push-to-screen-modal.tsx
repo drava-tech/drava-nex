@@ -456,7 +456,7 @@ export function PushToScreenModal({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="inline-flex h-9 items-center justify-center rounded-full btn-surface px-4 text-xs font-normal uppercase tracking-wider transition-colors"
+                  className="inline-flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {skipLabel}
                 </button>
@@ -464,7 +464,7 @@ export function PushToScreenModal({
               <button
                 onClick={handlePush}
                 disabled={pushing || screens.length === 0 || removingScreenId !== null}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {pushing ? (
                   <>

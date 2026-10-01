@@ -50,7 +50,7 @@ export function OverwriteConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="h-10 rounded-full btn-surface px-5 text-sm font-normal transition-colors disabled:opacity-50"
+            className="h-10 rounded-full px-5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
           >
             Cancel
           </button>
@@ -58,7 +58,7 @@ export function OverwriteConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full btn-primary px-5 text-sm font-normal transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             Confirm & Send

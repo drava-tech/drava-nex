@@ -44,7 +44,7 @@ export function UsersClient({ users }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-end">
-        <Button onClick={() => setShowCreate(!showCreate)} size="pill">
+        <Button onClick={() => setShowCreate(!showCreate)} variant="pill" size="pill">
           {showCreate ? "Cancel" : "Add User"}
         </Button>
       </div>

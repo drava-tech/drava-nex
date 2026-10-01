@@ -222,7 +222,7 @@ export default function AmbientModesPanel({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setEditing(null); setDraft(null); }}
-              className="rounded-full btn-surface px-3 py-1.5 text-[10px] font-normal uppercase tracking-widest transition-colors"
+              className="rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/10"
             >
               Cancel
             </button>
@@ -230,7 +230,7 @@ export default function AmbientModesPanel({
               type="button"
               disabled={saving}
               onClick={(e) => { e.stopPropagation(); void save(); }}
-              className="rounded-full btn-primary px-3 py-1.5 text-[10px] font-normal uppercase tracking-widest transition-colors disabled:opacity-60"
+              className="rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save"}
             </button>

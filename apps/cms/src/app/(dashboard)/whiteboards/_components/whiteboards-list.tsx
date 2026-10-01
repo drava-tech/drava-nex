@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PenTool, Plus, Trash2, Loader2, AlertTriangle } from "lucide-react";
-import { Button } from "@platform/ui";
 import { deleteWhiteboard } from "@/actions/whiteboard-actions";
 
 interface WhiteboardListItem {
@@ -37,9 +36,13 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
           </p>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">Whiteboards</h1>
         </div>
-        <Button size="pill" onClick={() => router.push("/whiteboards/new")}>
-          <Plus className="h-4 w-4" /> New Board
-        </Button>
+        <button
+          type="button"
+          onClick={() => router.push("/whiteboards/new")}
+          className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-bold uppercase tracking-wider text-zinc-100 transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Board
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -138,7 +141,7 @@ export function WhiteboardsList({ items }: { items: WhiteboardListItem[] }) {
               <button
                 type="button"
                 onClick={() => setConfirmTarget(null)}
-                className="h-9 rounded-full btn-surface px-4 text-xs font-normal uppercase tracking-wider transition-colors"
+                className="h-9 rounded-full px-4 text-xs font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-white/5"
               >
                 Cancel
               </button>

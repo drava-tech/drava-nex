@@ -294,12 +294,12 @@ export function LiveScreenSurface({
             </span>
           )}
           {hasQueue && (
-            <div className="flex items-center gap-1 rounded-full bg-[var(--btn-bg)] px-1 py-1">
+            <div className="flex items-center gap-1 rounded-xl bg-zinc-200/60 px-1 py-1 dark:bg-zinc-900">
               <button
                 onClick={() => navigateQueue("prev")}
                 disabled={navigatingQueue || queueIndex === 0}
                 title="Previous item"
-                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] disabled:opacity-30"
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -310,7 +310,7 @@ export function LiveScreenSurface({
                 onClick={() => navigateQueue("next")}
                 disabled={navigatingQueue || queueIndex === queueMediaIds!.length - 1}
                 title="Next item"
-                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] disabled:opacity-30"
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -322,7 +322,7 @@ export function LiveScreenSurface({
             <button
               onClick={resetDetection}
               disabled={resetting}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-normal uppercase tracking-wider transition-colors btn-active disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
             >
               {resetting ? "Resetting..." : "Reset detection"}
             </button>
@@ -331,7 +331,7 @@ export function LiveScreenSurface({
             onClick={resetState}
             disabled={resettingState}
             title="Reset the current content to its initial state (e.g. portfolio 1st frame)"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-normal uppercase tracking-wider transition-colors btn-surface disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingState ? "Resetting..." : "Reset view"}
           </button>
@@ -339,7 +339,7 @@ export function LiveScreenSurface({
             onClick={resetToIdle}
             disabled={resettingToIdle}
             title="Clear the current assignment and fall back to the default/idle media"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-normal uppercase tracking-wider transition-colors btn-surface disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingToIdle ? "Resetting..." : "Reset to idle"}
           </button>
@@ -347,9 +347,9 @@ export function LiveScreenSurface({
             onClick={toggleBlank}
             disabled={togglingBlank}
             title={blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-normal uppercase tracking-wider transition-colors disabled:opacity-50 ${blanked
-              ? "btn-active"
-              : "btn-surface"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${blanked
+              ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
+              : "border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
               }`}
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
@@ -363,7 +363,7 @@ export function LiveScreenSurface({
             <DropdownMenuTrigger
               disabled={appBusy}
               title="Kiosk app controls on the TV's PC — refresh, minimize, maximize, close"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full btn-surface text-[10px] font-normal uppercase tracking-wider transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 data-[state=open]:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
             >
               <AppWindow className="h-3.5 w-3.5" />
               {appBusy ? "..." : "App"}
@@ -414,12 +414,12 @@ export function LiveScreenSurface({
               button above, which shares a Play icon but blanks the screen
               rather than controlling playback. */}
           {showTransport && (
-            <div className="flex items-center gap-0.5 rounded-full bg-[var(--btn-bg)] px-1 py-1">
+            <div className="flex items-center gap-0.5 rounded-xl bg-zinc-500/10 px-1 py-1">
               <button
                 onClick={() => handleSeek(-SEEK_STEP_SECONDS)}
                 title={`Back ${SEEK_STEP_SECONDS}s`}
                 aria-label={`Back ${SEEK_STEP_SECONDS} seconds`}
-                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)]"
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
               >
                 <Rewind className="h-3.5 w-3.5" />
               </button>
@@ -427,7 +427,7 @@ export function LiveScreenSurface({
                 onClick={handleTogglePlay}
                 title={assumePlaying ? "Pause" : "Play"}
                 aria-label={assumePlaying ? "Pause" : "Play"}
-                className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-full p-1.5 text-[10px] font-normal uppercase tracking-wider text-white transition-colors hover:bg-[var(--btn-bg-hover)]"
+                className="flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
               >
                 {assumePlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                 {assumePlaying ? "Pause" : "Play"}
@@ -436,7 +436,7 @@ export function LiveScreenSurface({
                 onClick={() => handleSeek(SEEK_STEP_SECONDS)}
                 title={`Forward ${SEEK_STEP_SECONDS}s`}
                 aria-label={`Forward ${SEEK_STEP_SECONDS} seconds`}
-                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)]"
+                className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
               >
                 <FastForward className="h-3.5 w-3.5" />
               </button>
@@ -447,12 +447,12 @@ export function LiveScreenSurface({
               live (video, image, experience, or the touchpad), since it
               drives the PC's system audio rather than any one piece of
               content. */}
-          <div className="flex items-center gap-0.5 rounded-full bg-[var(--btn-bg)] px-1 py-1">
+          <div className="flex items-center gap-0.5 rounded-xl bg-zinc-500/10 px-1 py-1">
             <button
               onClick={() => adjustVolume(-VOLUME_STEP)}
               title="Decrease volume"
               aria-label="Decrease volume"
-              className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)]"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -461,9 +461,9 @@ export function LiveScreenSurface({
               title={muted ? "Unmute" : "Mute"}
               aria-label={muted ? "Unmute" : "Mute"}
               aria-pressed={muted}
-              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-full p-1.5 text-[10px] font-normal uppercase tracking-wider transition-colors ${muted
-                  ? "btn-active"
-                  : "text-white hover:bg-[var(--btn-bg-hover)]"
+              className={`flex min-w-[3.5rem] items-center justify-center gap-1.5 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${muted
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-zinc-500 hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
                 }`}
             >
               {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
@@ -473,7 +473,7 @@ export function LiveScreenSurface({
               onClick={() => adjustVolume(VOLUME_STEP)}
               title="Increase volume"
               aria-label="Increase volume"
-              className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)]"
+              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-300 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -482,7 +482,7 @@ export function LiveScreenSurface({
           {changeContent && (
             <button
               onClick={() => setShowPicker(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-normal uppercase tracking-wider transition-colors btn-primary"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-zinc-100 dark:text-zinc-900 text-[10px] font-bold uppercase tracking-wider transition-colors"
             >
               <Layers className="h-3.5 w-3.5" /> Change content
             </button>

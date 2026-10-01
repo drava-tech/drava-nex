@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Layers, Wifi, Plus, Trash2, Copy, Check, Ban, Play, MoreVertical, Send } from "lucide-react";
+import { Layers, Wifi, Plus, Trash2, SlidersHorizontal, Copy, Check, RotateCcw, Ban, Play, MoreVertical, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@platform/ui";
 import { removeScreen, assignExperience, assignMedia } from "@/actions/screen-actions";
@@ -181,13 +181,13 @@ export function ScreensController({
       content.type === "experience"
         ? { screenId, kind: "experience", id: content.id, title: content.title ?? null }
         : {
-          screenId,
-          kind: "media",
-          id: content.id,
-          title: content.title ?? null,
-          mediaType: content.type,
-          mediaUrl: content.source,
-        },
+            screenId,
+            kind: "media",
+            id: content.id,
+            title: content.title ?? null,
+            mediaType: content.type,
+            mediaUrl: content.source,
+          },
     ));
     setPickerTargetId(null);
 
@@ -222,14 +222,17 @@ export function ScreensController({
         />
       )}
 
-      <div className="flex-1 w-full h-full flex flex-col select-none min-h-0 overflow-y-auto pt-2 pb-8">
-        <div className="w-full max-w-full mx-auto px-10">
+      <div className="flex-1 w-full h-full flex flex-col select-none min-h-0 overflow-y-auto py-2">
+        <div className="w-full max-w-full mx-auto px-4">
           {/* Drag & Publish + Add screen row */}
           <div className="flex items-center justify-end gap-2 mb-6">
-            <Button variant="outline" size="pill" onClick={() => router.push("/broadcast")}>
-              <Send className="h-4 w-4" />
+            <button
+              onClick={() => router.push("/broadcast")}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 text-xs font-bold tracking-wider uppercase transition-colors"
+            >
+              <Send className="h-3.5 w-3.5" />
               Drag & Publish
-            </Button>
+            </button>
             {isAdmin && (
               <Button variant="pill" size="pill" onClick={() => setShowAddModal(true)}>
                 <Plus className="h-4 w-4" />
@@ -254,17 +257,23 @@ export function ScreensController({
                 return (
                   <div
                     key={screen.id}
-                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card card-glow transition-all"
+                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card card-glow transition-all hover:ring-2 hover:ring-sky-500 focus-within:ring-2 focus-within:ring-sky-500"
                   >
                     {/* Live mirror — exactly what the TV is showing (template/media/idle) */}
-                    <div className="relative w-full aspect-video shrink-0">
+                    <div className="relative mx-4 mt-4 aspect-video shrink-0">
                       <button
                         type="button"
                         onClick={() => openControl(screen.id)}
                         title="Open control"
-                        className="relative h-full w-full overflow-hidden cursor-pointer"
+                        className="relative h-full w-full rounded-2xl overflow-hidden cursor-pointer"
                       >
                         <ScreenMirror screenId={screen.id} title={screen.name} isOnline={isOnline} loadStream={false} />
+                        {/* Hover hint */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 text-zinc-900 text-[10px] font-bold uppercase tracking-wider">
+                            <SlidersHorizontal className="h-3 w-3" /> Control
+                          </span>
+                        </div>
                       </button>
 
                       {isAdmin && (
@@ -317,7 +326,7 @@ export function ScreensController({
                     <div className="flex flex-col gap-3 p-4">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
-                          <p className="truncate text-lg font-light text-white">{screen.name}</p>
+                          <p className="truncate text-base font-light text-white">{screen.name}</p>
                           {hasLiveUpdate && (
                             <span title="Updated from screen" className="shrink-0">
                               <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
@@ -326,31 +335,33 @@ export function ScreensController({
                         </div>
                         <Badge
                           variant="outline"
-                          className={`shrink-0 rounded-full bg-transparent px-3 py-1 text-xs font-light ${isOnline ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`}
+                          className={`shrink-0 rounded-full bg-transparent px-3 py-1 text-[11px] font-light ${isOnline ? "border-green-500 text-green-500" : "border-red-500 text-red-500"}`}
                         >
                           {isOnline ? "Live" : "Offline"}
                         </Badge>
                       </div>
 
-                      <p className="truncate text-base text-muted-foreground">
+                      <p className="truncate text-sm text-muted-foreground">
                         {isAssigned ? screen.contentLabel : "No content assigned"}
                       </p>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="glass" size="sm" className="flex-1 px-3 text-sm" onClick={() => openControl(screen.id)}>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button variant="glass" size="sm" onClick={() => openControl(screen.id)}>
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
                           Control
                         </Button>
-                        <Button variant="glass" size="sm" className="flex-1 px-3 text-sm" onClick={() => setPickerTargetId(screen.id)}>
+                        <Button variant="glass" size="sm" onClick={() => setPickerTargetId(screen.id)}>
+                          <Layers className="h-3.5 w-3.5" />
                           {isAssigned ? "Change" : "Assign"}
                         </Button>
                         <Button
                           variant="glass"
                           size="sm"
-                          className="flex-1 px-3 text-sm"
                           onClick={() => handleResetToIdle(screen.id)}
                           disabled={idlingId === screen.id}
                           title="Clear the current assignment and fall back to the default/idle media"
                         >
+                          <RotateCcw className="h-3.5 w-3.5" />
                           {idlingId === screen.id ? "..." : "Idle"}
                         </Button>
                       </div>

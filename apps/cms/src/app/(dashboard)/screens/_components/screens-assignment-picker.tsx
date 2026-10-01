@@ -408,10 +408,10 @@ export function ScreenAssignmentPicker({
                 setActiveTab("experiences");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-semibold rounded-full uppercase tracking-wider transition-all duration-200 ${
                 activeTab === "experiences"
-                  ? "btn-active"
-                  : "btn-surface"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-350"
               }`}
             >
               Experiences
@@ -421,10 +421,10 @@ export function ScreenAssignmentPicker({
                 setActiveTab("files");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-semibold rounded-full uppercase tracking-wider transition-all duration-200 ${
                 activeTab === "files"
-                  ? "btn-active"
-                  : "btn-surface"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-350"
               }`}
             >
               Files (Media)
@@ -434,10 +434,10 @@ export function ScreenAssignmentPicker({
                 setActiveTab("recent");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-semibold rounded-full uppercase tracking-wider transition-all duration-200 ${
                 activeTab === "recent"
-                  ? "btn-active"
-                  : "btn-surface"
+                  ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-350"
               }`}
             >
               Recently Opened
