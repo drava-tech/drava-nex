@@ -130,7 +130,7 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
         style={style}
         className={cn(
           "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all",
-          "hover:ring-2 hover:ring-sky-500 focus-within:ring-2 focus-within:ring-sky-500",
+          "hover:ring-2 hover:ring-primary focus-within:ring-2 focus-within:ring-primary",
           dragEnabled && "cursor-grab active:cursor-grabbing"
         )}
         {...draggableProps}

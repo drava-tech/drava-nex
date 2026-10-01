@@ -8,7 +8,7 @@ export type StatAccent = "blue" | "violet" | "amber" | "emerald" | "rose" | "sla
 const CARD_SHELL = "relative overflow-hidden rounded-2xl border border-border/30 bg-card shadow-[var(--card-shadow)] transition-all duration-200 hover:-translate-y-0.5";
 
 const CHIP: Record<StatAccent, string> = {
-  blue: "bg-blue-500/10 text-blue-500 dark:text-blue-400",
+  blue: "bg-primary/10 text-primary dark:text-red-400",
   violet: "bg-violet-500/10 text-violet-500 dark:text-violet-400",
   amber: "bg-amber-500/10 text-amber-500 dark:text-amber-400",
   emerald: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400",

@@ -125,7 +125,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
                     onClick={() => toggleScreen(screen.screenId)}
                     className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                       isSelected
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+                        ? "bg-red-50 text-primary dark:bg-primary/10 dark:text-red-300"
                         : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
                     }`}
                   >

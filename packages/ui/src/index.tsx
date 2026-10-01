@@ -27,7 +27,7 @@ export const buttonVariants = cva(
         glass: "glass-shine rounded-full font-normal text-white",
         active: "btn-active rounded-full border-0 font-normal",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-blue-600 dark:text-blue-400 underline-offset-4 hover:underline",
         pill: "btn-primary rounded-full border-0 font-normal",
       },
       size: {

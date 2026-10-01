@@ -1090,7 +1090,7 @@ function WhiteboardToolStrip({
                 }}
                 aria-label={`Colour ${c}`}
                 className={`h-6 w-6 shrink-0 rounded-full ring-1 ring-black/15 transition-transform hover:scale-110 dark:ring-white/20 ${
-                  color === c ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-[#18181b]" : ""
+                  color === c ? "ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-[#18181b]" : ""
                 }`}
                 style={{ backgroundColor: c }}
               />
@@ -1172,7 +1172,7 @@ function ToolbarButton({
       aria-pressed={active}
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
         active
-          ? "bg-blue-600 text-white"
+          ? "bg-primary text-white"
           : danger
             ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
             : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
