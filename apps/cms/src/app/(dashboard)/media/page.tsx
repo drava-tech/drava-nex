@@ -99,7 +99,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const SOURCE_BADGE_STYLES: Record<string, string> = {
-  upload: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+  upload: "bg-red-50 text-primary dark:bg-primary/10 dark:text-red-400",
   email: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
   link: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
 };
@@ -459,13 +459,13 @@ export default function MediaPage() {
         {/* Search + category filter dropdown (multi-select) */}
         <div className="flex items-center gap-2 overflow-x-auto">
           <div className="relative group shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 group-focus-within:text-primary transition-colors" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search media..."
-              className="h-9 pl-9 pr-4 w-48 sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm outline-none dark:text-white"
+              className="h-9 pl-9 pr-4 w-48 sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm outline-none dark:text-white"
             />
           </div>
 
@@ -674,7 +674,7 @@ export default function MediaPage() {
                   <tr className="border-b last:border-0">
                     <td colSpan={selecting ? 7 : 6} className="px-4 py-3">
                       <div className="flex items-center gap-3 text-zinc-400 dark:text-zinc-500">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
                         Uploading asset…
                       </div>
                     </td>
@@ -688,7 +688,7 @@ export default function MediaPage() {
                       onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
                       className={cn(
                         "cursor-pointer border-b last:border-0 hover:bg-muted/30",
-                        isSelected && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                        isSelected && "bg-red-50 dark:bg-primary/10 hover:bg-red-50 dark:hover:bg-primary/10"
                       )}
                     >
                       {selecting && (
@@ -700,7 +700,7 @@ export default function MediaPage() {
                             className={cn(
                               "flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors",
                               isSelected
-                                ? "bg-blue-600 border-blue-600"
+                                ? "bg-primary border-primary"
                                 : "border-border hover:border-zinc-400 dark:hover:border-zinc-500"
                             )}
                           >
@@ -783,7 +783,7 @@ export default function MediaPage() {
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="h-7 pl-2 pr-6 rounded-lg bg-zinc-100 dark:bg-white/5 border-transparent text-xs font-medium text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                  className="h-7 pl-2 pr-6 rounded-lg bg-zinc-100 dark:bg-white/5 border-transparent text-xs font-medium text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                 >
                   {PAGE_SIZE_OPTIONS.map((size) => (
                     <option key={size} value={size}>{size}</option>

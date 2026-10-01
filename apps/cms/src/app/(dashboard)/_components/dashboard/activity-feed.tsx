@@ -7,7 +7,7 @@ import { sampleActivity } from "./sample-data";
 import { SampleBadge } from "./sample-badge";
 
 const kindMeta: Record<DashboardActivityItem["kind"], { icon: LucideIcon; className: string; glow: string }> = {
-  screen: { icon: Monitor, className: "bg-blue-500/15 text-blue-300", glow: "shadow-[0_0_16px_-4px_rgba(59,130,246,0.7)]" },
+  screen: { icon: Monitor, className: "bg-primary/15 text-red-300", glow: "shadow-[0_0_16px_-4px_rgba(226,29,62,0.7)]" },
   experience: { icon: SquareTerminal, className: "bg-violet-500/15 text-violet-300", glow: "shadow-[0_0_16px_-4px_rgba(167,139,250,0.7)]" },
   media: { icon: Film, className: "bg-amber-500/15 text-amber-300", glow: "shadow-[0_0_16px_-4px_rgba(245,158,11,0.7)]" },
 };
