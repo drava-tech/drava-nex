@@ -8,7 +8,7 @@ export default function SecurityContent({ isExpanded, state, actions }: any) {
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
       <div className={`flex justify-between items-start shrink-0 ${isExpanded ? "mb-4" : "mb-2"}`}>
         <div className="flex items-center gap-2">
-          <div className={`${isExpanded ? "w-8 h-8" : "w-7 h-7"} rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0`}>
+          <div className={`${isExpanded ? "w-8 h-8" : "w-7 h-7"} rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0`}>
             {state.locked ? <Lock className={isExpanded ? "w-4 h-4" : "w-3.5 h-3.5"} /> : <Unlock className={isExpanded ? "w-4 h-4" : "w-3.5 h-3.5"} />}
           </div>
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Security</h3>
@@ -33,14 +33,14 @@ export default function SecurityContent({ isExpanded, state, actions }: any) {
              <div className="min-w-0 flex flex-1 min-h-0 flex-col justify-center items-center h-full mt-2 sm:mt-4">
               <button
                 onClick={() => actions.setLocked(!state.locked)}
-                className={`flex items-center justify-center rounded-full p-5 sm:p-7 md:p-8 transition-colors ${state.locked ? "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
+                className={`flex items-center justify-center rounded-full p-5 sm:p-7 md:p-8 transition-colors ${state.locked ? "btn-active" : "bg-[#262626] text-white shadow-[var(--pill-shadow)] hover:bg-[#333333]"}`}
               >
                 {state.locked ? <Lock className="w-20 h-20 sm:w-28 sm:h-28 lg:w-36 lg:h-36" /> : <Unlock className="w-20 h-20 sm:w-28 sm:h-28 lg:w-36 lg:h-36" />}
               </button>
               <div className="flex items-start justify-center mt-3 sm:mt-5 mb-1 sm:mb-2 shrink-0">
-                <span className="text-3xl sm:text-5xl lg:text-6xl font-black">{state.locked ? "Locked" : "Unlocked"}</span>
+                <span className="text-3xl sm:text-5xl lg:text-6xl font-black text-white">{state.locked ? "Locked" : "Unlocked"}</span>
               </div>
-              <p className={`text-center text-[10px] sm:text-xs font-bold tracking-widest uppercase opacity-80 mt-1 sm:mt-2 shrink-0 ${state.locked ? "text-yellow-500" : "text-muted-foreground"}`}>
+              <p className={`text-center text-[10px] sm:text-xs font-bold tracking-widest uppercase opacity-80 mt-1 sm:mt-2 shrink-0 ${state.locked ? "text-[#E21D3E]" : "text-white/60"}`}>
                 {state.locked ? "System is fully locked and secured" : "System is unlocked"}
               </p>
             </div>

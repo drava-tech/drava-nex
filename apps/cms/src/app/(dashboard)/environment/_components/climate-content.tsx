@@ -2,10 +2,14 @@ import React from "react";
 import { Thermometer, Plus, Minus } from "lucide-react";
 import { Badge } from "@platform/ui";
 import { Switch } from "./controls";
-import { getTempColor, noProp } from "./utils";
+import { noProp } from "./utils";
+
+/** 270° arc, r=88 around (100,100): bottom-left → over the top → bottom-right. */
+const ARC = "M 37.77 162.23 A 88 88 0 1 1 162.23 162.23";
 
 export default function ClimateContent({ isExpanded, state, actions }: any) {
   const mode = String(state.mode ?? "").toLowerCase();
+  const tempPct = Math.min(100, Math.max(0, ((state.temp - 16) / 14) * 100));
 
   return (
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
@@ -50,7 +54,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                     className={`h-8 sm:h-9 md:h-10 lg:h-11 flex-1 sm:flex-none rounded-full px-1.5 text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
                       isActive
                         ? "btn-active"
-                        : "btn-surface"
+                        : "bg-[#262626] text-white shadow-[var(--pill-shadow)] hover:bg-[#333333]"
                     }`}
                   >
                     {m}
@@ -59,37 +63,44 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
               })}
             </div>
 
-            {/* Center: Temperature Dial */}
-            {/* min-w-0 so this column can actually give way when the card is
-                narrow (the side columns are shrink-0); without it the dial
-                keeps its width and squeezes the +/- controls off the card.
+            {/* Center: Temperature Dial — an open 270° arc (gap at the bottom)
+                that fills from bottom-left with the target temperature, the
+                value in the middle and −/+ sitting in the gap.
+                min-w-0 so this column can give way when the card is narrow.
                 The dial is aspect-square sized from its *height*, so each
                 max-h below is kept at or under the width this column actually
                 gets at that breakpoint — otherwise max-w-full clamps the width
-                and the dial renders as a squashed oval. lg is the tightest
-                case, not the roomiest: at 1024px the card is only 68% of a
-                narrow viewport, so it needs a smaller cap than xl/2xl. */}
+                and the dial renders as a squashed oval. */}
             <div className="flex min-h-0 min-w-0 items-center justify-center flex-1 w-full h-full max-h-[200px] sm:max-h-[260px] md:max-h-[300px] lg:max-h-[200px] xl:max-h-[280px] 2xl:max-h-[340px]">
-              <div className="relative aspect-square h-full max-h-full max-w-full flex items-center justify-center shrink-0">
-                {Array.from({ length: 48 }).map((_, i) => {
-                  const tickTemp = 15 + (i / 3);
-                  const isActive = tickTemp <= state.temp;
-                  return (
-                    <div key={i} className="absolute inset-0 pointer-events-none" style={{ transform: `rotate(${i * 7.5}deg)` }}>
-                      <div className={`w-[2px] sm:w-[2px] md:w-[2.5px] h-2.5 sm:h-3 md:h-4 mx-auto rounded-full transition-colors duration-500 ${isActive
-                        ? (state.temp > 24 ? "bg-orange-500 shadow-[0_0_10px_#f97316]" : "bg-cyan-500 shadow-[0_0_10px_#06b6d4]")
-                        : "bg-muted-foreground/20"
-                      }`} />
-                    </div>
-                  );
-                })}
-                <div className="relative w-[76%] h-[76%] rounded-full bg-card shadow-2xl flex flex-col items-center justify-center z-10 border border-border">
-                  <div className={`absolute inset-3 rounded-full blur-2xl opacity-20 transition-colors duration-1000 ${state.temp > 24 ? "bg-orange-500" : "bg-cyan-500"} animate-pulse`} />
-                  <span className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b ${getTempColor(state.temp)} relative z-10 select-none`}>
-                    {state.temp}°
-                  </span>
-                  <span className="text-[10px] md:text-xs font-black text-muted-foreground tracking-widest uppercase mt-1 md:mt-2 relative z-10 select-none">Target</span>
+              <div className="relative aspect-square h-full max-h-full max-w-full shrink-0">
+                {/* Disc inside the arc, same surface + shadow as the mode and ± buttons. */}
+                <div className="absolute inset-[16%] rounded-full bg-[#262626] shadow-[var(--pill-shadow)]" />
+                <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full" aria-hidden>
+                  <defs>
+                    <linearGradient id="climate-arc" gradientUnits="userSpaceOnUse" x1="40" y1="165" x2="40" y2="70">
+                      <stop offset="0%" stopColor="#000000" />
+                      <stop offset="55%" stopColor="#761A2A" />
+                      <stop offset="100%" stopColor="#E21D3E" />
+                    </linearGradient>
+                  </defs>
+                  <path d={ARC} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={4} strokeLinecap="round" />
+                  <path
+                    d={ARC}
+                    fill="none"
+                    stroke="url(#climate-arc)"
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    pathLength={100}
+                    strokeDasharray={`${tempPct} 100`}
+                    style={{ transition: "stroke-dasharray 150ms ease-out" }}
+                  />
+                </svg>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
+                  <span className="text-5xl sm:text-6xl md:text-7xl font-light leading-none text-white">{state.temp}°</span>
+                  <span className="mt-2 text-xs text-white/80">Target</span>
                 </div>
+
               </div>
             </div>
 
@@ -101,7 +112,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                   if (mode !== "cool" && mode !== "heat") actions.setMode("Cool");
                   actions.setTemp(Math.min(30, state.temp + 1));
                 }}
-                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl md:rounded-2xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex flex-col items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
+                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl md:rounded-2xl bg-[#262626] text-white shadow-[var(--pill-shadow)] hover:bg-[#333333] flex flex-col items-center justify-center hover:scale-105 active:scale-95 transition-all duration-150"
                 aria-label="Increase temperature"
                 title="Increase temperature"
               >
@@ -113,7 +124,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                   if (mode !== "cool" && mode !== "heat") actions.setMode("Cool");
                   actions.setTemp(Math.max(16, state.temp - 1));
                 }}
-                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl md:rounded-2xl border border-border bg-muted/30 hover:bg-muted/60 text-foreground flex flex-col items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all duration-150"
+                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl md:rounded-2xl bg-[#262626] text-white shadow-[var(--pill-shadow)] hover:bg-[#333333] flex flex-col items-center justify-center hover:scale-105 active:scale-95 transition-all duration-150"
                 aria-label="Decrease temperature"
                 title="Decrease temperature"
               >
