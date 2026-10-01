@@ -35,7 +35,7 @@ export function AddScreenModal({ onClose, onAdded }: AddScreenModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-[#432992] rounded-3xl p-6"
+        className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-border rounded-3xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -64,7 +64,7 @@ export function AddScreenModal({ onClose, onAdded }: AddScreenModalProps) {
               onChange={(e) => setScreenId(e.target.value)}
               placeholder="e.g. screen-lobby"
               autoFocus
-              className="w-full px-3 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-[#432992] text-zinc-900 dark:text-zinc-100 text-sm placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
+              className="w-full px-3 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-border text-zinc-900 dark:text-zinc-100 text-sm placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
             />
             <p className="mt-1.5 text-[10px] text-zinc-400 dark:text-zinc-600">
               Must match the ID the physical screen registers with.
@@ -80,7 +80,7 @@ export function AddScreenModal({ onClose, onAdded }: AddScreenModalProps) {
               value={screenName}
               onChange={(e) => setScreenName(e.target.value)}
               placeholder="e.g. Main Hall Display"
-              className="w-full px-3 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-[#432992] text-zinc-900 dark:text-zinc-100 text-sm placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
+              className="w-full px-3 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-border text-zinc-900 dark:text-zinc-100 text-sm placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
             />
           </div>
 

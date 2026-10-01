@@ -93,11 +93,13 @@ export class CasambiDeviceDriver implements DeviceDriver {
           setTimeout(() => reject(new Error("ack timeout")), PUBLISH_ACK_TIMEOUT_MS)
         ),
       ]);
-    } catch (err) {
-      // Broker down or slow: mqtt.js still queues/flushes on reconnect, so this
-      // is a delivery delay, not a lost command — don't fail the caller over it.
+        } catch (err) {
       console.error(`[casambi] publish to ${topic} did not ack in time:`, err);
+      throw new Error(
+        `Lights didn't confirm the change in time (mesh network may be slow or offline). The command is queued and may still apply once it reconnects.`
+      );
     }
+
   }
 
   async setLightState(device: Device, state: LightState): Promise<void> {

@@ -31,7 +31,7 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#1B006D] to-[#8A5CFF] transition-[width] duration-150 ease-out"
+                className="h-full rounded-full bg-primary transition-[width] duration-150 ease-out"
                 style={{ width: `${((state.temp - 16) / 14) * 100}%` }}
               />
             </div>

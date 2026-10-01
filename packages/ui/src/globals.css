@@ -7,38 +7,51 @@
 @source "./**/*.{ts,tsx}";
 
 :root {
-  --background: oklch(0.9900 0 0);
-  --foreground: oklch(0 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0 0 0);
-  --popover: oklch(0.9900 0 0);
-  --popover-foreground: oklch(0 0 0);
-  --primary: oklch(0 0 0);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.9400 0 0);
-  --secondary-foreground: oklch(0 0 0);
-  --muted: oklch(0.9700 0 0);
-  --muted-foreground: oklch(0.4400 0 0);
-  --accent: oklch(0.9400 0 0);
-  --accent-foreground: oklch(0 0 0);
-  --destructive: oklch(0.6300 0.1900 23.0300);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9200 0 0);
-  --input: oklch(0.9400 0 0);
-  --ring: oklch(0 0 0);
-  --chart-1: oklch(0.8100 0.1700 75.3500);
-  --chart-2: oklch(0.5500 0.2200 264.5300);
-  --chart-3: oklch(0.7200 0 0);
-  --chart-4: oklch(0.9200 0 0);
-  --chart-5: oklch(0.5600 0 0);
-  --sidebar: oklch(0.9900 0 0);
-  --sidebar-foreground: oklch(0 0 0);
-  --sidebar-primary: oklch(0 0 0);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9400 0 0);
-  --sidebar-accent-foreground: oklch(0 0 0);
-  --sidebar-border: oklch(0.9400 0 0);
-  --sidebar-ring: oklch(0 0 0);
+  --background: #000000;
+  --foreground: #FFFFFF;
+  --card: #191919;
+  --card-foreground: #FFFFFF;
+  --popover: #191919;
+  --popover-foreground: #FFFFFF;
+  --primary: #E21D3E;
+  --primary-foreground: #FFFFFF;
+  --secondary: #222222;
+  --secondary-foreground: #FFFFFF;
+  --muted: #222222;
+  --muted-foreground: #A1A1AA;
+  --accent: #262626;
+  --accent-foreground: #FFFFFF;
+  --destructive: #E21D3E;
+  --destructive-foreground: #FFFFFF;
+  --border: #262626;
+  --input: #262626;
+  --ring: #E21D3E;
+  --chart-1: #E21D3E;
+  --chart-2: #4DDD00;
+  --chart-3: #FF2400;
+  --chart-4: #888888;
+  --chart-5: #333333;
+  --sidebar: #191919;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #E21D3E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #262626;
+  --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
+  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
+  --pill-bg: linear-gradient(180deg, #9a9a9a 0%, #777777 100%);
+  --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
+  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.1) 35%, rgba(255, 255, 255, 0.1) 65%, rgba(255, 255, 255, 0.75) 100%);
+  --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
+  --shine-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.08) 35%, rgba(255, 255, 255, 0.08) 65%, rgba(255, 255, 255, 0.55) 100%);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
@@ -57,61 +70,103 @@
   --shadow-lg: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 4px 6px -1px hsl(0 0% 0% / 0.18);
   --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
   --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
-  --tracking-normal: 0em;
+  --tracking-normal: 0.04em;
   --spacing: 0.25rem;
 }
 
 .dark {
-  --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.1400 0 0);
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.1800 0 0);
-  --popover-foreground: oklch(1 0 0);
-  --primary: oklch(1 0 0);
-  --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.2500 0 0);
-  --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.2300 0 0);
-  --muted-foreground: oklch(0.7200 0 0);
-  --accent: #432992;
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.6900 0.2000 23.9100);
-  --destructive-foreground: oklch(0 0 0);
-  --border: #432992;
-  --input: #432992;
-  --ring: oklch(0.7200 0 0);
-  --chart-1: oklch(0.8100 0.1700 75.3500);
-  --chart-2: oklch(0.5800 0.2100 260.8400);
-  --chart-3: oklch(0.5600 0 0);
-  --chart-4: oklch(0.4400 0 0);
-  --chart-5: oklch(0.9200 0 0);
-  --sidebar: oklch(0.1800 0 0);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(1 0 0);
-  --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: #432992;
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: #432992;
-  --sidebar-ring: oklch(0.7200 0 0);
+  --background: #000000;
+  --foreground: #FFFFFF;
+  --card: #191919;
+  --card-foreground: #FFFFFF;
+  --popover: #191919;
+  --popover-foreground: #FFFFFF;
+  --primary: #E21D3E;
+  --primary-foreground: #FFFFFF;
+  --secondary: #222222;
+  --secondary-foreground: #FFFFFF;
+  --muted: #222222;
+  --muted-foreground: #A1A1AA;
+  --accent: #262626;
+  --accent-foreground: #FFFFFF;
+  --destructive: #E21D3E;
+  --destructive-foreground: #FFFFFF;
+  --border: #262626;
+  --input: #262626;
+  --ring: #E21D3E;
+  --chart-1: #E21D3E;
+  --chart-2: #4DDD00;
+  --chart-3: #FF2400;
+  --chart-4: #888888;
+  --chart-5: #333333;
+  --sidebar: #191919;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #E21D3E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #262626;
+  --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
+  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
+  --pill-bg: linear-gradient(180deg, #8e8e8e 0%, #777777 100%);
+  --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
+  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.1) 35%, rgba(255, 255, 255, 0.1) 65%, rgba(255, 255, 255, 0.75) 100%);
+  --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
+  --shine-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.08) 35%, rgba(255, 255, 255, 0.08) 65%, rgba(255, 255, 255, 0.55) 100%);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
   --radius: 0.5rem;
-  --shadow-x: 0px;
-  --shadow-y: 1px;
-  --shadow-blur: 2px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.18;
-  --shadow-color: hsl(0 0% 0%);
-  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
-  --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
-  --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
-  --shadow: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
-  --shadow-md: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 2px 4px -1px hsl(0 0% 0% / 0.18);
-  --shadow-lg: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 4px 6px -1px hsl(0 0% 0% / 0.18);
-  --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
-  --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
+}
+
+.light {
+  --background: #FFFFFF;
+  --foreground: #000000;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --popover: #FFFFFF;
+  --popover-foreground: #000000;
+  --primary: #E21D3E;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F4F4F5;
+  --secondary-foreground: #18181B;
+  --muted: #F4F4F5;
+  --muted-foreground: #71717A;
+  --accent: #F4F4F5;
+  --accent-foreground: #18181B;
+  --destructive: #E21D3E;
+  --destructive-foreground: #FFFFFF;
+  --border: #E4E4E7;
+  --input: #E4E4E7;
+  --ring: #E21D3E;
+  --sidebar: #FAFAFA;
+  --sidebar-foreground: #18181B;
+  --sidebar-primary: #E21D3E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F4F4F5;
+  --sidebar-accent-foreground: #18181B;
+  --sidebar-border: #E4E4E7;
+  --sidebar-ring: #E21D3E;
+  --sidebar-active-gradient: linear-gradient(135deg, #E21D3E 0%, #C41432 100%);
+  --sidebar-active-border: transparent;
+  --sidebar-active-shadow: 0 6px 12px -4px rgba(226, 29, 62, 0.45), 0 2px 5px -1px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+  --card-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -3px 8px 0 rgba(0, 0, 0, 0.05);
+  --pill-bg: linear-gradient(180deg, #8a8a8f 0%, #6b6b70 100%);
+  --pill-bg-hover: linear-gradient(180deg, #96969b 0%, #76767b 100%);
+  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.35), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.06);
+  --glass-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.03) 100%);
+  --glass-bg-hover: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.06) 100%);
+  --glass-border: rgba(0, 0, 0, 0.25);
+  --glass-stroke: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.1) 35%, rgba(0, 0, 0, 0.1) 65%, rgba(0, 0, 0, 0.75) 100%);
+  --glow-shadow: 0 8px 28px -6px rgba(0, 0, 0, 0.2), 0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  --shine-stroke: linear-gradient(135deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.06) 35%, rgba(0, 0, 0, 0.06) 65%, rgba(0, 0, 0, 0.35) 100%);
 }
 
 @theme inline {
@@ -148,9 +203,27 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-status-online: #4DDD00;
+  --color-status-offline: #E21D3E;
+  --color-status-alert: #FF2400;
+
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+
+  /* App-wide weights: only light (300) and normal (400). Heavier utilities
+     (font-medium/semibold/bold/...) all resolve to normal. */
+  --font-weight-thin: 300;
+  --font-weight-extralight: 300;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 400;
+  --font-weight-extrabold: 400;
+  --font-weight-black: 400;
+  --tracking-tighter: 0em;
+  --tracking-tight: 0em;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -168,9 +241,17 @@
 }
 
 @layer base {
+
+  b,
+  strong,
+  th {
+    font-weight: 400;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     /* No scrollbar-gutter reservation: the dashboard shell
        (DashboardLayoutClient) bounds <main> to the viewport and owns a
@@ -184,9 +265,11 @@
        rely on the browser propagating body's value up to the viewport. */
     overflow-x: hidden;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: 0.04em;
     /* Safety net: nothing on the page should ever be scrollable sideways
        (e.g. via a trackpad swipe) — a stray oversized element should get
        clipped here rather than opening up page-level horizontal scroll. */
@@ -198,31 +281,6 @@
   input[type="password"]::-ms-reveal,
   input[type="password"]::-ms-clear {
     display: none;
-  }
-
-  /* Every non-icon-only button in the CMS gets a flat violet pill outline —
-     same #432992 already used on cards/sidebar. Solid color, not the 5-stop
-     shimmer: the earlier mask-composite gradient-ring technique rendered as
-     a solid white-flooded fill instead of a thin ring in practice, since its
-     middle stop is bright white and the mask punch-out isn't reliable
-     everywhere — a plain border has no such failure mode.
-     [class*="gap-"] targets icon+label buttons (e.g. "+ Add Screen") via the
-     gap-* utility they lay their children out with; icon-only buttons don't
-     use gap (single child) and so keep their current bare look, no ring.
-     !important on all three forces this over each button's own rounded/bg/
-     text-color utility classes, which would otherwise win on specificity.
-     color: #fff also whitens any child icon that inherits currentColor
-     (Lucide icons do by default), not just the label text.
-     Excludes sidebar-chrome buttons ([data-sidebar]) — those are a separate
-     nav system with their own hand-tuned border treatment already — and any
-     button explicitly opted out via [data-plain], for icon+label buttons
-     that use gap-* for layout but aren't meant to look like a CTA (e.g. a
-     table row's name link). */
-  button:not([data-sidebar]):not([data-plain])[class*="gap-"] {
-    border: 1px solid #432992;
-    border-radius: 9999px !important;
-    background-color: transparent !important;
-    color: #FFFFFF !important;
   }
 }
 
@@ -297,6 +355,7 @@
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
@@ -319,6 +378,7 @@
   from {
     transform: scaleY(1);
   }
+
   to {
     transform: scaleY(0);
   }
@@ -338,6 +398,70 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ==========================================================================
+   Dynamic Active Menu Item (gradient, inset highlight, border, text color)
+   Automatically applies to any sidebar menu button or sub-item when active.
+   ========================================================================== */
+[data-sidebar="menu-button"],
+[data-sidebar="menu-sub-button"] {
+  border: 1px solid transparent;
+  transition: all 150ms ease;
+}
+
+[data-sidebar="menu-button"][data-active="true"],
+[data-sidebar="menu-sub-button"][data-active="true"],
+[data-sidebar="menu-button"][aria-current="page"],
+[data-sidebar="menu-sub-button"][aria-current="page"] {
+  background: var(--sidebar-active-gradient) !important;
+  background-origin: border-box !important;
+  background-clip: border-box !important;
+  color: #FFFFFF !important;
+  border-color: var(--sidebar-active-border) !important;
+  box-shadow: var(--sidebar-active-shadow) !important;
+  border-radius: 0.625rem !important;
+  font-weight: 400 !important;
+}
+
+[data-sidebar="menu-button"][data-active="true"] svg,
+[data-sidebar="menu-sub-button"][data-active="true"] svg,
+[data-sidebar="menu-button"][aria-current="page"] svg,
+[data-sidebar="menu-sub-button"][aria-current="page"] svg {
+  color: #FFFFFF !important;
+}
+
+/* Reusable white drop-shadow for cards: add `card-glow` to any element.
+   Tune it via --glow-shadow above. Composes with focus/hover rings. */
+@utility card-glow {
+  --tw-shadow: var(--glow-shadow);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000),
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow);
+}
+
+/* Reusable shiny diagonal stroke: add `shiny-border border-0` to any rounded
+   element. Bright at the top-left and bottom-right corners, faint between.
+   Tune it via --shine-stroke above. */
+@utility shiny-border {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--shine-stroke);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+    z-index: 20;
+  }
 }

@@ -112,3 +112,6 @@ export type {
   Company,
   NewCompany,
 } from "./portfolio.js";
+export { ambientMode } from "./ambient-mode.js";
+export type { AmbientMode, NewAmbientMode } from "./ambient-mode.js";
+

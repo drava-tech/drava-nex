@@ -148,16 +148,16 @@ export function LiveControlDialog({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" />
 
       <div
-        className="relative w-full md:w-auto max-w-[95vw] bg-white dark:bg-zinc-950 border border-[#432992] rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
+        className="relative w-full md:w-auto max-w-[95vw] bg-card text-card-foreground border border-border rounded-t-3xl md:rounded-3xl p-6 shadow-2xl flex flex-col max-h-[95vh] overflow-y-auto transition-all transform scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-start justify-between mb-4 gap-3">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-1.5">
+            <p className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground tracking-[0.25em] uppercase mb-1.5">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  activeScreen?.isOnline ? "bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" : "bg-zinc-400"
+                  activeScreen?.isOnline ? "bg-[#4DDD00] shadow-[0_0_6px_#4DDD00] animate-pulse" : "bg-muted-foreground/40"
                 }`}
               />
               {activeScreen?.isOnline ? "Live" : "Offline"} · {experienceName}
@@ -166,12 +166,12 @@ export function LiveControlDialog({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="-mx-1.5 -my-1 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-900"
+                  className="-mx-1.5 -my-1 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-accent"
                 >
-                  <h2 className="truncate text-base font-bold tracking-wide text-zinc-900 uppercase dark:text-zinc-100">
+                  <h2 className="truncate text-base font-bold tracking-wide text-foreground uppercase">
                     {activeScreen?.screenName}
                   </h2>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-zinc-400" />
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
@@ -182,7 +182,7 @@ export function LiveControlDialog({
                     onSelect={() => setActiveScreenId(s.screenId)}
                   >
                     <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.isOnline ? "bg-green-500" : "bg-zinc-400"}`}
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.isOnline ? "bg-[#4DDD00]" : "bg-muted-foreground/40"}`}
                     />
                     <span className="truncate">{s.screenName}</span>
                   </DropdownMenuItem>
@@ -192,23 +192,23 @@ export function LiveControlDialog({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {showQueueControls && (
-              <div className="flex items-center gap-1 rounded-xl bg-zinc-100 px-1 py-1 dark:bg-zinc-900">
+              <div className="flex items-center gap-1 rounded-xl bg-secondary px-1 py-1">
                 <button
                   onClick={() => handleNavigateQueue("prev")}
                   disabled={navigatingQueue || queueIndex === 0}
                   title="Previous item"
-                  className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100 transition-colors"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-30 transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="min-w-[3.5rem] text-center text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <span className="min-w-[3.5rem] text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {queueIndex + 1} / {queueMediaIds!.length}
                 </span>
                 <button
                   onClick={() => handleNavigateQueue("next")}
                   disabled={navigatingQueue || queueIndex === queueMediaIds!.length - 1}
                   title="Next item"
-                  className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100 transition-colors"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-30 transition-colors"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -221,8 +221,8 @@ export function LiveControlDialog({
                 title={saved ? "Saved to Media Library" : "Save link to Media Library"}
                 className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:pointer-events-none ${
                   saved
-                    ? "bg-green-600 text-white"
-                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-950 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-850 dark:hover:text-zinc-100"
+                    ? "bg-[#4DDD00] text-black"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
                 {saving ? (
@@ -242,14 +242,14 @@ export function LiveControlDialog({
               <button
                 onClick={toggleFullscreen}
                 title={isFullscreen ? "Exit full screen" : "Full screen"}
-                className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
               >
                 {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
               </button>
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+              className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -275,7 +275,7 @@ export function LiveControlDialog({
           // instead of tapping a mirrored preview of the page.
           activeScreen && (
             <div className="shrink-0 flex items-center justify-center">
-              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-[#432992] shadow-2xl overflow-hidden">
+              <div className="relative flex h-[32rem] w-[48rem] max-w-full flex-col rounded-2xl border-[6px] border-border shadow-2xl overflow-hidden">
                 <ScreenTouchpad screenId={activeScreen.screenId} documentKind={documentKind} />
               </div>
             </div>
@@ -293,7 +293,7 @@ export function LiveControlDialog({
                 className={
                   isFullscreen
                     ? "fixed inset-0 flex items-center justify-center bg-black"
-                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-[#432992] shadow-2xl bg-zinc-950 overflow-hidden"
+                    : "relative w-[48rem] max-w-full aspect-[16/9] rounded-2xl border-[6px] border-border shadow-2xl bg-zinc-950 overflow-hidden"
                 }
               >
               {isFullscreen ? (

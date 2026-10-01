@@ -331,7 +331,7 @@ export function LiveScreenSurface({
             onClick={resetState}
             disabled={resettingState}
             title="Reset the current content to its initial state (e.g. portfolio 1st frame)"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingState ? "Resetting..." : "Reset view"}
           </button>
@@ -339,7 +339,7 @@ export function LiveScreenSurface({
             onClick={resetToIdle}
             disabled={resettingToIdle}
             title="Clear the current assignment and fall back to the default/idle media"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             <RotateCcw className="h-3.5 w-3.5" /> {resettingToIdle ? "Resetting..." : "Reset to idle"}
           </button>
@@ -349,7 +349,7 @@ export function LiveScreenSurface({
             title={blanked ? "Resume — bring the screen's content back" : "Stop — blank the screen to solid black"}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${blanked
               ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
-              : "border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
+              : "border-border bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400"
               }`}
           >
             {blanked ? <Play className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
@@ -363,7 +363,7 @@ export function LiveScreenSurface({
             <DropdownMenuTrigger
               disabled={appBusy}
               title="Kiosk app controls on the TV's PC — refresh, minimize, maximize, close"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#432992] bg-zinc-500/10 hover:bg-zinc-500/20 data-[state=open]:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-zinc-500/10 hover:bg-zinc-500/20 data-[state=open]:bg-zinc-500/20 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
             >
               <AppWindow className="h-3.5 w-3.5" />
               {appBusy ? "..." : "App"}
@@ -499,7 +499,7 @@ export function LiveScreenSurface({
       */}
       {currentContent?.templateKey === "flight-simulation" ? (
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950 p-4">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950 p-4">
             <DataArtControlPanel
               screenId={screenId}
               experienceId={currentContent.experienceId ?? currentContent.id}
@@ -512,7 +512,7 @@ export function LiveScreenSurface({
         // real bandwidth for no control value. Real transport + true position
         // instead — see VideoControlPanel.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden bg-zinc-50 dark:bg-zinc-950">
             <VideoControlPanel
               screenId={screenId}
               source={currentContent.source}
@@ -525,14 +525,14 @@ export function LiveScreenSurface({
         // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
         // mirrored preview of the page.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-[#432992] shadow-2xl overflow-hidden">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden">
             <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
           </div>
         </div>
       ) : (
         /* Big interactive screen */
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-[#432992] shadow-2xl bg-zinc-950 overflow-hidden">
+          <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-border shadow-2xl bg-zinc-950 overflow-hidden">
             <ScreenMirror screenId={screenId} title={screenName} interactive />
           </div>
         </div>

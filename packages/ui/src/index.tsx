@@ -16,22 +16,25 @@ export { useInView };
 // 1. SHADCN BUTTON
 // ==========================================
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
-        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        outline: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
+        secondary: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
+        glass: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        pill: "rounded-full border-0 font-normal text-white [background-image:var(--pill-bg)] [box-shadow:var(--pill-shadow)] hover:[background-image:var(--pill-bg-hover)]",
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
+        sm: "h-8 rounded-full px-3 text-xs",
+        lg: "h-10 rounded-full px-8",
         icon: "h-9 w-9",
+        pill: "h-9 px-4 text-sm",
       },
     },
     defaultVariants: {
@@ -104,7 +107,7 @@ export const Card = React.forwardRef<
       // below its content's intrinsic width (e.g. an SVG chart sized only via
       // viewBox) — without it, that content's natural size can force the
       // whole row wider than the viewport, causing page-level horizontal scroll.
-      "min-w-0 rounded-xl border bg-card text-card-foreground shadow-sm",
+      "min-w-0 rounded-xl border border-border/30 bg-card text-card-foreground shadow-[var(--card-shadow)]",
       className
     )}
     {...props}
@@ -173,9 +176,9 @@ CardFooter.displayName = "CardFooter";
 // ==========================================
 export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
   const colors = {
-    online: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10",
-    offline: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10",
-    maintenance: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:bg-amber-400/10",
+    online: "bg-[#4DDD00]/10 text-[#4DDD00] border-[#4DDD00]/30",
+    offline: "bg-[#E21D3E]/10 text-[#E21D3E] border-[#E21D3E]/30",
+    maintenance: "bg-[#FF3000]/10 text-[#FF3000] border-[#FF3000]/30",
   };
 
   const statusLabel = {
@@ -195,10 +198,10 @@ export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
         className={cn(
           "h-1.5 w-1.5 rounded-full",
           status === "online"
-            ? "bg-emerald-500"
+            ? "bg-[#4DDD00]"
             : status === "offline"
-            ? "bg-rose-500"
-            : "bg-amber-500"
+            ? "bg-[#E21D3E]"
+            : "bg-[#FF2400]"
         )}
       />
       {statusLabel[status]}

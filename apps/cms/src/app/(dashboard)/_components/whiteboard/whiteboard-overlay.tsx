@@ -868,7 +868,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-[#432992] rounded-2xl p-5 shadow-2xl"
+            className="relative w-full max-w-sm bg-white dark:bg-zinc-950 border border-border rounded-2xl p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {duplicateMatch ? (
@@ -917,7 +917,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
                     if (e.key === "Enter") handleConfirmSave();
                   }}
                   placeholder="Whiteboard name"
-                  className="mt-2 w-full rounded-xl border border-[#432992] bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
+                  className="mt-2 w-full rounded-xl border border-border bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-400 dark:focus:border-zinc-600"
                 />
                 <div className="mt-4 flex justify-end gap-2">
                   <button
@@ -955,7 +955,7 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-[#432992] bg-white p-5 shadow-2xl dark:bg-zinc-950"
+            className="w-full max-w-sm rounded-2xl border border-border bg-white p-5 shadow-2xl dark:bg-zinc-950"
           >
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />

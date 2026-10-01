@@ -177,11 +177,11 @@ export function MediaPicker({
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-3xl max-h-[80vh] flex flex-col bg-white dark:bg-zinc-950 border border-[#432992] rounded-2xl shadow-xl"
+        className="relative w-full max-w-3xl max-h-[80vh] flex flex-col bg-card text-card-foreground border border-border rounded-2xl shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between gap-3 p-4 border-b border-[#432992]">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Select media</h2>
+        <header className="flex items-center justify-between gap-3 p-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Select media</h2>
           <div className="flex items-center gap-2">
             <input
               type="file"
@@ -195,7 +195,7 @@ export function MediaPicker({
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               title="Select one or more files"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-semibold disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
@@ -203,14 +203,14 @@ export function MediaPicker({
             {multi ? (
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-[#4DDD00] text-black text-xs font-semibold hover:bg-[#4DDD00]/90 transition-colors"
               >
                 Done
               </button>
             ) : null}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+              className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-accent-foreground"
             >
               <X className="h-4 w-4" />
             </button>
@@ -218,7 +218,7 @@ export function MediaPicker({
         </header>
 
         {failed.length > 0 && (
-          <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="mx-4 mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <p className="font-semibold">
               {failed.length} file{failed.length > 1 ? "s" : ""} didn&apos;t upload — the rest did.
             </p>
@@ -234,11 +234,11 @@ export function MediaPicker({
 
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-zinc-400 text-sm gap-2">
+            <div className="flex items-center justify-center py-16 text-muted-foreground text-sm gap-2">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading media…
             </div>
           ) : visible.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-2 text-zinc-400">
+            <div className="flex flex-col items-center justify-center py-16 text-center gap-2 text-muted-foreground">
               <ImageIcon className="h-8 w-8 opacity-60" />
               <p className="text-sm">No media yet — click Upload to add some.</p>
             </div>
@@ -252,7 +252,7 @@ export function MediaPicker({
                     onSelectItem?.(m);
                     if (!multi) onClose();
                   }}
-                  className="group relative aspect-video rounded-xl overflow-hidden border border-[#432992] hover:border-zinc-900 dark:hover:border-zinc-300 hover:ring-2 hover:ring-zinc-900/10 transition-all"
+                  className="group relative aspect-video rounded-xl overflow-hidden border border-border hover:border-primary hover:ring-2 hover:ring-primary/20 transition-all"
                   title={m.name}
                 >
                   {m.type === "video" ? (

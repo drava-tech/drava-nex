@@ -1,9 +1,10 @@
 import { randomUUID } from "crypto";
-import type { Device } from "@platform/db";
+import { setDeviceState, type Device } from "@platform/db";
 import type { DeviceCommand, LightState } from "@platform/types";
 import type { MQTTDeviceManager } from "@platform/iot";
 import { CasambiDeviceDriver } from "./casambi-driver.js";
 import { IrDeviceDriver } from "./ir-driver.js";
+import { broadcastToCms } from "../ws/gateway.js";
 
 /**
  * Device control is abstracted behind a driver so the REST contract
@@ -87,3 +88,15 @@ export function getDeviceDriver(device: Device): DeviceDriver {
   if (driver === "mqtt" && mqttPublish) return mqttDriver;
   return noopDriver;
 }
+/**
+ * Drive one light's real hardware, persist the resulting state, and tell
+ * both the CMS and UE about it.
+ */
+export async function applyLightState(device: Device, state: LightState): Promise<Device> {
+  const merged = { ...(device.state ?? {}), ...state };
+  await getDeviceDriver(device).setLightState(device, merged);
+  const updated = await setDeviceState(device.id, merged);
+  broadcastToCms({ type: "LIGHT_STATE_UPDATE", deviceId: device.deviceId, state: updated.state });
+  return updated;
+}
+
