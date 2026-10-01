@@ -9,7 +9,7 @@ import {
   Monitor,
   Film,
   Cpu,
-  ScanFace,
+  // ScanFace,
   PenTool,
   Settings2,
   Send,
@@ -91,12 +91,12 @@ const ALL_NAV = [
   //   icon: Users,
   //   roles: ["ADMIN"] as string[],
   // },
-  {
-    title: "Visitors",
-    url: "/visitors",
-    icon: ScanFace,
-    roles: ["ADMIN"] as string[],
-  },
+  // {
+  //   title: "Visitors",
+  //   url: "/visitors",
+  //   icon: ScanFace,
+  //   roles: ["ADMIN"] as string[],
+  // },
   {
     title: "Media",
     url: "/media",

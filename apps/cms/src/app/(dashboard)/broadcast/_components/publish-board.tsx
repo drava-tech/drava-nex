@@ -937,7 +937,7 @@ export function PublishBoard({
           }
           disabled={screens.length < 2}
           aria-label="Previous screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -960,7 +960,7 @@ export function PublishBoard({
           }
           disabled={screens.length < 2}
           aria-label="Next screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 disabled:opacity-30 dark:text-zinc-300"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -994,7 +994,7 @@ export function PublishBoard({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                className="flex items-center gap-1.5 rounded-full border border-border bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
               >
                 {filter}
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -1032,7 +1032,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                  className="flex items-center gap-1.5 rounded-full border border-border bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
                 >
                   {tagFilter
                     ? (availableTags.find((t) => t.id === tagFilter)?.name ??
@@ -1071,7 +1071,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                  className="flex items-center gap-1.5 rounded-full border border-border bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
                 >
                   {mediaTypeFilter
                     ? MEDIA_TYPE_LABELS[mediaTypeFilter]
@@ -1112,7 +1112,7 @@ export function PublishBoard({
                   className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
                     mediaDateFrom || mediaDateTo
                       ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
-                      : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
+                      : "border-border bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
                   }`}
                 >
                   <CalendarRange className="h-3.5 w-3.5" />
@@ -1158,7 +1158,7 @@ export function PublishBoard({
               className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
                 emailOnly
                   ? "border-blue-600 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
-                  : "border-[#432992] bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
+                  : "border-border bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300"
               }`}
             >
               {emailOnly ? (
@@ -1175,7 +1175,7 @@ export function PublishBoard({
             onClick={handleLoadFromEmail}
             disabled={loadingInbox}
             title="Load last 2 days from email"
-            className="flex items-center gap-1.5 rounded-full border border-[#432992] bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
+            className="flex items-center gap-1.5 rounded-full border border-border bg-zinc-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-700 transition-colors hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`}
@@ -1251,7 +1251,7 @@ export function PublishBoard({
                 type="button"
                 onClick={() => scrollToAdjacentCard(-1)}
                 aria-label="Previous card"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -1259,7 +1259,7 @@ export function PublishBoard({
                 type="button"
                 onClick={() => scrollToAdjacentCard(1)}
                 aria-label="Next card"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#432992] bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-zinc-500/10 text-zinc-600 transition-colors hover:bg-zinc-500/20 dark:text-zinc-300"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -1299,7 +1299,7 @@ function DropZone({
   return (
     <motion.div
       animate={controls}
-      className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border-2 border-[#432992] bg-zinc-950 px-4 shadow-sm"
+      className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border-2 border-border bg-zinc-950 px-4 shadow-sm"
     >
       <span className="flex min-w-0 items-center gap-2">
         {screen && (
@@ -1406,7 +1406,7 @@ function CardVisual({
   // ponytail: Carousel cards use static images/icons instead of HTML5 <video> elements to avoid
   // instantiating native hardware decoders per video slide in Android WebView / APK containers.
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-[#432992] bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
         {card.thumbnail &&
         (card.type === "image" || card.type === "experience" || card.type === "video") ? (

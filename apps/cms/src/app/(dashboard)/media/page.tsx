@@ -405,7 +405,7 @@ export default function MediaPage() {
       />
 
       {/* Top Header Section */}
-      <div className="flex flex-col gap-4 p-4 border-b border-[#432992] sticky top-0 z-20">
+      <div className="flex flex-col gap-4 p-4 border-b border-border sticky top-0 z-20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
@@ -417,7 +417,7 @@ export default function MediaPage() {
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
               className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border text-sm font-medium transition-all active:scale-95 ${selecting
                   ? "border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
-                  : "border-[#432992] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
+                  : "border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
                 }`}
             >
               <CheckSquare className="h-4 w-4" />
@@ -427,7 +427,7 @@ export default function MediaPage() {
               onClick={handleLoadFromEmail}
               disabled={loadingInbox}
               title="Load last 2 days from email"
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-[#432992] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`h-4 w-4 shrink-0 ${loadingInbox ? "animate-spin" : ""}`} />
               {loadingInbox ? "Loading…" : "Load Email"}
@@ -701,7 +701,7 @@ export default function MediaPage() {
                               "flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors",
                               isSelected
                                 ? "bg-blue-600 border-blue-600"
-                                : "border-[#432992] hover:border-zinc-400 dark:hover:border-zinc-500"
+                                : "border-border hover:border-zinc-400 dark:hover:border-zinc-500"
                             )}
                           >
                             {isSelected && <Check className="w-3.5 h-3.5 text-white" />}

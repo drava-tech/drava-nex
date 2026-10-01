@@ -26,7 +26,7 @@ import {
 } from "@platform/ui/templates/portfolio";
 
 const FIELD =
-  "w-full bg-zinc-100 border border-[#432992] focus:border-zinc-500 dark:bg-zinc-800 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";
+  "w-full bg-zinc-100 border border-border focus:border-zinc-500 dark:bg-zinc-800 dark:focus:border-zinc-500 rounded-lg px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition-colors disabled:opacity-50";
 const LABEL = "text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.15em]";
 
 /**
@@ -83,7 +83,7 @@ export function PortfolioFields({
       {cards.map((card, i) => (
         <div
           key={i}
-          className="flex flex-col gap-3 rounded-lg border border-[#432992] p-4"
+          className="flex flex-col gap-3 rounded-lg border border-border p-4"
         >
           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
             Card {i + 1}
@@ -114,7 +114,7 @@ export function PortfolioFields({
           <div className="flex flex-col gap-1.5">
             <label className={LABEL}>Image</label>
             {card.imageUrl ? (
-              <div className="relative aspect-video rounded-lg overflow-hidden border border-[#432992] bg-zinc-100 dark:bg-zinc-800 group">
+              <div className="relative aspect-video rounded-lg overflow-hidden border border-border bg-zinc-100 dark:bg-zinc-800 group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={card.imageUrl} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
@@ -141,7 +141,7 @@ export function PortfolioFields({
                 type="button"
                 disabled={disabled}
                 onClick={() => setPickerIndex(i)}
-                className="flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
                 <ImageIcon className="h-4 w-4" />
                 Select from media
@@ -153,7 +153,7 @@ export function PortfolioFields({
           <div className="flex flex-col gap-1.5">
             <label className={LABEL}>Video (Watch Video popup)</label>
             {card.videoUrl ? (
-              <div className="relative aspect-video rounded-lg overflow-hidden border border-[#432992] bg-black group">
+              <div className="relative aspect-video rounded-lg overflow-hidden border border-border bg-black group">
                 <video src={card.videoUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                   <button
@@ -179,7 +179,7 @@ export function PortfolioFields({
                 type="button"
                 disabled={disabled}
                 onClick={() => setVideoPickerIndex(i)}
-                className="flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
                 ▶ Select video from media
               </button>
@@ -287,7 +287,7 @@ export function SectionFields({
         return (
           <div
             key={si}
-            className="flex flex-col gap-3 rounded-lg border border-[#432992] p-4"
+            className="flex flex-col gap-3 rounded-lg border border-border p-4"
           >
             <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
               Button {si + 1}
@@ -358,7 +358,7 @@ export function SectionFields({
                 {urls.map((url, ii) => (
                   <div
                     key={`${ii}-${url}`}
-                    className="flex items-center gap-2 rounded-lg border border-[#432992] p-1.5"
+                    className="flex items-center gap-2 rounded-lg border border-border p-1.5"
                   >
                     {key === "videos" ? (
                       <video
@@ -411,7 +411,7 @@ export function SectionFields({
                   type="button"
                   disabled={disabled}
                   onClick={() => setPicker({ section: si, key })}
-                  className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
                 >
                   <ImageIcon className="h-4 w-4" />
                   {key === "videos" ? "Add videos" : "Add images"}
@@ -688,7 +688,7 @@ function ProjectsEditor({
         return (
           <div
             key={project.id}
-            className="flex flex-col gap-3 rounded-lg border border-[#432992] p-3"
+            className="flex flex-col gap-3 rounded-lg border border-border p-3"
           >
             <div className="flex items-center gap-1">
               <span className="flex-1 truncate text-[10px] font-bold uppercase tracking-wider text-zinc-400">
@@ -792,7 +792,7 @@ function ProjectsEditor({
               {project.videos.map((url, vi) => (
                 <div
                   key={project.videoIds[vi] ?? `${vi}-${url}`}
-                  className="flex items-center gap-2 rounded-lg border border-[#432992] p-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-border p-1.5"
                 >
                   <video
                     src={url}
@@ -838,7 +838,7 @@ function ProjectsEditor({
                 type="button"
                 disabled={rowDisabled}
                 onClick={() => setVideoPicker(pi)}
-                className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
                 ▶ Add videos
               </button>
@@ -853,7 +853,7 @@ function ProjectsEditor({
               {project.images.map((url, ii) => (
                 <div
                   key={project.imageIds[ii] ?? `${ii}-${url}`}
-                  className="flex items-center gap-2 rounded-lg border border-[#432992] p-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-border p-1.5"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -898,7 +898,7 @@ function ProjectsEditor({
                 type="button"
                 disabled={rowDisabled}
                 onClick={() => setPicker(pi)}
-                className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
               >
                 <ImageIcon className="h-4 w-4" />
                 Add images
@@ -916,7 +916,7 @@ function ProjectsEditor({
         type="button"
         disabled={disabled || isBusy("__add") || !categoryId}
         onClick={handleAddCompany}
-        className="flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-[#432992] text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
+        className="flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-border text-xs font-semibold text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors disabled:opacity-50"
       >
         <Plus className="h-4 w-4" />
         Add company

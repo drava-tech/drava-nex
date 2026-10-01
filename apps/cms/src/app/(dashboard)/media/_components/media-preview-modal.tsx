@@ -176,7 +176,7 @@ function EmbedSurface({ media }: { media: MediaItem }) {
 
       {isWebPage && maybeBlocked && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4">
-          <div className="pointer-events-auto flex max-w-lg items-start gap-3 rounded-xl border border-[#432992] bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-[#111]/95">
+          <div className="pointer-events-auto flex max-w-lg items-start gap-3 rounded-xl border border-border bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-[#111]/95">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <div className="min-w-0 text-xs">
               <p className="font-medium text-zinc-900 dark:text-zinc-100">Nothing rendered yet</p>

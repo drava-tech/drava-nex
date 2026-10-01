@@ -17,7 +17,6 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from "@platform/ui"
-import { panelBorderStyle, ACTIVE_NAV_BACKGROUND } from "@/app/(dashboard)/_components/dashboard/liquid-glass"
 
 export function NavMain({
     items,
@@ -36,11 +35,14 @@ export function NavMain({
     const pathname = usePathname()
 
     return (
-        <SidebarGroup>
+        <SidebarGroup className="px-4">
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => {
-                    const isItemActive = item.url === "/" ? pathname === "/" : pathname?.startsWith(item.url)
+                    const isItemActive =
+                        item.url === "/"
+                            ? pathname === "/"
+                            : pathname === item.url || pathname?.startsWith(`${item.url}/`)
 
                     if (item.items && item.items.length > 0) {
                         return (
@@ -55,11 +57,10 @@ export function NavMain({
                                         <SidebarMenuButton
                                             tooltip={item.title}
                                             isActive={isItemActive}
-                                            className={isItemActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
-                                            style={isItemActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                                            className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto"
                                         >
-                                            {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
-                                            <span className="text-base ml-2.5">{item.title}</span>
+                                            {item.icon && <item.icon className="size-4 shrink-0" />}
+                                            <span className="text-sm font-medium">{item.title}</span>
                                             <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
@@ -69,9 +70,9 @@ export function NavMain({
                                                 const isSubActive = pathname === subItem.url
                                                 return (
                                                     <SidebarMenuSubItem key={subItem.title}>
-                                                        <SidebarMenuSubButton asChild isActive={isSubActive}>
+                                                        <SidebarMenuSubButton asChild isActive={isSubActive} className="h-8 rounded-lg px-2.5">
                                                             <Link href={subItem.url}>
-                                                                <span className="text-base">{subItem.title}</span>
+                                                                <span className="text-xs font-medium">{subItem.title}</span>
                                                             </Link>
                                                         </SidebarMenuSubButton>
                                                     </SidebarMenuSubItem>
@@ -92,12 +93,11 @@ export function NavMain({
                                 asChild
                                 tooltip={item.title}
                                 isActive={isThisActive}
-                                className={isThisActive ? "rounded-full border hover:bg-transparent group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!mx-auto" : "hover:bg-transparent"}
-                                style={isThisActive ? { ...panelBorderStyle("solid"), background: ACTIVE_NAV_BACKGROUND } : undefined}
+                                className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto"
                             >
-                                <Link href={item.url}>
-                                    {item.icon && <item.icon className="ml-2.5 group-data-[collapsible=icon]:!ml-0" />}
-                                    <span className="text-base ml-1">{item.title}</span>
+                                <Link href={item.url} className="flex items-center gap-3 w-full">
+                                    {item.icon && <item.icon className="size-4 shrink-0" />}
+                                    <span className="text-sm font-medium">{item.title}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>

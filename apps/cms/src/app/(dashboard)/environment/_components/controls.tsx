@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
 import { DragSlider } from "@/components/drag-slider";
 
-export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-gradient-to-r from-[#1B006D] to-[#8A5CFF]" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
+export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-primary" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
   // Single click/tap on the track sets the value directly at that position —
   // no drag-tracking, no spring re-sync after release (that combination was
   // what caused the visible "jump": mid-drag positions raced ahead of the
