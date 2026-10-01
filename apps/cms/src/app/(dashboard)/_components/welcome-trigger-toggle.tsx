@@ -34,7 +34,7 @@ export function WelcomeTriggerToggle({ initialArmed }: { initialArmed: boolean }
       <Button
         type="button"
         size="sm"
-        variant={armed ? "default" : "secondary"}
+        variant={armed ? "active" : "secondary"}
         onClick={toggle}
         disabled={isToggling}
         className="gap-1.5"

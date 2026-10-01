@@ -33,10 +33,10 @@ export function ScreenMirror({
   const shouldMount = loadStream && inView;
 
   return (
-    <div ref={ref} className={`absolute inset-0 w-full h-full ${loadStream ? "bg-zinc-950" : ""}`}>
+    <div ref={ref} className={`absolute inset-0 w-full h-full ${loadStream && isOnline !== false ? "bg-zinc-950" : "bg-white"}`}>
       {isOnline !== undefined && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-1.5">
-          <span className="flex items-center gap-1.5 text-sm font-light text-violet-300">
+          <span className="flex items-center gap-1.5 text-sm font-light text-zinc-800">
             {isOnline && (
               <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
             )}
