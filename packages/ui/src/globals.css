@@ -45,13 +45,17 @@
   --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
   --pill-bg: linear-gradient(180deg, #9a9a9a 0%, #777777 100%);
   --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
+  --btn-bg: var(--sidebar);
+  --btn-bg-hover: #262626;
+  --btn-fg: #FFFFFF;
   --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
   --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
   --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
   --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.1) 35%, rgba(255, 255, 255, 0.1) 65%, rgba(255, 255, 255, 0.75) 100%);
+  --glass-stroke: linear-gradient(to bottom right, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.22) 45%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.8) 100%);
+  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
   --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
-  --shine-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.08) 35%, rgba(255, 255, 255, 0.08) 65%, rgba(255, 255, 255, 0.55) 100%);
+  --shine-hi: rgba(255, 255, 255, 0.95);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
@@ -113,13 +117,17 @@
   --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
   --pill-bg: linear-gradient(180deg, #8e8e8e 0%, #777777 100%);
   --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
+  --btn-bg: var(--sidebar);
+  --btn-bg-hover: #262626;
+  --btn-fg: #FFFFFF;
   --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
   --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
   --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
   --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.1) 35%, rgba(255, 255, 255, 0.1) 65%, rgba(255, 255, 255, 0.75) 100%);
+  --glass-stroke: linear-gradient(to bottom right, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.22) 45%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.8) 100%);
+  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
   --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
-  --shine-stroke: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.08) 35%, rgba(255, 255, 255, 0.08) 65%, rgba(255, 255, 255, 0.55) 100%);
+  --shine-hi: rgba(255, 255, 255, 0.95);
   --font-sans: Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
@@ -160,13 +168,17 @@
   --card-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -3px 8px 0 rgba(0, 0, 0, 0.05);
   --pill-bg: linear-gradient(180deg, #8a8a8f 0%, #6b6b70 100%);
   --pill-bg-hover: linear-gradient(180deg, #96969b 0%, #76767b 100%);
+  --btn-bg: #191919;
+  --btn-bg-hover: #262626;
+  --btn-fg: #FFFFFF;
   --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.35), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.06);
   --glass-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.03) 100%);
   --glass-bg-hover: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.06) 100%);
   --glass-border: rgba(0, 0, 0, 0.25);
-  --glass-stroke: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.1) 35%, rgba(0, 0, 0, 0.1) 65%, rgba(0, 0, 0, 0.75) 100%);
+  --glass-stroke: linear-gradient(to bottom right, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 45%, rgba(0, 0, 0, 0.2) 55%, rgba(0, 0, 0, 0.7) 100%);
+  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%);
   --glow-shadow: 0 8px 28px -6px rgba(0, 0, 0, 0.2), 0 2px 8px -2px rgba(0, 0, 0, 0.1);
-  --shine-stroke: linear-gradient(135deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.06) 35%, rgba(0, 0, 0, 0.06) 65%, rgba(0, 0, 0, 0.35) 100%);
+  --shine-hi: rgba(0, 0, 0, 0.55);
 }
 
 @theme inline {
@@ -447,21 +459,97 @@
 }
 
 /* Reusable shiny diagonal stroke: add `shiny-border border-0` to any rounded
-   element. Bright at the top-left and bottom-right corners, faint between.
-   Tune it via --shine-stroke above. */
+   element. Bright at the top-left and bottom-right corners, seamless between.
+   ponytail: single pseudo-element using border-box/content-box mask; inherits
+   exact border-radius with zero clipping or aspect-ratio distortion. */
 @utility shiny-border {
   position: relative;
+
   &::before {
     content: "";
     position: absolute;
     inset: 0;
+    border: 1px solid transparent;
     border-radius: inherit;
-    padding: 1px;
-    background: var(--shine-stroke);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    background-image: var(--shine-stroke);
+    background-origin: border-box;
+    background-clip: border-box;
+    background-repeat: no-repeat;
+    -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
     -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0) border-box;
     pointer-events: none;
     z-index: 20;
   }
+}
+
+/* Glass button with a shiny stroke on the top-left and bottom-right curves.
+   The face is translucent (--glass-bg), so the stroke lives on its own
+   ::before ring: a 1px transparent border painted with --shine-stroke, then
+   masked down to just that border. Masking by padding-box vs border-box
+   (rather than padding + content-box) keeps the cut-out following the
+   pill's rounded ends, so where the shine fades the edge is truly see-through.
+   Tune via --glass-bg / --shine-stroke. */
+@utility glass-shine {
+  position: relative;
+  background-image: var(--glass-bg);
+
+  &:hover {
+    background-image: var(--glass-bg-hover);
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid transparent;
+    border-radius: inherit;
+    background-image: var(--shine-stroke);
+    background-origin: border-box;
+    background-clip: border-box;
+    background-repeat: no-repeat;
+    -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0) border-box;
+    pointer-events: none;
+  }
+}
+
+/* Solid grey pill surface (the "Add Screen" look). Used by the Button
+   `pill` variant and by plain <button>s that want the same style.
+   Tune via --pill-bg / --pill-bg-hover / --pill-shadow. */
+@utility pill-surface {
+  background-image: var(--pill-bg);
+  box-shadow: var(--pill-shadow);
+  &:hover {
+    background-image: var(--pill-bg-hover);
+  }
+}
+
+/* ── App-wide button language ─────────────────────────────────────────────
+   btn-surface : every regular button (#191919, white text).
+   btn-primary : the one main action per view (grey "Add Screen" pill).
+   btn-active  : selected / on state (red→black, same as the sidebar).
+   Tune via the --btn-* tokens above. */
+@utility btn-surface {
+  background-color: var(--btn-bg);
+  color: var(--btn-fg);
+  &:hover:not(:disabled) {
+    background-color: var(--btn-bg-hover);
+  }
+}
+
+@utility btn-primary {
+  background-image: var(--pill-bg);
+  box-shadow: var(--pill-shadow);
+  color: #FFFFFF;
+  &:hover:not(:disabled) {
+    background-image: var(--pill-bg-hover);
+  }
+}
+
+@utility btn-active {
+  background: var(--sidebar-active-gradient);
+  box-shadow: var(--sidebar-active-shadow);
+  color: #FFFFFF;
 }

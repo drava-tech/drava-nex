@@ -91,7 +91,7 @@ export function AddScreenModal({ onClose, onAdded }: AddScreenModalProps) {
           <button
             type="submit"
             disabled={!screenId.trim() || !screenName.trim() || saving}
-            className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-300 dark:text-zinc-900 disabled:opacity-50 text-zinc-100 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors"
+            className="w-full py-3 btn-primary disabled:opacity-50 rounded-full text-xs font-normal tracking-wider uppercase transition-colors"
           >
             {saving ? "Adding..." : "Add Screen"}
           </button>

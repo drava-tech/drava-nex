@@ -161,7 +161,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
           type="button"
           onClick={handleSend}
           disabled={!detected || selectedIds.length === 0 || sending}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {sending ? (
             <>
