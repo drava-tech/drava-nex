@@ -195,7 +195,7 @@ export function MediaPicker({
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               title="Select one or more files"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full btn-primary text-xs font-normal disabled:opacity-50 transition-colors"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
@@ -203,7 +203,7 @@ export function MediaPicker({
             {multi ? (
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 rounded-lg bg-[#4DDD00] text-black text-xs font-semibold hover:bg-[#4DDD00]/90 transition-colors"
+                className="px-3 py-1.5 rounded-full btn-surface text-xs font-normal transition-colors"
               >
                 Done
               </button>

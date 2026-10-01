@@ -477,7 +477,7 @@ export function ProjectsList({
             )}
           </div>
           {isAdmin && (
-            <Button variant="pill" size="pill" onClick={() => setShowModal(true)}>
+            <Button size="pill" onClick={() => setShowModal(true)}>
               <Plus className="h-4 w-4" />
               New Experience
             </Button>
@@ -493,10 +493,10 @@ export function ProjectsList({
                 onClick={() => setCategoryFilter("all")}
                 aria-pressed={categoryFilter === "all"}
                 className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-light transition-colors",
+                  "rounded-full px-3.5 py-1.5 text-xs font-light transition-colors",
                   categoryFilter === "all"
-                    ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                    : "border-white/15 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                    ? "btn-active"
+                    : "btn-surface"
                 )}
               >
                 All
@@ -508,10 +508,10 @@ export function ProjectsList({
                   onClick={() => setCategoryFilter(cat)}
                   aria-pressed={categoryFilter === cat}
                   className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-xs font-light transition-colors",
+                    "rounded-full px-3.5 py-1.5 text-xs font-light transition-colors",
                     categoryFilter === cat
-                      ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                      : "border-white/15 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                      ? "btn-active"
+                      : "btn-surface"
                   )}
                 >
                   {categoryLabel(cat)}

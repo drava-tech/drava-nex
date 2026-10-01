@@ -47,10 +47,10 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                   <button
                     key={m}
                     onClick={(e) => { noProp(e); actions.setMode(m); }}
-                    className={`h-8 sm:h-9 md:h-10 lg:h-11 flex-1 sm:flex-none rounded-lg sm:rounded-xl border px-1.5 text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                    className={`h-8 sm:h-9 md:h-10 lg:h-11 flex-1 sm:flex-none rounded-full px-1.5 text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
                       isActive
-                        ? "bg-primary/10 text-primary border-primary/50 shadow-[0_0_16px_rgba(138,92,255,0.35)]"
-                        : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/50"
+                        ? "btn-active"
+                        : "btn-surface"
                     }`}
                   >
                     {m}

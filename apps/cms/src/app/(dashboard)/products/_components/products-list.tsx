@@ -96,7 +96,7 @@ export function ProductsList({
           {isPending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
         <Link href="/products/new">
-          <Button variant="pill" size="pill">
+          <Button size="pill">
             <Plus className="h-4 w-4" /> New product
           </Button>
         </Link>

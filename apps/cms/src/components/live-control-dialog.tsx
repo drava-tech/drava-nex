@@ -219,10 +219,10 @@ export function LiveControlDialog({
                 onClick={handleSaveLink}
                 disabled={saving || saved}
                 title={saved ? "Saved to Media Library" : "Save link to Media Library"}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:pointer-events-none ${
+                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-[10px] font-normal uppercase tracking-wider transition-colors disabled:pointer-events-none ${
                   saved
-                    ? "bg-[#4DDD00] text-black"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    ? "btn-active"
+                    : "btn-surface"
                 }`}
               >
                 {saving ? (
