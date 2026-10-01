@@ -11,7 +11,7 @@ import {
   Cpu,
   // ScanFace,
   PenTool,
-  Settings2,
+  // Settings2,
   Send,
   // SquareTerminal,
   // Globe,

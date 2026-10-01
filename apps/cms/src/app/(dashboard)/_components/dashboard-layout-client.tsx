@@ -25,13 +25,14 @@ const WhiteboardOverlay = dynamic(
     ),
   { ssr: false }
 );
-import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
+// Restore together with the commented-out toggle in the header below.
+// import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
 import { StoreProvider } from '@/store/store-provider';
 
 export function DashboardLayoutClient({
   children,
   isAdmin,
-  initialTriggerArmed,
+  // initialTriggerArmed — read again once WelcomeTriggerToggle is restored.
 }: {
   children: React.ReactNode;
   isAdmin: boolean;
