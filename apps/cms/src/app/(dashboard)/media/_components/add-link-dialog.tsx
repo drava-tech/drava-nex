@@ -72,7 +72,7 @@ export function AddLinkFields({
             autoFocus={autoFocus}
             spellCheck={false}
             autoComplete="off"
-            className="h-11 w-full rounded-lg border border-[#432992] bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:bg-white/5 dark:text-white"
+            className="h-11 w-full rounded-lg border border-border bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:bg-white/5 dark:text-white"
           />
         </div>
         <p className="mt-2 min-h-[1rem] text-xs">
@@ -110,7 +110,7 @@ export function AddLinkFields({
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
           placeholder={detected?.name ?? "Auto-detected"}
-          className="h-11 w-full rounded-lg border border-[#432992] bg-white px-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:bg-white/5 dark:text-white"
+          className="h-11 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:bg-white/5 dark:text-white"
         />
       </div>
     </>

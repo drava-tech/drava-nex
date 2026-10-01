@@ -132,7 +132,7 @@ export function DragSlider({
     >
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-800">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#1B006D] to-[#8A5CFF]"
+          className="h-full rounded-full bg-primary"
           style={{ width: `${pct}%`, transition: dragging ? "none" : "width 150ms ease-out" }}
         />
       </div>

@@ -22,13 +22,11 @@ import {
 } from "@/lib/dashboard-cache";
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getActiveScreens } from "@/actions/screen-actions";
-import { panelBorderStyle } from "@/app/(dashboard)/_components/dashboard/liquid-glass";
 import { StatCard } from "@/app/(dashboard)/_components/dashboard/stat-card";
 import { UptimeAreaChart } from "@/app/(dashboard)/_components/dashboard/uptime-area-chart";
 import { MediaTypeRatio } from "@/app/(dashboard)/_components/dashboard/media-type-ratio";
 import { ScreensTable } from "@/app/(dashboard)/_components/dashboard/screens-table";
 import { ActivityFeed } from "@/app/(dashboard)/_components/dashboard/activity-feed";
-import { StorageUsage } from "@/app/(dashboard)/_components/dashboard/storage-usage";
 import { DashboardMediaProvider } from "@/app/(dashboard)/_components/dashboard/media-live-data";
 import { MediaAssetsStatCard } from "@/app/(dashboard)/_components/dashboard/media-assets-stat-card";
 import { sampleUptimeSeries } from "@/app/(dashboard)/_components/dashboard/sample-data";
@@ -158,80 +156,70 @@ export default async function DashboardPage() {
             breakdown: `${userStats.total} total · ${roleBreakdown}`,
           }}
           icon={Users}
+          highlight
         />
       </div>
 
-      {/* Charts row */}
+      {/* Charts + operations: two independent columns so each card is its
+          natural height and the one below flows straight on from it. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2" style={panelBorderStyle("gradient")}>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>Screen Uptime</CardTitle>
-              {uptimeIsSample && <SampleBadge title="No uptime recorded yet — these values are placeholders" />}
-            </div>
-            <CardDescription>
-              {/* Says what it actually measures. A 24-hour denominator would
-                  read ~40% forever, since the screens are off overnight. */}
-              Share of screens online during office hours, last 7 days
-              {sinceLabel && ` · recording since ${sinceLabel}`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <UptimeAreaChart
-              series={uptimeSeries}
-              expectedSamplesPerDay={expectedSamplesPerDay}
-              isSample={uptimeIsSample}
-            />
-          </CardContent>
-        </Card>
-        <Card style={panelBorderStyle("solid")}>
-          <CardHeader>
-            <CardTitle>Media Ratio</CardTitle>
-            <CardDescription>Videos, images, and documents</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MediaTypeRatio />
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle>Screen Uptime</CardTitle>
+                {uptimeIsSample && <SampleBadge title="No uptime recorded yet — these values are placeholders" />}
+              </div>
+              <CardDescription>
+                {/* Says what it actually measures. A 24-hour denominator would
+                    read ~40% forever, since the screens are off overnight. */}
+                Share of screens online during office hours, last 7 days
+                {sinceLabel && ` · recording since ${sinceLabel}`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UptimeAreaChart
+                series={uptimeSeries}
+                expectedSamplesPerDay={expectedSamplesPerDay}
+                isSample={uptimeIsSample}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Screens</CardTitle>
+              <CardDescription>Live status across your network</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
+              <ScreensTable
+                initialScreens={screenRows}
+                initialActiveScreenIds={activeScreenIds}
+              />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Media Ratio</CardTitle>
+              <CardDescription>Videos, images, and documents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MediaTypeRatio />
+            </CardContent>
+          </Card>
+          <Card className="flex-1">
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest pushes and uploads</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ActivityFeed items={activity} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Operations row */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2" style={panelBorderStyle("solid")}>
-          <CardHeader>
-            <CardTitle>Screens</CardTitle>
-            <CardDescription>Live status across your network</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            <ScreensTable
-              initialScreens={screenRows}
-              initialActiveScreenIds={activeScreenIds}
-            />
-          </CardContent>
-        </Card>
-        <Card style={panelBorderStyle("solid")}>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest pushes and uploads</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ActivityFeed items={activity} />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Storage row */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-3" style={panelBorderStyle("solid")}>
-          <CardHeader>
-            <CardTitle>Media Library</CardTitle>
-            <CardDescription>Live storage totals and recent uploads</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <StorageUsage />
-          </CardContent>
-        </Card>
-      </div>
       </div>
     </DashboardMediaProvider>
   );

@@ -16,8 +16,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@platform/ui";
-import { BookOpen, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
+import { BookOpen, ChevronsUpDown, LogOut, Moon, Sun, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { signOut } from "@/lib/auth-client";
 
 export function NavUser({
@@ -35,6 +36,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   const initials = user.name
     ? user.name
@@ -100,6 +102,13 @@ export function NavUser({
               <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
                 <UserCog />
                 {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                className="cursor-pointer"
+              >
+                {theme === "light" ? <Moon /> : <Sun />}
+                {theme === "light" ? "Switch to Dark Mode" : "Switch to Day Mode"}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

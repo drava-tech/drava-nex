@@ -79,7 +79,7 @@ function NumberControl({
             value={value}
             disabled={disabled}
             onChange={(e) => onChange(clampNum(Number(e.target.value), min, max))}
-            className="w-16 bg-zinc-100 dark:bg-zinc-800 border border-[#432992] rounded-md px-2 py-1 text-xs text-right text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-50"
+            className="w-16 bg-zinc-100 dark:bg-zinc-800 border border-border rounded-md px-2 py-1 text-xs text-right text-zinc-900 dark:text-zinc-100 outline-none disabled:opacity-50"
           />
           <span className="text-[10px] text-zinc-400">{unit}</span>
         </div>
@@ -184,22 +184,22 @@ export function PortfolioEditorWorkspace({
   };
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-zinc-100 dark:bg-zinc-950">
+    <div className="w-screen h-screen flex flex-col bg-background text-foreground">
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-[#432992] bg-white dark:bg-zinc-900">
+      <header className="flex items-center justify-between gap-3 px-4 h-14 shrink-0 border-b border-border bg-card text-card-foreground">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/experiences"
-            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"
+            className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-accent-foreground"
             title="Back to experiences"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+            <p className="text-sm font-semibold text-foreground truncate">
               {experience.name}
             </p>
-            <p className="text-[11px] text-zinc-400">Portfolio · Overview</p>
+            <p className="text-[11px] text-muted-foreground">Portfolio · Overview</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -207,14 +207,14 @@ export function PortfolioEditorWorkspace({
             href={`/preview/experiences/${experience.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xs font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/80 transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" /> View
           </a>
           <button
             onClick={save}
             disabled={isPending}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-bold disabled:opacity-50 min-w-[84px] justify-center"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 min-w-[84px] justify-center hover:bg-primary/90 transition-colors"
           >
             {isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -228,7 +228,7 @@ export function PortfolioEditorWorkspace({
 
       {/* Body: content panel + live preview */}
       <div className="flex-1 flex min-h-0">
-        <aside className="w-[400px] shrink-0 border-r border-[#432992] bg-white dark:bg-zinc-900 overflow-y-auto p-4">
+        <aside className="w-[400px] shrink-0 border-r border-border bg-card text-card-foreground overflow-y-auto p-4">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-3">
             Content
           </h2>
@@ -257,7 +257,7 @@ export function PortfolioEditorWorkspace({
               {/* Shown here rather than on the overview because this is where
                   gallery sections are configured. One set of values for every
                   gallery section, so they all stay visually identical. */}
-              <div className="flex flex-col gap-4 rounded-xl border border-[#432992] p-4">
+              <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Gallery style (all gallery sections)
                 </h3>
@@ -320,7 +320,7 @@ export function PortfolioEditorWorkspace({
                       value={gallery.backgroundColor ?? DEFAULT_PORTFOLIO_GALLERY_STYLE.backgroundColor}
                       disabled={isPending}
                       onChange={(e) => updateGallery({ backgroundColor: e.target.value })}
-                      className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
+                      className="h-8 w-full cursor-pointer rounded-md border border-border bg-transparent disabled:opacity-50"
                     />
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5">
@@ -332,7 +332,7 @@ export function PortfolioEditorWorkspace({
                       value={gallery.textColor ?? DEFAULT_PORTFOLIO_GALLERY_STYLE.textColor}
                       disabled={isPending}
                       onChange={(e) => updateGallery({ textColor: e.target.value })}
-                      className="h-8 w-full cursor-pointer rounded-md border border-[#432992] bg-transparent disabled:opacity-50"
+                      className="h-8 w-full cursor-pointer rounded-md border border-border bg-transparent disabled:opacity-50"
                     />
                   </div>
                 </div>
@@ -341,7 +341,7 @@ export function PortfolioEditorWorkspace({
           ) : (
             <>
               {/* Style — one set of values shared by all 3 cards */}
-              <div className="flex flex-col gap-4 mb-4 rounded-xl border border-[#432992] p-4">
+              <div className="flex flex-col gap-4 mb-4 rounded-xl border border-border p-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Style (all cards)
                 </h3>

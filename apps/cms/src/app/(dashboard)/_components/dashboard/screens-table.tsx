@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo } from "react";
 import { Film, Layers, Radio, Slash } from "lucide-react";
-import { LiquidPill } from "./liquid-pill";
+import { Badge } from "@platform/ui";
 import type { ScreenRow } from "@platform/db";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { screensHydrated, activeScreensUpdated } from "@/store/screens-slice";
@@ -35,8 +35,8 @@ const kindMeta: Record<ContentKind, { icon: typeof Layers; label: string }> = {
 };
 
 const statusMeta: Record<ScreenStatus, { label: string; color: string }> = {
-  online: { label: "Online", color: "#10b981" },
-  offline: { label: "Offline", color: "#f43f5e" },
+  online: { label: "Online", color: "#4DDD00" },
+  offline: { label: "Offline", color: "#E21D3E" },
 };
 
 function toScreenDetail(row: ScreenRow): ScreenDetail {
@@ -148,13 +148,13 @@ export function ScreensList({
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <LiquidPill>
+              <Badge variant="outline" className="gap-1.5 font-normal">
                 <span
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ backgroundColor: status.color }}
                 />
                 {status.label}
-              </LiquidPill>
+              </Badge>
               <span className="text-[11px] text-slate-500">
                 {isOnline ? "Live now" : "Not connected"}
               </span>

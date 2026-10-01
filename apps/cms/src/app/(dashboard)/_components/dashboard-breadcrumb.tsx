@@ -74,7 +74,7 @@ export function DashboardBreadcrumb() {
   });
 
   return (
-    <Breadcrumb>
+    <Breadcrumb className="py-1">
       <BreadcrumbList>
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1;
