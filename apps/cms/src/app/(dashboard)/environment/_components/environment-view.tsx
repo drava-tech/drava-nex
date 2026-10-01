@@ -756,13 +756,13 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
   if (!isClient) return null;
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 sm:gap-6 overflow-y-auto lg:overflow-hidden font-sans text-foreground pb-2">
-      <h1 className="shrink-0 text-3xl font-black tracking-tight pt-2">
+    <div className="w-full h-full flex flex-col gap-3 sm:gap-4 overflow-y-auto lg:overflow-hidden font-sans text-foreground">
+      <h1 className="shrink-0 text-2xl font-black tracking-tight">
         Environment
       </h1>
 
       <div
-        className="flex-1 w-full grid gap-6 min-h-0"
+        className="flex-1 w-full grid gap-4 min-h-0"
         // Sized from PANELS so hiding or restoring a card leaves no empty cell:
         // one tall "primary" beside a stack of the remaining secondary slots.
         style={

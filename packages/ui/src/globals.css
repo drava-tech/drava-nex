@@ -415,6 +415,33 @@
   display: none;
 }
 
+/* App-wide scrollbars: very thin, solid brand red. Done through
+   ::-webkit-scrollbar for the exact 4px width; setting the standard
+   scrollbar-width/scrollbar-color on an element makes Chrome ignore these
+   rules for it, so those are left to Firefox alone below.
+   .no-scrollbar above still wins (a class outranks the universal selector). */
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 9999px;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+  }
+}
+
 /* ==========================================================================
    Dynamic Active Menu Item (gradient, inset highlight, border, text color)
    Automatically applies to any sidebar menu button or sub-item when active.

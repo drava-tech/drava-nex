@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Pencil, Pipette, Sparkles } from "lucide-react";
+import { Pencil, Pipette } from "lucide-react";
 import { Switch, DragSlider } from "./controls";
 import { LIGHT_PRESETS, WARM_WHITE_HEX } from "@/lib/casambi-lights";
 import {
@@ -55,13 +55,13 @@ export default function AmbientModesPanel({
     try {
       const result = await applyAmbientMode(mode.key);
       setActiveKey(mode.key);
-      setNotice({
-        text:
-          result.failed > 0
-            ? `${mode.label} set — ${result.failed} light${result.failed === 1 ? "" : "s"} didn't respond.`
-            : `${mode.label} set.`,
-        error: result.failed > 0,
-      });
+      // Success shows on the tile itself; only a partial failure needs words.
+      if (result.failed > 0) {
+        setNotice({
+          text: `${mode.label} set — ${result.failed} light${result.failed === 1 ? "" : "s"} didn't respond.`,
+          error: true,
+        });
+      }
       onApplied?.(mode);
     } catch (err) {
       setNotice({ text: err instanceof Error ? err.message : "Couldn't set the mode.", error: true });
@@ -95,19 +95,7 @@ export default function AmbientModesPanel({
   const editingMode = modes?.find((m) => m.key === editing) ?? null;
 
   return (
-    <div className="mb-3 shrink-0 rounded-2xl border border-border p-3">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-bold uppercase tracking-widest">Ambient modes</span>
-        </div>
-        {notice && (
-          <span className={`truncate text-[10px] font-semibold ${notice.error ? "text-red-500" : "text-muted-foreground"}`}>
-            {notice.text}
-          </span>
-        )}
-      </div>
-
+    <div className="mt-auto shrink-0">
       {loadFailed ? (
         <p className="text-[11px] text-muted-foreground/70">Couldn&apos;t load the modes.</p>
       ) : modes === null ? (
@@ -120,7 +108,7 @@ export default function AmbientModesPanel({
               <div
                 key={m.key}
                 className={`relative flex flex-col gap-1.5 rounded-xl border p-2.5 transition-colors ${
-                  isActive ? "border-primary bg-primary/5" : "border-border"
+                  isActive ? "btn-active border-transparent" : "border-border bg-accent shadow-[var(--pill-shadow)]"
                 }`}
               >
                 {/* data-plain: opts out of the global "every button with a gap-* class gets a
@@ -143,7 +131,7 @@ export default function AmbientModesPanel({
                       {busy === m.key ? "Setting…" : m.label}
                     </span>
                   </span>
-                  <span className="text-[10px] font-semibold text-muted-foreground">
+                  <span className={`text-[10px] font-semibold ${isActive ? "text-white/75" : "text-muted-foreground"}`}>
                     {m.brightness}%{m.stripOn ? "" : " · strip off"}
                   </span>
                 </button>
@@ -152,7 +140,11 @@ export default function AmbientModesPanel({
                   title={`Edit ${m.label}`}
                   aria-label={`Edit ${m.label}`}
                   onClick={(e) => { e.stopPropagation(); openEditor(m); }}
-                  className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+                  className={`absolute right-1.5 top-1.5 rounded p-1 transition-colors ${
+                    isActive
+                      ? "text-white/75 hover:bg-white/15 hover:text-white"
+                      : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+                  }`}
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
@@ -160,6 +152,12 @@ export default function AmbientModesPanel({
             );
           })}
         </div>
+      )}
+
+      {notice && (
+        <p className={`mt-1.5 truncate text-[10px] font-semibold ${notice.error ? "text-red-500" : "text-muted-foreground"}`}>
+          {notice.text}
+        </p>
       )}
 
       {editingMode && draft && (

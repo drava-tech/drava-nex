@@ -658,7 +658,7 @@ export default function MediaPage() {
           /* Media Table */
           <div className="overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+              <thead className="border-b bg-sidebar text-left text-xs text-sidebar-foreground">
                 <tr>
                   {selecting && <th className="w-10 px-4 py-3 font-medium" />}
                   <th className="px-4 py-3 font-medium">Name</th>
@@ -710,7 +710,7 @@ export default function MediaPage() {
                       )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-white/10">
+                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-sidebar">
                             <MediaThumbnail media={media} compact />
                           </div>
                           <span
@@ -723,7 +723,7 @@ export default function MediaPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                          <TypeIcon type={media.type} className="w-3.5 h-3.5" />
+                          <TypeIcon type={media.type} className="w-3.5 h-3.5 dark:text-white" />
                           {TYPE_LABELS[media.type] ?? media.type}
                         </span>
                       </td>
@@ -873,7 +873,7 @@ function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?
     const videoId = parseYouTubeId(media.url);
     return (
       <div className="absolute inset-0 flex items-center justify-center">
-        <Play className={compact ? "w-4 h-4 text-zinc-300 dark:text-zinc-600" : "w-12 h-12 text-zinc-300 dark:text-zinc-600"} />
+        <Play className={compact ? "w-4 h-4 text-zinc-400 dark:text-white" : "w-12 h-12 text-zinc-300 dark:text-zinc-600"} />
         {videoId && (
           // YouTube's own thumbnail, layered over the glyph — if the screen has
           // no internet the image just fails and the glyph shows through.
@@ -891,7 +891,7 @@ function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <TypeIcon type={media.type} className={compact ? "w-4 h-4 text-zinc-300 dark:text-zinc-600" : "w-16 h-16 text-zinc-300 dark:text-zinc-600"} />
+      <TypeIcon type={media.type} className={compact ? "w-4 h-4 text-zinc-400 dark:text-white" : "w-16 h-16 text-zinc-300 dark:text-zinc-600"} />
     </div>
   );
 }

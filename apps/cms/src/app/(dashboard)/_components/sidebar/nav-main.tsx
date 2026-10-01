@@ -35,7 +35,7 @@ export function NavMain({
     const pathname = usePathname()
 
     return (
-        <SidebarGroup className="px-4">
+        <SidebarGroup className="px-4 group-data-[collapsible=icon]:px-2">
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => {
@@ -57,11 +57,11 @@ export function NavMain({
                                         <SidebarMenuButton
                                             tooltip={item.title}
                                             isActive={isItemActive}
-                                            className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto"
+                                            className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:[&>span]:hidden"
                                         >
                                             {item.icon && <item.icon className="size-4 shrink-0" />}
                                             <span className="text-sm font-medium">{item.title}</span>
-                                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                                            <ChevronRight className="ml-auto transition-transform group-data-[collapsible=icon]:hidden duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent>
@@ -93,7 +93,7 @@ export function NavMain({
                                 asChild
                                 tooltip={item.title}
                                 isActive={isThisActive}
-                                className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto"
+                                className="h-9 rounded-[0.625rem] px-2.5 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:[&>span]:hidden"
                             >
                                 <Link href={item.url} className="flex items-center gap-3 w-full">
                                     {item.icon && <item.icon className="size-4 shrink-0" />}

@@ -161,7 +161,7 @@ export function ProductsList({
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+            <thead className="border-b bg-sidebar text-left text-xs text-sidebar-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
                 <th className="px-4 py-3 font-medium">SKU</th>

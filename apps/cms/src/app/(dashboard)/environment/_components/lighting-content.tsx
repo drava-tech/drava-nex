@@ -215,22 +215,23 @@ export default function LightingContent({ isExpanded, state, actions: liveAction
           </span>
         </div>
       ) : (
-              <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
-        <AmbientModesPanel onApplied={actions.modeApplied} />
-        {groups.map((g) => {
+        // Fixture rows take the free height (scrolling quietly if they run out);
+        // the ambient modes sit pinned to the bottom of the card beneath them.
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+          {groups.map((g) => {
 
             const uuids = g.members.map((m) => m.uuid);
             const on = g.members.some((m) => state.on?.[m.uuid]);
-            const offline = g.members.every((m) => m.status === "offline");
             const many = g.members.length > 1;
             const isOpen = !!open[g.name];
             return (
-              // Offline fixtures dim but stay interactive — the gateway's online
-              // flag has proven unreliable, so it must not lock out a light the
-              // user can actually still reach.
+              // Offline shows only on the StatusDot — the gateway's online flag
+              // has proven unreliable, so the card must neither dim nor lock out
+              // a light the user can actually still reach.
               <div
                 key={g.name}
-                className={`rounded-2xl border border-border p-3 transition-opacity ${offline ? "opacity-50" : ""}`}
+                className={`rounded-2xl border p-3 border-border bg-accent shadow-[var(--pill-shadow)]`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -321,6 +322,8 @@ export default function LightingContent({ isExpanded, state, actions: liveAction
               </div>
             );
           })}
+          </div>
+          <AmbientModesPanel onApplied={actions.modeApplied} />
         </div>
       )}
     </div>

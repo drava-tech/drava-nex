@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
-import { DragSlider } from "@/components/drag-slider";
+import { DragSlider as BaseDragSlider } from "@/components/drag-slider";
 
 export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-primary" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
   // Single click/tap on the track sets the value directly at that position —
@@ -120,6 +120,14 @@ export function ClimateControlIcon({ type, active }: { type: "swing" | "timer" |
  * Re-exported so this page keeps its single controls import. The
  * implementation moved to components/drag-slider.tsx when the video scrub bar
  * started needing it too — a shared control must not live inside one route's
- * private _components folder.
+ * private _components folder. Here it takes the same black→red fill as the
+ * Audio card's volume bar.
  */
-export { DragSlider };
+export function DragSlider(props: React.ComponentProps<typeof BaseDragSlider>) {
+  return (
+    <BaseDragSlider
+      fillClassName="bg-gradient-to-r from-black via-[#761A2A] to-[#E21D3E]"
+      {...props}
+    />
+  );
+}
