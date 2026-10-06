@@ -78,8 +78,11 @@ function handleVoiceError(c: Context, err: unknown) {
     const status = err.code === "FORBIDDEN" || err.code === "FORBIDDEN_SCOPE" ? 403 : 400;
     return fail(c, err.code, err.message, status);
   }
+  // Travis reads this message aloud: say what failed, never the vendor's error
+  // text or code (e.g. Tuya's "IoT Core service subscription has expired (code
+  // 28841002)"). The full error stays in the server log and the audit trail.
   console.error("[voice-internal] unhandled error:", err);
-  return fail(c, "INTERNAL", err instanceof Error ? err.message : "Something went wrong.", 500);
+  return fail(c, "INTERNAL", "That didn't go through. The device isn't responding.", 500);
 }
 
 function errorMessage(err: unknown): string {

@@ -1,21 +1,20 @@
 """English-only command gate for TRAVIS.
 
-Gemini Live understands and, left to itself, will act on a command spoken
-in any language (core/prompt.txt's LANGUAGE section only used to control
-what language TRAVIS *replies* in, not whether it acts). This module is a
+A language model will act on a command spoken in any language, and speech-to-text
+may translate rather than refuse it. This module is a
 hard, code-level backstop in front of tool/CMS execution: TRAVIS must not
 run a command that wasn't spoken in English, even if the model decides to
 call a tool anyway despite the system instruction telling it not to.
 
 Detection is deliberately simple and dependency-free: a script-based check.
-Speech-to-text (including Gemini's own) transcribes non-English speech into
+Speech-to-text transcribes non-English speech into
 that language's own script rather than romanizing it, so a Hindi/Telugu/Urdu
 command shows up as Devanagari/Telugu/Arabic-script text (and anything
 non-Latin is rejected) — a reliable,
 deterministic signal with no ML dependency and no risk of misjudging a
 short English command. It will NOT catch non-English speech transcribed in
-the Latin alphabet (e.g. romanized "Hinglish"); the system-prompt
-instruction (core/prompt.txt) is the primary defense for that case.
+the Latin alphabet (e.g. romanized "Hinglish"); the language check
+in speech/stt.py (Whisper) is the defense for that case.
 
 Public API:
     is_english(text) -> bool

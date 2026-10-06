@@ -1,6 +1,6 @@
 # Core voice loop + UI
-# google-genai / PyQt6 are pinned: both ship breaking changes (google-genai's
-# Live API surface especially) and this app depends on their exact behavior.
+# google-genai / PyQt6 are pinned: both ship breaking changes and this app depends on
+# their exact behavior. google-genai is only used for knowledge_search embeddings and memory.
 # Bump deliberately, not by accident.
 sounddevice
 google-genai==2.9.0
@@ -16,6 +16,17 @@ vosk==0.3.45          # wake-word engine option "vosk" (the default here) —
                       # than openwakeword; model auto-downloaded on first run
                       # (~40MB, cached). See README.md's Wake word section.
 requests              # calls apps/api's internal voice-command routes
+websockets            # ElevenLabs streaming TTS
+httpx                 # talks to Ollama (also pulled in by google-genai)
+
+# Speech-to-text (Whisper, on the GPU)
+# and end-of-speech detection. The LLM itself runs in Ollama (a separate app:
+# install it, then `ollama pull qwen3:8b`), reached over HTTP with httpx
+# (already pulled in by google-genai). CUDA needs cuBLAS 12 + cuDNN 9 DLLs:
+# point stt_cuda_lib_dir at a folder that has them (e.g. a global torch\lib),
+# or `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` into this venv.
+faster-whisper==1.2.1
+webrtcvad-wheels      # WebRTC VAD with prebuilt Windows wheels (plain `webrtcvad` needs a C compiler)
 numpy                 # backs the RAG knowledge index (cosine retrieval) and
                       # feeds raw PCM into the wake-word detectors
 
@@ -27,13 +38,13 @@ numpy                 # backs the RAG knowledge index (cosine retrieval) and
 # Target-speaker gating ("ignore bystander chatter") is optional and off by
 # default (speaker_gate_enabled in config/api_keys.json). Enabling it needs a
 # voice encoder; without it the agent streams all awake audio exactly as before:
-#   python -m pip install resemblyzer   # pulls in torch (CPU is fine)
+#   python -m pip install resemblyzer librosa   # pulls in torch (CPU is fine)
 #   python -m pip install "setuptools<81"  # resemblyzer's webrtcvad dep still
 #       # imports pkg_resources, which setuptools 81+ no longer bundles —
-#       # without this pin, `from core import speaker` fails at import time
+#       # without this pin, `from audio import speaker` fails at import time
 #       # and the gate silently stays disabled.
 
-# Experimental GPU target-speaker EXTRACTION (core/target_speaker_gpu.py,
+# Experimental GPU target-speaker EXTRACTION (audio/target_speaker_gpu.py,
 # 2026-09-22 research spike) is a separate opt-in on top of the above:
 # speaker_extraction_backend: "gpu_separation_experimental" in
 # config/api_keys.json (default is "resemblyzer" — unaffected unless you
@@ -43,7 +54,7 @@ numpy                 # backs the RAG knowledge index (cosine retrieval) and
 #   python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch
 #   python -m pip install speechbrain
 # See bench/gpu_extraction_bench.py for standalone latency/RTF numbers
-# before turning this on, and core/target_speaker_gpu.py's module docstring
+# before turning this on, and audio/target_speaker_gpu.py's module docstring
 # for why this is separation+selection rather than a truly
 # target-conditioned model — no pip-installable, quality-verified,
 # pretrained target-speaker-conditioned checkpoint exists as of this

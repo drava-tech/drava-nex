@@ -6,7 +6,7 @@ AGENT_ROOT = Path(__file__).resolve().parent.parent
 if str(AGENT_ROOT) not in sys.path:
     sys.path.insert(0, str(AGENT_ROOT))
 
-from main import TravisLive
+from agent.base import TravisBase
 
 
 class _FakeWakeModel:
@@ -15,7 +15,7 @@ class _FakeWakeModel:
 
 def _agent(**state):
     """An agent that has just heard the wake word at t=0 (awake_timeout 15s)."""
-    a = object.__new__(TravisLive)
+    a = object.__new__(TravisBase)
     a._wake_model = _FakeWakeModel()
     a._awake = True
     a._awake_until = 15.0
@@ -106,45 +106,6 @@ class CloseOnlyWhenTheWholeExchangeIsDoneTests(unittest.TestCase):
     def test_asleep_or_without_a_detector_does_nothing(self):
         self.assertIsNone(_agent(_awake=False)._awake_action(99.0, busy=False))
         self.assertIsNone(_agent(_wake_model=None)._awake_action(99.0, busy=False))
-
-
-class OnlyAnswerEnglishCommandsAfterTheWakeWordTests(unittest.TestCase):
-    def test_answers_a_confirmed_english_command(self):
-        a = _agent(_wake_confirmed=True)
-        self.assertIsNone(a._mute_reason_for("Travis, turn on the lights"))
-
-    def test_mutes_anything_heard_while_not_awake(self):
-        self.assertEqual(_agent(_awake=False)._mute_reason_for("hello"), "not awake")
-
-    def test_mutes_noise(self):
-        self.assertEqual(_agent(_wake_confirmed=True)._mute_reason_for("<noise>"), "noise")
-
-    def test_the_nudge_reply_is_not_muted_as_noise(self):
-        a = _agent(_nudge_state="sent")
-        self.assertIsNone(a._mute_reason_for("<noise>"))
-
-    def test_mutes_non_english(self):
-        a = _agent(_wake_confirmed=True)
-        self.assertEqual(a._mute_reason_for("ఎవరు"), "not English")
-        self.assertEqual(a._mute_reason_for("सर"), "not English")
-
-    def test_mutes_a_false_wake(self):
-        # Vosk fired, but Gemini heard no "travis" at all.
-        a = _agent()
-        self.assertEqual(
-            a._mute_reason_for("So that is for the last week and you hear me"),
-            "false wake",
-        )
-
-    def test_the_answer_to_the_nudge_needs_no_second_travis(self):
-        a = _agent(_nudge_state="done")
-        self.assertIsNone(a._mute_reason_for("turn on the lights"))
-
-    def test_an_empty_transcript_fails_open(self):
-        self.assertIsNone(_agent()._mute_reason_for(""))
-
-    def test_always_listening_fallback_is_never_muted(self):
-        self.assertIsNone(_agent(_wake_model=None, _awake=False)._mute_reason_for("hi"))
 
 
 if __name__ == "__main__":

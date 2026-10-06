@@ -18,7 +18,7 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from bench.gpu_extraction_bench import _si_sdr, _synthetic_voice, _to_pcm16  # noqa: E402
-from core import speaker  # noqa: E402
+from audio import speaker  # noqa: E402
 
 SR = 16000
 MODEL_SR = 8000

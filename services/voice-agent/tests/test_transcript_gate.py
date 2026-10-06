@@ -1,6 +1,6 @@
 import unittest
 
-from core.transcript_gate import (
+from speech.transcript_gate import (
     has_speech_beyond_wake_word,
     is_noise,
     mentions_wake_word,
@@ -40,6 +40,33 @@ class NoiseTests(unittest.TestCase):
 
     def test_strip_markers(self):
         self.assertEqual(strip_markers("<noise> hi").strip(), "hi")
+
+
+class HeyTravisPhraseTests(unittest.TestCase):
+    PHRASE = "hey travis"
+
+    def test_whisper_hearing_the_name_is_enough(self):
+        from speech.transcript_gate import mentions_wake_word
+
+        for text in ("Hey Travis, lights on", "Hey, Travis.", "A Travis lights on", "Travis, lights on"):
+            with self.subTest(text=text):
+                self.assertTrue(mentions_wake_word(text, self.PHRASE))
+        self.assertFalse(mentions_wake_word("hey there, lights on", self.PHRASE))
+
+    def test_hey_travis_alone_is_not_a_command(self):
+        from speech.transcript_gate import has_speech_beyond_wake_word
+
+        for text in ("Hey Travis", "Hey Travis.", "Hey, Travis!", "Hey Tra vis"):
+            with self.subTest(text=text):
+                self.assertFalse(has_speech_beyond_wake_word(text, self.PHRASE))
+        self.assertTrue(has_speech_beyond_wake_word("Hey Travis, lights on", self.PHRASE))
+
+    def test_the_wake_phrase_is_stripped_from_the_command(self):
+        from speech.transcript_gate import strip_wake_word
+
+        self.assertEqual(strip_wake_word("Hey Travis, turn on the lights.", self.PHRASE), "turn on the lights")
+        self.assertEqual(strip_wake_word("Hey, Trevis lock the door", self.PHRASE), "lock the door")
+        self.assertEqual(strip_wake_word("turn off tusker edge, hey Travis", self.PHRASE), "turn off tusker edge")
 
 
 if __name__ == "__main__":

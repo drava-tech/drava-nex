@@ -61,6 +61,9 @@ class ElevenLabsStreamer:
             uri = (
                 f"wss://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}/stream-input"
                 f"?model_id={self.model_id}&output_format=pcm_{self.sample_rate}"
+                # Default is 20 s: a session pre-warmed at the wake word was
+                # closed (1008) before slow replies (LLM + retry) sent any text.
+                f"&inactivity_timeout=180"
             )
             try:
                 self._ws = await websockets.connect(uri)
@@ -142,8 +145,9 @@ class ElevenLabsStreamer:
 
     async def _receive_loop(self) -> None:
         """Receive base64 audio chunks from ElevenLabs and enqueue PCM bytes."""
+        ws = self._ws
+        finished = False
         try:
-            ws = self._ws
             if not ws:
                 return
 
@@ -157,13 +161,8 @@ class ElevenLabsStreamer:
                             self.audio_queue.put_nowait(pcm_bytes)
 
                     if msg.get("isFinal"):
-                        # Session complete; ready for next or reconnect.
-                        # TODO: this doesn't close self._ws or null it out, so
-                        # a later ensure_session()'s fast _is_open() check can
-                        # see a still-OPEN socket with no receiver reading it
-                        # (this loop has already exited) and skip starting a
-                        # fresh _recv_task, silently dropping audio. Not fixed
-                        # yet — flagged here, not currently known to be hit.
+                        # Session complete; the next send_text() opens a new one.
+                        finished = True
                         break
                 except Exception as parse_err:
                     print(f"[ElevenLabs] Audio decode error: {parse_err}")
@@ -173,3 +172,13 @@ class ElevenLabsStreamer:
             print(f"[ElevenLabs] Recv error: {exc}")
         finally:
             self._is_connected = False
+            # Nothing reads this socket any more: drop it, or ensure_session()
+            # would see it still OPEN and skip starting a receiver, silently
+            # losing the next reply's audio (hit by the local pipeline, which
+            # flushes after every reply).
+            if finished and ws is not None and self._ws is ws:
+                self._ws = None
+                try:
+                    await ws.close()
+                except Exception:
+                    pass

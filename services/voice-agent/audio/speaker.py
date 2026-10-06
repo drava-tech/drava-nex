@@ -1,6 +1,6 @@
 """Optional target-speaker verification for TRAVIS.
 
-Like core.expression and core.camera, this module is intentionally independent
+This module is intentionally independent
 of any feature and is *fully optional*. Its job is to turn a short chunk of
 microphone PCM into a fixed-length voice embedding so the main loop can tell
 whether the person speaking right now is the same person who woke TRAVIS — and

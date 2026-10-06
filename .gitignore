@@ -118,3 +118,10 @@ services/vision/models/**/w600k_r50.onnx
 
 # Local Claude Code notes
 CLAUDE.md
+
+# ─── Voice services (services/voice-agent, services/voice-control) ─────────────
+# Per-machine Python venvs and downloaded speech models — never committed.
+.venv-whisper/
+services/voice-control/models/
+# Real keys live in config/api_keys.json (already ignored); a copy here is a mistake.
+services/voice-agent/api_keys.json

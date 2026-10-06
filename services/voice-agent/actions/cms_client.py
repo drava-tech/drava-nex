@@ -38,11 +38,9 @@ _name_cache: dict[str, tuple[float, list[dict]]] = {}
 _session = requests.Session()
 
 # Groups every command from one continuous wake-to-sleep interaction in
-# apps/api's audit log (voice_command_log.session_id). Set once per Gemini
-# Live connection by main.py (see TravisLive.run()'s reconnect loop) so a
-# fresh connection — which has no memory of whatever conversation came
-# before it — also starts a fresh session id, rather than every command this
-# process ever issues looking like one flat, undifferentiated history.
+# apps/api's audit log (voice_command_log.session_id). Set once per run by
+# TravisLocal.run(), so a restart starts a fresh session id rather than every
+# command this process ever issues looking like one flat history.
 _session_id: str | None = None
 
 
@@ -64,17 +62,13 @@ def _load_config() -> dict:
 
 
 def _base_url() -> str:
-    # Default is an IPv4 literal, not "localhost" — deliberately. This
-    # machine's networking is IPv6-broken (see main.py's forced IPv4 for
-    # Gemini and CLAUDE.md), so "localhost" resolves to both ::1 and
-    # 127.0.0.1 and urllib3 tries them in sequence, silently doubling every
-    # connection attempt (measured: ~2s per address when the CMS is down, so
-    # ~4s per attempt, ~8.3s once _request()'s one retry is included — a
-    # requests-level `timeout=` change alone can't fix this, only skipping
-    # the wasted IPv6 attempt does).
-    return str(
-        _load_config().get("cms_api_base_url", "http://127.0.0.1:4000")
-    ).rstrip("/")
+    # Production CMS API, from cms_api_base_url (use an IPv4 literal: this
+    # machine's IPv6 is broken, and "localhost"-style names resolve to both
+    # families and double every connection attempt).
+    url = str(_load_config().get("cms_api_base_url", "")).strip()
+    if not url:
+        raise CmsClientError("The CMS address isn't configured — set cms_api_base_url in config/api_keys.json.")
+    return url.rstrip("/")
 
 
 def _secret() -> str:
@@ -111,28 +105,23 @@ def _request(
     # response was lost), apps/api replays that result instead of
     # re-actuating the device (see voice-internal.ts's idempotencyStore).
     #
-    # Timeout was 8s and this call is normally 127.0.0.1/localhost, should
-    # complete in well under 100ms when apps/api is actually up. Turned out
-    # the real cost of a down API wasn't this timeout value at all — it was
-    # "localhost" resolving to both ::1 and 127.0.0.1 and urllib3 trying both
-    # in sequence (see _base_url()), doubling every attempt regardless of
-    # what timeout was configured here. With that fixed (base URL now an
-    # IPv4 literal by default), this 1.5s actually does bound each attempt:
-    # ~1.5s x 2 attempts + the retry delay = ~3.3s worst case when genuinely
-    # down, instead of the original ~8.3-8.5s. Raise this if a real
-    # (non-local) deployment target needs more slack than loopback does.
+    # 3s per attempt: the CMS is a remote server, so loopback-tight timeouts would
+    # turn a slow network moment into a spoken failure. Worst case when genuinely
+    # down is ~3s x 2 attempts + the retry delay.
     try:
-        res = _session.request(method, url, json=json_body, headers=headers, timeout=1.5)
+        res = _session.request(method, url, json=json_body, headers=headers, timeout=3.0)
     except _RETRYABLE_EXCEPTIONS:
         time.sleep(_RETRY_DELAY_SEC)
         try:
             res = _session.request(
-                method, url, json=json_body, headers=headers, timeout=1.5
+                method, url, json=json_body, headers=headers, timeout=3.0
             )
         except requests.RequestException as e:
-            raise CmsClientError(f"Could not reach the CMS at {url}: {e}") from e
+            print(f"[cms] could not reach {url}: {e}")
+            raise CmsClientError("Could not reach the CMS.") from e
     except requests.RequestException as e:
-        raise CmsClientError(f"Could not reach the CMS at {url}: {e}") from e
+        print(f"[cms] could not reach {url}: {e}")
+        raise CmsClientError("Could not reach the CMS.") from e
 
     try:
         body = res.json()

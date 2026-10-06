@@ -2,8 +2,8 @@ import unittest
 import asyncio
 from unittest.mock import AsyncMock, patch
 from websockets.protocol import State
-from core.elevenlabs_stream import ElevenLabsStreamer, _is_open
-from main import _load_api_config
+from speech.elevenlabs_stream import ElevenLabsStreamer, _is_open
+from settings import load_api_config
 
 
 class _FakeWebSocket:
@@ -51,7 +51,7 @@ class ElevenLabsStreamerTests(unittest.TestCase):
         async def run_prewarm():
             fake_ws = _FakeWebSocket()
             with patch(
-                "core.elevenlabs_stream.websockets.connect",
+                "speech.elevenlabs_stream.websockets.connect",
                 AsyncMock(return_value=fake_ws),
             ):
                 s = ElevenLabsStreamer("key", "voice", audio_queue=asyncio.Queue())
@@ -71,7 +71,7 @@ class ElevenLabsStreamerTests(unittest.TestCase):
         asyncio.run(run_prewarm())
 
     def test_load_api_config_includes_elevenlabs(self):
-        cfg = _load_api_config()
+        cfg = load_api_config()
         self.assertIn("elevenlabs_api_key", cfg)
         self.assertIn("elevenlabs_voice_id", cfg)
         self.assertEqual(cfg.get("elevenlabs_model_id"), "eleven_flash_v2_5")

@@ -269,6 +269,12 @@ describe("colours by voice", () => {
     expect(strip[1]).toMatchObject({ color: "#FFF3E0", white: 255 });
   });
 
+  it("confirms a colour request with the colour, not the light's brightness", async () => {
+    const res = await runDeviceCommand({ action: "lights_set", target: "tusker edge", color: "warm white" }, "ADMIN");
+    expect(res.message).toMatch(/tusker edge is now warm white\.$/);
+    expect(res.message).not.toMatch(/%/);
+  });
+
   it("refuses a colour it can't show instead of silently setting none", async () => {
     await expect(
       runDeviceCommand({ action: "lights_set", target: "tusker L1", color: "pink" }, "ADMIN")

@@ -1131,9 +1131,17 @@ export async function runDeviceCommand(
     // a plain on/off toggle that changed nothing gets the "already" phrasing.
     const isPlainToggle = input.action === "lights_on" || input.action === "lights_off";
     const noneChanged = isPlainToggle && scoped.every((d) => priorOnById.get(d.id) === on);
+    // A colour request is confirmed with the colour (in the user's own words),
+    // not with the light's brightness — "set it to warm white" answered with
+    // "...is on at 1%" never said whether the colour took.
+    const colorSpoken = colorHex ? input.color : undefined;
+    const atBrightness = input.brightness !== undefined ? ` at ${input.brightness}%` : "";
     return {
-      message:
-        scoped.length === 1
+      message: colorSpoken
+        ? scoped.length === 1
+          ? `${deviceLabel(updated[0]!.name)} is now ${colorSpoken}${atBrightness}.`
+          : `${isL3Group ? `${l3.display} is` : `${groupName} are`} now ${colorSpoken}${atBrightness}.`
+        : scoped.length === 1
           ? (noneChanged ? describeAlreadyState : describeLightState)(
               deviceLabel(updated[0]!.name),
               updated[0]!.state as Record<string, unknown> | null

@@ -6,17 +6,26 @@ config/api_keys.json
 memory/long_term.json
 *.log
 
-# RAG: generated index (keep the starter doc tracked)
+# RAG: generated index (keep the starter docs tracked)
 rag/index.npz
 rag/index_meta.json
 knowledge/*
 !knowledge/cms_platform.md
+!knowledge/the_white_tusker.md
 
 # Downloaded pretrained model weights (re-fetched on demand from the
 # HuggingFace/asteroid cache — never belong in the repo tree).
-core/.cache/
+audio/.cache/
 
 # Manually downloaded model bundles (e.g. sherpa-onnx releases) — large
 # binaries fetched by hand, not by a library-managed cache; re-download from
 # source instead of committing.
-core/models/
+audio/models/
+
+# Voice benchmark output: generated reports, cached synthetic audio, and your own recorded clips
+bench/results/
+bench/recordings/
+bench/.cache/
+
+# Exchange log from real-voice testing
+logs/

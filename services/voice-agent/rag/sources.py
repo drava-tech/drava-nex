@@ -6,11 +6,9 @@ Each loader yields ``Document`` records pulled from a different source:
 * curated task knowledge (OKF bundle) -> ``knowledge_okf/**/*.md``
 * visitor memory                      -> ``memory/long_term.json``
 
-Curated task know-how (cube + LEGO) lives as an Open Knowledge Format (OKF) bundle: a
-directory of markdown files, one "concept" per file, each with YAML frontmatter (``name``,
-``type``, ``title``, ``source_label``) and a markdown body. This is the maintainable,
-human- and agent-readable authoring layer; the underlying ``core/cube_tricks.json`` and
-``lego/data/*.json`` are kept for the coaches' runtime use but are no longer indexed here.
+Curated know-how can live as an Open Knowledge Format (OKF) bundle: a directory of markdown
+files, one "concept" per file, each with YAML frontmatter (``name``, ``type``, ``title``,
+``source_label``) and a markdown body.
 
 A document is a coarse unit (one file, one cube stage, one memory entry); the
 indexer is responsible for splitting long documents into embeddable chunks.
@@ -31,8 +29,6 @@ def get_base_dir() -> Path:
 BASE_DIR = get_base_dir()
 KNOWLEDGE_DIR = BASE_DIR / "knowledge"
 OKF_DIR = BASE_DIR / "knowledge_okf"
-CUBE_TRICKS = BASE_DIR / "core" / "cube_tricks.json"
-LEGO_DATA = BASE_DIR / "lego" / "data"
 MEMORY_PATH = BASE_DIR / "memory" / "long_term.json"
 
 
@@ -182,137 +178,6 @@ def _load_json(path: Path) -> dict | list | None:
         return None
 
 
-def load_cube_knowledge() -> list[Document]:
-    """Flatten core/cube_tricks.json into readable, retrievable chunks."""
-    data = _load_json(CUBE_TRICKS)
-    if not isinstance(data, dict):
-        return []
-
-    docs: list[Document] = []
-    label = "Cube Coach"
-
-    notation = data.get("notation")
-    if isinstance(notation, dict):
-        lines = [f"{k}: {v}" for k, v in notation.items()]
-        docs.append(
-            Document(
-                doc_id="cube:notation",
-                title="Rubik's Cube notation",
-                text="Rubik's cube move notation.\n" + "\n".join(lines),
-                source_label=label,
-            )
-        )
-
-    principles = data.get("first_principles")
-    if isinstance(principles, list) and principles:
-        docs.append(
-            Document(
-                doc_id="cube:first_principles",
-                title="Cube first principles",
-                text="Rubik's cube first principles.\n- "
-                + "\n- ".join(map(str, principles)),
-                source_label=label,
-            )
-        )
-
-    for stage in data.get("stages", []) or []:
-        if not isinstance(stage, dict):
-            continue
-        sid = stage.get("id", "stage")
-        name = stage.get("name", sid)
-        parts = [f"Cube stage: {name}."]
-        for key in (
-            "goal",
-            "trick",
-            "trick_left",
-            "trick_right",
-            "trick_corners",
-            "trick_edges",
-            "tip",
-        ):
-            if stage.get(key):
-                parts.append(f"{key.replace('_', ' ').title()}: {stage[key]}")
-        docs.append(
-            Document(
-                doc_id=f"cube:stage:{sid}",
-                title=f"Cube stage — {name}",
-                text="\n".join(parts),
-                source_label=label,
-            )
-        )
-
-    named = data.get("named_algorithms")
-    if isinstance(named, dict) and named:
-        lines = [f"{k.replace('_', ' ').title()}: {v}" for k, v in named.items()]
-        docs.append(
-            Document(
-                doc_id="cube:named_algorithms",
-                title="Named cube algorithms",
-                text="Named Rubik's cube algorithms.\n" + "\n".join(lines),
-                source_label=label,
-            )
-        )
-
-    return docs
-
-
-def load_lego_knowledge() -> list[Document]:
-    """Flatten LEGO build recipes + piece catalog into retrievable chunks."""
-    docs: list[Document] = []
-    label = "LEGO Coach"
-
-    recipes = _load_json(LEGO_DATA / "build_recipes.json")
-    builds = recipes.get("builds") if isinstance(recipes, dict) else None
-    if isinstance(builds, list):
-        for build in builds:
-            if not isinstance(build, dict):
-                continue
-            bid = build.get("id", "build")
-            name = build.get("name", bid)
-            parts = [f"LEGO build: {name}."]
-            if build.get("description"):
-                parts.append(str(build["description"]))
-            steps = build.get("steps")
-            if isinstance(steps, list):
-                parts.append(f"It has {len(steps)} assembly steps.")
-                for i, step in enumerate(steps, 1):
-                    instr = (
-                        step.get("instruction") or step.get("text")
-                        if isinstance(step, dict)
-                        else None
-                    )
-                    if instr:
-                        parts.append(f"Step {i}: {instr}")
-            docs.append(
-                Document(
-                    doc_id=f"lego:build:{bid}",
-                    title=f"LEGO build — {name}",
-                    text="\n".join(parts),
-                    source_label=label,
-                )
-            )
-
-    catalog = _load_json(LEGO_DATA / "piece_catalog.json")
-    pieces = catalog.get("pieces") if isinstance(catalog, dict) else None
-    if isinstance(pieces, list) and pieces:
-        lines = []
-        for p in pieces:
-            if isinstance(p, dict) and p.get("name"):
-                cat = p.get("category", "")
-                lines.append(f"{p['name']} ({cat})" if cat else p["name"])
-        if lines:
-            docs.append(
-                Document(
-                    doc_id="lego:catalog",
-                    title="LEGO piece catalog",
-                    text="Known LEGO piece types: " + ", ".join(lines) + ".",
-                    source_label=label,
-                )
-            )
-
-    return docs
-
-
 def load_memory_knowledge() -> list[Document]:
     """Turn long-term visitor memory entries into retrievable strings so TRAVIS
     can recall stored facts by meaning. Mirrors memory_manager's category layout."""
@@ -343,9 +208,6 @@ def load_memory_knowledge() -> list[Document]:
 def load_all_documents() -> list[Document]:
     docs: list[Document] = []
     docs.extend(load_user_docs())
-    # Curated cube/LEGO know-how now comes from the OKF bundle (load_okf_documents).
-    # load_cube_knowledge / load_lego_knowledge are retained for reference and the
-    # one-time migration but are intentionally not indexed, to avoid duplication.
     docs.extend(load_okf_documents())
     docs.extend(load_memory_knowledge())
     return docs

@@ -1,6 +1,6 @@
 import unittest
 
-from core.language_gate import is_english
+from speech.language_gate import is_english
 
 
 class LanguageGateTests(unittest.TestCase):

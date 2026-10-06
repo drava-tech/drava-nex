@@ -1,4 +1,4 @@
-"""Standalone benchmark for core/target_speaker_gpu.py — NOT part of the
+"""Standalone benchmark for audio/target_speaker_gpu.py — NOT part of the
 unittest suite (needs torch+CUDA+speechbrain+a GPU; the regular test suite
 must keep passing on a machine without any of that). Run directly:
 
@@ -119,7 +119,7 @@ def main():
     # Enrollment: "audio containing Travis" stand-in — a short clip of
     # speaker A alone, exactly like main.py's _enroll_target() uses the
     # wake-word audio as the reference.
-    from core import speaker
+    from audio import speaker
 
     enroll = _synthetic_voice(140.0, 1.0, seed=1)  # speaker A, lower pitch
     target_embedding = speaker.embed(_to_pcm16(enroll), SR, min_rms=0.0)
@@ -152,7 +152,7 @@ def main():
         _report("CPU Resemblyzer gate (current, production)", cpu_latencies, window_sec)
 
         # Candidate: GPU SepFormer separation + embedding-based selection.
-        from core import target_speaker_gpu
+        from audio import target_speaker_gpu
 
         if not target_speaker_gpu.available():
             print("GPU extraction: unavailable (see load errors above) — skipping.")
@@ -199,7 +199,7 @@ def main():
     window_samples = int(window_sec * SR)
     hop_samples = int(hop_sec * SR)
 
-    from core import speaker, target_speaker_gpu
+    from audio import speaker, target_speaker_gpu
 
     mix_sdrs, gpu_sdrs = [], []
     pos = 0

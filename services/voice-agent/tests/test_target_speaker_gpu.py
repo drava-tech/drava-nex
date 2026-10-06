@@ -1,13 +1,13 @@
 import unittest
 
-from core import target_speaker_gpu
+from audio import target_speaker_gpu
 
 
 class TargetSpeakerGpuFailOpenTests(unittest.TestCase):
     """This backend is experimental and opt-in (main.py's
     speaker_extraction_backend config key defaults to "resemblyzer") — on a
     machine without torch/speechbrain/CUDA it must fail open exactly like
-    core/speaker.py does, never raise, so the default Resemblyzer path is
+    audio/speaker.py does, never raise, so the default Resemblyzer path is
     unaffected."""
 
     def test_extract_handles_missing_backend_gracefully(self):

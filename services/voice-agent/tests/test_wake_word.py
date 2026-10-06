@@ -7,7 +7,7 @@ AGENT_ROOT = Path(__file__).resolve().parent.parent
 if str(AGENT_ROOT) not in sys.path:
     sys.path.insert(0, str(AGENT_ROOT))
 
-from main import _VoskWakeWordDetector
+from wake.detectors import VoskWakeWordDetector
 
 
 class WakeWordDetectorTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class WakeWordDetectorTests(unittest.TestCase):
         except ImportError:
             self.skipTest("vosk not installed")
 
-        detector = _VoskWakeWordDetector("travis", 16000, variants=["travel"], partial_confirm_frames=2)
+        detector = VoskWakeWordDetector("travis", 16000, variants=["travel"], partial_confirm_frames=2)
         self.assertEqual(detector.label, "travis")
         self.assertIn("travis", detector._match_words)
         self.assertIn("travel", detector._match_words)
@@ -41,7 +41,7 @@ class WakeWordDetectorTests(unittest.TestCase):
             def Reset(self):
                 pass
 
-        d = object.__new__(_VoskWakeWordDetector)
+        d = object.__new__(VoskWakeWordDetector)
         d._match_words = {"travis"}
         d._partial_confirm_frames = 1
         d._partial_streak = 0
@@ -64,6 +64,44 @@ class WakeWordDetectorTests(unittest.TestCase):
     def test_no_wake_on_unrecognised_sound_alone(self):
         d, n = self._detector_with_partials(["[unk]", "[unk] [unk]", "[unk] [unk] [unk]"])
         self.assertEqual([d.detect(b"") for _ in range(n)], [False, False, False])
+
+    @classmethod
+    def _hey_detector(cls, partials):
+        d, n = cls._detector_with_partials(partials)
+        d._lead_words = ["hey"]
+        return d, n
+
+    def test_hey_travis_fires_on_the_two_words_together(self):
+        d, n = self._hey_detector(["hey", "hey travis"])
+        self.assertEqual([d.detect(b"") for _ in range(n)], [False, True])
+
+    def test_travis_alone_does_not_wake(self):
+        d, n = self._hey_detector(["travis", "travis turn", "travis turn on the lights"])
+        self.assertEqual([d.detect(b"") for _ in range(n)], [False, False, False])
+
+    def test_hey_without_travis_does_not_wake(self):
+        d, n = self._hey_detector(["hey", "hey there", "hey there everyone"])
+        self.assertEqual([d.detect(b"") for _ in range(n)], [False, False, False])
+
+    def test_hey_travis_after_other_sounds_and_before_the_command(self):
+        d, n = self._hey_detector(["[unk] [unk] hey travis", "hey travis turn on"])
+        self.assertTrue(d.detect(b""))
+        d, n = self._hey_detector(["hey travis turn on the lights"])
+        self.assertTrue(d.detect(b""))
+
+    def test_the_words_must_be_adjacent_and_in_order(self):
+        d, n = self._hey_detector(["travis hey", "hey [unk] travis"])
+        self.assertEqual([d.detect(b"") for _ in range(n)], [False, False])
+
+    def test_hey_travis_detector_init(self):
+        try:
+            import vosk  # noqa: F401
+        except ImportError:
+            self.skipTest("vosk not installed")
+        d = VoskWakeWordDetector("hey travis", 16000, variants=None, partial_confirm_frames=2)
+        self.assertEqual(d.label, "hey travis")
+        self.assertEqual(d._lead_words, ["hey"])
+        self.assertEqual(d._match_words, {"travis"})
 
     def test_fallback_flag_when_no_wake_model(self):
         # When wake model is None, need_wake_word must be False so the agent

@@ -33,7 +33,7 @@ def _clean_params(raw: object) -> dict | None:
 # Short-term context memory: the last device this process successfully acted
 # on, so a follow-up like "turn it off" or "dim it to 50%" still works even
 # if the model doesn't substitute the real name itself (the primary
-# mechanism is a prompt instruction telling it to — see core/prompt.txt —
+# mechanism is a prompt instruction telling it to — see nlu/prompt_local.txt —
 # this is a safety net for when it forgets or omits target entirely). Process-
 # lifetime only: cleared by nothing, so it always reflects whatever was acted
 # on most recently, across wake cycles, which matches how a real assistant's
@@ -54,6 +54,14 @@ _NO_TARGET_ACTIONS = {
 
 def device_control(parameters: dict, player=None, speak=None) -> str:
     """Control a physical device (lights, AC/IR, door lock) by voice.
+    Returns what to say: the CMS's message, or why it failed."""
+    return run_device_control(parameters)[1]
+
+
+def run_device_control(parameters: dict) -> tuple[bool, str]:
+    """device_control, plus whether the CMS actually did it (False = the
+    message is an error or a question). The local fast path needs the
+    difference: it speaks its own short confirmation only on success.
 
     parameters:
         action (str): lights_on | lights_off | lights_set | scene_recall |
@@ -75,7 +83,7 @@ def device_control(parameters: dict, player=None, speak=None) -> str:
     params = parameters or {}
     action = str(params.get("action", "")).strip().lower()
     if not action:
-        return "Which device action did you mean — turn something on, off, or change a setting?"
+        return False, "Which device action did you mean — turn something on, off, or change a setting?"
 
     target = params.get("target")
     if not target and action not in _NO_TARGET_ACTIONS and _last_device_target:
@@ -91,7 +99,7 @@ def device_control(parameters: dict, player=None, speak=None) -> str:
             params=_clean_params(params.get("params")),
         )
     except CmsClientError as e:
-        return str(e)
+        return False, str(e)
 
     resolved = result.get("resolvedTarget")
     # A mode is not a device: remembering "Meeting mode" here would make a
@@ -99,4 +107,4 @@ def device_control(parameters: dict, player=None, speak=None) -> str:
     if resolved and action != "ambient_mode":
         _last_device_target = resolved
 
-    return result.get("message") or "Done."
+    return True, result.get("message") or "Done."

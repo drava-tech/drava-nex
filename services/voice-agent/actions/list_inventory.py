@@ -39,7 +39,12 @@ def list_inventory(parameters: dict, player=None, speak=None) -> str:
                 f"{len(screens)} screen{'s' if len(screens) != 1 else ''}: {_format_names(screens, 'screenName')}"
             )
         if kind in ("devices", "both"):
-            devices = cms_client.list_devices()
+            # The soundbar is never offered: volume goes through the TV's remote.
+            devices = [d for d in cms_client.list_devices() if "soundbar" not in str(d.get("name", "")).lower()]
+            # "tusker L3" is not a device: it is L1 and L2 together, and can be said like one.
+            have = {str(d.get("name", "")).strip().lower() for d in devices}
+            if {"tusker l1", "tusker l2"} <= have and "tusker l3" not in have:
+                devices.append({"name": "tusker L3, which is L1 and L2 together"})
             parts.append(
                 f"{len(devices)} controllable device{'s' if len(devices) != 1 else ''}: {_format_names(devices, 'name')}"
             )

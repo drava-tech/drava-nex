@@ -1471,7 +1471,6 @@ class MainWindow(QMainWindow):
             (screen.height() - _DEFAULT_H) // 2,
         )
 
-        self.on_text_command = None
         self._muted = False
 
         central = QWidget()
@@ -1792,9 +1791,6 @@ class MainWindow(QMainWindow):
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
         lay.addWidget(sep)
 
-        lay.addWidget(_sec("COMMAND INPUT"))
-        lay.addLayout(self._build_input_row())
-
         self._mute_btn = QPushButton("🎙  MICROPHONE ACTIVE")
         self._mute_btn.setFixedHeight(30)
         self._mute_btn.setFont(QFont("Calibri", 8, QFont.Weight.Bold))
@@ -1820,38 +1816,6 @@ class MainWindow(QMainWindow):
         lay.addWidget(fs_btn)
 
         return w
-
-    def _build_input_row(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(5)
-        self._input = QLineEdit()
-        self._input.setPlaceholderText("Type a command or question…")
-        self._input.setFont(QFont("Calibri", 9, QFont.Weight.Bold))
-        self._input.setFixedHeight(30)
-        self._input.setStyleSheet(f"""
-            QLineEdit {{
-                background: #000d14; color: {C.WHITE};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 3px 7px;
-            }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
-        """)
-        self._input.returnPressed.connect(self._send)
-        row.addWidget(self._input)
-
-        send = QPushButton("▸")
-        send.setFixedSize(30, 30)
-        send.setFont(QFont("Calibri", 11, QFont.Weight.Bold))
-        send.setCursor(Qt.CursorShape.PointingHandCursor)
-        send.setStyleSheet(f"""
-            QPushButton {{
-                background: {C.PANEL}; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
-            }}
-            QPushButton:hover {{ background: {C.PRI_GHO}; border: 1px solid {C.PRI}; }}
-        """)
-        send.clicked.connect(self._send)
-        row.addWidget(send)
-        return row
 
     def _build_footer(self) -> QWidget:
         w = QWidget()
@@ -1903,17 +1867,6 @@ class MainWindow(QMainWindow):
                 QPushButton:hover {{ background: #001f10; }}
             """)
 
-    def _send(self):
-        txt = self._input.text().strip()
-        if not txt:
-            return
-        self._input.clear()
-        self._log.append_log(f"You: {txt}")
-        if self.on_text_command:
-            threading.Thread(
-                target=self.on_text_command, args=(txt,), daemon=True
-            ).start()
-
     def _apply_state(self, state: str):
         self.hud.state = state
         self.hud.speaking = state == "SPEAKING"
@@ -1961,7 +1914,8 @@ class MainWindow(QMainWindow):
             return False
         try:
             d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            return bool(d.get("gemini_api_key")) and bool(d.get("os_system"))
+            # No cloud key is required to run; gemini_api_key only enables knowledge_search.
+            return bool(d.get("os_system"))
         except Exception:
             return False
 
@@ -2030,20 +1984,6 @@ class TravisUI:
         try:
             if v != self._win._muted:
                 self._win._toggle_mute()
-        except RuntimeError:
-            pass
-
-    @property
-    def on_text_command(self):
-        try:
-            return self._win.on_text_command
-        except RuntimeError:
-            return None
-
-    @on_text_command.setter
-    def on_text_command(self, cb):
-        try:
-            self._win.on_text_command = cb
         except RuntimeError:
             pass
 

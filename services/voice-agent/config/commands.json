@@ -1,0 +1,508 @@
+{
+  "$comment": [
+    "TRAVIS fast path (nlu/command_matcher.py): a command matched here runs its tool straight away, with no LLM. Anything that doesn't match goes to the local LLM, which has the same tools plus the ability to ask and explain.",
+    "Phrases are matched after normalization: lowercase, number words -> digits, filler words (the, a, to, please, can, you, travis, ...) removed. (a|b) = alternatives, [word] = optional, {slot} = parameter from 'slots'. Entries are tried top to bottom and the first exact match wins, so keep specific phrases above general ones.",
+    "tool + args: the tool main.py runs (device_control / screen_control / shutdown_travis) with args; an arg that is exactly \"{slot}\" (or \"{a|b}\" = the first one spoken) is replaced by the slot's value and dropped when it wasn't spoken. defaults: slot values used when not spoken.",
+    "say: spoken instead of the tool's own message when the tool succeeds (a failure always speaks the CMS's message, which names the real options). reply: answered with no tool at all. {timeGreeting} = good morning/afternoon/evening now.",
+    "Names are passed exactly as the canonical alias below; apps/api's voice-aliases.ts resolves them to the real devices/screens. fuzzy: false = exact matches only (the door, shutdown)."
+  ],
+  "rewrites": {
+    "a c": "ac",
+    "air con": "ac",
+    "t v": "tv",
+    "tasker": "tusker",
+    "and lock": "unlock",
+    "on lock": "unlock",
+    "un lock": "unlock"
+  },
+  "slots": {
+    "brightness": { "type": "number", "min": 0, "max": 100 },
+    "temperature": { "type": "number", "min": 16, "max": 30 },
+    "steps": { "type": "number", "min": 1, "max": 10 },
+    "volume": { "type": "number", "min": 0, "max": 100 },
+    "color": {
+      "type": "enum",
+      "values": {
+        "red": ["red"],
+        "green": ["green"],
+        "blue": ["blue"],
+        "neutral white": ["white", "neutral white", "cool white", "cold white", "cool", "cold"],
+        "warm white": ["warm white", "warm"],
+        "yellow": ["yellow"],
+        "orange": ["orange"],
+        "purple": ["purple", "violet"],
+        "magenta": ["magenta", "pink"],
+        "cyan": ["cyan"]
+      }
+    },
+    "mode": {
+      "type": "enum",
+      "values": {
+        "cool": ["cool", "cooling", "cold"],
+        "heat": ["heat", "heating", "hot", "warm"],
+        "auto": ["auto", "automatic"],
+        "fan": ["fan", "fan only"],
+        "dry": ["dry", "dehumidify"]
+      }
+    },
+    "fan": {
+      "type": "enum",
+      "values": {
+        "auto": ["auto", "automatic"],
+        "low": ["low", "slow", "quiet"],
+        "mid": ["mid", "medium"],
+        "high": ["high", "fast", "strong", "max"]
+      }
+    },
+    "target": { "type": "text", "aliasesFrom": "light" },
+    "screen": { "type": "text", "aliasesFrom": "screenAlias" },
+    "content": { "type": "text" },
+    "namedScreen": { "type": "text", "anchor": ["screen", "display"], "aliasesFrom": "screenAlias" },
+    "light": {
+      "type": "enum",
+      "values": {
+        "tusker edge": ["tusker edge", "edge", "edge tusker", "tusker edge light", "strip"],
+        "tusker L1": ["tusker l 1", "tusker el 1", "tusker l1", "tusker ll 1", "l 1", "el 1", "l1", "ll 1", "l 1 tusker", "el 1 tusker", "l1 tusker", "ll 1 tusker", "tusker ell 1", "ell 1", "ell 1 tusker"],
+        "tusker L2": ["tusker l 2", "tusker el 2", "tusker l2", "tusker ll 2", "l 2", "el 2", "l2", "ll 2", "l 2 tusker", "el 2 tusker", "l2 tusker", "ll 2 tusker", "tusker ell 2", "ell 2", "ell 2 tusker"],
+        "tusker L3": ["tusker l 3", "tusker el 3", "tusker l3", "tusker ll 3", "l 3", "el 3", "l3", "ll 3", "l 3 tusker", "el 3 tusker", "l3 tusker", "ll 3 tusker", "tusker ell 3", "ell 3", "ell 3 tusker", "tusker l tree", "tusker el tree", "l tree", "el tree", "ell tree", "stretch fabric", "fabric", "fabrics", "stretch fabrics"]
+      }
+    },
+    "ambientMode": {
+      "type": "enum",
+      "values": {
+        "pre-entry": ["pre entry", "preentry"],
+        "entry": ["entry", "welcome"],
+        "meeting": ["meeting", "conference"],
+        "presentation": ["presentation", "present"]
+      }
+    },
+    "screenAlias": {
+      "type": "enum",
+      "values": {
+        "tusker 86": ["tusker 86", "86 tusker", "tv", "tv 86", "86 inch", "86 inch tv", "big screen", "main screen", "main display"],
+        "tusker 27": ["tusker 27", "27 tusker", "kiosk", "screen 2", "27 inch"]
+      }
+    }
+  },
+  "commands": [
+    {
+      "intent": "SHUTDOWN",
+      "fuzzy": false,
+      "phrases": ["shut (down|yourself down)", "shutdown", "turn yourself off", "(exit|quit) [travis]", "stop listening"],
+      "tool": "shutdown_travis",
+      "args": {}
+    },
+    {
+      "intent": "AMBIENT_MODE",
+      "phrases": [
+        "(set|switch|change|activate|turn on) [ambient] mode [to] {ambientMode}",
+        "(set|switch|change|activate|turn on) {ambientMode} mode",
+        "{ambientMode} mode",
+        "[ambient] mode {ambientMode}"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ambient_mode", "target": "{ambientMode}" }
+    },
+    {
+      "intent": "AC_ON",
+      "phrases": [
+        "(turn|switch) on (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) on",
+        "(turn|switch|put) (ac|air conditioner|air conditioning) on",
+        "start (ac|air conditioner|air conditioning)",
+        "[turn|switch|put] on (ac|air conditioner|air conditioning)",
+        "on (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) (turn|switch) on",
+        "(start|enable) (ac|air conditioner|air conditioning)"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "power_on" },
+      "say": "The AC is on."
+    },
+    {
+      "intent": "AC_OFF",
+      "phrases": [
+        "(turn|switch) off (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) off",
+        "(turn|switch|put) (ac|air conditioner|air conditioning) off",
+        "stop (ac|air conditioner|air conditioning)",
+        "[turn|switch|put] off (ac|air conditioner|air conditioning)",
+        "off (ac|air conditioner|air conditioning)",
+        "(ac|air conditioner|air conditioning) (turn|switch) off",
+        "(stop|disable) (ac|air conditioner|air conditioning)"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "power_off" },
+      "say": "The AC is off."
+    },
+    {
+      "intent": "AC_SET_TEMPERATURE",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning|temperature) [at] {temperature} [degrees]",
+        "(ac|air conditioner|air conditioning|temperature) {temperature} [degrees]",
+        "set (ac|air conditioner|air conditioning) temperature [at] {temperature} [degrees]",
+        "make it {temperature} degrees",
+        "(increase|decrease|reduce|raise|lower|change|bring|turn) [down|up] (ac|air conditioner|air conditioning|temperature) [temperature] [at] {temperature} [degrees]",
+        "(increase|decrease|reduce|raise|lower) it {temperature} [degrees]",
+        "(make|set|put|keep) [it] {temperature} (degrees|celsius) [on|in|for] [ac|air conditioner|air conditioning|temperature]",
+        "(make|set|put|keep) {temperature} [degrees] [celsius] [on|in|for] (ac|air conditioner|air conditioning|temperature)",
+        "{temperature} [degrees] [celsius] [on|in|for] (ac|air conditioner|air conditioning|temperature)",
+        "(make|set|put|keep|change) (ac|air conditioner|air conditioning) [temperature] [at|on] {temperature} [degrees] [celsius]",
+        "(ac|air conditioner|air conditioning) [temperature] [at|on] {temperature} [degrees] [celsius]",
+        "(make|set|change) temperature [at] {temperature} [degrees] [celsius]"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "set_temp", "params": { "temp": "{temperature}" } },
+      "say": "AC set to {temperature} degrees."
+    },
+    {
+      "intent": "AC_MODE_AND_TEMPERATURE",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning) [to] {mode} [mode] [at] {temperature} [degrees]",
+        "(ac|air conditioner|air conditioning) {mode} [mode] [at] {temperature} [degrees]"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "set_mode", "params": { "mode": "{mode}" } },
+      "also": [
+        { "tool": "device_control", "args": { "action": "ac_command", "target": "ac", "command": "set_temp", "params": { "temp": "{temperature}" } } }
+      ]
+    },
+    {
+      "intent": "AC_SET_FAN",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning) fan [speed] [to] {fan}",
+        "(ac|air conditioner|air conditioning) fan [speed] [to] {fan}",
+        "set [the] fan [speed] [to] {fan}",
+        "fan [speed] {fan}"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "set_fan", "params": { "fan": "{fan}" } },
+      "say": "AC fan set to {fan}."
+    },
+    {
+      "intent": "AC_SET_MODE",
+      "phrases": [
+        "set (ac|air conditioner|air conditioning) [on] {mode} [mode]",
+        "(ac|air conditioner|air conditioning) {mode} mode",
+        "(switch|change|put) (ac|air conditioner|air conditioning) [on] {mode} [mode]",
+        "set (ac|air conditioner|air conditioning) mode [on] {mode}"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "ac", "command": "set_mode", "params": { "mode": "{mode}" } },
+      "say": "AC set to {mode} mode."
+    },
+    {
+      "intent": "LIGHT_BRIGHTNESS",
+      "phrases": [
+        "set {light} [lights|light] [brightness] [at] {brightness} [percent]",
+        "(turn|make|bring) {light} [lights|light] [at] {brightness} [percent]",
+        "(turn|make|bring) [{target}] (lights|light) [at] {brightness} [percent]",
+        "(dim|brighten) {light} [lights|light] [at] {brightness} [percent]",
+        "{light} [lights|light] [at] {brightness} percent",
+        "set [{target}] (lights|light) [brightness] [at] {brightness} [percent]",
+        "(dim|brighten) [{target}] (lights|light) [at] {brightness} [percent]",
+        "[{target}] (lights|light) [at] {brightness} percent",
+        "set [{target}] brightness [at] {brightness} [percent]"
+      ],
+      "tool": "device_control",
+      "args": { "action": "lights_set", "target": "{target|light}", "brightness": "{brightness}" }
+    },
+    {
+      "intent": "LIGHT_COLOR",
+      "phrases": [
+        "(set|make|change|turn) {light} [lights|light] [color] {color}",
+        "{light} [lights|light] {color}",
+        "(set|make|change|turn) {target} (lights|light) [color] {color}",
+        "{target} (lights|light) {color}",
+        "(set|change) {target} (lights|light) color [at] {color}"
+      ],
+      "tool": "device_control",
+      "args": { "action": "lights_set", "target": "{target|light}", "color": "{color}" }
+    },
+    {
+      "intent": "ALL_LIGHTS_ON",
+      "phrases": [
+        "(turn|switch) on (lights|light)",
+        "put (lights|light) on",
+        "(lights|light) on",
+        "(turn|switch) (lights|light) on",
+        "(turn|switch) on all (lights|light)",
+        "all (lights|light) on",
+        "[turn|switch|put] on [all] (lights|light)",
+        "on all (lights|light)",
+        "light up room"
+      ],
+      "tool": "device_control",
+      "args": { "action": "all_lights_on" }
+    },
+    {
+      "intent": "ALL_LIGHTS_OFF",
+      "phrases": [
+        "(turn|switch) off (lights|light)",
+        "put (lights|light) off",
+        "(lights|light) off",
+        "(turn|switch) (lights|light) off",
+        "(turn|switch) off all (lights|light)",
+        "all (lights|light) off",
+        "[turn|switch|put] off [all] (lights|light)",
+        "off all (lights|light)"
+      ],
+      "tool": "device_control",
+      "args": { "action": "all_lights_off" }
+    },
+    {
+      "intent": "LIGHT_ON",
+      "phrases": [
+        "[turn|switch|put] on {light} [lights|light]",
+        "{light} [lights|light] on",
+        "(turn|switch) {light} [lights|light] on",
+        "(turn|switch) on {target} (lights|light)",
+        "{target} (lights|light) on",
+        "(turn|switch) {target} (lights|light) on",
+        "on {light} [lights|light]",
+        "{light} [lights|light] (turn|switch) on",
+        "(start|enable|activate) {light} [lights|light]"
+      ],
+      "tool": "device_control",
+      "args": { "action": "lights_on", "target": "{target|light}" }
+    },
+    {
+      "intent": "LIGHT_OFF",
+      "phrases": [
+        "[turn|switch|put] off {light} [lights|light]",
+        "{light} [lights|light] off",
+        "(turn|switch) {light} [lights|light] off",
+        "(turn|switch) off {target} (lights|light)",
+        "{target} (lights|light) off",
+        "(turn|switch) {target} (lights|light) off",
+        "off {light} [lights|light]",
+        "{light} [lights|light] (turn|switch) off",
+        "(stop|disable|kill) {light} [lights|light]"
+      ],
+      "tool": "device_control",
+      "args": { "action": "lights_off", "target": "{target|light}" }
+    },
+    {
+      "intent": "LIGHT_NO_ACTION",
+      "phrases": ["{light} [lights|light]"],
+      "reply": "On or off? Say Hey Travis, turn on, then the name."
+    },
+    {
+      "intent": "DOOR_LOCK",
+      "fuzzy": false,
+      "phrases": ["lock [front] door", "lock [it] up", "lock", "(close|lock) [front|main] door", "door (close|lock)"],
+      "tool": "device_control",
+      "args": { "action": "lock" }
+    },
+    {
+      "intent": "DOOR_UNLOCK",
+      "fuzzy": false,
+      "phrases": ["unlock [front] door", "open [front] door", "unlock", "(open|unlock) [front|main] door", "door (open|unlock)", "let (me|them|us|him|her) in"],
+      "tool": "device_control",
+      "args": { "action": "unlock" }
+    },
+    {
+      "intent": "TV_POWER",
+      "phrases": [
+        "(turn|switch|put) (on|off) [the] (tv|television)",
+        "(tv|television) (on|off)",
+        "power (on|off) [the] (tv|television)"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "target": "tv", "command": "Power" }
+    },
+    {
+      "intent": "VOLUME_UP",
+      "phrases": [
+        "(volume|sound) up [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) (volume|sound|it) up [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) up (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "(increase|raise) (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "louder"
+      ],
+      "tool": "device_control",
+      "defaults": { "steps": 3 },
+      "args": { "action": "ac_command", "command": "Volume Up", "params": { "times": "{steps}" } }
+    },
+    {
+      "intent": "VOLUME_DOWN",
+      "phrases": [
+        "(volume|sound) down [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) (volume|sound|it) down [by] [{steps}] [steps|times|notches]",
+        "(turn|turned) down (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "(decrease|lower|reduce) (volume|sound) [by] [{steps}] [steps|times|notches]",
+        "quieter"
+      ],
+      "tool": "device_control",
+      "defaults": { "steps": 3 },
+      "args": { "action": "ac_command", "command": "Volume Down", "params": { "times": "{steps}" } }
+    },
+    {
+      "intent": "SET_VOLUME",
+      "phrases": ["set (volume|sound) [at] {volume} [percent]", "(volume|sound) [at] {volume} [percent]"],
+      "reply": "I can't set an exact volume, the TV's remote only goes up or down. Say volume up or volume down, with a number of steps."
+    },
+    {
+      "intent": "MUTE",
+      "phrases": [
+        "mute [volume|sound|audio|tv]",
+        "(turn|switch) on mute",
+        "(turn|switch) off mute",
+        "un mute",
+        "unmute",
+        "(turn|switch) off (sound|audio)",
+        "(turn|switch) (sound|audio) [back] on",
+        "sound (on|off)"
+      ],
+      "tool": "device_control",
+      "args": { "action": "ac_command", "command": "mute" }
+    },
+    {
+      "intent": "MEDIA_SELECT",
+      "phrases": [
+        "(play|show|select|push) (media|video|image|picture|photo) {content} (on|in|onto) {screenAlias}",
+        "(play|show|select|push) (media|video|image|picture|photo) {content} (on|in|onto) {namedScreen}",
+        "(push|send|cast) (media|video|image|picture|photo) {content} {screenAlias}"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "assign_media", "content": "{content}", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "EXPERIENCE_SELECT",
+      "phrases": [
+        "(play|show|select|push|launch|open) experience {content} (on|in|onto) {screenAlias}",
+        "(play|show|select|push|launch|open) experience {content} (on|in|onto) {namedScreen}",
+        "(push|send|cast) experience {content} {screenAlias}"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "assign_experience", "content": "{content}", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "CONTENT_ON_SCREEN",
+      "phrases": [
+        "(show|play|push|put|display|open|send|cast|launch|bring up) {content} (on|onto|in) {screenAlias}",
+        "(show|play|push|put|display|open|send|cast|launch|bring up) {content} (on|onto|in) {namedScreen}",
+        "(push|send|cast) {content} {screenAlias}",
+        "(see|watch) {content} (on|in) {screenAlias}"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "assign_content", "content": "{content}", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SCREEN_PLAY",
+      "phrases": [
+        "(play|resume|unpause|continue) {screenAlias}",
+        "(play|resume|unpause|continue) {namedScreen}",
+        "(play|resume|unpause|continue) [screen|display|audio|music|sound|video]"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "play", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SCREEN_PAUSE",
+      "phrases": [
+        "pause {screenAlias}",
+        "pause {namedScreen}",
+        "pause [screen|display|audio|music|sound|video]"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "pause", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SCREEN_STOP",
+      "phrases": [
+        "(stop|blank) {screenAlias}",
+        "(stop|blank) {namedScreen}",
+        "(stop|blank) [screen|display|audio|music|sound|video]"
+      ],
+      "tool": "screen_control",
+      "args": { "action": "stop", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SCREEN_IDLE",
+      "phrases": ["(set|put) {screenAlias} [to] idle", "(set|put) {namedScreen} [to] idle", "{screenAlias} idle"],
+      "tool": "screen_control",
+      "args": { "action": "idle", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "RESET_VIEW",
+      "phrases": ["reset [the] view [on|in] [{screenAlias}|{namedScreen}]"],
+      "tool": "screen_control",
+      "args": { "action": "reset_view", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "NEXT_ITEM",
+      "phrases": ["next (item|video|one) [on|in] [{screenAlias}|{namedScreen}]"],
+      "tool": "screen_control",
+      "args": { "action": "next_item", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "PREVIOUS_ITEM",
+      "phrases": ["(previous|last) (item|video|one) [on|in] [{screenAlias}|{namedScreen}]"],
+      "tool": "screen_control",
+      "args": { "action": "previous_item", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SEEK_FORWARD",
+      "phrases": ["(skip|jump|seek|fast) (forward|ahead) [on|in] [{screenAlias}|{namedScreen}]"],
+      "tool": "screen_control",
+      "args": { "action": "seek_forward", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SEEK_BACK",
+      "phrases": ["(skip|jump|seek) back [on|in] [{screenAlias}|{namedScreen}]", "rewind [{screenAlias}|{namedScreen}]"],
+      "tool": "screen_control",
+      "args": { "action": "seek_back", "screen": "{screenAlias|namedScreen}" }
+    },
+    {
+      "intent": "SCENE_WELCOME",
+      "phrases": ["hi [travis]", "turn everything on", "(let's|lets) start [the] day"],
+      "tool": "device_control",
+      "args": { "action": "good_morning" },
+      "say": "{timeGreeting}! Lights and AC are on."
+    },
+    {
+      "intent": "SCENE_GOODBYE",
+      "phrases": ["(bye|goodbye|good bye|bye bye) [travis] [for now|then]", "shut everything down", "(we're|we are) done for [the] day"],
+      "tool": "device_control",
+      "args": { "action": "good_night" },
+      "say": "Goodbye! Lights and AC are off."
+    },
+    {
+      "intent": "NEVER_MIND",
+      "phrases": ["(never mind|nevermind|forget it|cancel that|scratch that|ignore that|leave it)"],
+      "reply": "Okay, nothing changed."
+    },
+    {
+      "intent": "GREETING",
+      "phrases": ["good (morning|afternoon|evening|day)", "(hello|greetings) [travis]"],
+      "reply": "{timeGreeting}! How can I help?"
+    },
+    {
+      "intent": "HEAR_CHECK",
+      "phrases": ["[can|do] you hear me", "are you (there|listening|awake)", "(testing|test) [1|1 2|1 2 3]"],
+      "reply": "Yes, I can hear you. How can I help?"
+    },
+    {
+      "intent": "HOW_ARE_YOU",
+      "phrases": ["how are you [doing|today]", "how is it going", "how are things"],
+      "reply": "I'm doing great, thanks for asking. How can I help?"
+    },
+    {
+      "intent": "CAPABILITIES",
+      "phrases": [
+        "what can you do",
+        "what (are|is) your (features|abilities|skills|capabilities|commands)",
+        "what do you do",
+        "how can you help [me]",
+        "what commands [do you know|can i use|are there]"
+      ],
+      "reply": "I can turn the lights on or off, set their brightness and colour, switch lighting modes, control the AC, lock or unlock the door, change the volume, and play, pause, stop or push content to the screens. Just say Hey Travis, then the command."
+    },
+    {
+      "intent": "ABOUT_YOU",
+      "phrases": ["tell me about yourself", "who are you", "what are you", "introduce yourself", "what is your name"],
+      "reply": "I'm Travis, the voice assistant for this space. I control the lights, AC, door, sound and screens through the CMS. Just say Hey Travis, then what you need."
+    }
+  ]
+}

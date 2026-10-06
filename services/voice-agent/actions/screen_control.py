@@ -27,7 +27,13 @@ _last_screen_target: str | None = None
 
 
 def screen_control(parameters: dict, player=None, speak=None) -> str:
-    """Control what a screen is showing, by voice.
+    """Control what a screen is showing, by voice. Returns what to say."""
+    return run_screen_control(parameters)[1]
+
+
+def run_screen_control(parameters: dict) -> tuple[bool, str]:
+    """screen_control, plus whether the CMS actually did it (False = the
+    message is an error or a question — see run_device_control).
 
     parameters:
         action (str): assign_experience | assign_media | idle | stop | status |
@@ -45,7 +51,7 @@ def screen_control(parameters: dict, player=None, speak=None) -> str:
     action = str(params.get("action", "")).strip().lower()
     screen = str(params.get("screen", "")).strip()
     if not action:
-        return "Which screen action did you mean — push content, or set it to idle?"
+        return False, "Which screen action did you mean — push content, or set it to idle?"
     if not screen:
         if _last_screen_target:
             screen = _last_screen_target
@@ -61,12 +67,12 @@ def screen_control(parameters: dict, player=None, speak=None) -> str:
             except CmsClientError:
                 names = []
             if names:
-                return (
+                return False, (
                     "Which screen did you mean? The screens are: "
                     + ", ".join(names)
                     + ". Only offer these."
                 )
-            return "Which screen did you mean?"
+            return False, "Which screen did you mean?"
 
     try:
         result = cms_client.screen_command(
@@ -75,10 +81,10 @@ def screen_control(parameters: dict, player=None, speak=None) -> str:
             content=params.get("content"),
         )
     except CmsClientError as e:
-        return str(e)
+        return False, str(e)
 
     resolved = result.get("resolvedTarget")
     if resolved:
         _last_screen_target = resolved
 
-    return result.get("message") or "Done."
+    return True, result.get("message") or "Done."

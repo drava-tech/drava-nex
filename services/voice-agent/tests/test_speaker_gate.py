@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from core import speaker
+from audio import speaker
 
 
 class SpeakerMathTests(unittest.TestCase):

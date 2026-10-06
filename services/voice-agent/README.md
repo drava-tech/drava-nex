@@ -1,8 +1,16 @@
+Setup: install [Ollama](https://ollama.com/download), then
+`ollama pull qwen3:8b`. Whisper's model (`stt_model`, default `small`) is
+downloaded on first run, or point it at a local folder. CUDA needs cuBLAS 12
+and cuDNN 9: set `stt_cuda_lib_dir` to a folder with them (a global
+`torch\lib` works) or `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`.
+Each exchange prints `⚡ Fast path: ...` or `🧠 qwen3:8b ...` so you can see
+which path answered.
+
 # Voice Agent
 
 TRAVIS, a room-mic voice agent for the platform: wake-word activated (the
-wake word is "Travis" by default — see **Wake word** below), backed by
-Gemini Live (native-audio, bidirectional streaming), with two tools that
+wake phrase is "Hey Travis" by default — see **Wake word** below), running on a
+local language model with ElevenLabs for speech, with two tools that
 drive the CMS exactly the way an operator's own click would.
 
 - **device_control** — lights (Casambi), the AC/IR remote (Tuya), and the
@@ -29,28 +37,118 @@ Also included: `knowledge_search` (local retrieval over `knowledge/*.md`,
 edit freely for your venue), `save_memory` (a small long-term memory), and
 `show_visual` (an on-screen visual walkthrough).
 
-## Prerequisites
+## Project structure
 
-- A microphone and speakers on the machine this runs on. Like TRAVIS, this
-  runs on the host (not in Docker) — see `main.py`'s use of `sounddevice`/PyQt6.
-- A Gemini API key.
-- `apps/api` running and reachable, with `VOICE_AGENT_SECRET` set (see the
-  repo root's `.env.example`).
+```
+main.py            entry point only: venv re-exec, env setup, start UI + agent
+settings.py        paths, audio constants, config loader (config/api_keys.json + env)
+console.py         UTF-8 console setup
+ui.py              PyQt6 face/HUD window
+agent/             the voice agent
+  local.py           TravisLocal: utterance loop, VAD -> STT -> command, startup
+  commands.py        CommandMixin: pending answers, fast path, multi-action, model rounds
+  base.py            TravisBase: shared state, built from the mixins below
+  wake_word.py       WakeWordMixin        speaker_gate.py   SpeakerGateMixin
+  mic_listener.py    MicListenerMixin     playback.py       PlaybackMixin (chime, output)
+  exchange_state.py  ExchangeStateMixin   tool_runner.py    ToolRunnerMixin
+  tool_declarations.py, vocabulary.py, exchange_log.py
+speech/            vad, stt (Whisper), elevenlabs_stream (TTS), transcript_gate, language_gate
+nlu/               command_matcher, multi_action, pending, repairs, intent, relevance,
+                   local_llm (Ollama), prompt_local.txt
+safety/            action_guard (ask, don't guess), reply_guard (never confirm what didn't happen)
+audio/             devices (mic/speaker lookup, gain), speaker + target_speaker_gpu (speaker gate)
+wake/              detectors (Vosk phrase matcher, openWakeWord)
+actions/           CMS client and the device/screen/inventory tools
+rag/, memory/      knowledge search and long-term memory
+config/            api_keys.json, commands.json, capabilities.json
+knowledge/         documents Travis can answer from
+bench/, tests/     benchmark harness and unit tests
+```
 
-## Setup
+Dependencies point one way: `agent` -> `nlu`/`safety`/`speech`/`audio`/`wake`/`actions` ->
+`settings`. The lower packages never import `agent`.
+
+## How it works
+
+`TravisLocal` in `agent/local.py` (the Gemini Live backend was removed on 2026-10-05):
+
+1. **End of speech** — WebRTC VAD (`speech/vad.py`) cuts one utterance out of
+   the awake mic stream after `vad_end_silence_ms` (500) of silence.
+2. **Speech-to-text** — faster-whisper on the GPU (`speech/stt.py`). The language is
+   detected first: a confidently non-English utterance is dropped silently
+   (forcing `language="en"` would _translate_ it into an English command
+   instead). Unsure detections are transcribed as English.
+3. **Fast path** — `config/commands.json` (a Python port of
+   `services/voice-control`'s matcher, `nlu/command_matcher.py`) runs known
+   commands straight away, no LLM.
+4. **Relevance gate** (`nlu/relevance.py`, `relevance_gate`) — TRAVIS only helps with the
+   room, screens, the experience center/company and itself. A request that names a
+   room thing passes at once; anything else gets a ~0.3s yes/no review by the same
+   model, which declines general questions ("what's the capital of France") and, in
+   mixed ones ("unlock the door and tell me a joke"), keeps only the in-scope part
+   ("I can't help with the rest." is added). The main model never sees the rest.
+   Company questions are answered only from `knowledge/` via `knowledge_search`
+   (fill in `knowledge/cms_platform.md`; until then Travis says it has no such detail).
+5. **LLM** — what passes goes to Qwen3-8B in Ollama (`nlu/local_llm.py`,
+   `nlu/prompt_local.txt`) with the same tools. Thinking is off.
+6. **Speech** — ElevenLabs, unchanged.
+
+Wake word, chime, nudge and mic-closing rules are `TravisBase`'s code. No
+barge-in: the mic is ignored while a command runs and while Travis speaks.
+`knowledge_search` embeds with Gemini (`gemini-embedding-001`), so it is only
+available when `gemini_api_key` is set. Nothing else needs a Gemini key.
+
+## Reviewing what it heard
 
 ```bash
 cd services/voice-agent
-python -m venv .venv
-.venv\Scripts\activate       # or: source .venv/bin/activate
-pip install -r requirements.txt
-cp config/api_keys.example.json config/api_keys.json
+.venv\Scripts\python.exe -u main.py        # say "Hey Travis, ..."
+.venv\Scripts\python.exe -m bench.voice_bench review --limit 20
 ```
+
+`review` shows, for each thing it heard: what Whisper wrote, why it was ignored
+(not English, false wake, noise...), which path handled it (command list / several actions / list +
+model / model / declined), each action sent or held back, what Travis said, and the time from end
+of speech to the first word.
+
+When something goes wrong, the line in `logs/exchanges.jsonl` is what to look at (or send): it says
+whether Whisper misheard, the list missed it, the guard asked, or the model got it wrong.
+
+## Prerequisites
+
+- A microphone and speakers on the machine this runs on. Like TRAVIS, this
+  runs on the host (not in Docker) — see `agent/` (`sounddevice`) and `ui.py` (PyQt6).
+- Local backend: an NVIDIA GPU (8 GB is enough for Qwen3-8B + Whisper small)
+  and Ollama. An ElevenLabs key for speech.
+- `apps/api` running and reachable, with `VOICE_AGENT_SECRET` set (see the
+  repo root's `.env.example`).
+
+## Setup (what you do yourself)
+
+Cloning gives you the code, `config/commands.json` and `config/api_keys.example.json`. These
+are **not** in git, so each teammate sets them up on their own machine:
+
+| #   | Step                                                                                                                                                           | Why it isn't in the repo               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 1   | **Python 3.11 venv + packages**: `python -m venv .venv`, activate it, `pip install -r requirements.txt`                                                        | The venv is per machine (gitignored)   |
+| 2   | **Config file**: `cp config/api_keys.example.json config/api_keys.json`, then fill it in (below)                                                               | It holds secrets, so it is gitignored  |
+| 3   | **Ollama + model**: install [Ollama](https://ollama.com), then `ollama pull qwen3:8b`                                                                          | Separate app; the model is ~5 GB       |
+| 4   | **CUDA libraries for Whisper**: set `stt_cuda_lib_dir` to a folder with cuBLAS 12 + cuDNN 9, or `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` in the venv | Needs an NVIDIA GPU and the right DLLs |
+| 5   | **Your keys**: your own ElevenLabs API key and voice ID, and the `cms_voice_secret` from whoever runs the CMS                                                  | Secrets are never committed            |
+| 6   | **Mic and speaker**: set `mic_device_name` / `speaker_device_name` to your devices                                                                             | Device names differ per machine        |
+| 7   | **CMS reachable**: `apps/api` running at `cms_api_base_url` with a matching `VOICE_AGENT_SECRET`                                                               | Runs on the server                     |
+| 8   | **First run online**: the Whisper and Vosk wake-word models download themselves once                                                                           | Cached on disk after that              |
+
+Then start it: `python main.py` (see **Run**). If Travis is silent, check the ElevenLabs key
+first; there is no fallback voice.
+
+Do not commit `config/api_keys.json`, `logs/` or `bench/recordings/`.
 
 Edit `config/api_keys.json`:
 
-- `gemini_api_key` — your Gemini API key.
-- `cms_api_base_url` — where `apps/api` is reachable (default `http://localhost:4000`).
+- `elevenlabs_api_key`, `elevenlabs_voice_id` — spoken replies.
+- `gemini_api_key` — optional; only for `knowledge_search`.
+- `cms_api_base_url` — the production CMS API address (required, no default).
 - `cms_voice_secret` — must match `apps/api`'s `VOICE_AGENT_SECRET`.
 - `wake_word_engine` and its settings — see **Wake word** below.
 
@@ -60,12 +158,12 @@ using a local voice-embedding model (`pip install resemblyzer`). Its
 `speaker_extraction_backend` can be set to the experimental
 `"gpu_separation_experimental"` GPU source-separation backend (needs a CUDA
 torch build + `speechbrain`) instead of the default CPU Resemblyzer gate —
-see `core/target_speaker_gpu.py` and `bench/gpu_extraction_bench.py`.
+see `audio/target_speaker_gpu.py` and `bench/gpu_extraction_bench.py`.
 
-TRAVIS only accepts commands spoken in English (`asr_language_codes` in
-config/api_keys.json, default `["en-IN", "en-US"]`); anything else gets
-"Please speak in English." instead of being acted on — see
-`core/language_gate.py`.
+TRAVIS only accepts commands spoken in English; anything else is ignored
+silently — see `speech/language_gate.py`, plus Whisper's language detection
+(`stt_reject_language_threshold` / `stt_english_floor`); non-Latin scripts are
+dropped by the same gate.
 
 ## Wake word
 
@@ -107,18 +205,9 @@ wake-word gating at all) rather than refusing to start.
 ## Latency
 
 There's no separate spoken acknowledgment when the wake word fires (e.g. a
-"Yes?") — that would cost a full extra Gemini Live round trip (network +
-inference + speech synthesis) before your actual command is even processed,
-which matters when the command is normally spoken in the same breath as the
-wake word anyway ("Travis, turn off the lights"). The UI's state indicator
-still flips to LISTENING instantly, just without an audible cue.
-
-`voice_silence_duration_ms` (default 400) controls how long Gemini waits
-after you stop talking before it decides you're done and starts responding —
-lower is snappier but risks cutting off a natural mid-sentence pause; raise
-it if that happens. Paired with `start_of_speech_sensitivity`/
-`end_of_speech_sensitivity` set to HIGH in `main.py`, this is tuned for low
-latency by default rather than Gemini Live's own (more conservative) defaults.
+"Yes?"); a short chime plays instead. `vad_end_silence_ms` (default 500) is how long
+you must be quiet before the VAD decides you're done — lower is snappier but risks
+cutting off a natural mid-sentence pause. Every exchange prints a T0-T9 timing report.
 
 ## Run
 
@@ -134,7 +223,7 @@ the door."
 ## Development checks
 
 ```bash
-python -m compileall main.py ui.py actions core memory rag tests
+python -m compileall main.py ui.py actions agent audio nlu safety speech wake memory rag tests
 python -m unittest discover -s tests -v
 ruff check .
 ruff format .

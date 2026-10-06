@@ -1,7 +1,7 @@
 """GPU (CUDA) target-speaker extraction — experimental, OFF by default.
 
 Research spike (2026-09-22): can the RTX 4060 run a real source-separation
-model fast enough, in short enough windows, to replace core/speaker.py's
+model fast enough, in short enough windows, to replace audio/speaker.py's
 CPU cosine-similarity gain gate with genuine target-speaker *extraction*
 (removing the other voice's audio, not just attenuating it)?
 
@@ -15,14 +15,14 @@ blind source-separation model (speechbrain/sepformer-wsj02mix, ~22.4dB
 SI-SNRi on WSJ0-2mix). We turn that into target-speaker extraction the
 standard way blind separation gets used for this: separate the window into
 its N candidate sources, then pick whichever source's voice embedding
-(reusing core.speaker's Resemblyzer encoder — no new embedding model needed)
+(reusing audio.speaker's Resemblyzer encoder — no new embedding model needed)
 best matches the enrolled target. This module owns exactly that: model
 load + separate + select. It does NOT touch main.py's real-time send path;
 see bench/gpu_extraction_bench.py for standalone latency/RTF numbers and
 main.py's speaker_extraction_backend config flag for the (default-off)
 live wiring.
 
-Like core/speaker.py, this is fully optional: missing torch/speechbrain/CUDA,
+Like audio/speaker.py, this is fully optional: missing torch/speechbrain/CUDA,
 or any load/inference failure, makes available() return False and every
 other call return None — callers must fall back to the existing CPU gate.
 
@@ -52,7 +52,7 @@ except Exception:
     SepformerSeparation = None
     LocalStrategy = None
 
-from core import speaker  # Resemblyzer embed()/cosine() — reused, not reimplemented
+from audio import speaker  # Resemblyzer embed()/cosine() — reused, not reimplemented
 
 _MODEL_SR = 8000  # speechbrain/sepformer-wsj02mix is trained at 8kHz
 _NUM_SOURCES = 2  # wsj02mix separates into exactly 2 streams
@@ -83,7 +83,7 @@ def _get_model():
         print(f"[TargetSpeakerGPU] CUDA available — using {gpu_name}.")
         _model = SepformerSeparation.from_hparams(
             source="speechbrain/sepformer-wsj02mix",
-            savedir="core/.cache/sepformer-wsj02mix",
+            savedir="audio/.cache/sepformer-wsj02mix",
             run_opts={"device": "cuda:0"},
             # Windows default (SYMLINK) needs Developer Mode/admin
             # privilege to link the HF cache into savedir and hard-fails
@@ -134,7 +134,7 @@ def extract(
     matches `target_embedding`, as int16 PCM at `sample_rate`, plus that
     match's cosine score and the wall-clock elapsed time in ms. Returns
     (None, 0.0, elapsed_ms) on any failure or when the window/target is
-    unusable — callers treat a None pcm exactly like core.speaker.embed()'s
+    unusable — callers treat a None pcm exactly like audio.speaker.embed()'s
     None: "can't judge, don't gate"."""
     t0 = time.monotonic()
     model = _get_model()
