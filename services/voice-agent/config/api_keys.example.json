@@ -5,6 +5,8 @@
   "llm_model": "qwen3:8b",
   "llm_num_ctx": 6144,
   "llm_temperature": 0.3,
+  "llm_keep_alive": -1,
+  "llm_max_tokens": 200,
   "stt_model": "small",
   "stt_device": "cuda",
   "stt_compute_type": "float16",

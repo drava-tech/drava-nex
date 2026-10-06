@@ -14,6 +14,7 @@ Public API:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
@@ -84,16 +85,33 @@ class OllamaChat:
         model: str = "qwen3:8b",
         num_ctx: int = 8192,
         temperature: float = 0.3,
-        keep_alive: str = "30m",
+        keep_alive: int | str = -1,  # -1: the model stays in GPU memory until Ollama stops
+        max_tokens: int = 200,  # spoken replies and tool calls are short; this bounds a runaway answer
         timeout: float = 60.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self._transport = transport  # tests swap in httpx.MockTransport
         self.model = model
-        self._options = {"num_ctx": num_ctx, "temperature": temperature}
+        self._options = {"num_ctx": num_ctx, "temperature": temperature, "num_predict": max_tokens}
         self._keep_alive = keep_alive
         self._timeout = timeout
+        # One connection pool for the life of the agent, not one per request. Bound to the
+        # event loop that first used it (a new loop gets a new client).
+        self._http: httpx.AsyncClient | None = None
+        self._http_loop: asyncio.AbstractEventLoop | None = None
+
+    def _client(self) -> httpx.AsyncClient:
+        loop = asyncio.get_running_loop()
+        if self._http is None or self._http.is_closed or self._http_loop is not loop:
+            self._http = httpx.AsyncClient(transport=self._transport, timeout=httpx.Timeout(self._timeout, connect=5.0))
+            self._http_loop = loop
+        return self._http
+
+    async def aclose(self) -> None:
+        if self._http is not None and not self._http.is_closed:
+            await self._http.aclose()
+        self._http = None
 
     def _payload(self, messages: list[dict], tools: list[dict], stream: bool, **options) -> dict:
         return {
@@ -109,9 +127,8 @@ class OllamaChat:
     async def check(self) -> None:
         """Raise LocalLLMError unless Ollama is up and has the model pulled."""
         try:
-            async with httpx.AsyncClient(timeout=5.0, transport=self._transport) as client:
-                res = await client.get(f"{self.base_url}/api/tags")
-                res.raise_for_status()
+            res = await self._client().get(f"{self.base_url}/api/tags", timeout=5.0)
+            res.raise_for_status()
         except Exception as e:
             raise LocalLLMError(
                 f"Ollama isn't reachable at {self.base_url} ({e}). Install/start Ollama, "
@@ -129,12 +146,12 @@ class OllamaChat:
         import time
 
         started = time.monotonic()
-        async with httpx.AsyncClient(timeout=httpx.Timeout(self._timeout * 3), transport=self._transport) as client:
-            res = await client.post(
-                f"{self.base_url}/api/chat",
-                json=self._payload(messages, tools, stream=False, num_predict=1),
-            )
-            res.raise_for_status()
+        res = await self._client().post(
+            f"{self.base_url}/api/chat",
+            json=self._payload(messages, tools, stream=False, num_predict=1),
+            timeout=self._timeout * 3,
+        )
+        res.raise_for_status()
         return time.monotonic() - started
 
     async def complete(self, messages: list[dict], max_tokens: int = 4) -> str:
@@ -143,13 +160,10 @@ class OllamaChat:
         payload = self._payload(messages, [], stream=False, num_predict=max_tokens, temperature=0.0)
         payload.pop("tools")
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(self._timeout, connect=5.0), transport=self._transport
-            ) as client:
-                res = await client.post(f"{self.base_url}/api/chat", json=payload)
-                if res.status_code != 200:
-                    raise LocalLLMError(f"Ollama returned {res.status_code}: {res.text[:200]}")
-                return str((res.json().get("message") or {}).get("content") or "").strip()
+            res = await self._client().post(f"{self.base_url}/api/chat", json=payload)
+            if res.status_code != 200:
+                raise LocalLLMError(f"Ollama returned {res.status_code}: {res.text[:200]}")
+            return str((res.json().get("message") or {}).get("content") or "").strip()
         except httpx.HTTPError as e:
             raise LocalLLMError(f"Ollama request failed: {e}") from e
 
@@ -157,41 +171,38 @@ class OllamaChat:
         calls: list[ToolCall] = []
         in_think = False
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(self._timeout, connect=5.0), transport=self._transport
-            ) as client:
-                async with client.stream(
-                    "POST", f"{self.base_url}/api/chat", json=self._payload(messages, tools, stream=True)
-                ) as res:
-                    if res.status_code != 200:
-                        body = (await res.aread()).decode("utf-8", "replace")
-                        raise LocalLLMError(f"Ollama returned {res.status_code}: {body[:200]}")
-                    async for line in res.aiter_lines():
-                        if not line.strip():
+            async with self._client().stream(
+                "POST", f"{self.base_url}/api/chat", json=self._payload(messages, tools, stream=True)
+            ) as res:
+                if res.status_code != 200:
+                    body = (await res.aread()).decode("utf-8", "replace")
+                    raise LocalLLMError(f"Ollama returned {res.status_code}: {body[:200]}")
+                async for line in res.aiter_lines():
+                    if not line.strip():
+                        continue
+                    chunk = json.loads(line)
+                    if chunk.get("error"):
+                        raise LocalLLMError(str(chunk["error"]))
+                    msg = chunk.get("message") or {}
+                    for tc in msg.get("tool_calls") or []:
+                        fn = tc.get("function") or {}
+                        if fn.get("name"):
+                            calls.append(ToolCall(fn["name"], _parse_args(fn.get("arguments"))))
+                    text = msg.get("content") or ""
+                    # Belt and braces: thinking is disabled, but never
+                    # let a stray <think> block reach the speaker.
+                    if "<think>" in text:
+                        in_think = True
+                    if in_think:
+                        if "</think>" in text:
+                            in_think = False
+                            text = text.split("</think>", 1)[1]
+                        else:
                             continue
-                        chunk = json.loads(line)
-                        if chunk.get("error"):
-                            raise LocalLLMError(str(chunk["error"]))
-                        msg = chunk.get("message") or {}
-                        for tc in msg.get("tool_calls") or []:
-                            fn = tc.get("function") or {}
-                            if fn.get("name"):
-                                calls.append(ToolCall(fn["name"], _parse_args(fn.get("arguments"))))
-                        text = msg.get("content") or ""
-                        # Belt and braces: thinking is disabled, but never
-                        # let a stray <think> block reach the speaker.
-                        if "<think>" in text:
-                            in_think = True
-                        if in_think:
-                            if "</think>" in text:
-                                in_think = False
-                                text = text.split("</think>", 1)[1]
-                            else:
-                                continue
-                        if text:
-                            yield ("text", text)
-                        if chunk.get("done"):
-                            break
+                    if text:
+                        yield ("text", text)
+                    if chunk.get("done"):
+                        break
         except httpx.HTTPError as e:
             raise LocalLLMError(f"Ollama request failed: {e}") from e
         if calls:

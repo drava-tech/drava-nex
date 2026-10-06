@@ -168,6 +168,25 @@ class OllamaChatTests(unittest.TestCase):
         self.assertIs(payload["think"], False)
         self.assertEqual(payload["model"], "qwen3:8b")
 
+    def test_output_is_capped_and_the_model_stays_loaded(self):
+        _, payload = self._run(_ndjson({"message": {"content": "ok"}, "done": True}))
+        self.assertEqual(payload["options"]["num_predict"], 200)
+        self.assertEqual(payload["keep_alive"], -1)
+
+    def test_one_connection_pool_is_reused_across_requests(self):
+        chat = OllamaChat(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=_ndjson({"message": {"content": "ok"}, "done": True}))))
+
+        async def two_requests():
+            clients = []
+            for _ in range(2):
+                [e async for e in chat.stream([{"role": "user", "content": "hi"}], [])]
+                clients.append(chat._http)
+            await chat.aclose()
+            return clients
+
+        first, second = asyncio.run(two_requests())
+        self.assertIs(first, second)
+
     def test_tool_calls_come_last(self):
         events, _ = self._run(
             _ndjson(

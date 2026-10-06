@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import traceback
 
@@ -14,6 +15,7 @@ from nlu.command_matcher import match_command, normalize, resolve, similarity
 from nlu.multi_action import is_fragment, resolve_multi, resolve_parts
 from nlu import pending as pending_mod
 from nlu import repairs
+from nlu import title_match
 from nlu.local_llm import LocalLLMError
 from nlu.intent import Verdict
 from safety.reply_guard import ToolResult, claims_action, compose, invents_number, unverified_reply, with_wake_hint
@@ -22,12 +24,23 @@ from actions.device_control import run_device_control
 from actions.screen_control import run_screen_control
 
 
+_CONTENT_ACTIONS = ("assign_content", "assign_experience", "assign_media")
+
+# What the CMS says when a spoken name matches nothing (or several things).
+_NOT_FOUND = re.compile(r"couldn['’]t find (?:exactly one |a )?(device|screen|mode) matching \"(.+?)\"", re.I)
+# Which argument holds the name for each kind of thing.
+_NAME_ARG = {"device": "target", "screen": "screen", "mode": "target"}
+
+
 class _PendingHandled(Exception):
     """An answer to Travis's question was handled; skip the normal routing."""
 
 
 class CommandMixin:
     """How a heard command is routed: pending answers, fast path, several actions, the model."""
+
+    # The title Travis last asked "did you mean ...?" about (nlu/title_match.py).
+    _confirm: "title_match.Confirm | None" = None
 
     # ── Commands ─────────────────────────────────────────────────────────
     async def _run_command(self, command: str):
@@ -176,6 +189,9 @@ class CommandMixin:
     async def _pending_step(self, command: str) -> str | None:
         """The reply if `command` answers the question Travis last asked (or is a bare
         yes/no with nothing to say yes to); None if it is a new request."""
+        confirmed = await self._confirm_step(command)
+        if confirmed is not None:
+            return confirmed
         p, self._pending = self._pending, None
         if p is None or not p.fresh:
             if pending_mod.is_yes_no(command):
@@ -200,6 +216,37 @@ class CommandMixin:
         if not pending_mod.fill(p, command, self._guard.light_names, self._guard._aliases):
             return None
         return await self._advance_pending(p)
+
+    async def _confirm_step(self, command: str) -> str | None:
+        """"Did you mean <title>?" answered: yes pushes exactly that title, no offers the next
+        closest, "never mind" drops it. Anything else is a new request and the question lapses."""
+        c, self._confirm = self._confirm, None
+        if c is None or not c.fresh or c.current is None:
+            return None
+        if repairs.is_cancel(command):
+            reply = "Okay, I've left it as it is."
+        elif pending_mod.is_no(command):
+            if c.next() is None:
+                reply = f"Okay, I won't push anything. Please say {self._wake_hint} and repeat the command."
+            else:
+                self._confirm = c
+                reply = title_match.question(c, self._wake_hint, first=False)
+        elif pending_mod.is_yes_no(command):
+            cand = c.current
+            self._path = "name confirmed"
+            print(f"[Voice Agent] ✅ Confirmed: {cand.title!r} ({cand.kind}) -> {cand.tool} {cand.args}")
+            if cand.tool == "screen_control" and cand.args.get("action") in _CONTENT_ACTIONS:
+                ok, msg = await self._assign_content(dict(cand.args))
+            else:
+                ok, msg = await self._call_tool(cand.tool, dict(cand.args))
+            self._calls_log.append({"name": cand.tool, "args": cand.args, "ok": ok, "message": msg})
+            self._guard.remember(cand.tool, cand.args, ok)
+            reply = compose([ToolResult(cand.tool, cand.args, ok, msg)], self._wake_hint) or ""
+        else:
+            return None
+        if reply:
+            await self._say(reply)
+        return reply
 
     async def _advance_pending(self, p) -> str:
         """Ask for what is still missing, or send the brightness once light and level were both said."""
@@ -276,10 +323,12 @@ class CommandMixin:
             return [ToolResult(name, args, False, prep.question, {"rejected": True, "note": prep.note})]
         out: list[ToolResult] = []
         for n, a in prep.calls:
-            if n == "screen_control" and a.get("action") == "assign_content":
+            if n == "screen_control" and a.get("action") in _CONTENT_ACTIONS:
                 ok, msg = await self._assign_content(a)
             else:
                 ok, msg = await self._call_tool(n, a)
+            if not ok:
+                msg = await self._offer_close_names(n, a, msg) or msg
             out.append(ToolResult(n, a, ok, msg))
             self._calls_log.append({"name": n, "args": a, "ok": ok, "message": msg})
             self._guard.remember(n, a, ok)
@@ -287,11 +336,58 @@ class CommandMixin:
             self._guard.remember_scope("light", prep.scope)
         return out
 
-    async def _assign_content(self, args: dict) -> tuple[bool, str]:
-        """"Show X on <screen>" when it isn't said whether X is an experience or a media
-        item: push it as whichever list it is in (the CMS refuses the wrong kind)."""
-        loop = asyncio.get_running_loop()
-        content = str(args.get("content") or "")
+    async def _name_pool(self, kind: str) -> list[str]:
+        """The real names of one kind of thing: from the CMS where it lists them, plus the spoken
+        names in commands.json. Empty if neither is available."""
+
+        def fetch() -> list[str]:
+            names: list[str] = []
+            try:
+                if kind == "device":
+                    names += [str(d["name"]) for d in cms_client.list_devices() if d.get("name")]
+                elif kind == "screen":
+                    names += [str(x["screenName"]) for x in cms_client.list_screens() if x.get("screenName")]
+            except Exception:
+                pass
+            return names
+
+        names = await asyncio.get_running_loop().run_in_executor(None, fetch)
+        if kind == "device":
+            names += self._guard.light_names
+        elif kind == "screen":
+            names = self._guard.screen_names + names
+        elif kind == "mode":
+            names += list((self._registry.slots.get("ambientMode") or {}).get("values", {}))
+        seen: set[str] = set()
+        out: list[str] = []
+        for n in names:
+            key = normalize(n)
+            if "soundbar" not in n.lower() and key not in seen:
+                seen.add(key)
+                out.append(n)
+        return out
+
+    async def _offer_close_names(self, tool: str, args: dict, message: str) -> str | None:
+        """The CMS found no device/screen/mode for a name that was SAID: if a real one sounds like it,
+        ask "did you mean ...?" (nlu/title_match.py). The question is the reply; nothing is sent
+        until the user says yes. Works for every path that makes calls: the list, several actions, the model."""
+        found = _NOT_FOUND.search(message or "")
+        if found is None or self._confirm is not None:
+            return None
+        kind, said = found.group(1).lower(), found.group(2)
+        field = _NAME_ARG[kind]
+        if normalize(str(args.get(field) or "")) != normalize(said):
+            return None
+        near = title_match.suggest(said, await self._name_pool(kind))
+        if not near:
+            return None
+        candidates = [title_match.Candidate(kind, t, sc, tool, {**args, field: t}) for t, sc in near]
+        self._confirm = title_match.Confirm(candidates, said)
+        print(f"[Voice Agent] ❓ No {kind} {said!r}; asking about {[(c.title, c.score) for c in candidates]}")
+        return title_match.question(self._confirm, self._wake_hint)
+
+    async def _content_titles(self) -> tuple[list[str], list[str]]:
+        """(experience titles, media names) as the CMS has them; empty if it can't be reached."""
 
         def lists() -> tuple[list[str], list[str]]:
             try:
@@ -299,27 +395,62 @@ class CommandMixin:
             except Exception:
                 return [], []
 
-        experiences, media = await loop.run_in_executor(None, lists)
-        want = normalize(content)
+        return await asyncio.get_running_loop().run_in_executor(None, lists)
 
-        def best(names: list[str]) -> float:
-            scores = [1.0 if (want in normalize(n) or normalize(n) in want) and want else similarity(want, normalize(n)) for n in names]
-            return max(scores, default=0.0)
+    async def _assign_content(self, args: dict) -> tuple[bool, str]:
+        """Push an experience or media item to a screen. "Show X on <screen>" doesn't say which
+        kind X is: it is pushed as whichever list it is in (the CMS refuses the wrong kind).
+        If the CMS has no such title, the closest sounding real titles are offered one by one
+        (see nlu/title_match.py) instead of failing."""
+        content = str(args.get("content") or "")
+        kinds = {"assign_experience": ["experience"], "assign_media": ["media"]}.get(str(args.get("action")))
+        titles: dict[str, list[str]] | None = None
+        if kinds is None:
+            experiences, media = await self._content_titles()
+            titles = {"experience": experiences, "media": media}
+            want = normalize(content)
 
-        order = ["assign_experience", "assign_media"] if best(experiences) >= best(media) else ["assign_media", "assign_experience"]
+            def best(names: list[str]) -> float:
+                scores = [1.0 if (want in normalize(n) or normalize(n) in want) and want else similarity(want, normalize(n)) for n in names]
+                return max(scores, default=0.0)
+
+            kinds = ["experience", "media"] if best(experiences) >= best(media) else ["media", "experience"]
         message = ""
-        for action in order:
+        for kind in kinds:
+            action = "assign_experience" if kind == "experience" else "assign_media"
             ok, message = await self._call_tool("screen_control", {**args, "action": action})
             if ok:
                 return True, message
             wrong_kind = "matching" in message and ("experience" in message or "media item" in message)
             if not wrong_kind:
                 return False, message  # a screen problem, or similar: the other kind won't help
-        if experiences or media:
-            return False, (
-                f'I couldn\'t find "{content}". The experiences are: {", ".join(experiences[:6]) or "none"}. '
-                f'The media items are: {", ".join(media[:6]) or "none"}.'
-            )
+        if titles is None:
+            experiences, media = await self._content_titles()
+            titles = {"experience": experiences, "media": media}
+        candidates = sorted(
+            (
+                title_match.Candidate(
+                    "experience" if k == "experience" else "media item", t, sc, "screen_control",
+                    {**args, "action": "assign_experience" if k == "experience" else "assign_media", "content": t},
+                )
+                for k in kinds
+                for t, sc in title_match.suggest(content, titles[k])
+            ),
+            key=lambda c: -c.score,
+        )[: title_match.MAX_ASKED]
+        screen = str(args.get("screen") or "")
+        if candidates and screen:
+            self._confirm = title_match.Confirm(candidates, content)
+            print(f"[Voice Agent] ❓ No title {content!r}; asking about {[(c.title, c.score) for c in candidates]}")
+            return False, title_match.question(self._confirm, self._wake_hint)
+        if titles["experience"] or titles["media"]:
+            # Nothing sounds like it: say what there is (real names only).
+            parts = [f"I couldn't find \"{content}\"."]
+            if "experience" in kinds:
+                parts.append(f"The experiences are: {', '.join(titles['experience'][:6]) or 'none'}.")
+            if "media" in kinds:
+                parts.append(f"The media items are: {', '.join(titles['media'][:6]) or 'none'}.")
+            return False, " ".join(parts)
         return False, message
 
     @property

@@ -101,6 +101,8 @@ a command runs and while Travis speaks."""
             model=cfg.get("llm_model", "qwen3:8b"),
             num_ctx=int(cfg.get("llm_num_ctx", 6144)),
             temperature=float(cfg.get("llm_temperature", 0.3)),
+            keep_alive=cfg.get("llm_keep_alive", -1),
+            max_tokens=int(cfg.get("llm_max_tokens", 200)),
         )
         # Off-topic requests (general knowledge, jokes, news...) get a fixed
         # refusal instead of an answer — see nlu/relevance.py.
