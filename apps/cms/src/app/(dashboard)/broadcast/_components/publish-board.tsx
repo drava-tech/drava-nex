@@ -166,9 +166,9 @@ export function PublishBoard({
   const storeRows = useAppSelector((s) => s.screens.rows);
   const screens = storeRows.length > 0 ? storeRows : initialScreens;
   // Kept live by StoreSync's ACTIVE_SCREENS_LIST — the same source the
-  // experiences list and browser view read for their online dots. This board
-  // targets exactly one panel (the 86" TV), so whether that panel is actually
-  // attached is the single most useful thing to show here. Seeded from the
+  // experiences list and browser view read for their online dots. Whether the
+  // screen in the box is actually attached is the single most useful thing to
+  // show here. Seeded from the
   // server prop and falling back to it until the socket's first list arrives,
   // so the dot is never wrongly amber on the first frame (same shape as
   // projects-list.tsx).

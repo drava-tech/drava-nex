@@ -240,7 +240,10 @@ public partial class MainWindow : Window
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         // Hidden escape hatch for maintenance: Ctrl+Shift+Alt+X closes the kiosk.
-        if (e.Key == Key.X &&
+        // With Alt held, WPF reports the key as Key.System and puts the real
+        // key in SystemKey, so e.Key alone is never Key.X here.
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.X &&
             Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt))
         {
             _allowClose = true;

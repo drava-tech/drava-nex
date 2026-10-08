@@ -12,6 +12,11 @@ if (hasReleaseKeystore) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
+// Built files come out as EMS-debug.apk / EMS-release.apk instead of app-*.apk.
+base {
+    archivesName = "EMS"
+}
+
 android {
     namespace = "com.thewhitetusker.eccms"
     compileSdk = rootProject.ext.compileSdkVersion

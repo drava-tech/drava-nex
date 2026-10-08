@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Output is EMS.exe; AssemblyTitle is the name Task Manager and the
+         file's Properties dialog show. The project file and the C#
+         namespace keep the old MainScreenKiosk name, since nobody sees them. -->
+    <AssemblyName>EMS</AssemblyName>
+    <AssemblyTitle>EMS - Main Display</AssemblyTitle>
+    <Product>EMS - Main Display</Product>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <!-- Per-monitor DPI awareness — see app.manifest for why this matters to
          picture quality on a 4K panel. -->

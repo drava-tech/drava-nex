@@ -1,6 +1,6 @@
-# CMS Platform — Main Screen Kiosk
+# EMS - Main Display
 
-A small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
+**EMS - Main Display** (`EMS.exe`) is a small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
 full-screen on a lobby TV's PC, with no browser chrome, and lets the CMS
 remotely minimize, restore, or close it. There is no local minimize/close UI
 on the kiosk itself — that control lives exclusively on the CMS tablet, so
@@ -79,7 +79,7 @@ dotnet build
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-Output: `bin/Release/net8.0-windows/win-x64/publish/MainScreenKiosk.exe` — a
+Output: `bin/Release/net8.0-windows/win-x64/publish/EMS.exe` — a
 single self-contained file (~160MB), no .NET runtime needed on the target
 machine. `bin/` and `obj/` aren't committed; publish on (or copy the
 published output to) the machine you're deploying to.
@@ -87,10 +87,19 @@ published output to) the machine you're deploying to.
 ## Deploy on the TV's PC
 
 1. Copy the **entire** `publish` folder's contents to the machine — not just
-   `MainScreenKiosk.exe` anymore. The `frame-unlock-extension/` subfolder next
+   `EMS.exe` anymore. The `frame-unlock-extension/` subfolder next
    to it is required at every launch (see below), not just debug symbols/docs.
-2. For auto-start on login/reboot, add a shortcut to `MainScreenKiosk.exe` in:
+2. For auto-start on login/reboot, add a shortcut to `EMS.exe` in:
    `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
+3. For a desktop icon, add a shortcut named `EMS - Main Display` to `EMS.exe`
+   in `C:\Users\Public\Desktop\` (shows on every user's desktop).
+   `deploy.ps1` creates this one itself.
+
+The exe was called `MainScreenKiosk.exe` before the EMS rename. On a PC set up
+before then, point the existing Startup shortcut at `EMS.exe`. `deploy.ps1`
+does this for you when it can reach the PC over remoting. The rename also
+gives the app a fresh WebView2 profile (`EMS.exe.WebView2`), which only holds
+browser cache. `deploy.ps1` already clears the profile on every deploy.
 
 ### Scripted deploy (`deploy.ps1`)
 

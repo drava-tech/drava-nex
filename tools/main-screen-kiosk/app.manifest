@@ -8,12 +8,14 @@
     system-aware, when the TV is not the monitor the process started on) gets
     its output BITMAP-STRETCHED by the desktop compositor: the app renders at
     the lower logical resolution and Windows scales the pixels up. Everything
-    then looks soft no matter what the source resolution is — which is exactly
+    then looks soft no matter what the source resolution is - which is exactly
     the symptom this display had on the 86" panel.
 
     PerMonitorV2 rather than PerMonitor: V2 also scales non-client area and
     dialogs, and is what WebView2 expects when it hosts its own child HWNDs.
-    Paired with --force-device-scale-factor=1 in MainWindow.xaml.cs, which
+    Paired with the force-device-scale-factor=1 browser switch in
+    MainWindow.xaml.cs (never write a double hyphen in these comments: XML forbids it
+    comment and makes Windows refuse to start the exe), which
     handles the web content's own device scale factor.
   -->
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
