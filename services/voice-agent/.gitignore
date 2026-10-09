@@ -12,6 +12,7 @@ rag/index_meta.json
 knowledge/*
 !knowledge/cms_platform.md
 !knowledge/the_white_tusker.md
+!knowledge/faq.yaml
 
 # Downloaded pretrained model weights (re-fetched on demand from the
 # HuggingFace/asteroid cache — never belong in the repo tree).

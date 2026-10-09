@@ -1,0 +1,669 @@
+# Travis FAQ: DRAFT for review. Not loaded by any code yet.
+# Facts come only from knowledge/*.md (the sections named in `sources`). No contact details are written here:
+# add_email_line: true means the existing contact-line rule appends the email line in code.
+# `sources` use "file: section heading". `next_sections` are the headings a "tell me more" continues with, in order.
+
+entries:
+  # ───────────────────────── company ─────────────────────────
+  - id: company_overview
+    topic: company
+    variants:
+      - What is White Tusker
+      - Tell me about White Tusker
+      - Tell me about your company
+      - What does White Tusker do
+      - What does your company do
+      - Can you please tell me about the company
+      - Tell me about the studio
+      - What kind of company is this
+    answer: White Tusker is a brand experience design studio. We design, connect, create and control the complete experience, with spaces that respond to people, content, data and events.
+    sources:
+      - "the_white_tusker.md: Who we are"
+    next_sections: ["Our three verticals", "How we work", "Clients"]
+    add_email_line: true
+    status: draft
+
+  - id: company_approach
+    topic: company
+    variants:
+      - What is your tagline
+      - What is your philosophy
+      - What is your approach to design
+      - What is your motto
+      - How do you think about design
+      - What is the thinking behind your designs
+      - What do you believe in
+    answer: Our tagline is Fluid by Nature, Adaptive by Design. Our approach is that space is language, technology is a tool, and story is the primary driver.
+    sources:
+      - "the_white_tusker.md: Who we are"
+    next_sections: ["How we work", "Our three verticals"]
+    add_email_line: false
+    status: draft
+
+  - id: company_verticals
+    topic: company
+    variants:
+      - What services do you offer
+      - What are your verticals
+      - What are the areas of your business
+      - What all do you do
+      - Which areas do you work in
+      - What do you design
+      - Services
+      - What are the business areas
+    answer: Our three verticals are architecture and interior spaces, immersive and interactive technology, and brand solutions.
+    sources:
+      - "the_white_tusker.md: Our three verticals"
+    next_sections: ["Projects", "Clients"]
+    add_email_line: false
+    status: draft
+
+  - id: company_clients
+    topic: company
+    variants:
+      - Who are your clients
+      - Which clients have you worked with
+      - Which all companies you have worked with
+      - Any big clients
+      - Clients
+      - Who have you worked for
+      - Do you work with big brands
+      - Name some of your customers
+    answer: Our clients are Boeing, Collins Aerospace, Bosch, Volvo, Tata Steel, DIAGEO, Infosys, Tech Mahindra, NTT Data, PETRONAS, Herbalife, Embassy and others, across technology, aerospace, automotive and corporate sectors.
+    sources:
+      - "the_white_tusker.md: Clients"
+    next_sections: ["Projects", "Our three verticals"]
+    add_email_line: false
+    status: draft
+
+  - id: company_projects
+    topic: company
+    variants:
+      - What projects have you done
+      - Tell me about your projects
+      - Which all projects you have done
+      - What is your flagship project
+      - What is your biggest project
+      - Tell me about the Collins Aerospace project
+      - What did you do for Tata Steel
+      - What is your best work
+      - What is a digital twin project
+    answer: Our flagship is the Collins Aerospace campus in Bengaluru, an experience centre that takes visitors through a flight from check-in to boarding. For Tata Steel we built a digital twin of the Jamshedpur plant with real-time data.
+    sources:
+      - "the_white_tusker.md: Projects"
+    next_sections: ["Clients", "Founders and leadership"]
+    add_email_line: false
+    status: draft
+
+  - id: company_other_projects
+    topic: company
+    variants:
+      - Which experience centres have you designed
+      - Have you done work for Boeing
+      - Did you design anything for Volvo
+      - Have you designed anything for Lamborghini
+      - What films have you made
+      - Do you make brand films
+      - Have you worked with Johnnie Walker
+      - Which brands did you make films for
+    answer: We have also designed experience centres for Boeing, Volvo, Bosch India, Lamborghini Super Trofeo, Johnnie Walker and NTT Data, and made films for Tanishq and SAP.
+    sources:
+      - "the_white_tusker.md: Projects"
+    next_sections: ["Clients", "Team"]
+    add_email_line: false
+    status: draft
+
+  - id: company_founders
+    topic: company
+    variants:
+      - Who founded White Tusker
+      - Who are the founders
+      - Founders
+      - Who started the company
+      - Who all are the directors
+      - Who leads White Tusker
+      - Who is the leadership
+      - Who established White Tusker
+    answer: White Tusker was founded by Smriti Attavar, Naveen DC and Varun Parikh. All three are directors of the studio and together lead its three verticals.
+    sources:
+      - "the_white_tusker.md: Founders and leadership"
+    next_sections: ["Our three verticals", "Team"]
+    add_email_line: false
+    status: draft
+
+  - id: company_team
+    topic: company
+    variants:
+      - Tell me about your team
+      - Who works at White Tusker
+      - What kind of people work there
+      - Who all are in your team
+      - What skills does your team have
+      - Does your team have architects
+      - Team
+      - Do you have developers and designers
+    answer: Our team brings architects, interior designers, developers, motion artists, filmmakers and brand designers together in one studio in Indiranagar, Bengaluru. One project can move from spatial design to custom software to a brand film.
+    sources:
+      - "the_white_tusker.md: Team"
+    next_sections: ["How we work", "Founders and leadership"]
+    add_email_line: false
+    status: draft
+
+  - id: company_culture
+    topic: company
+    variants:
+      - What is your culture
+      - What values do you follow
+      - Tell me about your work culture
+      - Do you follow the client brief
+      - How do you treat a brief
+      - Do you work in silos
+    answer: Our culture starts with one habit. We do not just follow briefs, we question them. Nobody works in a silo.
+    sources:
+      - "the_white_tusker.md: Team"
+    next_sections: ["How we work"]
+    add_email_line: false
+    status: draft
+
+  - id: company_how_we_work
+    topic: company
+    variants:
+      - How do you work
+      - What is your process
+      - How do you take a project from brief to finish
+      - Tell me about your working process
+      - From brief to install how does it go
+      - Do you handle installation yourselves
+      - Who does the fabrication
+      - How does a project work with you
+    answer: We take projects from brief to install under one roof. We start by questioning the brief to find the story, design the space, content and technology together, and handle detailing, fabrication and on-site installation ourselves.
+    sources:
+      - "the_white_tusker.md: How we work"
+    next_sections: ["Team", "Projects"]
+    add_email_line: false
+    status: draft
+
+  - id: company_location_contact
+    topic: company
+    variants:
+      - Where are you located
+      - Where is your studio
+      - In which city is White Tusker based
+      - Where is your office
+      - How can I contact you
+      - How do I reach White Tusker
+      - How to get in touch with you
+      - What is your contact
+    answer: Our studio is in Indiranagar, Bengaluru, India.
+    sources:
+      - "the_white_tusker.md: Where and how to reach us"
+    next_sections: ["Team"]
+    add_email_line: true
+    status: draft
+
+  # ───────────────────────── cms ─────────────────────────
+  - id: cms_what_is
+    topic: cms
+    variants:
+      - What is the CMS
+      - Tell me about CMS
+      - What is this CMS only
+      - What does the CMS do
+      - Explain the CMS
+      - What is this platform
+      - Which company made the CMS
+      - What is the control system
+    answer: The CMS is the control system for this experience centre, built by White Tusker. From one web page, an operator controls what plays on every screen, runs interactive experiences, and operates the room itself.
+    sources:
+      - "cms_platform.md: What the CMS is"
+    next_sections: ["Screens", "Experiences", "Controlling the room"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_screens
+    topic: cms
+    variants:
+      - How are the screens managed in the CMS
+      - Can each screen be controlled separately
+      - What happens when there is a power cut
+      - What happens when the network goes down
+      - Tell me about screens in the CMS
+    answer: Every screen is controlled on its own. An operator can show an experience or media item, queue videos, pause, skip, blank or reset it. If a screen loses power or network, it comes back showing what it was meant to show.
+    sources:
+      - "cms_platform.md: Screens"
+    next_sections: ["Experiences", "Media and presentations"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_experiences
+    topic: cms
+    variants:
+      - What is an experience in the CMS
+      - What kind of experiences are there
+      - What templates do you have
+      - What interactive content can you make
+      - Do you have a flight simulation
+      - How are experiences edited
+      - Can one experience be reused
+      - Tell me about experiences
+    answer: An experience is interactive content built from a template, such as a welcome screen, a portfolio, a product showcase, a gallery, a flight simulation, a live stream or object recognition. Operators edit its content with a live preview.
+    sources:
+      - "cms_platform.md: Experiences"
+    next_sections: ["Media and presentations", "Products and portfolio"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_media
+    topic: cms
+    variants:
+      - What is the media library
+      - What kind of media can I upload
+      - Can I add videos and presentations
+      - Can I send media by email
+      - How is uploaded media used
+      - Can it handle presentations
+      - Tell me about media in the CMS
+      - What files does the CMS support
+    answer: The media library holds videos, images and documents such as presentations. Media can be uploaded, added from a web link, or arrive as an email attachment. An operator pushes an item to one or more screens, or queues several to play one after another.
+    sources:
+      - "cms_platform.md: Media and presentations"
+    next_sections: ["Screens", "Experiences"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_room_controls
+    topic: cms
+    variants:
+      - What room equipment does the CMS run
+      - Does the CMS control the room
+      - What does the CMS control besides content
+      - Can the CMS handle air conditioning
+      - What equipment can operators control
+      - Can it control brightness and colour
+      - Can the CMS change the volume
+      - Can the CMS operate the entrance
+    answer: The CMS also runs the room's equipment. Operators can switch lights on and off, set brightness and colour, change the air conditioning, adjust the TV volume with its remote, and lock or unlock the door.
+    sources:
+      - "cms_platform.md: Controlling the room"
+    next_sections: ["Room modes", "What you can say to Travis"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_room_modes
+    topic: cms
+    variants:
+      - What are the room modes
+      - What lighting modes are there
+      - What lighting is used before a visitor enters
+      - What lighting is used during a meeting
+      - What lighting is used during a presentation
+      - Does the room have ready made lighting settings
+      - How does the lighting change during a visit
+      - What are the stages of a visit
+    answer: The room has ready-made lighting modes for the stages of a visit, pre entry, entry, meeting and presentation. Choosing a mode sets the lights for that moment in one step, and the operator can adjust the light levels afterwards.
+    sources:
+      - "cms_platform.md: Room modes"
+    next_sections: ["Controlling the room"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_products_portfolio
+    topic: cms
+    variants:
+      - Does the CMS store product details
+      - Where is the portfolio kept
+      - What is the product showcase
+      - How is the portfolio organised
+      - How are products presented
+      - Can the portfolio be presented to visitors
+      - Where are the White Tusker projects stored
+    answer: The CMS keeps product details with their features, specifications and media, which feed the product showcase. It also holds the White Tusker portfolio, organised by verticals, companies and projects, which can be shown on the main screen.
+    sources:
+      - "cms_platform.md: Products and portfolio"
+    next_sections: ["Experiences", "Whiteboards"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_whiteboards
+    topic: cms
+    variants:
+      - Does the CMS have whiteboards
+      - Can we draw live during a meeting
+      - Is there a whiteboard feature
+      - Tell me about whiteboards
+      - Can multiple pages be created on a whiteboard
+      - Can a screen be used as a shared board
+      - Can I draw and others see it
+    answer: Operators can create multi page whiteboards and draw on them live. The strokes appear on the chosen screens as they are drawn, so a screen can be used like a shared board during a meeting.
+    sources:
+      - "cms_platform.md: Whiteboards"
+    next_sections: ["Who can use it"]
+    add_email_line: false
+    status: draft
+
+  - id: cms_who_can_use
+    topic: cms
+    variants:
+      - Who can use the CMS
+      - Who are the users of the CMS
+      - Do I need to sign in
+      - Are there user roles
+      - Is the CMS a web application
+      - Does it need a login
+      - Who can edit content
+      - Is a login needed to view content
+    answer: Operators sign in from a web browser. The CMS has users and roles, so administrators can create and edit content while others only operate the room. The screens themselves need no sign in.
+    sources:
+      - "cms_platform.md: Who can use it"
+    next_sections: ["What the CMS is", "Whiteboards"]
+    add_email_line: false
+    status: draft
+
+  # ───────────────────────── travis ─────────────────────────
+  - id: travis_what_is
+    topic: travis
+    variants:
+      - Who is Travis
+      - What is Travis
+      - Tell me about Travis
+      - What is the Travis control system
+      - Who made Travis
+      - Who built Travis
+      - What is Travis only
+      - Is Travis a voice assistant
+    answer: Travis is the voice assistant built by White Tusker. It controls this space, the lights, AC, the door, and what plays on each screen.
+    sources:
+      - "travis.md: About Travis"
+    next_sections: ["What you can say to Travis", "Controlling the room"]
+    add_email_line: false
+    status: draft
+
+  - id: travis_controls
+    topic: travis
+    variants:
+      - What does Travis control
+      - What all can you control
+      - Can I know what you control
+      - What does Travis connect to
+      - What all equipment does Travis look after
+      - What does Travis operate in this room
+      - Which equipment does Travis handle
+    answer: Travis controls the lights, AC, the door, and what plays on each screen. It uses the same controls as the CMS, which also adjust the TV volume.
+    sources:
+      - "travis.md: About Travis"
+      - "cms_platform.md: Controlling the room"
+    next_sections: ["What you can say to Travis", "Room modes"]
+    add_email_line: false
+    status: draft
+
+  - id: travis_how_to_talk
+    topic: travis
+    variants:
+      - How do I talk to Travis
+      - How do I give a command to Travis
+      - How do I use Travis
+      - What should I say to Travis
+      - How to wake Travis
+      - What commands does Travis understand
+      - How do I speak to you
+      - What is the wake word
+    answer: Say Hey Travis, then a request, such as set the AC to twenty two, lock the door or lower the volume. Travis can also show an experience or media item on a screen.
+    sources:
+      - "cms_platform.md: What you can say to Travis"
+    next_sections: ["Controlling the room", "Room modes"]
+    add_email_line: false
+    status: draft
+
+  - id: travis_and_cms
+    topic: travis
+    variants:
+      - Is Travis part of the CMS
+      - How is Travis connected to the CMS
+      - Does Travis use the CMS
+      - How does Travis work with the CMS
+      - Is Travis the same as the CMS
+      - What is the difference between Travis and the CMS
+    answer: Travis uses the same controls as the CMS, so what you ask Travis to do is what the CMS does.
+    sources:
+      - "cms_platform.md: Controlling the room"
+    next_sections: ["What the CMS is", "What you can say to Travis"]
+    add_email_line: false
+    status: draft
+
+  # ───────────────────────── experience_center ─────────────────────────
+  - id: exp_what_is_this
+    topic: experience_center
+    variants:
+      - What is this place
+      - What is this experience centre
+      - What kind of place is this
+      - Where am I
+      - What is this space for
+      - Can you tell me about this experience centre
+      - What is this centre
+      - What is this showroom
+    answer: This is an experience centre. From one web page, an operator controls what plays on every screen, runs interactive experiences, and operates the lights, air conditioning, sound and the door.
+    sources:
+      - "cms_platform.md: What the CMS is"
+      - "cms_platform.md: Controlling the room"
+    next_sections: ["Screens", "Experiences", "Controlling the room"]
+    add_email_line: false
+    status: draft
+
+  - id: exp_room_equipment
+    topic: experience_center
+    variants:
+      - What equipment is in this room
+      - What equipment is installed in this room
+      - Which devices are in the room
+      - How is this room controlled
+      - Is this room automated
+      - What technology is in this room
+      - What is installed here
+    answer: The room has screens, lights, air conditioning, sound and a door, which an operator runs from one web page. Travis controls the lights, AC, the door and what plays on each screen.
+    sources:
+      - "cms_platform.md: What the CMS is"
+      - "cms_platform.md: Screens"
+      - "cms_platform.md: Controlling the room"
+      - "travis.md: About Travis"
+    next_sections: ["Room modes", "What you can say to Travis"]
+    add_email_line: false
+    status: draft
+
+  - id: exp_what_to_see
+    topic: experience_center
+    variants:
+      - What can I see here
+      - What will I experience here
+      - What kind of content plays here
+      - What can I experience today
+      - What is displayed here
+      - What demos are here
+      - What content can this centre present
+    answer: The screens can show an experience such as a welcome screen, a portfolio, a product showcase, a gallery, a flight simulation, a live stream or object recognition. An operator picks videos, images and presentations from the media library.
+    sources:
+      - "cms_platform.md: Screens"
+      - "cms_platform.md: Experiences"
+      - "cms_platform.md: Media and presentations"
+    next_sections: ["Products and portfolio", "Whiteboards"]
+    add_email_line: false
+    status: draft
+
+# ───────────────────────── no_info ─────────────────────────
+# Questions visitors are likely to ask that knowledge/*.md does NOT answer. Honest fallback plus ONE topic Travis can talk about.
+# The offered topic is named the way the knowledge files name it (the "say:" labels).
+no_info:
+  - id: ni_founding_year
+    type: no_info
+    topic: company
+    variants:
+      - When was White Tusker founded
+      - Since when are you in business
+      - How old is the company
+      - How long ago was the studio established
+      - In which year did you begin
+      - How long have you been around
+    answer: I don't have that detail. I can tell you about our founders if you like.
+    offers: our founders
+    add_email_line: false
+    status: draft
+
+  - id: ni_awards
+    type: no_info
+    topic: company
+    variants:
+      - Have you won any awards
+      - What awards do you have
+      - Any recognitions
+      - Are you award winning
+      - What are your achievements
+    answer: I don't have that detail. I can tell you about our projects if you like.
+    offers: our projects
+    add_email_line: false
+    status: draft
+
+  - id: ni_pricing
+    type: no_info
+    topic: company
+    variants:
+      - How much do you charge
+      - What is the price of the CMS
+      - How much does the CMS cost
+      - What is the budget for a project
+      - What are your rates
+      - What will it cost me
+      - Pricing
+    answer: I don't have that detail. I can tell you about what the CMS is if you like.
+    offers: what the CMS is
+    add_email_line: true
+    status: draft
+
+  - id: ni_timeline
+    type: no_info
+    topic: company
+    variants:
+      - How long does a project take
+      - What is the timeline for a project
+      - How many months will it take
+      - What is the delivery time
+      - How fast can you deliver
+    answer: I don't have that detail. I can tell you about how we work if you like.
+    offers: how we work
+    add_email_line: false
+    status: draft
+
+  - id: ni_careers
+    type: no_info
+    topic: company
+    variants:
+      - Are you hiring
+      - Do you have job vacancies
+      - How can I apply for a job
+      - Any job openings
+      - Can I do an internship
+      - Is there any vacancy
+    answer: I don't have that detail. I can tell you about our team if you like.
+    offers: our team
+    add_email_line: true
+    status: draft
+
+  - id: ni_office_hours
+    type: no_info
+    topic: company
+    variants:
+      - What are your office hours
+      - What are your timings
+      - Are you available on Sundays
+      - When can I visit the studio
+      - Can I visit your office
+      - What are the working hours
+    answer: I don't have that detail. I can tell you about where we are if you like.
+    offers: where we are
+    add_email_line: true
+    status: draft
+
+  - id: ni_team_size
+    type: no_info
+    topic: company
+    variants:
+      - How many people are there in the studio
+      - How big is your team
+      - How many employees do you have
+      - What is the headcount
+      - How many designers do you have
+    answer: I don't have that detail. I can tell you about our team if you like.
+    offers: our team
+    add_email_line: false
+    status: draft
+
+  - id: ni_other_offices
+    type: no_info
+    topic: company
+    variants:
+      - Do you have offices in other cities
+      - Do you have a branch abroad
+      - Do you work outside India
+      - Do you have an office in Mumbai
+      - How many offices do you have
+    answer: I don't have that detail. I can tell you about where we are if you like.
+    offers: where we are
+    add_email_line: true
+    status: draft
+
+  - id: ni_phone_social
+    type: no_info
+    topic: company
+    variants:
+      - What is your phone number
+      - Can I call you
+      - Do you have WhatsApp
+      - What is your Instagram
+      - Do you have social media
+    answer: I don't have that detail. I can tell you about where we are if you like.
+    offers: where we are
+    add_email_line: true
+    status: draft
+
+  - id: ni_cms_technical
+    type: no_info
+    topic: cms
+    variants:
+      - Which technology stack does the CMS use
+      - Is the CMS cloud based
+      - Does the CMS work on mobile
+      - How secure is the CMS
+      - Can the CMS integrate with other systems
+      - Which programming language is the CMS in
+    answer: I don't have that detail. I can tell you about who can use it if you like.
+    offers: who can use it
+    add_email_line: false
+    status: draft
+
+  - id: ni_cms_purchase
+    type: no_info
+    topic: cms
+    variants:
+      - Can I buy the CMS
+      - Can I get a demo of the CMS
+      - Do you sell the CMS to other companies
+      - Can we license the CMS
+      - Can we get the CMS for our showroom
+    answer: I don't have that detail. I can tell you about screens if you like.
+    offers: screens
+    add_email_line: true
+    status: draft
+
+  - id: ni_travis_technical
+    type: no_info
+    topic: travis
+    variants:
+      - Which languages does Travis speak
+      - Does Travis speak Hindi
+      - Is Travis artificial intelligence
+      - What model does Travis use
+      - Does Travis work offline
+      - How does Travis understand me
+    answer: I don't have that detail. I can tell you what you can say to Travis if you like.
+    offers: what you can say to Travis
+    add_email_line: false
+    status: draft
