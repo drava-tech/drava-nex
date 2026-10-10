@@ -602,3 +602,17 @@ class AsksInsteadOfGuessingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BrokenOffSentenceTests(unittest.TestCase):
+    def test_a_sentence_that_breaks_off_is_not_answered_even_if_the_detector_called_it_complete(self):
+        for heard in ("Hey Travis. Can you tell me about...", "Hey Travis can you tell me about the"):
+            a = _agent(heard)
+            _hear(a)
+            self.assertIn("stopped mid-sentence", " ".join(a.said), heard)
+            self.assertEqual(a.calls, [])
+
+    def test_a_finished_question_is_still_answered(self):
+        a = _agent("Hey Travis turn on tusker edge")
+        _hear(a)
+        self.assertTrue(a.calls)

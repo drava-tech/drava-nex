@@ -176,7 +176,10 @@ def judge_turn(case: C, turn: T, agent, trace, calls: list[dict], mock, prior_re
                 failures.append("canned_reply_too_long")
 
     # the CMS
-    if turn.cms == "none" and calls:
+    # The portfolio offer (agent/planning.py) looks the CMS up after a real answer about White Tusker: two reads (experiences, screens), nothing else. A turn
+    # that expects "no CMS call" allows exactly those two reads when the answer was about the company, and any other call still fails it.
+    offer_reads = {"GET /experiences", "GET /screens"} if getattr(agent, "_company_answers", 0) and getattr(agent, "_kb_last_topic", "") == "company" else set()
+    if turn.cms == "none" and [c for c in calls if f"{c['method']} {c['path']}" not in offer_reads]:
         failures.append("cms_called")
     elif turn.cms == "noact" and posts:
         failures.append("actuated")

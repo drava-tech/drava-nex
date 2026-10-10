@@ -84,3 +84,22 @@ def last_version(text: str) -> str | None:
         return rest if opened and len(rest.split()) >= MIN_WORDS else None
     tail = pieces[-1].strip(" .,?!")
     return tail if len(tail.split()) >= MIN_WORDS else None
+
+
+# Two or more negatives in a row take the request back: "no, no", "nahi nahi" (Hindi), "nahin nahin", "nai nai", "na na", "nako nako" (Marathi). A single one
+# can be part of a sentence, or a tag question ("... na?"), so it never cancels on its own. Closers: "never mind", "forget it", "cancel that", "scratch that",
+# "ignore that", and the Hindi "rehne do" / "chhod do" ("leave it").
+_NEG = r"(?:no|nope|nah|nahi|nahin|nai|na|nako)"
+_TRAILING_NO = re.compile(
+    rf"[,.;!?\s]({_NEG}[,.;!?\s]+){{1,}}{_NEG}[\s.!?]*$"
+    r"|[,.;!?\s](?:never\s*mind|forget\s+it|cancel\s+that|scratch\s+that|ignore\s+that|rehne\s+do|chh?od\s+do)[\s.!?]*$",
+    re.I,
+)
+
+
+def ends_with_retraction(text: str) -> bool:
+    """"Tell me about yourself. No, no, no.": the speaker takes the request back at the end of the sentence. Two or more "no"s in a row (a single "no"
+    can be part of a sentence), or a closing "never mind" / "forget it" / "cancel that", after at least two other words."""
+    t = text or ""
+    m = _TRAILING_NO.search(t)
+    return bool(m) and len(re.findall(r"[a-z]+", t[: m.start()].lower())) >= 2

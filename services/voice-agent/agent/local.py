@@ -11,6 +11,7 @@ import uuid
 
 # pyrefly: ignore [missing-import]
 
+from nlu.sentences import trails_off
 from ui import TravisUI
 from speech.language_gate import is_english
 from speech.transcript_gate import (
@@ -32,6 +33,7 @@ from speech.stt import WhisperSTT
 from speech.endpointing import make_endpointer
 from agent.canned_route import CannedMixin
 from agent.knowledge_answer import KnowledgeMixin
+from agent.repair_route import RepairMixin
 from agent.room_state import RoomStateMixin
 from actions import cms_client
 from settings import (
@@ -56,7 +58,7 @@ DECLINES = (
 )
 
 
-class TravisLocal(CannedMixin, RoomStateMixin, KnowledgeMixin, PlanMixin, CommandMixin, TravisBase):
+class TravisLocal(CannedMixin, RoomStateMixin, KnowledgeMixin, PlanMixin, RepairMixin, CommandMixin, TravisBase):
     """TRAVIS on a local language model, with ElevenLabs for speech both ways:
 
   mic (while awake) -> WebRTC VAD endpointing (speech/vad.py)
@@ -150,6 +152,7 @@ a command runs and while Travis speaks."""
         # The planner reads what was meant (nlu/planner.py); target resolution + execution: agent/planning.py.
         if cfg.get("semantic_planner", True):
             self._init_planner(self._llm, PLANNER_PROMPT_PATH.read_text(encoding="utf-8"), self._registry, self._guard, float(cfg.get("context_ttl_sec", 120)))
+        self._init_repair(self._llm, cfg)  # self-repair: tag questions, corrections, take-backs (agent/repair_route.py)
         self._utterance = ""
         # One line per exchange in logs/exchanges.jsonl, for reviewing real-voice tests.
         self._xlog = ExchangeLog(BASE_DIR / "logs" / "exchanges.jsonl") if cfg.get("exchange_log", True) else None
@@ -322,6 +325,9 @@ a command runs and while Travis speaks."""
             self._log_ignored("only the wake word: waiting for the request", text)
             return  # just "Hey Travis": the nudge asks what they want
         self._heard_command_speech = True
+        if not unfinished and trails_off(command):
+            print(f"[Voice Agent] ✂️ The words break off ({command!r}): treated as an unfinished sentence.")
+            unfinished = True  # (the detector may have thought it complete; an exact known command still runs)
         unsure = bool(self._min_logprob) and transcript.avg_logprob < self._min_logprob
         if unsure:
             print(f"[Voice Agent] 🤔 Whisper is unsure ({transcript.avg_logprob:.2f} < {self._min_logprob:.2f}): not acting on {command!r}.")

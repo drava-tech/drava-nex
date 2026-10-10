@@ -238,67 +238,56 @@ def followup() -> list[C]:
 
 # ═══ 6. The portfolio offer ═══
 def portfolio() -> list[C]:
+    """The portfolio is offered once per conversation, on the first real answer about White Tusker (config portfolio_offer_after, default 1)."""
     c: list[C] = []
     first = "Who founded White Tusker"
     second = "Where are you located"
     third = "What are your business areas"
-    c.append(C("pf.not_on_first", "portfolio", [T(first, entry="company_founders", cms="none", reply_none=("portfolio",))]))
-    c.append(C("pf.offered_on_second", "portfolio", [
-        T(first, entry="company_founders", cms="none", reply_none=("portfolio",)),
-        T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
+    ask = dict(entry="company_founders", cms="noact", reply_any=(OFFER,))  # the first company answer ends with the offer
+    c.append(C("pf.offered_on_first", "portfolio", [T(first, **ask)]))
+    c.append(C("pf.knowledge_answer_offers", "portfolio", [
+        T("What did you build for Tata Steel", path=("knowledge", "faq"), cms="noact", reply_any=(OFFER,)),
     ]))
     c.append(C("pf.only_once", "portfolio", [
-        T(first, entry="company_founders", cms="none"), T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
+        T(first, **ask), T(second, entry="company_location_contact", cms="noact", reply_none=(OFFER,), contact_ok=True),
         T(third, entry="company_verticals", cms="noact", reply_none=("portfolio",)),
     ]))
     for cid, yes in [("yes", "Yes"), ("go_ahead", "Go ahead"), ("please_do", "Yes please do"), ("sure", "Sure")]:
         c.append(C(f"pf.accept_{cid}", "portfolio", [
-            T(first, entry="company_founders", cms="none"), T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
-            T(yes, path=("pending answer",), cms="do", do=[PORTFOLIO]),
+            T(first, **ask), T(yes, path=("pending answer",), cms="do", do=[PORTFOLIO]),
         ]))
     for cid, no in [("no", "No"), ("not_now", "Not now"), ("no_thanks", "No thanks")]:
         c.append(C(f"pf.decline_{cid}", "portfolio", [
-            T(first, entry="company_founders", cms="none"), T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
+            T(first, **ask),
             T(no, path=("pending answer",), cms="noact", reply_any=("no problem", "okay")),
             T(third, entry="company_verticals", cms="noact", reply_none=("portfolio",)),
         ]))
     c.append(C("pf.unrelated_lapses", "portfolio", [
-        T(first, entry="company_founders", cms="none"), T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
+        T(first, **ask),
         T("Turn on tusker edge", cms="do", do=[L("on", "tusker edge")]),
         T("Yes", cms="none", reply_none=("playing the portfolio",)),
     ]))
-    c.append(C("pf.more_lapses", "portfolio", [
-        T(first, entry="company_founders", cms="none"), T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True),
-        T("Tell me more", cms="noact"),
-    ]))
+    c.append(C("pf.more_lapses", "portfolio", [T(first, **ask), T("Tell me more", cms="noact")]))
     c.append(C("pf.no_portfolio_in_cms", "portfolio", [
-        T(first, entry="company_founders", cms="none", setup="no_portfolio"),
-        T(second, entry="company_location_contact", cms="noact", reply_none=("portfolio",), contact_ok=True),
+        T(first, entry="company_founders", cms="noact", setup="no_portfolio", reply_none=("portfolio",)),
     ]))
     c.append(C("pf.cms_down_no_offer", "portfolio", [
-        T(first, entry="company_founders", cms="none"),
-        T(second, entry="company_location_contact", cms="any", inject={"mode": "down"}, reply_none=("portfolio",), contact_ok=True),
+        T(first, entry="company_founders", cms="any", inject={"mode": "down"}, reply_none=("portfolio",)),
     ]))
     c.append(C("pf.already_playing", "portfolio", [
-        T(first, entry="company_founders", cms="none", setup="portfolio_playing"),
-        T(second, entry="company_location_contact", cms="noact", reply_none=("portfolio",), contact_ok=True),
+        T(first, entry="company_founders", cms="noact", setup="portfolio_playing", reply_none=("portfolio",)),
     ]))
     c.append(C("pf.cms_answers_dont_count", "portfolio", [
-        T("What is the CMS", entry="cms_what_is", cms="none"), T("How does the CMS manage the screens", entry="cms_screens", cms="none"),
-        T("What are experiences in the CMS", entry="cms_experiences", cms="noact", reply_none=(OFFER,)),
+        T("What is the CMS", entry="cms_what_is", cms="none", reply_none=(OFFER,)),
+        T("How does the CMS manage the screens", entry="cms_screens", cms="none", reply_none=(OFFER,)),
     ]))
     c.append(C("pf.small_talk_doesnt_count", "portfolio", [
-        T("Thank you", entry="thanks", cms="none"), T("See you later", entry="goodbye", cms="none"), T("Who founded White Tusker", entry="company_founders", cms="none", reply_none=("portfolio",)),
+        T("Thank you", entry="thanks", cms="none", reply_none=(OFFER,)), T("See you later", entry="goodbye", cms="none", reply_none=(OFFER,)),
     ]))
-    c.append(C("pf.reset_after_five_minutes", "portfolio", [
-        T(first, entry="company_founders", cms="none"),
-        T(second, entry="company_location_contact", cms="noact", reply_any=(OFFER,), contact_ok=True, age_before=0),
-        T(third, entry="company_verticals", cms="noact", age_before=301, reply_none=("portfolio",)),
+    c.append(C("pf.offered_again_after_five_minutes", "portfolio", [
+        T(first, **ask),
+        T(third, entry="company_verticals", cms="noact", age_before=301, reply_any=(OFFER,)),
     ]))
-    c.append(C("pf.via_knowledge_answers", "portfolio", [
-        T("What did you build for Tata Steel", path=("knowledge", "faq"), cms="none"),
-        T("Have you worked with Boeing", path=("knowledge", "faq"), cms="noact", reply_any=(OFFER,)),
-    ], known_gap="", note="knowledge-path answers count towards the offer too"))
     return c
 
 

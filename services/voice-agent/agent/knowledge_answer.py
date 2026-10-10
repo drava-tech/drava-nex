@@ -32,7 +32,7 @@ from settings import load_api_config
 
 PROBE_MIN_WORDS = 4
 # A question about what the room is doing NOW ("which screen is showing this") is answered from live CMS data, never from the knowledge file
-ROOM_WORDS = frozenset("screen screens light lights lamp ac aircon temperature door lock locked volume tv display soundbar playing brightness".split())
+ROOM_WORDS = frozenset("screen screens light lights lamp ac aircon temperature door lock locked volume tv display soundbar playing brightness device devices".split())
 DEFAULT_CONTACT_LINE = "You can reach us at hello at thewhitetusker dot com."
 # The CMS and Travis are one product to a visitor (the CMS file says what Travis can do, Travis's file what it controls), so each searches both.
 GROUPS = {"company": {"company"}, "cms": {"cms", "travis"}, "travis": {"travis", "cms"}, "experience_center": {"company", "travis", "cms"}}
@@ -63,10 +63,16 @@ class KnowledgeMixin:
     _kb_used: frozenset = frozenset()  # section ids already used in this conversation
     _kb_company_said = False  # the company overview (with the contact line) has been given in this conversation
     _kb_ok = False  # the last knowledge answer was a real answer (not "I don't have that detail")
-    _company_answers = 0  # real answers about White Tusker in this conversation (FAQ or knowledge): the portfolio is offered from the second
+    _company_answers = 0  # real answers about White Tusker in this conversation (FAQ or knowledge): the portfolio is offered from the first (config portfolio_offer_after)
     _portfolio_offered = False  # at most once per conversation
     _portfolio_declined = False
     _kb_last_topic = "company"  # the planner topic of the last real answer: what "tell me more" continues
+
+    def _share_prefix(self) -> dict:
+        """The tool list of the main model, sent with the knowledge calls too. Ollama renders the tools into the system prompt, so with the same
+        tools these calls have the SAME prompt prefix as the tool-calling model and its cached prompt survives them: without it, the tool-calling
+        model's first token after a knowledge call took 1.5 s instead of 0.09 s (measured). No tools configured (tests) -> nothing is added."""
+        return {"share_tools": self._llm_tools} if getattr(self, "_llm_tools", None) else {}
 
     def _new_conversation_check(self):
         """Nothing in memory any more (5 minutes passed): a new conversation, so nothing is "used" and nothing was offered or declined."""
@@ -122,10 +128,12 @@ class KnowledgeMixin:
         loop = asyncio.get_running_loop()
         self._kb_ok = False
         info: dict = {}
+        marks: dict[str, float] = {"start": time.monotonic()}  # where the time goes, in ms, in info["ms"] (and so in logs/exchanges.jsonl)
         spoken_text: str | None = None
         try:
             if needs_rewrite(request, history):
                 rw = await rewrite_question(self._llm, request, history, plan.topic)
+                marks["rewrite"] = time.monotonic()
                 wants_more, query, topic = rw.wants_more or (force_more and bool(history)), rw.query, rw.topic
                 if force_more and not rw.query.strip():
                     query = request
@@ -143,6 +151,7 @@ class KnowledgeMixin:
             boost = float(cfg.get("knowledge_topic_boost", TOPIC_BOOST))
             hits = await loop.run_in_executor(None, lambda: retriever.search(
                 query, None, self._kb_used if wants_more else frozenset(), k, floor, boost_groups=boost_groups, boost=boost))
+            marks["search"] = time.monotonic()
             verdict = "no section found"
             info["retrieved"] = [h.label for h in hits]
             first_overview = not self._kb_company_said and not wants_more
@@ -155,7 +164,7 @@ class KnowledgeMixin:
                 else:
                     messages = [{"role": "system", "content": self._system_prompt}, *history[-6:],
                                 {"role": "user", "content": f"{request}\n\nKNOWLEDGE:\n{knowledge}\n\n{RULES}"}]
-                    spoken, verdict = await self._speak_answer(messages, knowledge, hits, topic, wants_more, threshold, info, request)
+                    spoken, verdict = await self._speak_answer(messages, knowledge, hits, topic, wants_more, threshold, info, request, marks)
                 if spoken:
                     parts = list(spoken)
                     if topic == "company" and (asks_contact or first_overview):
@@ -197,6 +206,15 @@ class KnowledgeMixin:
             await self._say(text)
             return text
         self._path = "knowledge"
+        order = ["start", "rewrite", "search", "first_token", "found", "first_sentence"]
+        prev, ms = marks["start"], {}
+        for name in order[1:]:
+            if name in marks:
+                ms[name] = round((marks[name] - prev) * 1000)  # each stage's own time
+                prev = marks[name]
+        info["ms"] = ms
+        if getattr(self, "_plan_log", None) is None:
+            self._plan_log = {}  # "tell me more" is answered before the planner: still log the knowledge details
         self._calls_log.append({"name": "knowledge_search", "args": {"query": query}, "ok": self._kb_ok, "message": info.get("verdict", "")})
         if isinstance(getattr(self, "_plan_log", None), dict):
             self._plan_log.update({"knowledge": info})
@@ -216,7 +234,7 @@ class KnowledgeMixin:
         number the knowledge does not contain), then said. ([the answer], why) or ([], why not): nothing is said unless it is a real answer."""
         messages = [{"role": "system", "content": self._system_prompt}, *history[-6:],
                     {"role": "user", "content": f"{request}\n\nKNOWLEDGE:\n{knowledge}\n\n{RULES_JSON}"}]
-        raw = await self._llm.complete_json(messages, ANSWER_SCHEMA, max_tokens=300)
+        raw = await self._llm.complete_json(messages, ANSWER_SCHEMA, max_tokens=300, **self._share_prefix())
         self._timing.setdefault("llm_first_token", time.monotonic())
         try:
             d = json.loads(raw)
@@ -234,7 +252,8 @@ class KnowledgeMixin:
         await self._say(text)
         return [text], "answered"
 
-    async def _speak_answer(self, messages: list[dict], knowledge: str, hits, topic: str, wants_more: bool, threshold: float, info: dict, question: str = "") -> tuple[list[str], str]:
+    async def _speak_answer(self, messages: list[dict], knowledge: str, hits, topic: str, wants_more: bool, threshold: float, info: dict, question: str = "",
+                            marks: dict | None = None) -> tuple[list[str], str]:
         """Stream the model's structured answer and speak it one sentence at a time. (the sentences spoken, why it stopped.)
 
         The model says `found` first (nlu/json_answer.py): false stops generation and nothing is said. Otherwise each sentence (one shorter than MIN_WORDS
@@ -248,7 +267,7 @@ class KnowledgeMixin:
         blocked: list[list[str]] = []
         verdict = "answered"
         splitter, pending, parser = SentenceSplitter(), "", AnswerStream()
-        stream = self._llm.stream_text(messages, max_tokens=320, schema=ANSWER_SCHEMA)
+        stream = self._llm.stream_text(messages, max_tokens=320, schema=ANSWER_SCHEMA, **self._share_prefix())
 
         async def speak(unit: str) -> bool:
             """Check one unit and say it; False = stop here."""
@@ -268,6 +287,8 @@ class KnowledgeMixin:
                 return False
             if not spoken:  # the first sentence that is really said
                 self._mark_answered(hits, topic)
+                if marks is not None:
+                    marks["first_sentence"] = time.monotonic()
             spoken.append(text)
             await self._say(text)
             return True
@@ -276,7 +297,11 @@ class KnowledgeMixin:
         try:
             async for chunk in stream:
                 self._timing.setdefault("llm_first_token", time.monotonic())
+                if marks is not None:
+                    marks.setdefault("first_token", time.monotonic())
                 new_text = parser.feed(chunk)
+                if marks is not None and parser.found is not None:
+                    marks.setdefault("found", time.monotonic())
                 if parser.found is False:
                     verdict, keep_going = "the knowledge does not say", False
                     break

@@ -188,3 +188,20 @@ class PendingEdgeTests(unittest.TestCase):
         p = pending.Pending(name="tusker edge")
         fill(p, "full")
         self.assertEqual(p.level, 100)
+
+
+class TrailingRetractionTests(unittest.TestCase):
+    def test_a_request_taken_back_at_the_end_is_a_retraction(self):
+        from nlu.repairs import ends_with_retraction
+
+        for text in ("Tell me about yourself. No, no, no", "Tell me about yourself. No, no, no.", "Turn on the lights, no no", "Tell me about white tusker, never mind",
+                     "Turn off tusker edge, forget it.", "Show the presentation, cancel that",
+                     "Lock the door, nahi nahi", "Lock the door nahin nahin", "Open it, nai nai", "Show the film, na na", "Lock the door, rehne do", "Lock the door chhod do"):
+            self.assertTrue(ends_with_retraction(text), text)
+
+    def test_ordinary_sentences_are_not(self):
+        from nlu.repairs import ends_with_retraction
+
+        for text in ("No", "No, no, no", "Do you have a showroom, no", "Tell me about yourself", "Is there no other way to do it", "Never mind", "Turn on the lights", "Lock the door, nahi", "Tell me about yourself na", "Tell me about yourself, no?",
+                     "Tell me about White Tusker"):
+            self.assertFalse(ends_with_retraction(text), text)

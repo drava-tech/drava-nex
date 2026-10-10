@@ -488,14 +488,14 @@ class QuestionsAboutTheCompanyTests(unittest.TestCase):
 
 
 class PortfolioOfferTests(unittest.TestCase):
-    """From the SECOND real answer about White Tusker in a conversation, Travis asks "Would you like me to play our portfolio on the main
+    """From the FIRST real answer about White Tusker in a conversation (config `portfolio_offer_after`, default 1), Travis asks "Would you like me to play our portfolio on the main
     screen?" (once; never if it is already playing or was declined); yes plays it through the normal action path."""
 
     REPLY = "White Tusker is a brand experience design studio."
     OFFER = "Would you like me to play our portfolio on the main screen?"
 
     def _asked(self, topic="company", experiences=("White Tusker Portfolio", "Welcome Reel"), screens=("tusker 86", "tusker 27"),
-               reply=None, times=2, playing=None, **cfg):
+               reply=None, times=1, playing=None, **cfg):
         from unittest import mock
 
         a = _planned("x", *[json.dumps({"kind": "question", "actions": [], "topic": topic})] * 5)
@@ -531,12 +531,16 @@ class PortfolioOfferTests(unittest.TestCase):
             _say(a, ["tell me about white tusker", "who are your clients", "where are you based"][i])
         return a
 
-    def test_the_first_company_answer_is_not_followed_by_an_offer(self):
-        a = self._asked(times=1)
-        self.assertIsNone(a._confirm)
-        self.assertNotIn("portfolio", " ".join(a.said).lower())
+    def test_the_first_company_answer_is_followed_by_the_offer(self):
+        a = self._asked()
+        self.assertIsNotNone(a._confirm)
+        self.assertIn("portfolio", " ".join(a.said).lower())
 
-    def test_the_second_company_answer_ends_with_the_offer(self):
+    def test_the_offer_can_wait_for_a_later_answer_through_the_config(self):
+        self.assertIsNone(self._asked(times=1, portfolio_offer_after=2)._confirm)
+        self.assertIsNotNone(self._asked(times=2, portfolio_offer_after=2)._confirm)
+
+    def test_the_company_answer_ends_with_the_offer(self):
         a = self._asked()
         said = " ".join(a.said)
         self.assertIn(self.REPLY, said)
@@ -601,11 +605,12 @@ class PortfolioOfferTests(unittest.TestCase):
         self.assertIsNotNone(self._asked(playing="Welcome Reel")._confirm)
 
     def test_a_new_conversation_starts_the_count_again(self):
-        a = self._asked(times=1)
+        a = self._asked()
+        a._confirm = None
         a._history, a._history_at = [], 0.0  # five minutes passed
         a.said.clear()
         _say(a, "who are your clients")
-        self.assertIsNone(a._confirm)  # the first answer of a new conversation
+        self.assertIsNotNone(a._confirm)  # the first answer of a new conversation is offered the portfolio again
 
     def test_no_offer_for_the_cms_or_travis_or_the_place(self):
         for topic in ("cms", "travis", "experience_center"):

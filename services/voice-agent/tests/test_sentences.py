@@ -80,3 +80,17 @@ class MergeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrailsOffTests(unittest.TestCase):
+    def test_a_sentence_that_breaks_off_is_unfinished(self):
+        from nlu.sentences import trails_off
+
+        for text in ("Can you tell me about", "Can you tell me about...", "Show me the", "What is the", "Tell me about your", "Turn on the light and", "So I wanted…"):
+            self.assertTrue(trails_off(text), text)
+
+    def test_a_finished_request_is_not(self):
+        from nlu.sentences import trails_off
+
+        for text in ("Turn on the lights", "Turn on", "Turn off", "Who founded White Tusker", "Tell me about White Tusker", "Set the AC to 22", "What is the CMS", "", "Yes"):
+            self.assertFalse(trails_off(text), text)

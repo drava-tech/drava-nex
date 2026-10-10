@@ -384,7 +384,8 @@ class ProbeTests(unittest.TestCase):
         self.assertNotEqual(self.a._path, "knowledge")
 
     def test_a_question_about_the_room_right_now_is_never_looked_up(self):
-        for q in ("which screen is showing this", "is the door locked right now", "what is the AC temperature set to", "is tusker edge on at the moment"):
+        for q in ("which screen is showing this", "is the door locked right now", "what is the AC temperature set to", "is tusker edge on at the moment",
+                  "what devices are available in this room"):  # (the live inventory, not the knowledge file's list of what the CMS can control)
             with self.subTest(q=q):
                 self.setUp()  # a fresh agent: the scripted planner has one answer per agent
                 said = self.run_it(True, {"found": True, "answer": "The CMS platform manages the content shown on the screens in this room."}, request=q)

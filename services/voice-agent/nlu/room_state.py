@@ -75,6 +75,22 @@ def asks_for_a_change(request: str) -> bool:
     return False
 
 
+# The grammatical form of a state question: it is a QUESTION (wh-word or auxiliary first) or an invitation to report ("tell me which...", "let me know if...",
+# "check if..."). An imperative ("Show the whiteboard", "Explain how it works") or a statement ("There's no projector here, can you check") is not one.
+# This is the sentence's type, not a topic list: the model is asked only about sentences that have the form of a question about the room.
+_ASKING = frozenset("is are was were do does did can could will would which what whats what's how who where when whose any tell let check".split())
+_LEAD = frozenset("hey travis please ok okay so and also um uh well now".split())
+
+
+def could_be_state_question(request: str) -> bool:
+    """False when `request` cannot be a question about the room right now, so the (0.6 s) classifier is not asked: it asks for a change (the rule
+    `parse` applies afterwards anyway), or it is not shaped like a question. True otherwise: the classifier decides."""
+    if asks_for_a_change(request):
+        return False
+    words = [w for w in re.findall(r"[a-z']+", (request or "").lower()) if w not in _LEAD]
+    return bool(words) and words[0] in _ASKING
+
+
 def parse(raw: str, request: str) -> StateQuestion | None:
     """The classifier's answer as a StateQuestion, or None: not a state question, unreadable, or a sentence that asks for a change."""
     if asks_for_a_change(request):

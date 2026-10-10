@@ -204,9 +204,11 @@ class PlanMixin:
         return found
 
     async def _maybe_offer_portfolio(self, reply: str, topic: str) -> str:
-        """From the second real answer about White Tusker in a conversation, once, unless it was declined or the portfolio is already on the
-        main screen: "Would you like me to play our portfolio on the main screen?" The yes/no is the pending-question step in commands.py."""
-        if topic != "company" or self._company_answers < 2 or self._portfolio_offered or self._portfolio_declined:
+        """From the first real answer about White Tusker in a conversation (config `portfolio_offer_after`, default 1), once, unless it was declined or
+        the portfolio is already on the main screen: "Would you like me to play our portfolio on the main screen?" The yes/no is the pending-question
+        step in commands.py."""
+        after = int(load_api_config().get("portfolio_offer_after", 1) or 1)
+        if topic != "company" or self._company_answers < after or self._portfolio_offered or self._portfolio_declined:
             return reply
         portfolio = await self._find_portfolio()
         if portfolio is None:

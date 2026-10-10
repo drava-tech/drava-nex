@@ -75,3 +75,20 @@ def merge_short(sentences: list[str], min_words: int = MIN_WORDS) -> list[str]:
             continue
         out.append(s)
     return out
+
+
+# Words a finished request does not end on: "Can you tell me about", "show me the", "what is the". (Not on/off/up/down/in: "turn on" is a real, if short, request.)
+_DANGLING = frozenset("about the a an of and or but my your our their its which whose if than".split())
+# (Not to/for/at/by/with/from/that/this/is/do...: "what is it set to", "where are you from", "what is this" are finished questions.)
+
+
+def trails_off(text: str) -> bool:
+    """True if the transcript reads as broken off: it ends in "..." (Whisper writes that when speech trails away) or on a word that cannot end a request
+    ("Can you tell me about"). The end-of-speech detector can think such a sentence complete; the words say it is not."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if t.endswith(("...", "…")):
+        return True
+    words = re.findall(r"[a-z0-9']+", t.lower())  # (digits count: "put the lights at 80" ends on 80, not on "at")
+    return len(words) > 1 and words[-1] in _DANGLING

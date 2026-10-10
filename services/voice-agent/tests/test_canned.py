@@ -266,7 +266,7 @@ class RouteTests(unittest.TestCase):
         self.assertTrue(a.calls and a.calls[0][0] == "device_control")
         self.assertNotIn(a._path, ("faq", "small talk"))
 
-    def test_the_second_company_answer_carries_the_portfolio_offer(self):
+    def test_the_first_company_answer_carries_the_portfolio_offer(self):
         a = self.agent()
         config = {"portfolio_offer": True}
         with mock.patch("agent.planning.load_api_config", lambda: config), \
@@ -274,9 +274,6 @@ class RouteTests(unittest.TestCase):
                 mock.patch("agent.planning.cms_client.list_experiences", lambda: [{"title": "White Tusker Portfolio"}]):
             a._portfolio_skip_until = 0.0
             _say(a, "who founded white tusker")
-            self.assertIsNone(a._confirm)
-            a.said.clear()
-            _say(a, "tell me about your company")
             self.assertIn("Would you like me to play our portfolio on the main screen?", " ".join(a.said))
             self.assertTrue(a._confirm.offer)
 

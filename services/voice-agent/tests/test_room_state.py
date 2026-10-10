@@ -286,3 +286,58 @@ class RouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShapeGateTests(unittest.TestCase):
+    """The classifier (a 0.6 s model call) is asked only about a sentence shaped like a question about the room; the form decides, not a topic list."""
+
+    STATE = ("How many lights are there", "How many lights do you have", "Which lights are on", "Is the cove light on", "Is the sky light on", "Is the AC on",
+             "What temperature is the AC set to", "Is the door locked", "How many screens are there", "What is playing on the main screen",
+             "Tell me which lights are on", "Can you tell me if the AC is running", "What's showing on the kiosk", "Are any lights on right now",
+             "hey travis is the AC on", "Let me know if the door is locked", "Check if the lights are on")
+    NOT_STATE = ("Show the whiteboard", "There's no projector here, can you check", "Explain how air conditioners work", "Play some music", "Make it warmer",
+                 "Turn it up", "Turn on the lights", "Book room 3 for Wednesday", "Open the whiteboard please", "Switch it off")
+
+    def test_every_room_question_has_the_shape(self):
+        for text in self.STATE:
+            self.assertTrue(room_state.could_be_state_question(text), text)
+
+    def test_a_command_an_imperative_or_a_statement_has_not(self):
+        for text in self.NOT_STATE:
+            self.assertFalse(room_state.could_be_state_question(text), text)
+
+
+class SkippedClassifierTests(RouteTests):
+    """Through the conversation: the model is not called for requests that cannot be state questions, and is for the ones that can."""
+
+    def test_the_classifier_is_not_called_for_an_imperative_or_a_statement(self):
+        for text in ("Show the whiteboard", "There's no projector here, can you check", "Explain how air conditioners work"):
+            with self.subTest(text=text):
+                a = self.agent([self.OTHER])
+                _say(a, text)
+                self.assertEqual(self.classifier_calls, [], text)
+                self.assertEqual(self.reads, [], text)
+
+    def test_is_the_ac_on_still_asks_the_classifier_and_is_answered(self):
+        a = self.agent([self.OTHER])
+        _say(a, "Is the AC on?")
+        self.assertEqual(self.classifier_calls, ["is the ac on"])
+        self.assertIn("23 degrees", " ".join(a.said))
+
+    def test_state_dependent_commands_are_acted_on_by_the_planner_and_never_reach_the_state_check(self):
+        """"make it warmer" depends on the AC's current state and "turn it up" on what "it" is: both are COMMANDS the planner reads (asking for the missing
+        value, or acting), so the room-state check is never involved, before or after this change."""
+        warmer = json.dumps({"kind": "actions", "actions": [{"quote": "make it warmer", "op": "ac_adjust", "target": {"type": "ac", "scope": "unspecified", "words": "it",
+                                                                                                                      "name": "", "location": "", "index": 0}, "parameters": {}}]})
+        louder = json.dumps({"kind": "actions", "actions": [{"quote": "turn it up", "op": "tv_volume_up", "target": {"type": "tv", "scope": "unspecified", "words": "it",
+                                                                                                                  "name": "", "location": "", "index": 0}, "parameters": {"times": 1}}]})
+        for text, plan in (("Make it warmer", warmer), ("Turn it up", louder)):
+            with self.subTest(text=text):
+                a = self.agent([plan])
+                _say(a, text)
+                if a._plan_log:
+                    self.assertEqual(a._plan_log["kind"], "actions", text)  # the planner read it as a command
+                else:
+                    self.assertEqual(a._path, "list", text)  # or the command list did ("turn it up" is a known phrase)
+                self.assertEqual(self.classifier_calls, [], text)
+                self.assertNotEqual(a._path, "room state", text)

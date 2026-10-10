@@ -21,8 +21,8 @@ class RoomStateMixin:
     async def _answer_room_state(self, request: str) -> str | None:
         """The spoken answer to a question about the room right now, or None if `request` is not one. A fragment ("The AC.") is not a question:
         it is left to the normal route, which asks what is wanted."""
-        if len(request.split()) < MIN_WORDS:
-            return None
+        if len(request.split()) < MIN_WORDS or not room_state.could_be_state_question(request):
+            return None  # a fragment, a change, or not shaped like a question: no 0.6 s model call to find out
         try:
             raw = await self._llm.complete_json(
                 [{"role": "system", "content": room_state.SYSTEM}, {"role": "user", "content": request}], room_state.SCHEMA, max_tokens=90)

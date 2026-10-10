@@ -14,6 +14,7 @@ import traceback
 from nlu.command_matcher import match_command, normalize, resolve, similarity
 from nlu.multi_action import is_fragment, resolve_multi, resolve_parts
 from nlu import pending as pending_mod
+from agent.repair_route import RepairOutcome
 from nlu import capability
 from nlu import repairs
 from nlu import missing_target
@@ -70,6 +71,7 @@ class CommandMixin:
             on_topic = True
             done_reply, ask = "", command
             self._utterance = command
+            repair, retracted = RepairOutcome(), False
             try:
                 if unsure:
                     # Whisper doubts its own transcript (it makes up plausible commands from mumbles and
@@ -86,10 +88,21 @@ class CommandMixin:
                 if answered is not None:
                     self._path, reply = "pending answer", answered
                     raise _PendingHandled
+                # "Tell me about yourself, no?" / "turn on the lights, actually the fan": settled BEFORE anything is understood or run, so a withdrawn
+                # request can never fire. A plain turn costs one regex here (agent/repair_route.py); only a cue turn can cost a small model call.
+                repair = await self._repair_step(command)
+                if repair.kind == "ask":
+                    self._path, reply, on_topic = "asked (repair)", repair.reply, False
+                    await self._say(reply)
+                    raise _PendingHandled
+                if repair.kind == "rewrite" and repair.command and repair.command != command:
+                    print(f"[Voice Agent] 🩹 Understood as: {repair.command!r}")
+                    command = ask = self._utterance = repair.command
                 # "set the AC to 24, no wait, 22": the last version is what they mean. If
                 # what follows isn't a whole command ("22"), only the model reads it.
                 effective, skip_list, corrected = command, False, False
-                if repairs.has_marker(command):
+                retracted = repairs.ends_with_retraction(command) or repair.kind == "cancel"  # "...  No, no, no" / "scratch that": the whole request is taken back
+                if repairs.has_marker(command) and not retracted:
                     after = repairs.last_version(command)
                     after_match = match_command(after, self._registry, **self._match_opts) if after else None
                     if after and ((after_match is not None and resolve(after_match).kind == "tool") or resolve_multi(after, self._registry, **self._match_opts)):
@@ -103,7 +116,7 @@ class CommandMixin:
                             # sometimes does the first thing they said.
                             ask = fix[0] + repairs.CORRECTION_NOTE.format(fix=fix[1])
                 # "turn on tusker edge, stop": a closing "stop" cancels what came before it.
-                if not skip_list and repairs.ends_with_stop(effective):
+                if not skip_list and (repairs.ends_with_stop(effective) or retracted):
                     effective = "never mind"
                 # "Can the CMS turn on the lights" / "how do I lock the door" ask about an action: answered and offered, never run.
                 lead = None if (skip_list or unfinished) else capability.classify(effective)
@@ -221,12 +234,15 @@ class CommandMixin:
                     "plan": self._plan_log, "calls": self._calls_log, "reply": reply,
                     "speech_end_to_first_word_ms": first_text,  # (the first name of the next one, kept for older readers)
                     "speech_end_to_first_text_ms": first_text,  # end of speech to the first words handed to the voice
+                    **({"repair": self._repair_log} if self._repair_log else {}),
                 }
                 self._log_exchange(record, end, self._timing)
             # A declined request isn't remembered: it must not make a
             # follow-up ("another one") look like part of an on-topic chat.
             if on_topic:
                 self._remember(command, reply)
+                if not (repair.kind == "cancel" or retracted):  # (a take-back is not "the previous request")
+                    self._remember_turn(command, reply)
 
     def _log_exchange(self, record: dict, speech_end: float | None, timing: dict) -> None:
         """Write the exchange line. The first AUDIO arrives after the reply has been handed over, so when there is a voice and a speech-end time the
@@ -314,7 +330,7 @@ class CommandMixin:
         confirm = self._confirm
         if confirm is not None and confirm.fresh:
             return True
-        if self._pending is not None or self._plan_pending is not None:
+        if self._pending is not None or self._plan_pending is not None or self._repair_waiting():
             return True
         return "?" in (reply or "")
 

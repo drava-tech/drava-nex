@@ -167,11 +167,12 @@ class OllamaChat:
         except httpx.HTTPError as e:
             raise LocalLLMError(f"Ollama request failed: {e}") from e
 
-    async def complete_json(self, messages: list[dict], schema: dict, max_tokens: int = 400) -> str:
+    async def complete_json(self, messages: list[dict], schema: dict, max_tokens: int = 400, share_tools: list[dict] | None = None) -> str:
         """An answer constrained to `schema` (Ollama's structured output), deterministic, not streamed.
         The planner (nlu/planner.py) uses it so its plan is always well-formed JSON."""
-        payload = self._payload(messages, [], stream=False, num_predict=max_tokens, temperature=0.0)
-        payload.pop("tools")
+        payload = self._payload(messages, share_tools or [], stream=False, num_predict=max_tokens, temperature=0.0)
+        if not share_tools:
+            payload.pop("tools")  # (`share_tools`: the same tool list as the main model, so the prompt prefix is identical and Ollama's cached prompt survives)
         payload["format"] = schema
         try:
             res = await self._client().post(f"{self.base_url}/api/chat", json=payload)
@@ -181,11 +182,12 @@ class OllamaChat:
         except httpx.HTTPError as e:
             raise LocalLLMError(f"Ollama request failed: {e}") from e
 
-    async def stream_text(self, messages: list[dict], max_tokens: int = 300, schema: dict | None = None) -> AsyncIterator[str]:
+    async def stream_text(self, messages: list[dict], max_tokens: int = 300, schema: dict | None = None, share_tools: list[dict] | None = None) -> AsyncIterator[str]:
         """Plain text as it is generated: deterministic (temperature 0), no tools. Closing the generator (`aclose()`) closes the connection,
         which makes Ollama stop generating. Used to speak a knowledge answer sentence by sentence (agent/knowledge_answer.py)."""
-        payload = self._payload(messages, [], stream=True, num_predict=max_tokens, temperature=0.0)
-        payload.pop("tools")
+        payload = self._payload(messages, share_tools or [], stream=True, num_predict=max_tokens, temperature=0.0)
+        if not share_tools:
+            payload.pop("tools")
         if schema is not None:
             payload["format"] = schema  # structured output, streamed: the text that arrives is the JSON being written
         in_think = False
