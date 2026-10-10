@@ -389,7 +389,7 @@ def domain() -> list[Case]:
 
     for cid, text in [
         ("capital", "What's the capital of India?"), ("cricket", "Who won yesterday's cricket match?"),
-        ("python", "Write a Python program."), ("weather", "What's the weather today?"), ("joke", "Tell me a joke."),
+        ("python", "Write a Python program."), ("weather", "What's the weather today?"), ("limerick", "Write me a limerick about cats."),
         ("quantum", "What is quantum computing?"), ("musk", "Who is Elon Musk?"),
         ("ceo", "Who is the CEO of Google?"), ("movie", "Recommend a good movie."), ("translate", "Translate hello into French."),
         ("percent", "What's fifteen percent of two hundred forty?"), ("sky", "What colour is the sky?"),
@@ -436,7 +436,7 @@ def relevant_info() -> list[Case]:
     add("which_presentation", "What presentation is open?", setup="main_presentation", reply_any=["company presentation", "which screen", "list the screens", "name of the screen"],
         note="no screen named: reading the screens or asking which one are both fine")
     add("which_screen", "Which screen is showing this?", "unsupported", note="'this' is unresolvable; ask or say so")
-    add("devices", "What devices are available in this room?", reply_any=["tusker edge", "tusker l1"])
+    add("devices", "What devices are available in this room?", reply_any=["tusker edge", "tusker l1", "cove light"])
     add("screens", "What screens do you have?", reply_any=["tusker 86", "tusker 27"])
     add("ac_temp", "What is the AC temperature?", setup="ac_23", reply_any=["23"])
     add("ac_on", "Is the AC on?", setup="ac_23", reply_any=["on"])
@@ -448,9 +448,24 @@ def relevant_info() -> list[Case]:
         note="the CMS exposes no slide position")
     add("volume_level", "What's the volume level?", "unsupported", reply_none=["percent", "%"], note="the TV remote is one-way")
     add("door_state", "Is the door locked?", "unsupported", note="no door-status read exists")
+    # Phase 3 (docs/PHASE3_ROOM_STATE_CASES.md): answered from live CMS data, never "I'll check" with nothing after it
+    add("count_lights", "How many lights are there?", reply_any=["two", "cove light", "sky light"])
+    add("count_lights_have", "How many lights do you have?", reply_any=["two", "cove light", "sky light"])
+    add("which_on", "Which lights are on?", setup="edge_60", reply_any=["cove light"])
+    add("which_on_none", "Which lights are on right now?", reply_any=["no lights", "none", "off"])
+    add("count_screens", "How many screens are there?", reply_any=["two", "tusker 86", "tusker 27"])
+    # Approved small talk (knowledge/smalltalk.yaml, 2026-10-09): answered, not declined, and nothing is sent to the CMS
+    add("talk_thanks", "Thank you so much.", "info_free", note="small talk")
+    add("talk_joke", "Tell me a joke.", "info_free", note="a written, workplace-safe joke (small talk), not a decline")
+    add("talk_how_are_you", "How are you feeling today?", "info_free", note="small talk")
+    add("talk_who_are_you", "Who are you?", "info_free", note="small talk")
     add("hours", "What are your opening hours?", "unsupported", reply_none=["9", "10", "5 pm", "6 pm"], note="no knowledge base content: must not invent hours")
-    add("what_is_this", "What is this experience center?", "unsupported", note="must not invent facts about the company")
-    add("company", "Tell me about the company.", "unsupported")
+    # Answered from the knowledge base (knowledge/*.md) since 2026-10-09, when there was none these two expected "I can't".
+    # Pass = a reply drawn from it (or an honest "I don't have that detail"), with no actuation.
+    add("what_is_this", "What is this experience center?", "info_free", reply_any=["white tusker", "brand experience", "studio", "experience centre", "operator", "don't have that detail"],
+        note="answered from the knowledge base or an approved FAQ answer, or says it has no detail; must not invent facts")
+    add("company", "Tell me about the company.", "info_free", reply_any=["white tusker", "brand experience", "studio", "don't have that detail"],
+        note="answered from the knowledge base (knowledge/the_white_tusker.md)")
     add("what_can_you_do", "What can you do?", "info_free", reply_any=["light", "screen", "ac", "door"])
     return c
 

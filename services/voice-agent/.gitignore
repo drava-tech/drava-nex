@@ -13,6 +13,8 @@ knowledge/*
 !knowledge/cms_platform.md
 !knowledge/the_white_tusker.md
 !knowledge/faq.yaml
+!knowledge/smalltalk.yaml
+!knowledge/travis.md
 
 # Downloaded pretrained model weights (re-fetched on demand from the
 # HuggingFace/asteroid cache — never belong in the repo tree).
@@ -30,3 +32,9 @@ bench/.cache/
 
 # Exchange log from real-voice testing
 logs/
+
+# Generated speech/index caches (agent/audio_cache.py, agent/canned_route.py)
+cache/
+
+# Review/status docs (regenerate or keep locally; not tracked)
+docs/

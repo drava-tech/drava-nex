@@ -25,6 +25,9 @@ class ExchangeStateMixin:
     # (no new audio, no tool call, nothing playing) before the mic closes.
     _REPLY_GRACE_SEC = 1.0
 
+    # The last reply asked a question (set by agent/commands.py just before the reply is complete): see "followup" in _awake_action.
+    _followup_wanted = False
+
     # A request still being worked on may run this long past awake_timeout_sec
     # before the mic is closed on it anyway (a lost turn_complete must not
     # leave the mic open forever).
@@ -85,6 +88,14 @@ class ExchangeStateMixin:
                 f"{(t['playback_started'] - base) * 1000:.0f}ms"
             )
 
+    def _speech_in_flight(self) -> bool:
+        """The user has said something that has not been read yet: they are still talking (the VAD
+        has not cut the utterance) or the utterance was cut and Whisper is transcribing it. Silence
+        in the room is NOT silence from the user then: cutting in with "Yes? What can I do for you?"
+        while their command is mid-transcription made Travis ask, then answer the very command."""
+        endpointer = getattr(self, "_endpointer", None)
+        return bool(getattr(self, "_utterance_inflight", 0)) or bool(endpointer is not None and endpointer.in_speech)
+
     def _awake_action(self, now: float, busy: bool) -> str | None:
         """What the awake mic should do right now: None (keep listening),
         "nudge" (ask what the user wants), "wait_for_command" (the nudge has
@@ -106,7 +117,10 @@ class ExchangeStateMixin:
                 >= self._REPLY_GRACE_SEC
             )
             if finished and not busy:
-                return "wait_for_command" if self._exchange_is_nudge else "standby"
+                if self._exchange_is_nudge:
+                    return "wait_for_command"
+                # Travis asked something and its question has finished playing: keep listening, no wake word needed
+                return "followup" if self._followup_wanted else "standby"
             if not busy and now >= self._awake_until + self._EXCHANGE_HARD_CAP_SEC:
                 return "standby"
             return None
@@ -117,10 +131,13 @@ class ExchangeStateMixin:
         if (
             self._nudge_state == "none"
             and not self._heard_command_speech
+            and not self._speech_in_flight()
             and now - self._last_voiced_at >= self._NUDGE_AFTER_SEC
         ):
             return "nudge"
-        if now >= self._awake_until:
+        # Still hearing (or reading) the user's command: don't close the mic on the awake timer. With a long
+        # end-of-speech wait (vad_end_silence_ms) the window can run out before the utterance is even cut.
+        if now >= self._awake_until and not self._speech_in_flight():
             return "standby"
         return None
 

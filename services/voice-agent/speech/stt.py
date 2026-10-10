@@ -49,6 +49,10 @@ def looks_like_echo(text: str, seconds: float) -> bool:
     return any(grams.count(g) >= 3 for g in set(grams))
 
 
+def _mean_logprob(segments) -> float:
+    return sum(s.avg_logprob for s in segments) / len(segments) if segments else 0.0
+
+
 def _bare(text: str) -> str:
     return re.sub(r"[^a-z ]", "", text.lower()).strip()
 
@@ -67,6 +71,12 @@ class Transcript:
     # The first decode echoed the vocabulary prompt (see looks_like_echo), so this
     # transcript comes from a second decode without it.
     retried_without_prompt: bool = False
+    # Mean per-token log-probability Whisper gave its own words (0 = certain, more negative = less sure).
+    # Real commands scored -0.05..-0.35 on the user's clips; text it made up from noise scored below -0.5.
+    avg_logprob: float = 0.0
+    # The first decode was unsure, so the audio was decoded again with the fallback prompt and that
+    # transcript (Whisper was more sure of it) is the one returned.
+    used_fallback_prompt: bool = False
 
 
 def decide_language(
@@ -121,6 +131,9 @@ class WhisperSTT:
         beam_size: int = 1,
         reject_threshold: float = 0.5,
         english_floor: float = 0.15,
+        single_pass: bool = True,
+        fallback_prompt: str = "",
+        retry_below: float | None = -0.30,
     ):
         _add_cuda_dirs(cuda_lib_dir)
         # pyrefly: ignore [missing-import]
@@ -140,10 +153,29 @@ class WhisperSTT:
         self._beam_size = beam_size
         self._reject_threshold = reject_threshold
         self._english_floor = english_floor
+        self._single_pass = single_pass
+        # A command-shaped prompt is best for commands but drags short replies ("Hi", "tusker edge")
+        # and chatter towards commands. When its decode is unsure, the audio is decoded once more
+        # with this plainer prompt and the transcript Whisper is more sure of wins.
+        self._fallback_prompt = fallback_prompt or None
+        self._retry_below = retry_below
         # Warm-up so the first real command doesn't pay CUDA/kernel init.
         import numpy as np
 
         self._model.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), language="en")
+
+    def warm(self) -> None:
+        """A short silent clip through language detection and a decode: wakes an idle GPU and keeps
+        the kernels hot. Called on the wake word, so it overlaps with the user speaking."""
+        import numpy as np
+
+        audio = np.zeros(SAMPLE_RATE // 2, dtype=np.float32)
+        try:
+            self._model.detect_language(audio)
+            list(self._model.transcribe(audio, language="en", beam_size=1, temperature=0.0, max_new_tokens=1,
+                                        without_timestamps=True, vad_filter=False)[0])
+        except Exception as e:  # a failed warm-up must never take the agent down
+            print(f"[STT] warm-up skipped: {e}")
 
     def transcribe(self, pcm: bytes) -> Transcript:
         import numpy as np
@@ -153,7 +185,17 @@ class WhisperSTT:
         if audio.size == 0:
             return Transcript("", "en", 0.0, 0.0, no_speech=True)
 
-        language, language_prob, probs = self._model.detect_language(audio)
+        seconds = audio.size / SAMPLE_RATE
+        if self._single_pass:
+            # One encoder pass instead of two: the language is detected as part of the decode
+            # (language=None) rather than by a separate detect_language() that runs the whole encoder
+            # first. The encoder is most of a large model's time, so this halves it. English (nearly
+            # always) keeps that decode; only an ambiguous guess pays for a second, forced-English one.
+            segments, text, info = self._decode(audio, seconds, with_vocabulary=True, language=None)
+            language, language_prob = info.language, float(info.language_probability)
+            probs = list(getattr(info, "all_language_probs", None) or [(language, language_prob)])
+        else:
+            language, language_prob, probs = self._model.detect_language(audio)
         english = dict(probs).get("en", 0.0)
         rejected = decide_language(probs, self._reject_threshold, self._english_floor)
         if rejected:
@@ -161,12 +203,18 @@ class WhisperSTT:
                 "", language, language_prob, english, rejected_language=rejected,
                 ms=(time.monotonic() - started) * 1000,
             )
-
-        seconds = audio.size / SAMPLE_RATE
-        segments, text = self._decode(audio, seconds, with_vocabulary=True)
+        if not self._single_pass or language != "en":
+            # Transcribe as English, including the low-confidence cases: detection is least reliable
+            # on short clips and accented English (Indian-accented English is sometimes guessed "hi").
+            segments, text, _ = self._decode(audio, seconds, with_vocabulary=True)
+        used_fallback = False
+        if self._fallback_prompt and self._retry_below is not None and segments and _mean_logprob(segments) < self._retry_below:
+            alt_segments, alt_text, _ = self._decode(audio, seconds, with_vocabulary=True, prompt=self._fallback_prompt)
+            if alt_segments and _mean_logprob(alt_segments) > _mean_logprob(segments):
+                segments, text, used_fallback = alt_segments, alt_text, True
         retried = False
         if looks_like_echo(text, seconds) and (self._initial_prompt or self._hotwords):
-            segments, text = self._decode(audio, seconds, with_vocabulary=False)
+            segments, text, _ = self._decode(audio, seconds, with_vocabulary=False)
             retried = True
             if looks_like_echo(text, seconds):
                 segments, text = [], ""  # still not speech: treat as noise
@@ -186,15 +234,17 @@ class WhisperSTT:
             no_speech=no_speech,
             ms=(time.monotonic() - started) * 1000,
             retried_without_prompt=retried,
+            avg_logprob=_mean_logprob(segments),
+            used_fallback_prompt=used_fallback,
         )
 
-    def _decode(self, audio, seconds: float, with_vocabulary: bool):
-        segments, _ = self._model.transcribe(
+    def _decode(self, audio, seconds: float, with_vocabulary: bool, language: str | None = "en", prompt: str | None = None):
+        segments, info = self._model.transcribe(
             audio,
-            language="en",
+            language=language,
             beam_size=self._beam_size,
             hotwords=self._hotwords if with_vocabulary else None,
-            initial_prompt=self._initial_prompt if with_vocabulary else None,
+            initial_prompt=(prompt or self._initial_prompt) if with_vocabulary else None,
             vad_filter=False,  # already cut by WebRTC VAD
             condition_on_previous_text=False,
             without_timestamps=True,
@@ -206,4 +256,4 @@ class WhisperSTT:
             max_new_tokens=int(24 + 10 * seconds),
         )
         segments = list(segments)
-        return segments, " ".join(seg.text.strip() for seg in segments).strip()
+        return segments, " ".join(seg.text.strip() for seg in segments).strip(), info

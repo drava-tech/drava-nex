@@ -17,10 +17,13 @@ def get_base_dir():
 BASE_DIR = get_base_dir()
 
 
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+API_CONFIG_PATH = Path(os.environ["TRAVIS_CONFIG"]) if os.environ.get("TRAVIS_CONFIG") else BASE_DIR / "config" / "api_keys.json"  # TRAVIS_CONFIG=config/test_safe.json for mock-only runs
 
 
 LOCAL_PROMPT_PATH = BASE_DIR / "nlu" / "prompt_local.txt"
+
+
+PLANNER_PROMPT_PATH = BASE_DIR / "nlu" / "prompt_planner.txt"
 
 
 COMMANDS_PATH = BASE_DIR / "config" / "commands.json"
@@ -32,7 +35,7 @@ CHANNELS = 1
 SEND_SAMPLE_RATE = 16000
 
 
-RECEIVE_SAMPLE_RATE = 24000
+DEFAULT_TTS_SAMPLE_RATE = 24000
 
 
 CHUNK_SIZE = 1024
@@ -77,13 +80,13 @@ def load_api_config() -> dict:
 
     # Map environment variables if set
     env_mapping = {
-        "GEMINI_API_KEY": "gemini_api_key",
         "ELEVENLABS_API_KEY": "elevenlabs_api_key",
         "ELEVENLABS_VOICE_ID": "elevenlabs_voice_id",
         "ELEVENLABS_MODEL_ID": "elevenlabs_model_id",
         "CMS_VOICE_SECRET": "cms_voice_secret",
         "VOICE_AGENT_SECRET": "cms_voice_secret",
         "CMS_API_BASE_URL": "cms_api_base_url",
+        "TRAVIS_ENDPOINTING": "endpointing",  # "smart" | "webrtc": try the new end-of-speech detector without editing the config
     }
     for env_key, conf_key in env_mapping.items():
         val = os.getenv(env_key)
@@ -94,5 +97,17 @@ def load_api_config() -> dict:
     return data
 
 
-def gemini_api_key() -> str:
-    return load_api_config()["gemini_api_key"]
+def _tts_sample_rate() -> int:
+    """`tts_sample_rate` from the config: the one rate ElevenLabs is asked for (pcm_<rate>), the
+    speaker stream opens at, the chime is synthesised at and the output-device resolver prefers."""
+    try:
+        rate = int(load_api_config().get("tts_sample_rate", DEFAULT_TTS_SAMPLE_RATE))
+    except (TypeError, ValueError):
+        return DEFAULT_TTS_SAMPLE_RATE
+    # ElevenLabs only offers a few PCM rates; anything else would be a 400 on the websocket.
+    return rate if rate in (8000, 16000, 22050, 24000, 44100) else DEFAULT_TTS_SAMPLE_RATE
+
+
+RECEIVE_SAMPLE_RATE = _tts_sample_rate()
+
+

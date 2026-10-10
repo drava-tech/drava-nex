@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import sys
 import time
 from dataclasses import dataclass, field
@@ -31,10 +32,10 @@ if str(AGENT_ROOT) not in sys.path:
 from agent import tool_runner  # noqa: E402
 from agent.local import TravisLocal  # noqa: E402
 from agent.vocabulary import speakable  # noqa: E402
-from actions import cms_client, device_control, screen_control  # noqa: E402
+from actions import cms_client, device_control, safety, screen_control  # noqa: E402
 from speech.stt import Transcript  # noqa: E402
 
-from .mock_cms import SECRET, MockCms  # noqa: E402
+from .mock_cms import MockCms  # noqa: E402
 
 
 class FakeUI:
@@ -82,6 +83,7 @@ class Trace:
     transcript: str | None = None
     language: str | None = None
     visuals: int = 0
+    plan: dict | None = None  # what the planner understood, before anything reached the CMS
 
     @property
     def reply(self) -> str:
@@ -116,6 +118,7 @@ class BenchAgent(TravisLocal):
         self.stub_calls: list[tuple[str, dict]] = []
         super().__init__(FakeUI())
         self._xlog = None  # the benchmark's simulated exchanges don't belong in the real-voice log
+        self._save_utterances = False  # nor do its clips belong in logs/utterances
         self._gate = TracingGate(self._gate, self)
         if llm_temperature is not None:
             self._llm._options["temperature"] = llm_temperature
@@ -149,6 +152,16 @@ class BenchAgent(TravisLocal):
     async def _run_multi(self, steps):
         self.trace.path = self.trace.path or "multi"
         return await super()._run_multi(steps)
+
+    async def _run_plan(self, request, fallback):
+        # Counted with the model paths: it is Qwen (reading meaning) instead of Qwen (calling tools).
+        self.trace.path = "llm"
+        self.trace.llm_start = time.perf_counter()
+        try:
+            return await super()._run_plan(request, fallback)
+        finally:
+            self.trace.llm_end = time.perf_counter()
+            self.trace.plan = self._plan_log
 
     async def _run_llm(self, command):
         self.trace.path = "list + llm" if self.trace.path == "multi" else "llm"
@@ -190,6 +203,9 @@ class BenchAgent(TravisLocal):
         screen_control._last_screen_target = None
         self.stub_calls.clear()
         self._guard.reset()
+        if self._planner is not None:
+            self._focus.clear()
+            self._plan_pending = None
 
     def begin_wake(self):
         """What TravisBase._listen_audio resets on a fresh wake word."""
@@ -206,6 +222,8 @@ class BenchAgent(TravisLocal):
         """Pretend `seconds` passed since the last exchange (history expiry)."""
         self._history_at -= seconds
         self._guard.age(seconds)
+        if self._planner is not None:
+            self._focus.age(seconds)
 
     def _begin(self, command: str) -> Trace:
         self.trace = Trace(command=command, t0=time.perf_counter())
@@ -277,8 +295,10 @@ class BenchAgent(TravisLocal):
 @contextlib.contextmanager
 def bench_env(mock: MockCms):
     """Point cms_client at the mock and stub the tools that reach outside the process."""
-    cfg = {"cms_api_base_url": mock.url, "cms_voice_secret": SECRET}
+    # config/test_safe.json has no real key or secret; safety mode stays ON, with this mock's (random) port the only one allowed.
+    cfg = {**json.loads((AGENT_ROOT / "config" / "test_safe.json").read_text(encoding="utf-8")), "cms_api_base_url": mock.url}
     with contextlib.ExitStack() as stack:
+        stack.enter_context(umock.patch.object(safety, "ALLOWED_PORTS", frozenset({mock.port})))
         stack.enter_context(umock.patch.object(cms_client, "_load_config", lambda: cfg))
         stack.enter_context(umock.patch.object(tool_runner, "knowledge_search", lambda query, api_key=None: "No relevant information found."))
         stack.enter_context(umock.patch.object(tool_runner, "update_memory", lambda data: None))

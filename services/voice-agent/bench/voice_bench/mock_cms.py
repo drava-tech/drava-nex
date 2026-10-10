@@ -18,9 +18,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+from actions.safety import SAFE_SECRET
+
 from . import names
 
-SECRET = "bench-secret"
+SECRET = SAFE_SECRET  # the one secret Travis sends in safety mode
 SEEK_STEP_SECONDS = 10
 
 
@@ -51,9 +53,10 @@ class MockCms:
                 pass
 
             def _send(self, status: int, payload: dict):
-                data = json.dumps(payload).encode()
+                html = payload.get("__html__") if isinstance(payload, dict) else None
+                data = html.encode() if html is not None else json.dumps(payload).encode()
                 self.send_response(status)
-                self.send_header("content-type", "application/json")
+                self.send_header("content-type", "text/html; charset=utf-8" if html is not None else "application/json")
                 self.send_header("content-length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -68,7 +71,7 @@ class MockCms:
                 status, payload, _record = mock._dispatch(method, self.path, body, dict(self.headers))
                 try:
                     self._send(status, payload)
-                except (BrokenPipeError, ConnectionResetError):
+                except ConnectionError:  # BrokenPipe, Reset, Aborted
                     pass  # the client gave up (timeout test)
 
             def do_GET(self):

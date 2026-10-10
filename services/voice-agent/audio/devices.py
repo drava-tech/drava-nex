@@ -13,12 +13,42 @@ from settings import (
 )
 
 
-def resolve_input_device(name_hint: str):
+class AudioDeviceMissing(RuntimeError):
+    """A device named in the config isn't present (powered off / out of range /
+    Bluetooth not connected). Raised only in strict mode — see the resolvers."""
+
+
+# Tie-break only among entries whose rate already matches exactly. Without one, keep the first
+# match: WASAPI rejects a non-native rate (-9997) where MME/DirectSound would resample.
+# Same-named entries across Windows host APIs: WASAPI is the one that exposes the
+# Bluetooth hands-free mic at its true 16 kHz; MME/DirectSound resample on top.
+_HOST_API_RANK = {"Windows WASAPI": 0, "Windows DirectSound": 1, "MME": 2, "Windows WDM-KS": 3}
+
+
+def _rank(dev) -> int:
+    try:
+        return _HOST_API_RANK.get(sd.query_hostapis(dev["hostapi"])["name"], 9)
+    except Exception:
+        return 9
+
+
+def reinit_portaudio() -> None:
+    """Re-read the OS device list. PortAudio snapshots it at import, so after a
+    Bluetooth reconnect the old indices are stale and opens keep failing until it
+    is re-initialised. Every stream must be closed first (agent/playback.py's
+    `_reinit_audio` arranges that)."""
+    sd._terminate()
+    sd._initialize()
+
+
+def resolve_input_device(name_hint: str, strict: bool = False):
     """Find an input device whose name contains name_hint (case-insensitive).
 
     Returns the sounddevice index, or None to use the OS default — including
     when the named device isn't present, so the agent still starts if the USB
-    mic is unplugged.
+    mic is unplugged. With strict=True a named-but-missing device raises
+    AudioDeviceMissing instead: the agent must not quietly listen on the laptop
+    mic when the room mic dropped off Bluetooth.
 
     The same device name commonly appears multiple times, once per Windows
     audio host API (MME, DirectSound, WASAPI...), often at DIFFERENT native
@@ -39,6 +69,8 @@ def resolve_input_device(name_hint: str):
         if dev["max_input_channels"] > 0 and hint in dev["name"].lower()
     ]
     if not matches:
+        if strict:
+            raise AudioDeviceMissing(f"no input device matching '{name_hint}'")
         print(
             f"[Voice Agent] ⚠️ No input device matching '{name_hint}' — using default mic."
         )
@@ -48,7 +80,7 @@ def resolve_input_device(name_hint: str):
         for idx, dev in matches
         if int(dev["default_samplerate"]) == SEND_SAMPLE_RATE
     ]
-    idx, dev = (exact_rate or matches)[0]
+    idx, dev = sorted(exact_rate, key=lambda m: _rank(m[1]))[0] if exact_rate else matches[0]
     if not exact_rate:
         print(
             f"[Voice Agent] ⚠️ '{name_hint}' matched only at "
@@ -76,7 +108,7 @@ def apply_gain(pcm: bytes, gain: float) -> bytes:
     return np.clip(samples, -32768, 32767).astype(np.int16).tobytes()
 
 
-def resolve_output_device(name_hint: str, avoid_hint: str = ""):
+def resolve_output_device(name_hint: str, strict: bool = False):
     """Find an output device for TTS playback.
 
     With a name_hint, picks an output device containing it (case-
@@ -86,13 +118,13 @@ def resolve_output_device(name_hint: str, avoid_hint: str = ""):
     clean resampling), then falling back to the first match — same class of
     silent-resampling quality loss resolve_input_device fixes for capture,
     found live with a Bluetooth headset. Without a name_hint, keeps the OS
-    default — unless the default is the avoid_hint device (e.g. a USB
-    speakerphone's own mic-adjacent speaker, which Windows tends to make
-    default when plugged in), in which case the first other output device
-    is used instead.
+    default. The speaker is chosen only by name (and `strict`): it may be the
+    same physical device as the mic - a speakerphone does its echo
+    cancellation in its own DSP and needs the reply to play through itself.
+    With strict=True a named-but-missing speaker raises AudioDeviceMissing
+    instead of falling back to the OS default.
     """
     hint = (name_hint or "").strip().lower()
-    avoid = (avoid_hint or "").strip().lower()
     devices = sd.query_devices()
     if hint:
         matches = [
@@ -114,7 +146,7 @@ def resolve_output_device(name_hint: str, avoid_hint: str = ""):
             # strictly worse than the plain first match. Only trust a
             # same-named entry over the default first-match behavior when
             # its rate is an exact match (verified to actually open).
-            idx, dev = (exact or matches)[0]
+            idx, dev = sorted(exact, key=lambda m: _rank(m[1]))[0] if exact else matches[0]
             if not exact:
                 print(
                     f"[Voice Agent] ⚠️ '{name_hint}' matched only at "
@@ -123,24 +155,9 @@ def resolve_output_device(name_hint: str, avoid_hint: str = ""):
                 )
             print(f"[Voice Agent] 🔊 Output device: {dev['name']} (#{idx})")
             return idx
+        if strict:
+            raise AudioDeviceMissing(f"no output device matching '{name_hint}'")
         print(
             f"[Voice Agent] ⚠️ No output device matching '{name_hint}' — using default."
         )
-    if avoid:
-        try:
-            default_out = sd.query_devices(kind="output")
-        except Exception:
-            default_out = None
-        if default_out is not None and avoid in default_out["name"].lower():
-            for idx, dev in enumerate(devices):
-                name = dev["name"].lower()
-                # Skip virtual devices that just forward to the OS default.
-                if "sound mapper" in name or "primary sound" in name:
-                    continue
-                if dev["max_output_channels"] > 0 and avoid not in name:
-                    print(
-                        f"[Voice Agent] 🔊 Default output is the {avoid_hint} — "
-                        f"using {dev['name']} (#{idx}) instead."
-                    )
-                    return idx
     return None

@@ -36,30 +36,53 @@ import asyncio  # noqa: E402
 import threading  # noqa: E402
 import traceback  # noqa: E402
 
+from agent import single_instance  # noqa: E402
 from agent.local import TravisLocal  # noqa: E402
-from settings import gemini_api_key, load_api_config  # noqa: E402
 from ui import TravisUI  # noqa: E402
 
 
 def _warm_rag() -> None:
-    """Warm the knowledge index in the background so the first knowledge_search doesn't pay a
-    full synchronous rebuild. It embeds with Gemini, so it only runs when gemini_api_key is set."""
+    """Build/refresh the knowledge index and load the embedding model in the background, so the first
+    knowledge_search doesn't wait for either. Needs Ollama; failures only skip the warm-up."""
     try:
         from rag import retriever
 
-        retriever.warm_index(gemini_api_key())
+        retriever.warm_index()
+        retriever._embed_query("warm up")
     except Exception as e:
         print(f"[Voice Agent] ⚠️ RAG warm-up skipped: {e}")
 
 
+def _raise_priority() -> None:
+    """Above-normal CPU priority on Windows, so the dev servers (Next, tsc) running next to Travis can't
+    starve audio capture and Whisper's CPU-side work. Not HIGH: the UI and the system must stay responsive."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        # Explicit 64-bit handle types: ctypes' default int conversion truncates the pseudo-handle.
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.SetPriorityClass.restype = wintypes.BOOL
+        kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00008000)  # ABOVE_NORMAL_PRIORITY_CLASS
+    except Exception:
+        pass
+
+
 def main() -> None:
+    if not single_instance.acquire():
+        print("[Voice Agent] Travis is already running — not starting a second copy.")
+        sys.exit(single_instance.EXIT_ALREADY_RUNNING)
+    _raise_priority()
     ui = TravisUI("face.png")
 
     def runner():
         try:
             ui.wait_for_api_key()
-            if load_api_config().get("gemini_api_key"):
-                threading.Thread(target=_warm_rag, daemon=True, name="rag-warm").start()
+            threading.Thread(target=_warm_rag, daemon=True, name="rag-warm").start()
             asyncio.run(TravisLocal(ui).run())
         except KeyboardInterrupt:
             print("\n🔴 Shutting down...")

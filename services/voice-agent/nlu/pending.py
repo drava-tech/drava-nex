@@ -33,7 +33,14 @@ _CHANGE = {
 }
 _LIGHTISH = {"bright", "brighter", "brighten", "brightness", "dim", "dimmer", "dimming", "dark", "darker", "light", "lights", "lamp"}
 _REDUCE = {"reduce", "lower", "decrease", "dim", "dimmer", "darker", "increase", "raise", "brighter", "brighten", "less", "more"}
-_ALL_WORDS = {"lights", "all", "every", "everything"}
+_ALL_WORDS = {"lights", "all", "every", "everything", "here", "room"}  # "darker in here" = the whole room
+# Words that say a request is about something else (the AC, volume, the door, a screen): not an answer to a
+# question about a light's brightness, even if it carries a number ("I want the AC colder, say 20").
+OTHER_DOMAIN = {
+    "ac", "air", "conditioner", "conditioning", "aircon", "temperature", "degrees", "degree", "celsius", "fan",
+    "volume", "mute", "sound", "door", "lock", "unlock", "screen", "display", "tv", "television", "experience",
+    "media", "video", "mode",
+}
 _YES_NO = {"yes", "yeah", "yep", "yup", "correct", "right", "sure", "no", "nope", "nah", "nothing"}
 # What Whisper makes of "L3" when the user says it fast: "in 3", "el 3", "elf 3".
 _SHORT_NAME = re.compile(r"\b(?:l|el|ll|in|elf|al|all)\s*(\d)\b")
@@ -58,6 +65,11 @@ class Pending:
 
 def _words(text: str) -> list[str]:
     return [t.word for t in tokenize_numbers(text)]
+
+
+def about_something_else(text: str) -> bool:
+    """True if `text` is about the AC, volume, the door or a screen rather than the light being asked about."""
+    return bool(set(_words(text)) & OTHER_DOMAIN)
 
 
 def is_yes_no(text: str) -> bool:
@@ -91,7 +103,8 @@ def _find_light(text: str, names: list[str], aliases: list[tuple[str, str]]) -> 
 
 def _find_level(rest: str, direction: bool) -> tuple[int | None, int | None, int | None]:
     """(level, ambiguous, out_of_range) from what is left once the light's name is out."""
-    w = rest.split()
+    spoken = {"full": "100", "max": "100", "maximum": "100", "half": "50"}
+    w = [spoken.get(x, x) for x in rest.split()]
     for i, tok in enumerate(w):
         if not tok.isdigit():
             continue

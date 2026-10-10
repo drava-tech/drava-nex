@@ -155,3 +155,36 @@ class ExchangeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PendingEdgeTests(unittest.TestCase):
+    """2026-10-06: a new request about something else was swallowed as the answer to a brightness question."""
+
+    def setUp(self):
+        self.a = _agent()
+        self.a._pending = None
+
+    def say(self, text):
+        self.a.said.clear()
+        asyncio.run(self.a._run_command(text))
+        return " ".join(self.a.said)
+
+    def test_an_ac_request_with_a_number_is_not_a_brightness_answer(self):
+        self.say("make it dimmer")
+        self.assertIsNotNone(self.a._pending)
+        self.say("I want the AC colder, say 20")
+        self.assertNotIn("Which light, to 20 percent", " ".join(self.a.said))
+        self.assertIsNone(self.a._pending)
+
+    def test_in_here_means_every_light(self):
+        p = seed("make it a bit darker in here")
+        self.assertEqual(p.name, pending.ALL)
+        self.assertIn("What brightness for the lights", pending.question(p, NAMES))
+
+    def test_full_and_half_answer_a_level_question(self):
+        p = pending.Pending(name="tusker edge")
+        fill(p, "half")
+        self.assertEqual(p.level, 50)
+        p = pending.Pending(name="tusker edge")
+        fill(p, "full")
+        self.assertEqual(p.level, 100)

@@ -753,18 +753,19 @@ async function runGoodMorning(allowedDeviceIds: Set<string> | null | undefined):
   const lights = scoped.filter((d) => d.type === "light");
   const ac = scoped.find((d) => (d.config as { irDevice?: string } | null)?.irDevice === "ac");
 
-  // "Travis hi": the lights come up in the pre-entry mode (its saved colour and
-  // brightness from the CMS), not just "on". If that mode is missing — the
+  // "Travis hi": the lights come up in the Entry mode (its saved colour and
+  // brightness from the CMS), not just "on". (Pre-entry is what the room is set to
+  // when the dev stack starts: infra/scripts/dev-stack.mjs.) If that mode is missing — the
   // ambient_mode table not migrated yet — fall back to plain "on" rather than
   // leaving the room dark.
-  const preEntry = await resolveAmbientMode("pre_entry").catch((err) => {
-    console.error("[voice] pre-entry mode unavailable, turning lights on plainly:", err);
+  const entryMode = await resolveAmbientMode("entry").catch((err) => {
+    console.error("[voice] entry mode unavailable, turning lights on plainly:", err);
     return null;
   });
   let lightsOnCount: number;
   let lightFailures: number;
-  if (preEntry) {
-    const r = await applyAmbientMode(preEntry, { allowedDeviceIds });
+  if (entryMode) {
+    const r = await applyAmbientMode(entryMode, { allowedDeviceIds });
     lightsOnCount = r.applied;
     lightFailures = r.failed;
   } else {
@@ -789,7 +790,7 @@ async function runGoodMorning(allowedDeviceIds: Set<string> | null | undefined):
 
   const parts: string[] = [];
   if (lightsOnCount > 0) {
-    parts.push(preEntry ? `the lights in ${preEntry.label.toLowerCase()} mode` : `${lightsOnCount} light${lightsOnCount === 1 ? "" : "s"}`);
+    parts.push(entryMode ? `the lights in ${entryMode.label.toLowerCase()} mode` : `${lightsOnCount} light${lightsOnCount === 1 ? "" : "s"}`);
   }
   if (acOn) parts.push("the AC");
   const problems: string[] = [];

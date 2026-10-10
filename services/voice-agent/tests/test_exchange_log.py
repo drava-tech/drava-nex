@@ -35,7 +35,7 @@ class ExchangeLogTests(unittest.TestCase):
             (row,) = read(path)
             self.assertEqual(row["path"], "list (several actions)")
             self.assertEqual([c["args"]["action"] for c in row["calls"]], ["ac_command", "lights_on"])
-            self.assertEqual(row["reply"], "AC set to 24 degrees. tusker edge is on.")
+            self.assertEqual(row["reply"], "AC set to 24 degrees. cove light is on.")
             self.assertEqual(row["heard"]["language"], "en")
             self.assertIn("set the AC to 24", row["command"])
 

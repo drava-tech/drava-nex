@@ -16,9 +16,6 @@ from actions.device_control import device_control
 from actions.screen_control import screen_control
 from actions.list_inventory import list_inventory
 from rag import knowledge_search
-from settings import (
-    gemini_api_key,
-)
 
 
 class ToolRunnerMixin:
@@ -131,7 +128,7 @@ class ToolRunnerMixin:
                 if name == "knowledge_search":
                     query = args.get("query", "")
                     r = await loop.run_in_executor(
-                        None, lambda: knowledge_search(query, api_key=gemini_api_key())
+                        None, lambda: knowledge_search(query)
                     )
                     result = r or "No relevant information found."
 

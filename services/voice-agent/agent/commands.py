@@ -14,17 +14,23 @@ import traceback
 from nlu.command_matcher import match_command, normalize, resolve, similarity
 from nlu.multi_action import is_fragment, resolve_multi, resolve_parts
 from nlu import pending as pending_mod
+from nlu import capability
 from nlu import repairs
+from nlu import missing_target
 from nlu import title_match
+from nlu.spoken_names import say_names
 from nlu.local_llm import LocalLLMError
 from nlu.intent import Verdict
+from nlu.transcript_fixes import fix_company_name
 from safety.reply_guard import ToolResult, claims_action, compose, invents_number, unverified_reply, with_wake_hint
 from actions import cms_client
+from settings import load_api_config
 from actions.device_control import run_device_control
 from actions.screen_control import run_screen_control
 
 
 _CONTENT_ACTIONS = ("assign_content", "assign_experience", "assign_media")
+_ACTION_WORDS = frozenset("turn switch set play open close lock unlock increase decrease mute unmute start stop show".split())
 
 # What the CMS says when a spoken name matches nothing (or several things).
 _NOT_FOUND = re.compile(r"couldn['’]t find (?:exactly one |a )?(device|screen|mode) matching \"(.+?)\"", re.I)
@@ -41,12 +47,18 @@ class CommandMixin:
 
     # The title Travis last asked "did you mean ...?" about (nlu/title_match.py).
     _confirm: "title_match.Confirm | None" = None
+    # A question about an action ("can the CMS turn on the lights"): nothing may actuate while it is answered, whichever path ends up answering.
+    _question_mode = False
 
     # ── Commands ─────────────────────────────────────────────────────────
-    async def _run_command(self, command: str):
+    async def _run_command(self, command: str, unsure: bool = False, unfinished: bool = False):
         async with self._command_lock:
             self._calls_log, self._path, self._first_say = [], None, None
+            self._plan_log = None
+            self._off_topic = False
+            self._question_mode = False
             command = repairs.strip_hesitations(command) or command
+            command = fix_company_name(command, self._device_words())  # "whitest cove" -> "White Tusker" (whole phrase, never in a device command)
             self._exchange_active = True
             self._exchange_is_nudge = False
             self._reply_complete_at = None
@@ -59,6 +71,16 @@ class CommandMixin:
             done_reply, ask = "", command
             self._utterance = command
             try:
+                if unsure:
+                    # Whisper doubts its own transcript (it makes up plausible commands from mumbles and
+                    # noise): nothing is run, and what it heard is not kept as conversation.
+                    self._path, on_topic = "declined (not sure what was said)", False
+                    if unfinished:  # both doubts at once: say the more useful one
+                        reply = f"It sounded like you stopped mid-sentence. Please say {self._wake_hint} and repeat the whole request."
+                    else:
+                        reply = f"I'm not sure I heard that right. Please say {self._wake_hint} and repeat the command."
+                    await self._say(reply)
+                    raise _PendingHandled
                 # An answer to Travis's last question finishes that request first.
                 answered = await self._pending_step(command)
                 if answered is not None:
@@ -79,18 +101,37 @@ class CommandMixin:
                             corrected = True
                             # The model is told outright which version counts: left to itself it
                             # sometimes does the first thing they said.
-                            ask = f"{fix[0]} (they corrected themselves: {fix[1]}. Do only the corrected request.)"
+                            ask = fix[0] + repairs.CORRECTION_NOTE.format(fix=fix[1])
                 # "turn on tusker edge, stop": a closing "stop" cancels what came before it.
                 if not skip_list and repairs.ends_with_stop(effective):
                     effective = "never mind"
+                # "Can the CMS turn on the lights" / "how do I lock the door" ask about an action: answered and offered, never run.
+                lead = None if (skip_list or unfinished) else capability.classify(effective)
+                if lead is not None:
+                    self._question_mode = True
+                    cap_reply = await self._answer_capability(lead, effective)
+                    if cap_reply is not None:
+                        reply = cap_reply
+                        raise _PendingHandled
                 match = None if skip_list else match_command(effective, self._registry, **self._match_opts)
                 if match is None and not skip_list and repairs.is_cancel(effective):
                     match = match_command("never mind", self._registry, **self._match_opts)  # "forget it, I'll do it later"
-                steps, leftover = ([], []) if (skip_list or match is not None) else resolve_parts(effective, self._registry, **self._match_opts)
+                if unfinished and match is None:
+                    # The end-of-speech detector judged the sentence unfinished and the speaker stayed silent ("tell me about the"):
+                    # Travis does not guess how it would have ended. (An exact known phrase above still runs.)
+                    self._path, on_topic = "declined (unfinished sentence)", False
+                    reply = f"It sounded like you stopped mid-sentence. Please say {self._wake_hint} and repeat the whole request."
+                    await self._say(reply)
+                    raise _PendingHandled
+                # With the planner, the model reads whole sentences by meaning: the command list is only
+                # the shortcut for an exact known phrase, and splitting at "and" / the change-of-mind
+                # review are the planner's job (it is told to cancel or keep the last version).
+                use_plan = self._planner is not None
+                steps, leftover = ([], []) if (skip_list or match is not None or use_plan) else resolve_parts(effective, self._registry, **self._match_opts)
                 # Whatever the list can't fully read is checked for a change of mind before
                 # anything runs: a sentence can take its request back at any point and in
                 # any words ("..., oh no", "..., actually don't", "..., wait wait").
-                if match is None and (not steps or leftover):
+                if match is None and not use_plan and (not steps or leftover):
                     verdict = await self._intent.check(command)
                     new_version = repairs.last_version(command) if corrected else None
                     if verdict.kind == "cancel" and new_version and not repairs.is_cancel(new_version):
@@ -107,8 +148,13 @@ class CommandMixin:
                         effective, ask, skip_list, corrected = verdict.command, verdict.command, False, False
                         match = match_command(effective, self._registry, **self._match_opts)
                         steps, leftover = ([], []) if match is not None else resolve_parts(effective, self._registry, **self._match_opts)
-                asked = None if (match is not None or steps or skip_list) else self._seed_pending(effective)
-                if asked is not None:
+                asked = None if (match is not None or steps or skip_list or use_plan) else self._seed_pending(effective)
+                if match is None and not steps and not skip_list and missing_target.missing_screen(effective, self._screen_phrases()):
+                    # A push with no screen: the whole command again, not a screen-only answer.
+                    self._path = "asked (repeat: no screen)"
+                    reply = missing_target.repeat_message(self._wake_hint)
+                    await self._say(reply)
+                elif asked is not None:
                     self._path = "brightness (asked or done)"
                     reply = await self._advance_pending(asked)
                 elif match is not None:
@@ -122,6 +168,18 @@ class CommandMixin:
                 elif steps and not leftover:
                     self._path = "list (several actions)"
                     reply = await self._run_multi(steps)
+                elif (canned_reply := await self._try_canned(effective)) is not None:
+                    reply = canned_reply  # a written-down FAQ or small-talk answer (agent/canned_route.py)
+                    if self._path in ("faq",):
+                        reply = await self._maybe_offer_portfolio(reply, self._kb_last_topic)
+                elif use_plan:
+                    # The model reads the meaning first; only what is not a room request reaches the gate + model.
+                    self._path = "planner"
+                    try:
+                        reply = await self._run_plan(ask, lambda request, hint="": self._gated_model(request, command, corrected, hint))
+                    except LocalLLMError:
+                        reply = await self._without_model(effective)  # the model is down: only exact known commands can run
+                    on_topic = not self._off_topic
                 else:
                     if steps:
                         # The known parts run now, exactly; only the rest is left for the model.
@@ -130,23 +188,8 @@ class CommandMixin:
                         ask = " and ".join(leftover)
                         self._utterance = ask  # its calls must be backed by THIS part (not "lights" said in the other half)
                         print(f"[Voice Agent] ➡️  Left for the model: {ask!r}")
-                    review = await self._gate.review(ask, self._recent_history(), corrected=corrected)
-                    self._timing["gate_done"] = time.monotonic()
-                    if not review.allowed:
-                        self._path = "declined (off topic)"
-                        on_topic = False
-                        print(f"[Voice Agent] 🚧 Off topic — declining: {command!r}")
-                        # One or two words ("I won") is a mishearing, not an off-topic request.
-                        reply = "Sorry, I didn't catch that." if len(command.split()) <= 2 else self._off_topic_reply
-                        await self._say(reply)
-                    else:
-                        if review.dropped:
-                            print(f"[Voice Agent] 🚧 Part off topic — keeping only: {review.command!r}")
-                        self._path = "model"
-                        reply = await self._run_llm(review.command)
-                        if review.dropped:
-                            reply = f"{reply} {self._partial_reply}".strip()
-                            await self._say(f" {self._partial_reply}")
+                    reply = await self._gated_model(ask, command, corrected)
+                    on_topic = not self._off_topic
                 if done_reply:
                     reply = f"{done_reply} {reply}".strip()
                     on_topic = True
@@ -162,6 +205,8 @@ class CommandMixin:
                 reply = "Sorry, something went wrong on my side."
                 await self._say(reply)
             finally:
+                # (before _finish_reply: the mic callback decides what comes next the moment the reply is complete)
+                self._followup_wanted = self._expects_answer(reply)
                 await self._finish_reply()
                 if not self.ui.muted:
                     self.ui.set_state("LISTENING")
@@ -170,15 +215,162 @@ class CommandMixin:
                 self.ui.write_log(f"TRAVIS: {reply}")
             if self._xlog is not None:
                 end = self._timing.get("vad_speech_end")
-                self._xlog.write({
+                first_text = (self._first_say - end) * 1000 if (end and self._first_say) else None
+                record = {
                     "heard": self._last_heard, "command": command, "path": self._path or "list (reply only)",
-                    "calls": self._calls_log, "reply": reply,
-                    "speech_end_to_first_word_ms": (self._first_say - end) * 1000 if (end and self._first_say) else None,
-                })
+                    "plan": self._plan_log, "calls": self._calls_log, "reply": reply,
+                    "speech_end_to_first_word_ms": first_text,  # (the first name of the next one, kept for older readers)
+                    "speech_end_to_first_text_ms": first_text,  # end of speech to the first words handed to the voice
+                }
+                self._log_exchange(record, end, self._timing)
             # A declined request isn't remembered: it must not make a
             # follow-up ("another one") look like part of an on-topic chat.
             if on_topic:
                 self._remember(command, reply)
+
+    def _log_exchange(self, record: dict, speech_end: float | None, timing: dict) -> None:
+        """Write the exchange line. The first AUDIO arrives after the reply has been handed over, so when there is a voice and a speech-end time the
+        line is written once the audio has started (at most `_AUDIO_WAIT_SEC` later), with `speech_end_to_first_audio_ms`."""
+        if not (speech_end and self.elevenlabs is not None and self._first_say):
+            self._xlog.write({**record, "speech_end_to_first_audio_ms": None})
+            return
+
+        async def later() -> None:
+            deadline = time.monotonic() + self._AUDIO_WAIT_SEC
+            while "first_audio_chunk_received" not in timing and time.monotonic() < deadline:
+                await asyncio.sleep(0.05)
+            got = timing.get("first_audio_chunk_received")
+            self._xlog.write({**record, "speech_end_to_first_audio_ms": (got - speech_end) * 1000 if got else None})
+
+        task = asyncio.get_running_loop().create_task(later())
+        self._xlog_tasks = [t for t in getattr(self, "_xlog_tasks", []) if not t.done()] + [task]
+
+    _AUDIO_WAIT_SEC = 8.0
+
+    async def _answer_capability(self, lead, request: str) -> str | None:
+        """A question about an action. A written-down answer (FAQ) takes it first. Otherwise, if what is asked about is a real action, say so and
+        offer it ("Yes, I can do that. Would you like me to turn on the lights?"): a "yes" runs exactly that command. None = it names no action
+        (the normal route answers it, with actuation still switched off)."""
+        canned = await self._try_canned(request)
+        if canned is not None:
+            if self._path == "faq":
+                canned = await self._maybe_offer_portfolio(canned, self._kb_last_topic)
+            return canned
+        found = await self._calls_for(lead.inner)
+        if not found:
+            return None
+        calls, trusted = found
+        door = capability.touches_door(calls)
+        hint = ""
+        if not door and not float(load_api_config().get("followup_window_sec", 8) or 0):
+            hint = f" Say {self._wake_hint}, yes or no."
+        if not door:
+            tool, args = calls[0]
+            self._confirm = title_match.Confirm(
+                [title_match.Candidate("command", lead.inner, 1.0, tool, args, also=list(calls[1:]), trusted=trusted)], lead.inner, offer=True)
+        reply = capability.reply_text(lead, door, hint)
+        self._path = "capability question (answered)" if door else "capability question (offered)"
+        print(f"[Voice Agent] ❓ A question about an action, not a request: {lead.inner!r} ({'answered only' if door else 'offered'}).")
+        await self._say(reply)
+        return reply
+
+    _ACTIONISH = frozenset("brighter dimmer louder quieter warmer cooler dim brighten raise lower increase decrease make change adjust play pause resume skip "
+                           "mute unmute push assign display volume colour color".split())
+
+    async def _calls_for(self, inner: str) -> tuple[list[tuple[str, dict]], bool] | None:
+        """The calls `inner` would make, WITHOUT making them: ([(tool, args), ...], planner-resolved?) or None if it is not a room action."""
+        match = match_command(inner, self._registry, **self._match_opts)
+        if match is not None:
+            res = resolve(match)
+            return ([(res.tool, res.args), *res.also], False) if res.kind == "tool" and res.tool else None
+        steps = resolve_multi(inner, self._registry, **self._match_opts)
+        if steps:
+            calls = [(st.resolution.tool or "", st.resolution.args) for st in steps if st.resolution.kind == "tool"]
+            for st in steps:
+                calls += list(st.resolution.also)
+            return (calls, False) if calls else None
+        if self._planner is None:
+            return None
+        words = set(re.findall(r"[a-z']+", inner.lower()))
+        if not (words & (self._ACTIONISH | _ACTION_WORDS)) and not any(d.lower() in inner.lower() for d in self._device_words()):
+            return None  # "how does it work": no model call for something that names no action
+        try:
+            plan = await self._planner.plan(inner, self._room_description(), self._plan_context(), self._recent_history())
+        except LocalLLMError:
+            return None
+        if plan is None or plan.kind != "actions":
+            return None
+        await asyncio.get_running_loop().run_in_executor(None, self._refresh_world)
+        compiled = self.compile_plan(plan, inner)
+        if compiled.questions or not compiled.steps:
+            return None
+        return [(st.tool, st.args) for st in compiled.steps], True
+
+    def _expects_answer(self, reply: str) -> bool:
+        """Travis just asked something and waits for the answer: a pending question or offer, or a reply that is itself a question. Then the
+        mic stays open for `followup_window_sec` after the question has been spoken (agent/mic_listener.py)."""
+        if not float(load_api_config().get("followup_window_sec", 8) or 0):
+            return False
+        confirm = self._confirm
+        if confirm is not None and confirm.fresh:
+            return True
+        if self._pending is not None or self._plan_pending is not None:
+            return True
+        return "?" in (reply or "")
+
+    def _device_words(self) -> list[str]:
+        """Every spoken name of a light, screen or device in the command list."""
+        words: list[str] = []
+        for slot in ("light", "screenAlias", "screen", "device"):
+            words += list((self._registry.slots.get(slot) or {}).get("values", {}).keys())
+        return words
+
+    async def _without_model(self, request: str) -> str:
+        """The language model can't be reached: whatever the command list reads exactly still runs
+        (several known commands in one sentence included); the rest is said to be unavailable."""
+        steps, leftover = resolve_parts(request, self._registry, **self._match_opts)
+        reply = await self._run_multi(steps) if steps else ""
+        if leftover or not steps:
+            note = "Sorry, my language model isn't available right now."
+            await self._say(note)
+            reply = f"{reply} {note}".strip()
+        return reply
+
+    async def _gated_model(self, ask: str, command: str, corrected: bool, hint: str = "") -> str:
+        """What the command list and the planner did not take as a room request: the relevance gate
+        (off-topic is declined, a mixed request is trimmed), then the model answers with its tools.
+        A non-empty `hint` means the planner already classed it as a question about the company, the CMS,
+        Travis or this place: that is in scope by definition, so the gate (which does not know "White
+        Tusker" is the company) must not decline it; it goes straight to the knowledge base."""
+        if hint:
+            self._path = "model"
+            return await self._run_llm(ask + hint)
+        review = await self._gate.review(ask, self._recent_history(), corrected=corrected)
+        self._timing["gate_done"] = time.monotonic()
+        if not review.allowed:
+            self._path = "declined (off topic)"
+            self._off_topic = True
+            print(f"[Voice Agent] 🚧 Off topic — declining: {command!r}")
+            # One or two words ("I won") is a mishearing, not an off-topic request.
+            reply = "Sorry, I didn't catch that." if len(command.split()) <= 2 else self._decline_text()
+            await self._say(reply)
+            return reply
+        if review.dropped:
+            print(f"[Voice Agent] 🚧 Part off topic — keeping only: {review.command!r}")
+        if not review.dropped:
+            answered = await self._probe_knowledge(review.command)  # in scope but not a room request: the knowledge answers if it can
+            if answered is not None:
+                return answered
+        self._path = "model"
+        reply = await self._run_llm(review.command + hint)
+        if review.dropped:
+            reply = f"{reply} {self._partial_reply}".strip()
+            await self._say(f" {self._partial_reply}")
+        return reply
+
+    def _screen_phrases(self) -> set[str]:
+        """Every way the room names a screen: the aliases in commands.json."""
+        return set(self._guard.screen_names) | {alias for alias, _ in self._guard._aliases}
 
     # ── Half-finished brightness requests (nlu/pending.py) ──────────────
     def _seed_pending(self, command: str):
@@ -192,6 +384,10 @@ class CommandMixin:
         confirmed = await self._confirm_step(command)
         if confirmed is not None:
             return confirmed
+        if self._plan_pending is not None:
+            answered = await self._plan_pending_step(command)
+            if answered is not None:
+                return answered
         p, self._pending = self._pending, None
         if p is None or not p.fresh:
             if pending_mod.is_yes_no(command):
@@ -213,6 +409,8 @@ class CommandMixin:
             whole is None and resolve_parts(command, self._registry, **self._match_opts)[0]
         ):
             return None
+        if pending_mod.about_something_else(command):
+            return None  # a new request about the AC, volume, the door...: the brightness question lapses
         if not pending_mod.fill(p, command, self._guard.light_names, self._guard._aliases):
             return None
         return await self._advance_pending(p)
@@ -223,7 +421,17 @@ class CommandMixin:
         c, self._confirm = self._confirm, None
         if c is None or not c.fresh or c.current is None:
             return None
-        if repairs.is_cancel(command):
+        answer = None
+        if c.offer:  # Travis's own offer: visitors answer in their own words ("go ahead", "not now")
+            answer = "no" if repairs.is_cancel(command) else title_match.offer_answer(command)
+            if answer is None:
+                return None  # a new request; the offer lapses
+        if answer == "no":
+            self._path = "offer declined"
+            if c.current is not None and c.current.kind != "command":
+                self._portfolio_declined = True  # not asked again in this conversation
+            reply = "Okay, no problem."
+        elif repairs.is_cancel(command):
             reply = "Okay, I've left it as it is."
         elif pending_mod.is_no(command):
             if c.next() is None:
@@ -231,10 +439,20 @@ class CommandMixin:
             else:
                 self._confirm = c
                 reply = title_match.question(c, self._wake_hint, first=False)
-        elif pending_mod.is_yes_no(command):
+        elif answer == "yes" or pending_mod.is_yes_no(command):
             cand = c.current
-            self._path = "name confirmed"
+            self._path = "offer accepted" if c.offer else "name confirmed"
             print(f"[Voice Agent] ✅ Confirmed: {cand.title!r} ({cand.kind}) -> {cand.tool} {cand.args}")
+            if cand.kind == "command":
+                # The command Travis offered after a question: the exact calls, through the normal action path and its guards.
+                self._utterance = cand.title
+                results = await self._run_guarded(cand.tool, dict(cand.args), strict=False, trusted=cand.trusted)
+                for tool, args in cand.also:
+                    results += await self._run_guarded(tool, dict(args), strict=False, trusted=cand.trusted)
+                reply = compose(results, self._wake_hint) or ""
+                if reply:
+                    await self._say(reply)
+                return reply
             if cand.tool == "screen_control" and cand.args.get("action") in _CONTENT_ACTIONS:
                 ok, msg = await self._assign_content(dict(cand.args))
             else:
@@ -250,7 +468,7 @@ class CommandMixin:
 
     async def _advance_pending(self, p) -> str:
         """Ask for what is still missing, or send the brightness once light and level were both said."""
-        q = pending_mod.question(p, self._guard.light_names)
+        q = pending_mod.question(p, [say_names(n) for n in self._guard.offered_light_names])
         if q:
             self._pending = p
             reply = with_wake_hint(q, self._wake_hint)
@@ -311,11 +529,12 @@ class CommandMixin:
         except Exception:
             return []
 
-    async def _run_guarded(self, name: str, args: dict, strict: bool) -> list[ToolResult]:
+    async def _run_guarded(self, name: str, args: dict, strict: bool, trusted: bool = False) -> list[ToolResult]:
         """Run a tool call only if it is backed by what was said (safety/action_guard.py).
-        Otherwise nothing is sent and the result is a question for the user."""
+        Otherwise nothing is sent and the result is a question for the user. `trusted`: the target
+        was already resolved by the planner path (agent/planning.py); only the values are checked."""
         prep = await asyncio.get_running_loop().run_in_executor(
-            None, lambda: self._guard.prepare(name, args, self._utterance, self._light_names_fn, strict)
+            None, lambda: self._guard.prepare(name, args, self._utterance, self._light_names_fn, strict, trusted)
         )
         if prep.question:
             self._calls_log.append({"name": name, "args": args, "ok": False, "rejected": True, "message": prep.question, "why": prep.note})
@@ -332,9 +551,35 @@ class CommandMixin:
             out.append(ToolResult(n, a, ok, msg))
             self._calls_log.append({"name": n, "args": a, "ok": ok, "message": msg})
             self._guard.remember(n, a, ok)
+            if ok and self._planner is not None:
+                self._remember_focus(n, a)  # "it" / "them" mean what any path (list, planner, model) just acted on
         if prep.scope and any(r.ok for r in out):
             self._guard.remember_scope("light", prep.scope)
+        if prep.scope == "all lights" and len(out) > 1:
+            out = [self._merge_all_lights(out)]  # one sentence for "the lights", not every light's name
         return out
+
+    @staticmethod
+    def _merge_all_lights(results: list[ToolResult]) -> ToolResult:
+        """"Set the lights to 50%" runs once per light; say "All lights are at 50%." instead of reading
+        every light's name. Names are spoken only for lights that failed (that is worth knowing)."""
+        args = dict(results[0].args)
+        args["target"] = "all lights"
+        failed = [r for r in results if not r.ok]
+        if len(failed) == len(results):
+            return ToolResult(results[0].name, args, False, results[0].message)  # e.g. "Could not reach the CMS."
+        level, color = args.get("brightness"), str(args.get("color") or "").strip()
+        look = []
+        if color and not color.startswith("#"):
+            look.append(color)
+        if isinstance(level, (int, float)):
+            look.append(f"at {int(level)}%")
+        what = " ".join(look) if look else "set"
+        message = f"All lights are {what}."
+        if failed:
+            names = ", ".join(str(r.args.get("target")) for r in failed)
+            message = f"All lights are {what} except {names}, which didn't respond."
+        return ToolResult(results[0].name, args, True, message)
 
     async def _name_pool(self, kind: str) -> list[str]:
         """The real names of one kind of thing: from the CMS where it lists them, plus the spoken
@@ -444,11 +689,13 @@ class CommandMixin:
             print(f"[Voice Agent] ❓ No title {content!r}; asking about {[(c.title, c.score) for c in candidates]}")
             return False, title_match.question(self._confirm, self._wake_hint)
         if titles["experience"] or titles["media"]:
-            # Nothing sounds like it: say what there is (real names only).
+            # Nothing sounds like it: say what there is (real names only). Experiences are the
+            # short list people mean by "show X"; the media library (100+ items) is only read out
+            # when media was asked for by name ("play media X").
             parts = [f"I couldn't find \"{content}\"."]
             if "experience" in kinds:
                 parts.append(f"The experiences are: {', '.join(titles['experience'][:6]) or 'none'}.")
-            if "media" in kinds:
+            else:
                 parts.append(f"The media items are: {', '.join(titles['media'][:6]) or 'none'}.")
             return False, " ".join(parts)
         return False, message
@@ -579,7 +826,12 @@ class CommandMixin:
             "device_control": run_device_control,
             "screen_control": run_screen_control,
         }.get(name)
+        if runner is not None and self._question_mode and str(args.get("action", "")).lower() != "status":
+            print(f"[Voice Agent] 🛑 Not sent (it was a question, not a request): {name} {args}")
+            return False, "That sounded like a question, so I haven't changed anything."
         if runner is None:
+            if name == "list_inventory" and self._planner is not None:
+                self._remember_inventory(args)  # what "them" / "the second one" mean next
             return True, await self._run_tool(name, args)
 
         print(f"[Voice Agent] 🔧 {name}  {args}")

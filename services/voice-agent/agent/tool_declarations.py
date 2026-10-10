@@ -173,7 +173,7 @@ TOOL_DECLARATIONS = [
             "properties": {
                 "kind": {
                     "type": "STRING",
-                    "description": "'screens' | 'devices' | 'both' — which inventory to list. Defaults to 'both' if omitted.",
+                    "description": "'lights' (only the lights) | 'screens' | 'devices' (everything controllable: lights, AC, TV) | 'both'. Use 'lights' when asked for lights, 'screens' when asked for screens. Defaults to 'both' if omitted.",
                 },
             },
         },

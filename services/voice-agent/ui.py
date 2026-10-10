@@ -42,7 +42,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMainWindow,
     QPushButton,
     QSizePolicy,
@@ -1294,7 +1293,7 @@ class LogWidget(QTextEdit):
 
 
 class SetupOverlay(QWidget):
-    done = pyqtSignal(str, str)
+    done = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1333,32 +1332,6 @@ class SetupOverlay(QWidget):
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER};")
         layout.addWidget(sep)
-        layout.addSpacing(4)
-
-        layout.addWidget(
-            _lbl(
-                "GEMINI API KEY", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft
-            )
-        )
-        self._key_input = QLineEdit()
-        self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._key_input.setPlaceholderText("AIza…")
-        self._key_input.setFont(QFont("Calibri", 10, QFont.Weight.Bold))
-        self._key_input.setFixedHeight(32)
-        self._key_input.setStyleSheet(f"""
-            QLineEdit {{
-                background: #000d12; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
-            }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
-        """)
-        layout.addWidget(self._key_input)
-        layout.addSpacing(12)
-
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {C.BORDER};")
-        layout.addWidget(sep2)
         layout.addSpacing(4)
 
         layout.addWidget(
@@ -1440,14 +1413,7 @@ class SetupOverlay(QWidget):
                 """)
 
     def _submit(self):
-        key = self._key_input.text().strip()
-        if not key:
-            self._key_input.setStyleSheet(
-                self._key_input.styleSheet()
-                + f" QLineEdit {{ border: 1px solid {C.RED}; }}"
-            )
-            return
-        self.done.emit(key, self._sel_os)
+        self.done.emit(self._sel_os)
 
 
 class MainWindow(QMainWindow):
@@ -1914,7 +1880,7 @@ class MainWindow(QMainWindow):
             return False
         try:
             d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            # No cloud key is required to run; gemini_api_key only enables knowledge_search.
+            # No cloud key is required to run: the only setup answer is the operating system.
             return bool(d.get("os_system"))
         except Exception:
             return False
@@ -1933,18 +1899,15 @@ class MainWindow(QMainWindow):
         ov.show()
         self._overlay = ov
 
-    def _on_setup_done(self, key: str, os_name: str):
+    def _on_setup_done(self, os_name: str):
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        API_FILE.write_text(
-            json.dumps(
-                {
-                    "gemini_api_key": key,
-                    "os_system": os_name,
-                },
-                indent=4,
-            ),
-            encoding="utf-8",
-        )
+        # Merge into the existing file: it also holds the CMS secret, ElevenLabs keys and device names.
+        try:
+            config = json.loads(API_FILE.read_text(encoding="utf-8")) if API_FILE.exists() else {}
+        except (OSError, ValueError):
+            config = {}
+        config["os_system"] = os_name
+        API_FILE.write_text(json.dumps(config, indent=4), encoding="utf-8")
         self._ready = True
         if self._overlay:
             self._overlay.hide()

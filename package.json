@@ -6,8 +6,8 @@
   "description": "Production-grade digital signage, CMS, and IoT platform monorepo",
   "scripts": {
     "build": "turbo run build",
-    "dev": "node infra/scripts/free-dev-ports.mjs && turbo run dev --no-update-notifier --output-logs=new-only",
-    "dev:force": "node infra/scripts/free-dev-ports.mjs && turbo run dev --force --no-update-notifier --output-logs=new-only",
+    "dev": "node infra/scripts/free-dev-ports.mjs && node infra/scripts/dev-stack.mjs turbo run dev --no-update-notifier --output-logs=new-only",
+    "dev:force": "node infra/scripts/free-dev-ports.mjs && node infra/scripts/dev-stack.mjs turbo run dev --force --no-update-notifier --output-logs=new-only",
     "start": "turbo run start",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -31,7 +31,8 @@
     "vision-server:down": "docker compose -f infra/docker/docker-compose.yml --profile vision-server stop vision-inference",
     "vision-server:logs": "docker compose -f infra/docker/docker-compose.yml --profile vision-server logs -f vision-inference",
     "healthcheck": "curl -sf http://localhost/health || echo UNHEALTHY",
-    "dev:app": "node infra/scripts/free-dev-ports.mjs && turbo run dev --filter=@platform/cms --filter=@platform/api --no-update-notifier --output-logs=new-only",
+    "dev:app": "node infra/scripts/free-dev-ports.mjs && node infra/scripts/dev-stack.mjs turbo run dev --filter=@platform/cms --filter=@platform/api --no-update-notifier --output-logs=new-only",
+    "dev:cms-only": "node infra/scripts/free-dev-ports.mjs && node infra/scripts/dev-stack.mjs --no-travis turbo run dev --no-update-notifier --output-logs=new-only",
     "dev:ports": "node infra/scripts/free-dev-ports.mjs"
   },
   "keywords": [],

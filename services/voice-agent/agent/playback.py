@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
-import threading
 import time
 
 import numpy as np
@@ -15,11 +15,70 @@ import sounddevice as sd
 from settings import (
     CHANNELS, CHUNK_SIZE, RECEIVE_SAMPLE_RATE, load_api_config,
 )
-from audio.devices import apply_gain, resolve_output_device
+from audio.devices import apply_gain, reinit_portaudio, resolve_output_device
+
+
+class _ChimeMarker:
+    """Queued on `audio_in_queue` by the wake word: the playback loop writes the chime to the
+    same output stream as the replies (one stream, one device), without marking Travis as
+    speaking or touching the reply timing."""
+
+    def __init__(self, name: str = "wake chime"):
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"<{self.name}>"
+
+
+CHIME = _ChimeMarker()
+CUE = _ChimeMarker("follow-up cue")  # one soft note: "I am listening for your answer" (no wake word needed now)
+
+
+@functools.lru_cache(maxsize=4)
+def chime_pcm(rate: int) -> bytes:
+    """Two short notes (880 Hz, 1320 Hz) as int16 mono PCM at `rate`, unscaled: the playback
+    loop applies `speaker_gain` to everything it writes, chime included."""
+    t = np.arange(int(rate * 0.09)) / rate
+    fade = np.minimum(1.0, np.minimum(t, t[::-1]) / 0.01)
+    notes = [np.sin(2 * np.pi * f * t) * fade for f in (880.0, 1320.0)]
+    wave = np.concatenate(notes) * 0.25
+    return (np.clip(wave, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+
+
+@functools.lru_cache(maxsize=4)
+def cue_pcm(rate: int) -> bytes:
+    """One short, soft note (660 Hz) at `rate`: lower and quieter than the wake chime, so the two cannot be mixed up."""
+    t = np.arange(int(rate * 0.11)) / rate
+    fade = np.minimum(1.0, np.minimum(t, t[::-1]) / 0.015)
+    return (np.clip(np.sin(2 * np.pi * 660.0 * t) * fade * 0.18, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+
+
+def _abort_and_close(stream) -> None:
+    """Drop an output stream without waiting for pending audio. Blocking: call it from a thread
+    (`stop()` on a wedged Bluetooth endpoint can hang)."""
+    try:
+        stream.abort()
+    except Exception:
+        pass
+    try:
+        stream.close()
+    except Exception:
+        pass
+
+
+async def _drop_stream(stream) -> None:
+    """Abort and close `stream` off the event loop; a driver that never answers is abandoned
+    after a few seconds instead of freezing the agent."""
+    try:
+        await asyncio.wait_for(asyncio.to_thread(_abort_and_close, stream), timeout=3.0)
+    except Exception:
+        pass
 
 
 class PlaybackMixin:
     """Speaker playback: output stream, chime and the audio queue."""
+
+    _SPEAKER_RETRY_S = 2.0  # first wait before reopening a missing speaker; doubles up to 30 s
 
     def set_speaking(self, value: bool):
         with self._speaking_lock:
@@ -45,10 +104,16 @@ class PlaybackMixin:
             except asyncio.QueueEmpty:
                 break
 
+    @staticmethod
+    def _speaker_strict(cfg: dict) -> bool:
+        """A named speaker that is missing must not be replaced by the OS default
+        (the laptop speakers) - the reply would play in the wrong place."""
+        return bool(cfg.get("speaker_device_name")) and not cfg.get("audio_allow_default_fallback", False)
+
     def _open_output_stream(self, cfg: dict):
         output_device = resolve_output_device(
             cfg.get("speaker_device_name", ""),
-            avoid_hint=cfg.get("mic_device_name", ""),
+            strict=self._speaker_strict(cfg),
         )
         stream = sd.RawOutputStream(
             device=output_device,
@@ -60,32 +125,49 @@ class PlaybackMixin:
         stream.start()
         return stream
 
+    async def _reinit_audio(self):
+        """Ask the playback task to close the speaker and re-read the OS device list.
+        Called by the mic supervisor with its own stream already closed. If the playback
+        task doesn't answer, PortAudio is left alone - terminating it under an open stream
+        is worse than staying on the old device list."""
+        self._audio_events["reinit"] = self._audio_events.get("reinit", 0) + 1
+        print("[Voice Agent] 🔄 Re-reading the audio device list (Bluetooth reconnect?)")
+        self._reinit_done.clear()
+        self._reinit_requested = True
+        try:
+            await asyncio.wait_for(self._reinit_done.wait(), timeout=10.0)
+        except asyncio.TimeoutError:
+            self._reinit_requested = False
+            print("[Voice Agent] ⚠️ Playback did not release the speaker in time — skipping the audio re-init.")
+
     def _play_chime(self):
-        """Short two-note "I'm listening" tone right after the wake word, so the
-        user knows to speak the command. Fire-and-forget on its own thread;
-        any failure is swallowed (the agent works fine without it)."""
-        cfg = load_api_config()
-        if not cfg.get("audio_output_enabled", True) or not cfg.get("wake_chime", True):
-            return
+        """Short two-note "I'm listening" tone right after the wake word, so the user knows to
+        speak the command. It goes through the main playback queue and output stream (see
+        `CHIME`), so it uses the same device as the replies. Called from the mic callback
+        thread; any failure is swallowed (the agent works fine without it)."""
+        try:
+            cfg = load_api_config()
+            if not cfg.get("audio_output_enabled", True) or not cfg.get("wake_chime", True):
+                return
+            loop, queue = self._loop, self.audio_in_queue
+            if loop is None or queue is None or not loop.is_running():
+                return
+            loop.call_soon_threadsafe(queue.put_nowait, CHIME)
+        except Exception as e:
+            print(f"[Voice Agent] ⚠️ Wake chime failed: {e}")
 
-        def _run():
-            try:
-                rate = RECEIVE_SAMPLE_RATE
-                gain = max(0.0, float(cfg.get("speaker_gain", 1.0)))
-                t = np.arange(int(rate * 0.09)) / rate
-                fade = np.minimum(1.0, np.minimum(t, t[::-1]) / 0.01)
-                notes = [np.sin(2 * np.pi * f * t) * fade for f in (880.0, 1320.0)]
-                wave = np.concatenate(notes) * 0.25 * gain
-                pcm = (np.clip(wave, -1.0, 1.0) * 32767).astype(np.int16)
-                device = resolve_output_device(
-                    cfg.get("speaker_device_name", ""),
-                    avoid_hint=cfg.get("mic_device_name", ""),
-                )
-                sd.play(pcm, samplerate=rate, device=device)
-            except Exception as e:
-                print(f"[Voice Agent] ⚠️ Wake chime failed: {e}")
-
-        threading.Thread(target=_run, daemon=True).start()
+    def _play_cue(self):
+        """The follow-up cue (see `CUE`), from the mic callback thread. Swallows any failure like the wake chime."""
+        try:
+            cfg = load_api_config()
+            if not cfg.get("audio_output_enabled", True) or not cfg.get("followup_cue", True):
+                return
+            loop, queue = self._loop, self.audio_in_queue
+            if loop is None or queue is None or not loop.is_running():
+                return
+            loop.call_soon_threadsafe(queue.put_nowait, CUE)
+        except Exception as e:
+            print(f"[Voice Agent] ⚠️ Follow-up cue failed: {e}")
 
     async def _play_audio(self):
         cfg = load_api_config()
@@ -93,15 +175,11 @@ class PlaybackMixin:
         # Software volume boost on top of the OS/device volume (1.0 = off).
         gain = max(0.0, float(cfg.get("speaker_gain", 1.0)))
         stream = None
-        if output_enabled:
-            try:
-                stream = self._open_output_stream(cfg)
-                print("[Voice Agent] 🔊 Play started")
-            except Exception as e:
-                print(
-                    f"[Voice Agent] ⚠️ Local playback unavailable ({e}). Continuing without spoken audio."
-                )
-        else:
+        open_failures = 0
+        next_open_at = 0.0  # monotonic time before which we don't retry opening the speaker
+        ever_opened = False
+        last_drop_note = 0.0
+        if not output_enabled:
             # The CMS/room audio system owns audible output: discard TTS
             # locally but keep draining the queue so it doesn't grow and the
             # speaking flag still resets.
@@ -111,6 +189,42 @@ class PlaybackMixin:
             )
         try:
             while True:
+                # The mic supervisor wants PortAudio re-initialised (Bluetooth
+                # reconnect): every stream must be closed first, and only this
+                # coroutine owns the speaker stream.
+                if self._reinit_requested:
+                    if stream is not None:
+                        await _drop_stream(stream)
+                        stream = None
+                    try:
+                        await asyncio.to_thread(reinit_portaudio)
+                    except Exception as e:
+                        print(f"[Voice Agent] ⚠️ Audio re-init failed: {e}")
+                    self.set_speaking(False)
+                    open_failures, next_open_at = 0, 0.0
+                    self._reinit_requested = False
+                    self._reinit_done.set()
+                if output_enabled and stream is None and time.monotonic() >= next_open_at:
+                    try:
+                        stream = self._open_output_stream(cfg)
+                        print(
+                            "[Voice Agent] 🔊 Play started" if not ever_opened and not open_failures
+                            else "[Voice Agent] 🔊 Speaker is back — playback resumed"
+                        )
+                        ever_opened = True
+                        open_failures = 0
+                    except Exception as e:
+                        open_failures += 1
+                        next_open_at = time.monotonic() + min(self._SPEAKER_RETRY_S * 2 ** (open_failures - 1), 30.0)
+                        self._audio_events["speaker_open_failed"] = self._audio_events.get("speaker_open_failed", 0) + 1
+                        if open_failures in (1, 5) or open_failures % 10 == 0:
+                            print(
+                                f"[Voice Agent] ⚠️ Speaker unavailable ({e}). Travis is silent until it is back; "
+                                "retrying."
+                            )
+                        if open_failures == 3:
+                            # Re-reading the device list needs the mic stream closed too.
+                            self._audio_reset_wanted = True
                 try:
                     chunk = await asyncio.wait_for(
                         self.audio_in_queue.get(), timeout=0.2
@@ -125,11 +239,19 @@ class PlaybackMixin:
                         self._clear_preroll()
                         self.set_speaking(False)
                     continue
-                # First audio chunk received (from ElevenLabs) this exchange.
-                self._timing.setdefault("first_audio_chunk_received", time.monotonic())
+                is_chime = isinstance(chunk, _ChimeMarker)
+                if is_chime:
+                    chunk = (cue_pcm if chunk is CUE else chime_pcm)(RECEIVE_SAMPLE_RATE)
+                else:
+                    # First audio chunk received (from ElevenLabs) this exchange.
+                    self._timing.setdefault("first_audio_chunk_received", time.monotonic())
                 if stream is None:
+                    if not is_chime and output_enabled and time.monotonic() - last_drop_note > 10.0:
+                        last_drop_note = time.monotonic()
+                        print("[Voice Agent] ⚠️ A reply was dropped — the speaker is not available.")
                     continue
-                self.set_speaking(True)
+                if not is_chime:
+                    self.set_speaking(True)
                 try:
                     # A hung write (observed in practice: PortAudio/WASAPI
                     # wedged after another process fought over the same
@@ -152,33 +274,33 @@ class PlaybackMixin:
                     # the last stage tracked, so print the breakdown right
                     # here, once, the first time audio actually plays.
                     if (
-                        "wake_detected" in self._timing
+                        not is_chime
+                        and "wake_detected" in self._timing
                         and "playback_started" not in self._timing
                     ):
                         self._timing["playback_started"] = time.monotonic()
                         if os.getenv("TRAVIS_DEBUG_WAKE") == "1":
                             s = np.frombuffer(chunk, dtype=np.int16)
+                            boosted = np.abs(s.astype(np.float32) * gain)
                             print(
                                 f"[Voice Agent] 🔊 first reply chunk: {len(chunk)}B, "
                                 f"peak={int(np.max(np.abs(s))) if s.size else 0}/32767, "
-                                f"gain={gain}, stream active={stream.active}"
+                                f"gain={gain} (clips {int(np.count_nonzero(boosted > 32767))} samples), "
+                                f"stream active={stream.active}"
                             )
                         self._print_timing_report()
                 except Exception as e:
-                    # A local audio-driver hiccup (seen in practice: a transient
-                    # Windows/PortAudio "no driver installed" error on write,
-                    # unrelated to the mic/wake-word/Gemini pipeline) shouldn't
-                    # tear down the whole session — degrade to silent for the
-                    # rest of this connection rather than forcing a reconnect
-                    # that drops the wake-word state and conversation context.
+                    # A local audio-driver hiccup (a transient Windows/PortAudio
+                    # error on write, or a Bluetooth link that dropped) must not
+                    # tear down the session: drop this stream (off the event loop,
+                    # since a wedged driver can block on close) and let the loop
+                    # reopen the speaker, with the same back-off as a missing one.
                     label = "timed out" if isinstance(e, asyncio.TimeoutError) else f"failed ({e})"
-                    print(f"[Voice Agent] ⚠️ Playback write {label}. Continuing without spoken audio.")
-                    try:
-                        stream.stop()
-                        stream.close()
-                    except Exception:
-                        pass
+                    print(f"[Voice Agent] ⚠️ Playback write {label}. Reopening the speaker.")
+                    await _drop_stream(stream)
                     stream = None
+                    next_open_at = time.monotonic() + min(1.0, self._SPEAKER_RETRY_S)
+                    self._audio_events["speaker_write_failed"] = self._audio_events.get("speaker_write_failed", 0) + 1
                     self.set_speaking(False)
         finally:
             self.set_speaking(False)

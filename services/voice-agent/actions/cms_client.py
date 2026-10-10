@@ -16,6 +16,7 @@ apps/api/src/services/voice-actions.ts's resolveByName).
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -23,6 +24,8 @@ from typing import Any, Optional
 
 # pyrefly: ignore [missing-import]
 import requests
+
+from . import safety
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
@@ -36,6 +39,7 @@ _name_cache: dict[str, tuple[float, list[dict]]] = {}
 # single utterance, that's a fixed, avoidable tax. A Session reuses one
 # keep-alive connection to apps/api instead.
 _session = requests.Session()
+_session.trust_env = False  # no HTTP(S)_PROXY / .netrc: nothing may reroute a request to another host
 
 # Groups every command from one continuous wake-to-sleep interaction in
 # apps/api's audit log (voice_command_log.session_id). Set once per run by
@@ -54,25 +58,22 @@ class CmsClientError(Exception):
 
 
 def _load_config() -> dict:
+    path = Path(os.environ["TRAVIS_CONFIG"]) if os.environ.get("TRAVIS_CONFIG") else API_CONFIG_PATH  # e.g. config/test_safe.json
     try:
-        with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
-def _base_url() -> str:
-    # Production CMS API, from cms_api_base_url (use an IPv4 literal: this
+def _base_url(cfg: dict) -> str:
+    # The CMS API, from cms_api_base_url (use an IPv4 literal: this
     # machine's IPv6 is broken, and "localhost"-style names resolve to both
     # families and double every connection attempt).
-    url = str(_load_config().get("cms_api_base_url", "")).strip()
+    url = str(cfg.get("cms_api_base_url", "")).strip()
     if not url:
         raise CmsClientError("The CMS address isn't configured — set cms_api_base_url in config/api_keys.json.")
     return url.rstrip("/")
-
-
-def _secret() -> str:
-    return str(_load_config().get("cms_voice_secret", ""))
 
 
 _RETRYABLE_EXCEPTIONS = (requests.ConnectionError, requests.Timeout)
@@ -85,13 +86,21 @@ def _request(
     json_body: Optional[dict] = None,
     idempotency_key: Optional[str] = None,
 ) -> Any:
-    secret = _secret()
+    cfg = _load_config()
+    safe = safety.enabled(cfg)
+    # Safety mode never uses the real secret: it would otherwise travel to whatever the address is.
+    secret = safety.SAFE_SECRET if safe else str(cfg.get("cms_voice_secret", ""))
     if not secret:
         raise CmsClientError(
             "CMS voice control isn't configured yet — set cms_voice_secret in config/api_keys.json."
         )
-    url = f"{_base_url()}/api/internal/voice{path}"
+    url = f"{_base_url(cfg)}/api/internal/voice{path}"
     headers = {"x-voice-secret": secret}
+    if safe:
+        try:
+            url, headers["Host"] = safety.vet(url)  # refuses before any socket is opened
+        except safety.SafetyBlocked as e:
+            raise CmsClientError(f"Safety mode blocked that: {e}") from e
     if idempotency_key:
         headers["x-idempotency-key"] = idempotency_key
     if _session_id:
@@ -108,14 +117,17 @@ def _request(
     # 3s per attempt: the CMS is a remote server, so loopback-tight timeouts would
     # turn a slow network moment into a spoken failure. Worst case when genuinely
     # down is ~3s x 2 attempts + the retry delay.
+    #
+    # Redirects are never followed: a reply must not be able to send this request (and its secret) to another host or port.
+    def send():
+        return _session.request(method, url, json=json_body, headers=headers, timeout=3.0, allow_redirects=False)
+
     try:
-        res = _session.request(method, url, json=json_body, headers=headers, timeout=3.0)
+        res = send()
     except _RETRYABLE_EXCEPTIONS:
         time.sleep(_RETRY_DELAY_SEC)
         try:
-            res = _session.request(
-                method, url, json=json_body, headers=headers, timeout=3.0
-            )
+            res = send()
         except requests.RequestException as e:
             print(f"[cms] could not reach {url}: {e}")
             raise CmsClientError("Could not reach the CMS.") from e
@@ -123,6 +135,9 @@ def _request(
         print(f"[cms] could not reach {url}: {e}")
         raise CmsClientError("Could not reach the CMS.") from e
 
+    if 300 <= res.status_code < 400:
+        print(f"[cms] {url} answered {res.status_code} with a redirect; not following it")
+        raise CmsClientError("The CMS answered with a redirect, which isn't followed.")
     try:
         body = res.json()
     except ValueError:

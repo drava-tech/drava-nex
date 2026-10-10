@@ -281,6 +281,7 @@ def evaluate(case: Case, trace, calls: list[dict], mock) -> dict:
         "input": case.utterance,
         "path": trace.path or ("decline" if trace.gate and not trace.gate["allowed"] else None),
         "intent": trace.intent,
+        "plan": getattr(trace, "plan", None),
         "expected_actions": expected_for_report,
         "actual_actions": actual,
         "failed_attempts": [{"body": c["body"], "status": c["status"], "message": c["message"]} for c in failed_calls],

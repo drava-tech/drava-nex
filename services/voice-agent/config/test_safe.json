@@ -1,0 +1,8 @@
+{
+  "safety_mode": true,
+  "cms_api_base_url": "http://127.0.0.1:4010",
+  "audio_output_enabled": false,
+  "ollama_url": "http://127.0.0.1:11434",
+  "llm_backend": "local",
+  "wake_word_phrase": "hey travis"
+}

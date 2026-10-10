@@ -44,6 +44,11 @@ def split_correction(text: str) -> tuple[str, str] | None:
     return (before, after) if before and after else None
 
 
+# How a self-correction is passed to the planner: "<first version> (they corrected themselves: <fix>. Do only ...)"
+CORRECTION_NOTE = " (they corrected themselves: {fix}. Do only the corrected request.)"
+CORRECTION_NOTE_START = "(they corrected themselves"
+
+
 def has_marker(text: str) -> bool:
     return bool(_MARKER.search(text or ""))
 

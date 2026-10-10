@@ -61,10 +61,10 @@
     "light": {
       "type": "enum",
       "values": {
-        "tusker edge": ["tusker edge", "edge", "edge tusker", "tusker edge light", "strip"],
-        "tusker L1": ["tusker l 1", "tusker el 1", "tusker l1", "tusker ll 1", "l 1", "el 1", "l1", "ll 1", "l 1 tusker", "el 1 tusker", "l1 tusker", "ll 1 tusker", "tusker ell 1", "ell 1", "ell 1 tusker"],
-        "tusker L2": ["tusker l 2", "tusker el 2", "tusker l2", "tusker ll 2", "l 2", "el 2", "l2", "ll 2", "l 2 tusker", "el 2 tusker", "l2 tusker", "ll 2 tusker", "tusker ell 2", "ell 2", "ell 2 tusker"],
-        "tusker L3": ["tusker l 3", "tusker el 3", "tusker l3", "tusker ll 3", "l 3", "el 3", "l3", "ll 3", "l 3 tusker", "el 3 tusker", "l3 tusker", "ll 3 tusker", "tusker ell 3", "ell 3", "ell 3 tusker", "tusker l tree", "tusker el tree", "l tree", "el tree", "ell tree", "stretch fabric", "fabric", "fabrics", "stretch fabrics"]
+        "tusker edge": ["tusker edge", "edge", "edge tusker", "tusker edge light", "strip", "cove light", "cove lights", "cove", "cove light tusker"],
+        "tusker L1": ["tusker l 1", "tusker el 1", "tusker l1", "tusker ll 1", "l 1", "el 1", "l1", "ll 1", "l 1 tusker", "el 1 tusker", "l1 tusker", "ll 1 tusker", "tusker ell 1", "ell 1", "ell 1 tusker", "sky light front", "skylight front", "front sky light", "front skylight", "sky front"],
+        "tusker L2": ["tusker l 2", "tusker el 2", "tusker l2", "tusker ll 2", "l 2", "el 2", "l2", "ll 2", "l 2 tusker", "el 2 tusker", "l2 tusker", "ll 2 tusker", "tusker ell 2", "ell 2", "ell 2 tusker", "sky light back", "skylight back", "back sky light", "back skylight", "sky back"],
+        "tusker L3": ["tusker l 3", "tusker el 3", "tusker l3", "tusker ll 3", "l 3", "el 3", "l3", "ll 3", "l 3 tusker", "el 3 tusker", "l3 tusker", "ll 3 tusker", "tusker ell 3", "ell 3", "ell 3 tusker", "tusker l tree", "tusker el tree", "l tree", "el tree", "ell tree", "stretch fabric", "fabric", "fabrics", "stretch fabrics", "sky light", "skylight", "sky lights", "skylights"]
       }
     },
     "ambientMode": {
@@ -79,7 +79,7 @@
     "screenAlias": {
       "type": "enum",
       "values": {
-        "tusker 86": ["tusker 86", "86 tusker", "tv", "tv 86", "86 inch", "86 inch tv", "big screen", "main screen", "main display"],
+        "tusker 86": ["tusker 86", "86 tusker", "tv", "tv 86", "86 inch", "86 inch tv", "big screen", "main screen", "main display", "main tv", "main television"],
         "tusker 27": ["tusker 27", "27 tusker", "kiosk", "screen 2", "27 inch"]
       }
     }
@@ -149,7 +149,8 @@
         "{temperature} [degrees] [celsius] [on|in|for] (ac|air conditioner|air conditioning|temperature)",
         "(make|set|put|keep|change) (ac|air conditioner|air conditioning) [temperature] [at|on] {temperature} [degrees] [celsius]",
         "(ac|air conditioner|air conditioning) [temperature] [at|on] {temperature} [degrees] [celsius]",
-        "(make|set|change) temperature [at] {temperature} [degrees] [celsius]"
+        "(make|set|change) temperature [at] {temperature} [degrees] [celsius]",
+        "set [the] (temperature|temp) of [the] (ac|air conditioner|air conditioning) [at] {temperature} [degrees]"
       ],
       "tool": "device_control",
       "args": { "action": "ac_command", "target": "ac", "command": "set_temp", "params": { "temp": "{temperature}" } },
@@ -202,7 +203,8 @@
         "set [{target}] (lights|light) [brightness] [at] {brightness} [percent]",
         "(dim|brighten) [{target}] (lights|light) [at] {brightness} [percent]",
         "[{target}] (lights|light) [at] {brightness} percent",
-        "set [{target}] brightness [at] {brightness} [percent]"
+        "set [{target}] brightness [at] {brightness} [percent]",
+        "set [the] brightness of {light} [lights|light] [at] {brightness} [percent]"
       ],
       "tool": "device_control",
       "args": { "action": "lights_set", "target": "{target|light}", "brightness": "{brightness}" }
@@ -230,7 +232,9 @@
         "all (lights|light) on",
         "[turn|switch|put] on [all] (lights|light)",
         "on all (lights|light)",
-        "light up room"
+        "light up room",
+        "put all [the] (lights|light) on",
+        "(turn|switch) all [the] (lights|light) on"
       ],
       "tool": "device_control",
       "args": { "action": "all_lights_on" }
@@ -245,7 +249,9 @@
         "(turn|switch) off all (lights|light)",
         "all (lights|light) off",
         "[turn|switch|put] off [all] (lights|light)",
-        "off all (lights|light)"
+        "off all (lights|light)",
+        "put all [the] (lights|light) off",
+        "(turn|switch) all [the] (lights|light) off"
       ],
       "tool": "device_control",
       "args": { "action": "all_lights_off" }
@@ -459,7 +465,7 @@
       "phrases": ["hi [travis]", "turn everything on", "(let's|lets) start [the] day"],
       "tool": "device_control",
       "args": { "action": "good_morning" },
-      "say": "{timeGreeting}! Lights and AC are on."
+      "say": "{timeGreeting}! The lights are in entry mode and the AC is on."
     },
     {
       "intent": "SCENE_GOODBYE",
@@ -487,6 +493,37 @@
       "intent": "HOW_ARE_YOU",
       "phrases": ["how are you [doing|today]", "how is it going", "how are things"],
       "reply": "I'm doing great, thanks for asking. How can I help?"
+    },
+    {
+      "intent": "LIST_LIGHTS",
+      "phrases": [
+        "(list|name|tell me|show me) [all] [the] (lights|light) [you can control|that you can control|you have|do you have]",
+        "(what|which) [all] [the] (lights|light) (can you control|do you have|are there|are available)",
+        "what are [all] [the] (lights|light) [you can control]",
+        "(list|name) [all] [the] controllable (lights|light)"
+      ],
+      "tool": "list_inventory",
+      "args": { "kind": "lights" }
+    },
+    {
+      "intent": "LIST_SCREENS",
+      "phrases": [
+        "(list|name|tell me|show me) [all] [the] screens [you can control|that you can control|you have|do you have]",
+        "(what|which) [all] [the] screens (can you control|do you have|are there|are available)",
+        "what are [all] [the] screens [you can control]"
+      ],
+      "tool": "list_inventory",
+      "args": { "kind": "screens" }
+    },
+    {
+      "intent": "LIST_DEVICES",
+      "phrases": [
+        "(list|name|tell me) [all] [the] devices [you can control|that you can control|you have|do you have]",
+        "(what|which) [all] [the] devices (can you control|do you have|are there|are available)",
+        "what are [all] [the] devices [you can control]"
+      ],
+      "tool": "list_inventory",
+      "args": { "kind": "devices" }
     },
     {
       "intent": "CAPABILITIES",

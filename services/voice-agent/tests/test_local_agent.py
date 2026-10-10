@@ -104,6 +104,7 @@ def _agent(heard: str = "", **state) -> TravisLocal:
     a._last_heard = {}
     a._system_prompt = "SYSTEM"
     a._llm_tools = []
+    a._canned_tried, a._canned_matcher = True, None  # the written-down FAQ / small-talk answers are off here (tests/test_canned.py turns them on)
     a._llm = _FakeLLM()
     a._gate = _FakeGate()
     a._intent = IntentCheck(None, enabled=False)
@@ -310,7 +311,8 @@ class NeverConfirmWhatDidNotHappenTests(unittest.TestCase):
             a.calls.append((name, args))
             return (False, 'I couldn\'t find exactly one device matching "tusker L9". Which one did you mean? The devices are: x. Only offer these.') if str(args.get("target")).lower() == "tusker l9" else (True, "Door locked.")
 
-        llm = _FakeLLM()
+        # "tusker L9" isn't a name the room knows, so that part isn't a list command: the model makes the call.
+        llm = _FakeLLM([("tool_calls", [ToolCall("device_control", {"action": "lights_on", "target": "tusker L9"})])])
         a = _agent("Hey Travis lock the door and turn on tusker L9 light", _llm=llm)
         a._call_tool = call_tool
         _hear(a)
@@ -406,16 +408,16 @@ class MultiActionExecutionTests(unittest.TestCase):
         _hear(a)
         self.assertEqual(sent, ["ac_command", "lights_on", "lock"])
         self.assertEqual(llm.requests, [])  # exact, and no model involved
-        self.assertEqual(" ".join(a.said), "AC set to 24 degrees. tusker edge is on. Door locked.")
+        self.assertEqual(" ".join(a.said), "AC set to 24 degrees. cove light is on. Door locked.")
 
     def test_one_part_failing_does_not_stop_or_hide_the_others(self):
-        a, sent = self.go("Hey Travis unlock the door and turn on tusker L9 light and set the AC to 22",
-                          ok_for=lambda args: args.get("target") != "tusker L9",
-                          messages={"lights_on": "I couldn't find exactly one device matching \"tusker L9\". Which one did you mean?"})
+        a, sent = self.go("Hey Travis unlock the door and turn on tusker L1 light and set the AC to 22",
+                          ok_for=lambda args: args.get("target") != "tusker L1",
+                          messages={"lights_on": "tusker L1 didn't respond."})
         self.assertEqual([c[1]["action"] for c in sent], ["unlock", "lights_on", "ac_command"])
         said = " ".join(a.said)
         self.assertIn("AC set to 22 degrees.", said)
-        self.assertIn("tusker L9", said)
+        self.assertIn("sky light front didn't respond", said)
 
     def test_an_out_of_range_part_is_asked_about_and_the_rest_still_runs(self):
         # the lock is a known command and runs; 5 degrees isn't one the list accepts, so only
@@ -468,7 +470,7 @@ class AsksInsteadOfGuessingTests(unittest.TestCase):
         self.assertEqual(a.calls, [])
         said = " ".join(a.said)
         self.assertIn("Which light do you mean", said)  # asks, and names the real choices
-        self.assertIn("tusker edge", said)
+        self.assertIn("cove light", said)
         self.assertIn("Say Hey Travis, then your answer.", said)
 
     def test_the_model_correcting_itself_runs_only_the_good_call(self):
@@ -480,7 +482,7 @@ class AsksInsteadOfGuessingTests(unittest.TestCase):
         _with_messages(a, {"lights_set": "tusker edge is on at 80%."})
         _hear(a)
         self.assertEqual([c[1]["target"] for c in a.calls], ["tusker edge"])
-        self.assertEqual(" ".join(a.said), "tusker edge is on at 80%.")
+        self.assertEqual(" ".join(a.said), "cove light is on at 80%.")
 
     def test_a_pronoun_with_nothing_before_it_asks(self):
         guess = ("tool_calls", [ToolCall("device_control", {"action": "lights_off", "target": "tusker edge"})])

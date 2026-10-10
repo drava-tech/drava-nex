@@ -110,3 +110,29 @@ class CloseOnlyWhenTheWholeExchangeIsDoneTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FollowUpWindowTests(unittest.TestCase):
+    """After Travis asks a question the mic stays open, without the wake word, once the question has finished playing."""
+
+    def test_a_question_that_has_finished_playing_opens_the_window(self):
+        a = _agent(_exchange_active=True, _reply_complete_at=4.0, _last_model_activity=4.0, _followup_wanted=True)
+        self.assertIsNone(a._awake_action(4.5, busy=False))  # the grace second is not over
+        self.assertEqual(a._awake_action(5.0, busy=False), "followup")
+
+    def test_not_while_the_question_is_still_playing(self):
+        a = _agent(_exchange_active=True, _reply_complete_at=4.0, _last_model_activity=4.0, _followup_wanted=True)
+        self.assertIsNone(a._awake_action(9.0, busy=True))  # speech in the queue or on the speaker: the window has not started
+
+    def test_an_answer_that_asked_nothing_closes_the_mic_as_before(self):
+        a = _agent(_exchange_active=True, _reply_complete_at=4.0, _last_model_activity=4.0)
+        self.assertEqual(a._awake_action(5.0, busy=False), "standby")
+
+    def test_the_nudge_keeps_its_own_wait(self):
+        a = _agent(_exchange_active=True, _exchange_is_nudge=True, _reply_complete_at=4.0, _last_model_activity=4.0, _followup_wanted=True)
+        self.assertEqual(a._awake_action(5.0, busy=False), "wait_for_command")
+
+    def test_once_open_the_window_closes_by_the_timer_when_nobody_answers(self):
+        a = _agent(_exchange_active=False, _nudge_state="done", _awake_until=20.0, _heard_command_speech=False)
+        self.assertIsNone(a._awake_action(19.0, busy=False))
+        self.assertEqual(a._awake_action(20.0, busy=False), "standby")

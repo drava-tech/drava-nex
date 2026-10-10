@@ -367,9 +367,10 @@ def _match_elements(elements, tokens, registry, ei=0, ti=0, params=None):
                 return r
         return None
 
-    # Free text (a device/screen/content name): shortest span first, so the
-    # literal words after it anchor where it ends. The value is the words as
-    # spoken, so the CMS resolves the name, not us.
+    # Free text: shortest span first, so the literal words after it anchor where it ends.
+    # A device/screen slot (aliasesFrom) takes only a name from the room's alias list: any other
+    # wording ("brightness of all") is not a name, and the sentence goes to the planner, which
+    # reads its meaning. Content titles (no aliasesFrom) are taken as spoken; the CMS resolves them.
     anchor = slot.get("anchor")
     is_content = el.value == "content"
     for end in range(ti + 1, len(tokens) + 1):
@@ -380,7 +381,11 @@ def _match_elements(elements, tokens, registry, ei=0, ti=0, params=None):
             break
         if anchor and span[0] not in anchor and span[-1] not in anchor:
             continue
-        value = _alias_for(span, slot.get("aliasesFrom"), registry) or " ".join(span)
+        value = _alias_for(span, slot.get("aliasesFrom"), registry)
+        if value is None:
+            if slot.get("aliasesFrom"):
+                continue  # a device/screen slot only takes a name the room knows: anything else isn't this command
+            value = " ".join(span)
         r = _match_elements(elements, tokens, registry, ei + 1, end, {**params, el.value: value})
         if r is not None:
             return r

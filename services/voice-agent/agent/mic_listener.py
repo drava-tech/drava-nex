@@ -14,11 +14,17 @@ import sounddevice as sd
 from settings import (
     CHANNELS, CHUNK_SIZE, SEND_SAMPLE_RATE, load_api_config,
 )
-from audio.devices import apply_gain, chunk_rms, resolve_input_device
+from audio.devices import AudioDeviceMissing, apply_gain, chunk_rms, resolve_input_device
+from audio.metrics import CaptureMeter
 
 
 class MicListenerMixin:
     """Microphone capture while awake: gain, wake detection, pre-roll and routing."""
+
+    _MIC_BACKOFF_MAX_S = 5.0  # longest wait before reopening the mic, whatever the error
+
+    async def _prewarm_stt(self):
+        """Overridden where there is a local speech-to-text model (agent/local.py)."""
 
     def _clear_preroll(self):
         self._preroll_pcm.clear()
@@ -48,6 +54,8 @@ class MicListenerMixin:
                 tool_active = self._tool_active
 
             data = indata.tobytes()
+            # Level / clipping / overflow bookkeeping only; the audio is not touched.
+            self._capture_meter.feed(data, status)
             preroll_pcm.append(data)
             # Set below when this exact chunk gets flushed as the tail of
             # preroll_pcm on a fresh wake — the "stream while awake" block
@@ -90,6 +98,7 @@ class MicListenerMixin:
                         # A fresh exchange: nothing answered yet, nobody nudged.
                         self._exchange_active = False
                         self._exchange_is_nudge = False
+                        self._followup_wanted = False
                         self._reply_complete_at = None
                         self._nudge_state = "none"
                         self._wake_transcript = ""
@@ -121,6 +130,8 @@ class MicListenerMixin:
                             asyncio.run_coroutine_threadsafe(
                                 self.elevenlabs.prewarm(), loop
                             )
+                        # Same idea for the GPU: ramp Whisper up while the command is spoken.
+                        asyncio.run_coroutine_threadsafe(self._prewarm_stt(), loop)
                         # ponytail: flush pre-roll audio so single-breath "Travis <command>" preserves opening words
                         self._timing["preroll_flush_started"] = time.monotonic()
                         for chunk in preroll_pcm:
@@ -196,6 +207,20 @@ class MicListenerMixin:
                 self._exchange_is_nudge = True
                 print("[Voice Agent] 🙋 No command after the wake word — asking what you need.")
                 self.speak(self._NUDGE_TEXT)
+            elif action == "followup":
+                # Travis's question has finished playing: a short cue, then a window (followup_window_sec) in which the answer needs
+                # no "Hey Travis". The cue's own echo must not be heard as speech, so audio from the next half second is ignored.
+                window = float(load_api_config().get("followup_window_sec", 8) or 0)
+                self._followup_wanted = False
+                self._exchange_active = False
+                self._exchange_is_nudge = False
+                self._reply_complete_at = None
+                self._nudge_state = "done"
+                self._last_voiced_at = now
+                self._awake_until = now + window
+                self._ignore_before = now + 0.5
+                self._play_cue()
+                print(f"[Voice Agent] 🟡 Question asked — listening for your answer for {window:.0f}s (no need to say Hey Travis).")
             elif action == "wait_for_command":
                 # The prompt has been spoken; keep the mic open for the real
                 # request (no second "Travis" needed) and start a fresh wait.
@@ -260,31 +285,100 @@ class MicListenerMixin:
                         _safe_enqueue, {"data": data, "mime_type": "audio/pcm"}
                     )
 
-        cfg = load_api_config()
-        input_device = resolve_input_device(cfg.get("mic_device_name", ""))
+        await self._supervise_mic(callback, load_api_config())
 
-        # A mic-driver hiccup (device busy, momentarily unplugged, a transient
-        # PortAudio error — the kind seen in practice as PaErrorCode -9999)
-        # used to propagate out of this coroutine and take the whole agent down, for
-        # what is usually a purely local audio problem. Retry opening the stream here
-        # instead — mirrors _play_audio's degrade-and-continue pattern, except recovery
-        # here means the mic starts working again.
+    async def _supervise_mic(self, callback, cfg: dict):
+        """Keep the mic stream open, whatever Bluetooth does.
+
+        A mic-driver hiccup (device busy, a transient PortAudio error — seen as
+        PaErrorCode -9999) must not take the agent down, and a Bluetooth drop must not
+        leave it listening to nothing (or to the wrong mic). Each pass re-resolves the
+        device by name; a named device that is missing is waited for, not replaced by
+        the OS default (unless `audio_allow_default_fallback`). After repeated failures,
+        a stalled stream or a speaker that won't reopen, PortAudio is re-initialised so
+        a reconnected device's new entry is visible (see _reinit_audio).
+        """
+        hint = cfg.get("mic_device_name", "")
+        strict = bool(hint) and not cfg.get("audio_allow_default_fallback", False)
+        stall_s = float(cfg.get("mic_stall_sec", 2.5))
+        dead_s = float(cfg.get("mic_dead_sec", 30.0))
+        first_audio_s = float(cfg.get("mic_first_audio_sec", 5.0))  # BT hands-free needs ~1.2 s to start
         backoff = 1.0
+        failures = 0
+        last_msg = ("", 0.0)
+        reinit = False
         while True:
+            self._capture_meter = CaptureMeter(chunk_samples=CHUNK_SIZE, sample_rate=SEND_SAMPLE_RATE)
+            meter = self._capture_meter
             try:
-                with sd.InputStream(
-                    device=input_device,
+                if reinit:
+                    await self._reinit_audio()
+                    reinit = False
+                device = resolve_input_device(hint, strict=strict)
+                stream = sd.InputStream(
+                    device=device,
                     samplerate=SEND_SAMPLE_RATE,
                     channels=CHANNELS,
                     dtype="int16",
                     blocksize=CHUNK_SIZE,
                     callback=callback,
-                ):
-                    print("[Voice Agent] 🎤 Mic stream open")
-                    backoff = 1.0
+                )
+                with stream:
+                    fmt_ok = (
+                        int(stream.samplerate) == SEND_SAMPLE_RATE
+                        and stream.channels == CHANNELS
+                        and "int16" in str(stream.dtype)
+                    )
+                    info = sd.query_devices(stream.device) if stream.device is not None else {}
+                    print(
+                        f"[Voice Agent] 🎤 Mic stream open: {info.get('name', '?')} — "
+                        f"{stream.samplerate:.0f}Hz, {stream.channels}ch, {stream.dtype}, "
+                        f"{CHUNK_SIZE}-sample chunks" + ("" if fmt_ok else "  ⚠️ NOT 16 kHz mono int16")
+                    )
+                    opened_at = time.monotonic()
+                    reported_at = opened_at
+                    warned_dead = False
                     while True:
                         await asyncio.sleep(0.1)
+                        now = time.monotonic()
+                        if meter.chunks:
+                            failures, backoff = 0, 1.0
+                        if meter.chunks == 0 and now - opened_at > first_audio_s:
+                            raise RuntimeError("no audio ever arrived from the mic")
+                        if meter.chunks and meter.seconds_since_chunk(now) > stall_s:
+                            raise RuntimeError(
+                                f"mic stopped delivering audio ({meter.seconds_since_chunk(now):.1f}s without a chunk)"
+                            )
+                        if meter.dead_input(now, after_s=min(3.0, dead_s / 2)):
+                            if not warned_dead:
+                                warned_dead = True
+                                print("[Voice Agent] ⚠️ Mic is sending digital silence — muted, or the Bluetooth link is dead.")
+                            if meter.seconds_dead(now) > dead_s:
+                                raise RuntimeError(f"mic silent for {dead_s:.0f}s — reopening")
+                        else:
+                            warned_dead = False
+                        if self._audio_reset_wanted:
+                            self._audio_reset_wanted = False
+                            reinit = True
+                            raise RuntimeError("speaker would not reopen — resetting audio")
+                        if now - reported_at >= 60.0:
+                            reported_at = now
+                            problems = meter.problems()
+                            if problems:
+                                print(f"[Voice Agent] 🎚️ Mic, last minute: {'; '.join(problems)} — {meter.summary()}")
+                            elif os.getenv("TRAVIS_DEBUG_WAKE") == "1":
+                                print(f"[Voice Agent] 🎚️ Mic: {meter.summary()}")
+                            meter.reset_counters()
             except Exception as e:
-                print(f"[Voice Agent] ⚠️ Mic error ({e}). Retrying in {backoff:.0f}s...")
+                failures += 1
+                self._audio_events["mic_reopen"] = self._audio_events.get("mic_reopen", 0) + 1
+                missing = isinstance(e, AudioDeviceMissing)
+                msg = f"{'Mic not connected' if missing else 'Mic error'} ({e})"
+                # Waiting for a device to come back would otherwise print every second.
+                if msg != last_msg[0] or time.monotonic() - last_msg[1] > 30.0:
+                    print(f"[Voice Agent] ⚠️ {msg}. Retrying — Travis can't hear until it is back.")
+                    last_msg = (msg, time.monotonic())
+                if failures >= 3 or (missing and failures % 5 == 0):
+                    reinit = True
                 await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 30.0)
+                backoff = min(backoff * 2, self._MIC_BACKOFF_MAX_S)

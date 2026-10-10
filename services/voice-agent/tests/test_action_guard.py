@@ -38,7 +38,9 @@ class GuessingBecomesAQuestion(unittest.TestCase):
     def test_an_invented_device_is_refused(self):
         # a named device that was never said, and no light words at all
         q = self.asks("it is a bit gloomy in here", dev(action="lights_on", target="tusker L1"))
-        self.assertIn("tusker edge", q)  # the question offers the real names
+        self.assertIn("cove light", q)  # the question offers the room's names
+        self.assertIn("sky light", q)
+        self.assertNotIn("front", q)  # the sky light is one choice
         # a device that was never said, even though "lights" was
         self.asks("make the lights a bit brighter please", dev(action="lights_on", target="tusker L1"))
 
@@ -88,7 +90,8 @@ class GuessingBecomesAQuestion(unittest.TestCase):
     def test_content_and_screen_must_be_said(self):
         self.asks("show something on a screen", dict(action="assign_media", screen="tusker 86", content="Company Presentation"), name="screen_control")
         q = self.asks("show the company presentation", dict(action="assign_media", content="Company Presentation"), name="screen_control")
-        self.assertIn("tusker 86", q)
+        # No screen at all: not "which screen?" (the answer would arrive without the title) but the whole command again.
+        self.assertIn("repeat the whole command", q)
         self.assertIsNone(prep("show the company presentation on tusker 86", "screen_control",
                                dict(action="assign_media", screen="tusker 86", content="company presentation")).question)
 
@@ -205,7 +208,8 @@ class OneLightAsksWhich(unittest.TestCase):
                     p = prep(utterance, "device_control", dev(action=action), strict=strict)
                     self.assertEqual(p.calls, [])
                     self.assertIn("Which light", p.question)
-                    self.assertIn("tusker L1", p.question)
+                    self.assertIn("sky light", p.question)
+                    self.assertNotIn("front", p.question)
 
     def test_model_call_on_a_singular_light_asks_which(self):
         p = prep("turn off the light", "device_control", dev(action="lights_off", target="the light"))

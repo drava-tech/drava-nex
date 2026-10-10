@@ -201,11 +201,12 @@ describe("Travis", () => {
     expect(applyLightState).not.toHaveBeenCalled();
   });
 
-  it("'hi' (good_morning) brings the lights up in pre-entry mode and turns the AC on", async () => {
+  it("'hi' (good_morning) brings the lights up in entry mode and turns the AC on", async () => {
     const res = await runDeviceCommand({ action: "good_morning" }, "ADMIN");
-    expect(res.message).toContain("pre-entry mode");
+    expect(res.message).toContain("entry mode");
+    expect(res.message).not.toContain("pre-entry");
     expect(res.message).toContain("the AC");
-    expect(applyLightState.mock.calls.every((c) => c[1].brightness === 70 && c[1].color === "#FFF3E0")).toBe(true);
+    expect(applyLightState.mock.calls.every((c) => c[1].brightness === 80 && c[1].color === "#FFF3E0")).toBe(true);
     expect(applyIrCommand).toHaveBeenCalledWith(
       expect.objectContaining({ id: "dev-ac" }),
       expect.anything(),

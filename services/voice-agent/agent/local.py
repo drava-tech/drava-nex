@@ -29,21 +29,34 @@ from nlu.local_llm import OllamaChat, tools_to_json_schema
 from nlu.intent import IntentCheck
 from nlu.relevance import RelevanceGate
 from speech.stt import WhisperSTT
-from speech.vad import Endpointer
+from speech.endpointing import make_endpointer
+from agent.canned_route import CannedMixin
+from agent.knowledge_answer import KnowledgeMixin
+from agent.room_state import RoomStateMixin
 from actions import cms_client
 from settings import (
-    BASE_DIR, COMMANDS_PATH, LOCAL_PROMPT_PATH,
+    BASE_DIR, COMMANDS_PATH, LOCAL_PROMPT_PATH, PLANNER_PROMPT_PATH,
     RECEIVE_SAMPLE_RATE, SEND_SAMPLE_RATE, load_api_config,
 )
 from agent.tool_declarations import TOOL_DECLARATIONS
-from agent.vocabulary import speakable, stt_vocabulary
+from agent import utterance_store
+from agent.vocabulary import speakable, stt_names_prompt, stt_vocabulary
+from nlu.spoken_names import say_names
 
 
 from agent.base import TravisBase
 from agent.commands import CommandMixin, _PendingHandled  # noqa: F401
+from agent.planning import PlanMixin
 
 
-class TravisLocal(CommandMixin, TravisBase):
+DECLINES = (
+    "Sorry, I can only help with this room, its screens and devices, and the experience center. Try asking me about White Tusker.",
+    "Sorry, that's outside what I can help with. I can change the lights, the AC or what's on a screen.",
+    "I can't help with that one. Ask me about the CMS, or tell me what to do with the lights.",
+)
+
+
+class TravisLocal(CannedMixin, RoomStateMixin, KnowledgeMixin, PlanMixin, CommandMixin, TravisBase):
     """TRAVIS on a local language model, with ElevenLabs for speech both ways:
 
   mic (while awake) -> WebRTC VAD endpointing (speech/vad.py)
@@ -68,6 +81,14 @@ a command runs and while Travis speaks."""
     # The brightness request Travis last asked a question about (nlu/pending.py).
     _pending: "pending_mod.Pending | None" = None
 
+    # Keep the audio of recent utterances (agent/utterance_store.py). On only for the real agent
+    # (set from config in __init__); tests and the benchmark build agents that never write to logs/.
+    _save_utterances = False
+    _min_logprob = 0.0
+
+    # Utterances cut by the VAD that Whisper has not finished reading (see _speech_in_flight).
+    _utterance_inflight = 0
+
     _TIMING_STAGES = [
         ("wake_detected", "wake_detected"),
         ("command_mode_started", "command_mode_started"),
@@ -89,13 +110,12 @@ a command runs and while Travis speaks."""
         # Mic audio captured before this moment belongs to an exchange that
         # has already been handled — never a new command.
         self._ignore_before = 0.0
-        self._endpointer = Endpointer(
-            sample_rate=SEND_SAMPLE_RATE,
-            aggressiveness=int(cfg.get("vad_aggressiveness", 2)),
-            end_ms=int(cfg.get("vad_end_silence_ms", 500)),
-            max_ms=int(cfg.get("vad_max_utterance_ms", 12000)),
-        )
+        # `endpointing` in the config: "webrtc" (default, speech/vad.py) or "smart" (Silero + Smart Turn, speech/endpointing.py).
+        self._endpointer = make_endpointer(cfg, SEND_SAMPLE_RATE)
         self._stt = None
+        self._save_utterances = bool(cfg.get("save_utterances", True))
+        # A transcript Whisper is this unsure of is not acted on (None/0 turns the check off).
+        self._min_logprob = float(cfg.get("stt_min_logprob", -0.5) or 0.0)
         self._llm = OllamaChat(
             base_url=cfg.get("ollama_url", "http://127.0.0.1:11434"),
             model=cfg.get("llm_model", "qwen3:8b"),
@@ -108,12 +128,10 @@ a command runs and while Travis speaks."""
         # refusal instead of an answer — see nlu/relevance.py.
         self._gate = RelevanceGate(self._llm, enabled=bool(cfg.get("relevance_gate", True)))
         self._intent = IntentCheck(self._llm, enabled=bool(cfg.get("intent_check", True)))
-        self._off_topic_reply = str(
-            cfg.get(
-                "off_topic_reply",
-                "Sorry, I can only help with this room, its screens and devices, and the experience center.",
-            )
-        )
+        # One sentence declining, one suggestion of what Travis can do; the three wordings take turns. `off_topic_reply` in the config
+        # pins one fixed wording instead.
+        self._off_topic_reply = str(cfg.get("off_topic_reply") or DECLINES[0])
+        self._decline_last = -1
         self._partial_reply = str(cfg.get("off_topic_partial_reply", "I can't help with the rest."))
         self._registry = load_registry(COMMANDS_PATH)
         self._match_opts = {
@@ -121,13 +139,7 @@ a command runs and while Travis speaks."""
             "fuzzy_threshold": float(cfg.get("fast_path_fuzzy_threshold", 0.82)),
             "min_confidence": float(cfg.get("fast_path_min_confidence", 0.75)),
         }
-        # knowledge_search embeds with Gemini (not a voice backend) — only offered when a key exists.
-        declarations = [
-            d
-            for d in TOOL_DECLARATIONS
-            if d["name"] != "knowledge_search" or cfg.get("gemini_api_key")
-        ]
-        self._llm_tools = tools_to_json_schema(declarations)
+        self._llm_tools = tools_to_json_schema(TOOL_DECLARATIONS)
         self._system_prompt = LOCAL_PROMPT_PATH.read_text(encoding="utf-8")
         self._history: list[dict] = []
         self._history_at = 0.0
@@ -135,6 +147,9 @@ a command runs and while Travis speaks."""
         # What "it" / "them" can mean, and the checks that stop guessing (safety/action_guard.py).
         self._guard = ActionGuard(self._registry, ttl=float(cfg.get("context_ttl_sec", 120)))
         self._light_names_fn = self._fetch_light_names
+        # The planner reads what was meant (nlu/planner.py); target resolution + execution: agent/planning.py.
+        if cfg.get("semantic_planner", True):
+            self._init_planner(self._llm, PLANNER_PROMPT_PATH.read_text(encoding="utf-8"), self._registry, self._guard, float(cfg.get("context_ttl_sec", 120)))
         self._utterance = ""
         # One line per exchange in logs/exchanges.jsonl, for reviewing real-voice tests.
         self._xlog = ExchangeLog(BASE_DIR / "logs" / "exchanges.jsonl") if cfg.get("exchange_log", True) else None
@@ -183,7 +198,7 @@ a command runs and while Travis speaks."""
 
     # ── Speech out ───────────────────────────────────────────────────────
     async def _say(self, text: str):
-        text = speakable(text)
+        text = say_names(speakable(text))
         if not text.strip():
             return
         if self._first_say is None:
@@ -228,14 +243,23 @@ a command runs and while Travis speaks."""
                 continue
             for utterance in self._endpointer.feed(pcm):
                 self._timing["vad_speech_end"] = time.monotonic()
+                self._utterance_inflight += 1  # keeps the "what do you need?" nudge quiet while Whisper works
                 try:
-                    await self._handle_utterance(utterance)
+                    # Smart Turn said the sentence was unfinished and then the speaker went quiet for the whole grace period
+                    # ("Can you tell me about the..."): what was heard is not a request to guess the end of.
+                    reason = getattr(self._endpointer, "last_reason", None)
+                    if reason is not None:  # only the smart endpointer says why it ended
+                        turn = getattr(self._endpointer, "last_turn_prob", None)
+                        print(f"[Voice Agent] 🏁 Utterance ended by {reason}" + (f" (Smart Turn {turn:.2f})" if turn is not None else "") + ".")
+                    await self._handle_utterance(utterance, unfinished=reason == "grace")
                 except Exception as e:
                     print(f"[Voice Agent] ⚠️ Utterance handling failed: {e}")
                     traceback.print_exc()
+                finally:
+                    self._utterance_inflight -= 1
                 break
 
-    async def _handle_utterance(self, pcm: bytes):
+    async def _handle_utterance(self, pcm: bytes, unfinished: bool = False):
         stt = self._stt
         if stt is None:
             return
@@ -252,6 +276,7 @@ a command runs and while Travis speaks."""
             print(f"[Voice Agent] 🐞 utterance {seconds:.1f}s saved to {wav_path.name}")
         transcript = await asyncio.get_running_loop().run_in_executor(None, stt.transcribe, pcm)
         self._timing["stt_done"] = time.monotonic()
+        wav = utterance_store.save(BASE_DIR / "logs" / "utterances", pcm, SEND_SAMPLE_RATE) if self._save_utterances else ""
         if transcript.rejected_language:
             print(
                 f"[Voice Agent] 🔇 Ignoring {seconds:.1f}s of speech (not English: "
@@ -263,7 +288,7 @@ a command runs and while Travis speaks."""
         text = transcript.text.strip()
         self._last_heard = {
             "text": text, "language": transcript.language, "language_prob": round(transcript.language_prob, 2),
-            "stt_ms": round(transcript.ms), "seconds": round(seconds, 1),
+            "stt_ms": round(transcript.ms), "seconds": round(seconds, 1), "wav": wav,
         }
         print(
             f"[Voice Agent] 📝 Heard {seconds:.1f}s in {transcript.ms:.0f}ms "
@@ -297,11 +322,21 @@ a command runs and while Travis speaks."""
             self._log_ignored("only the wake word: waiting for the request", text)
             return  # just "Hey Travis": the nudge asks what they want
         self._heard_command_speech = True
+        unsure = bool(self._min_logprob) and transcript.avg_logprob < self._min_logprob
+        if unsure:
+            print(f"[Voice Agent] 🤔 Whisper is unsure ({transcript.avg_logprob:.2f} < {self._min_logprob:.2f}): not acting on {command!r}.")
         try:
-            await self._run_command(command)
+            await self._run_command(command, unsure=unsure, unfinished=unfinished)
         finally:
             self._ignore_before = time.monotonic()
             self._endpointer.reset()
+
+    async def _prewarm_stt(self):
+        """Wake the GPU while the user is still speaking their command, so Whisper is not paying the
+        clock ramp-up (a laptop GPU idles at ~200 MHz, worst on battery) after they stop."""
+        stt = self._stt
+        if stt is not None:
+            await asyncio.get_running_loop().run_in_executor(None, stt.warm)
 
     def _log_ignored(self, reason: str, text: str) -> None:
         if self._xlog is not None:
@@ -332,6 +367,9 @@ a command runs and while Travis speaks."""
             cuda_lib_dir=cfg.get("stt_cuda_lib_dir") or None,
             reject_threshold=float(cfg.get("stt_reject_language_threshold", 0.5)),
             english_floor=float(cfg.get("stt_english_floor", 0.15)),
+            single_pass=bool(cfg.get("stt_single_pass", True)),
+            fallback_prompt=stt_names_prompt(self._registry, cfg),
+            retry_below=cfg.get("stt_retry_below", -0.30),
         )
 
     async def run(self):

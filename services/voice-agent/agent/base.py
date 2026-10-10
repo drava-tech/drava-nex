@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import threading
 
 
 # pyrefly: ignore [missing-import]
 
+from audio.metrics import CaptureMeter
 from ui import TravisUI
 
 
@@ -44,6 +46,7 @@ and the tools. TravisLocal supplies speech-to-text, the command list/LLM and spo
         # Where the current wake-word exchange stands — see _awake_action().
         # Reset on every fresh wake word.
         self._exchange_active = False  # a request is being answered
+        self._followup_wanted = False  # the last reply asked a question: open the follow-up window when it has finished playing
         self._exchange_is_nudge = False  # ...and that answer is the "how can I help?" prompt
         self._reply_complete_at: float | None = None  # last turn_complete; None while a reply is unfinished
         self._last_model_activity = 0.0
@@ -63,6 +66,16 @@ and the tools. TravisLocal supplies speech-to-text, the command list/LLM and spo
         # behaves like the old bool.
         self._tool_active = 0
         self._speaking_lock = threading.Lock()
+
+        # Audio-device health (agent/mic_listener.py `_supervise_mic`, agent/playback.py).
+        # Capture stats for the open mic stream; counters of recovery events; and the
+        # handshake that lets the mic supervisor re-initialise PortAudio (after a
+        # Bluetooth reconnect) while the speaker stream is closed.
+        self._capture_meter = CaptureMeter()
+        self._audio_events: dict[str, int] = {}
+        self._audio_reset_wanted = False  # speaker asks the mic supervisor for a reset
+        self._reinit_requested = False
+        self._reinit_done = asyncio.Event()
 
         # Audio preroll queue and tool lifecycle tracking
         self._preroll_pcm = collections.deque(maxlen=16)

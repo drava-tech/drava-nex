@@ -60,3 +60,6 @@ numpy                 # backs the RAG knowledge index (cosine retrieval) and
 # pretrained target-speaker-conditioned checkpoint exists as of this
 # writing. Any CUDA/model failure falls back to the Resemblyzer gate above,
 # per-chunk, automatically.
+
+# FAQ / small-talk files (knowledge/faq.yaml) and their tests
+pyyaml>=6.0

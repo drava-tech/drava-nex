@@ -1,7 +1,7 @@
 """ElevenLabs ultra-low-latency streaming TTS client for TRAVIS.
 
 Streams text tokens directly into ElevenLabs' input-streaming WebSocket
-(model: eleven_flash_v2_5) and yields raw 24kHz PCM chunks directly into
+(model: eleven_flash_v2_5) and yields raw PCM chunks (at `tts_sample_rate`) directly into
 TRAVIS's audio playback queue, achieving ~75-100ms TTFB.
 """
 
@@ -14,6 +14,8 @@ import logging
 from typing import Optional
 import websockets
 from websockets.protocol import State
+
+from settings import RECEIVE_SAMPLE_RATE
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +33,13 @@ class ElevenLabsStreamer:
         api_key: str,
         voice_id: str,
         model_id: str = "eleven_flash_v2_5",
-        sample_rate: int = 24000,
+        sample_rate: Optional[int] = None,
         audio_queue: Optional[asyncio.Queue] = None,
     ):
         self.api_key = api_key.strip()
         self.voice_id = voice_id.strip()
         self.model_id = model_id.strip() or "eleven_flash_v2_5"
-        self.sample_rate = sample_rate
+        self.sample_rate = sample_rate if sample_rate is not None else RECEIVE_SAMPLE_RATE
         self.audio_queue = audio_queue
 
         self._ws = None

@@ -35,6 +35,7 @@ EXPERIENCES = [
     {"id": "exp-welcome", "title": "Welcome Experience"},
     {"id": "exp-flight", "title": "Flight Simulation"},
     {"id": "exp-dataart", "title": "Data Art Showcase"},
+    {"id": "exp-portfolio", "title": "White Tusker Portfolio"},  # what the portfolio offer plays (agent/planning.py)
 ]
 MEDIA = [
     {"id": "media-pres", "name": "Company Presentation", "type": "document"},

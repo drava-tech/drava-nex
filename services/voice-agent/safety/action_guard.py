@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from nlu.command_matcher import Registry, normalize, similarity
+from nlu.missing_target import repeat_message
+from nlu.spoken_names import HIDDEN_FROM_LISTS, say_names
 
 AC_MIN_TEMP, AC_MAX_TEMP = 16, 30
 AC_MODES = ["cool", "heat", "auto", "fan", "dry"]
@@ -90,6 +92,9 @@ class ActionGuard:
         self._ttl = ttl
         self._ctx: dict[str, tuple[str, float]] = {}
         self.light_names = [k for k in (registry.slots.get("light") or {}).get("values", {})]
+        # What is offered when asking "which light?": the sky light is one choice, not its front and back.
+        self.offered_light_names = [n for n in self.light_names if n not in HIDDEN_FROM_LISTS]
+        self._canonical_light = {normalize(n): n for n in self.light_names}
         self.screen_names = [k for k in (registry.slots.get("screenAlias") or {}).get("values", {})]
         # alias phrase -> canonical, for names said the short way ("l 3" for "tusker L3")
         self._aliases: list[tuple[str, str]] = []
@@ -168,11 +173,19 @@ class ActionGuard:
 
     @staticmethod
     def _numbers(utterance: str) -> set[float]:
-        return {float(t) for t in normalize(utterance).split() if t.isdigit()}
+        toks = normalize(utterance).split()
+        nums = {float(t) for t in toks if t.isdigit()}
+        # Spoken levels count as said numbers: "up to full" is 100, "to half" is 50.
+        if set(toks) & {"full", "fully", "max", "maximum", "brightest"}:
+            nums.add(100.0)
+        if "half" in toks:
+            nums.add(50.0)
+        return nums
 
     def _ask_light(self) -> str:
-        names = ", ".join(self.light_names[:-1]) + (f" or {self.light_names[-1]}" if len(self.light_names) > 1 else "")
-        return f"Which light do you mean: {names}?" if self.light_names else "Which light do you mean?"
+        offered = [say_names(n) for n in self.offered_light_names]
+        names = ", ".join(offered[:-1]) + (f" or {offered[-1]}" if len(offered) > 1 else "")
+        return f"Which light do you mean: {names}?" if offered else "Which light do you mean?"
 
     def _ask_screen(self) -> str:
         names = " or ".join(self.screen_names)
@@ -190,17 +203,20 @@ class ActionGuard:
         utterance: str,
         light_names: Callable[[], list[str]] | None = None,
         strict: bool = True,
+        trusted: bool = False,
     ) -> Prepared:
         """strict=True for calls the model made (everything must be grounded in the utterance);
-        strict=False for calls the command list built from the utterance (values are still checked)."""
+        strict=False for calls the command list built from the utterance (values are still checked).
+        trusted=True for calls from the planner (agent/planning.py), whose target was already
+        resolved against the real devices: only the values are checked, not how the target was worded."""
         args = dict(args or {})
         if name == "device_control":
-            return self._device(args, utterance, light_names, strict)
+            return self._device(args, utterance, light_names, strict, trusted)
         if name == "screen_control":
             return self._screen(args, utterance, strict)
         return Prepared(calls=[(name, args)])
 
-    def _device(self, args: dict, utterance: str, light_names, strict: bool) -> Prepared:
+    def _device(self, args: dict, utterance: str, light_names, strict: bool, trusted: bool = False) -> Prepared:
         a = str(args.get("action", "")).strip().lower()
         u = normalize(utterance)
         utoks = set(u.split())
@@ -214,8 +230,8 @@ class ActionGuard:
             params = dict(args.get("params") or {})
             if cmd in AC_COMMANDS:
                 args["target"] = "ac"  # whatever the model called it, this is the AC
-                if strict and not (utoks & AC_CUES) and not (pron and self._fresh("ac")):
-                    return ask(self._unclear(), "no AC was mentioned")
+                if (strict or trusted) and not (utoks & AC_CUES) and not (pron and self._fresh("ac")):
+                    return ask(self._unclear(), "no AC was mentioned")  # "set it to 24" with nothing said about the AC
                 if strict and self._names_a_light(utterance) and not (utoks & {"ac", "air", "conditioner", "conditioning", "aircon", "temperature"}):
                     return ask("Do you mean a light or the AC? Say which one, and what to set.", "a light was named but the AC was changed")
                 nums = self._numbers(utterance)
@@ -240,11 +256,11 @@ class ActionGuard:
                     args["params"] = params
                 return ok()
             if cmd.replace(" ", "") in ("volumeup", "volumedown", "mute", "unmute", "volup", "voldown"):
-                if strict and not (utoks & VOLUME_CUES):
+                if (strict or trusted) and not (utoks & VOLUME_CUES):
                     return ask(self._unclear(), "volume was not mentioned")
                 times = _num(params.get("times"))
                 said = self._numbers(utterance)
-                if strict and len(said) == 1 and not (utoks & AC_CUES) and not (utoks & LIGHT_CUES) and not 1 <= next(iter(said)) <= MAX_VOLUME_STEPS:
+                if (strict or trusted) and len(said) == 1 and not (utoks & AC_CUES) and not (utoks & LIGHT_CUES) and not 1 <= next(iter(said)) <= MAX_VOLUME_STEPS:
                     return ask(f"I can change the volume by 1 to {MAX_VOLUME_STEPS} steps at a time. How many steps?", "spoken volume steps out of range")
                 if times is not None and not 1 <= times <= MAX_VOLUME_STEPS:
                     return ask(f"I can change the volume by 1 to {MAX_VOLUME_STEPS} steps at a time. How many steps?", "volume steps out of range")
@@ -254,7 +270,7 @@ class ActionGuard:
                 return ok()
             if cmd == "power":
                 t = normalize(str(args.get("target") or ""))
-                if strict and not (utoks & TV_CUES):
+                if (strict or trusted) and not (utoks & TV_CUES):
                     return ask(self._unclear(), "the TV was not mentioned")
                 return ok()
             return ok()  # any other remote key: the CMS knows its button names
@@ -266,6 +282,11 @@ class ActionGuard:
                 if strict and not (utoks & AC_CUES) and not (pron and self._fresh("ac")):
                     return ask(self._unclear(), "no AC was mentioned")
                 return ok()
+            # A name said the room's way ("sky light", "cove light") is sent as the CMS's own name.
+            alias_of = {a: c for a, c in self._aliases}.get(t)
+            if alias_of and alias_of in self._canonical_light and t not in ALL_LIGHTS_NAMES:
+                t = normalize(self._canonical_light[alias_of])
+                args["target"] = self._canonical_light[alias_of]
             if not t or t in PLACEHOLDERS:
                 ctx = self._fresh("light")
                 if ctx and pron:
@@ -279,7 +300,7 @@ class ActionGuard:
             if a != "status" and t in {normalize(x) for x in AC_NAMES}:
                 return ask(self._ask_light(), "the AC is not a light")
             all_lights = t in ALL_LIGHTS_NAMES
-            if all_lights and _single_light_said(utoks):
+            if all_lights and not trusted and _single_light_said(utoks):
                 return ask(self._ask_light(), "one light was said without a name")
             if a == "lights_set":
                 nums = self._numbers(utterance)
@@ -317,14 +338,16 @@ class ActionGuard:
             return ok()
 
         # --- scenes and the door ------------------------------------------
-        if a in ("all_lights_on", "all_lights_off") and _single_light_said(utoks):
+        if a in ("all_lights_on", "all_lights_off") and not trusted and _single_light_said(utoks):
             return ask(self._ask_light(), "one light was said without a name")
         cues = {"lock": LOCK_CUES, "unlock": UNLOCK_CUES, "good_night": NIGHT_CUES, "good_morning": MORNING_CUES,
                 "all_lights_on": LIGHT_CUES, "all_lights_off": LIGHT_CUES}.get(a)
-        if cues is not None and strict:
+        # Locking the door and the whole-room scenes need their cue words even when the planner asked
+        # for them: the lights' own actions are covered by the resolved target instead.
+        if cues is not None and (strict or (trusted and not a.startswith("all_lights"))):
             if not (utoks & cues) and not (a.startswith("all_lights") and pron and self._fresh("light") == "all lights"):
                 return ask(self._unclear(), f"nothing in the request asked for {a}")
-        if a == "ambient_mode" and strict:
+        if a == "ambient_mode" and (strict or trusted):
             t = str(args.get("target") or "")
             # "show the presentation" is not "presentation mode": the word "mode" is the cue
             if not t or not self._said(t, utterance) or not (utoks & {"mode", "ambient"}):
@@ -342,6 +365,9 @@ class ActionGuard:
             ctx = self._fresh("screen")
             if ctx and (pron or not strict):
                 args["screen"] = ctx
+            elif a in ("assign_experience", "assign_media", "assign_content"):
+                # Not "which screen?" alone: the answer would arrive without the title.
+                return ask(repeat_message("Hey Travis"), "no screen was named")
             else:
                 return ask(self._ask_screen(), "no screen was named")
         elif strict and not (self._said(s, utterance) or (pron and self._fresh("screen") == s)):
