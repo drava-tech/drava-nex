@@ -90,8 +90,12 @@ _GATE_SYSTEM = (
     "TRAVIS only helps with: controlling the room (lights, AC, door, volume, TV), the screens "
     "and the content on them, the experience center and the company (what it is, hours, "
     "location, visitors, its demos and experiences), and questions about TRAVIS itself or what "
-    "it can do. Everything else is out of scope: general knowledge, maths, news, weather, "
-    "sport, jokes, songs, stories, poems, coding, advice, opinions, chit-chat.\n"
+    "it can do. The company is called White Tusker: anything about it is in scope, including "
+    "its founders, team, projects, clients, awards, prices and jobs, and its own history, and the CMS platform "
+    "it builds and everything it does (screens, experiences, media, products, portfolio, whiteboards, "
+    "room modes, users and roles). History is in scope only when it is the history of White Tusker, the company, you (TRAVIS), the CMS or the "
+    "platform: the history of lighting design, art or a country is out of scope. Other companies and people are not. Everything else is out of scope: "
+    "general knowledge, maths, news, weather, sport, jokes, songs, stories, poems, coding, advice, opinions, chit-chat.\n"
     "Read the user's latest message (a short follow-up to the previous exchange counts as in "
     "scope) and answer with exactly one line:\n"
     "OK - everything asked is in scope\n"
@@ -99,9 +103,22 @@ _GATE_SYSTEM = (
     "KEEP: <text> - only part is in scope; <text> is just the in-scope part, worded as a command\n"
     "Examples:\n"
     "turn the lights blue -> OK\n"
+    "it is too bright in here, bring all the lights down to 30 percent -> OK\n"
+    "it's freezing, set the AC to 24 -> OK\n"
     "what time do you open -> OK\n"
     "what is this place -> OK\n"
     "what can you control -> OK\n"
+    "who founded White Tusker -> OK\n"
+    "who is on the team at the company -> OK\n"
+    "what awards has White Tusker won -> OK\n"
+    "history of White Tusker -> OK\n"
+    "how did your company start -> OK\n"
+    "tell me about the history of lighting design -> NONE\n"
+    "does the CMS support whiteboards -> OK\n"
+    "does it support whiteboards -> OK\n"
+    "what are experiences in the CMS -> OK\n"
+    "who is the CEO of Google -> NONE\n"
+    "who is Elon Musk -> NONE\n"
     "what's the capital of France -> NONE\n"
     "tell me a joke about the lights -> NONE\n"
     "what's the weather in the lobby -> NONE\n"
@@ -175,6 +192,25 @@ def gate_messages(command: str, history: list[dict]) -> list[dict]:
     ]
 
 
+# "History" is in scope only as the history of the company, the CMS or Travis. Checked in code too, before the room-command shortcut, because
+# a room word in the sentence ("lighting") would otherwise wave "the history of lighting design" through.
+_HISTORY = re.compile(r"\bhistory\b", re.I)
+_OURS = re.compile(r"\b(white\s+tusker|tusker|company|you|your|cms|platform|travis|studio)\b", re.I)
+_PRONOUN = re.compile(r"\b(it|its|their|they|them)\b", re.I)
+
+
+def history_out_of_scope(command: str, history: list[dict] | None = None) -> bool:
+    """True for a question about a history that is not ours: it names no White Tusker / company / CMS / Travis word, and a bare "its history" does
+    not follow something said about one of them."""
+    if not _HISTORY.search(command or "") or _OURS.search(command):
+        return False
+    if _PRONOUN.search(command):
+        last = " ".join(str(m.get("content", "")) for m in (history or [])[-2:])
+        if _OURS.search(last):
+            return False
+    return True
+
+
 class RelevanceGate:
     """`chat` is an OllamaChat (anything with `async complete(messages, max_tokens)`)."""
 
@@ -185,6 +221,8 @@ class RelevanceGate:
     async def review(self, command: str, history: list[dict] | None = None, corrected: bool = False) -> Review:
         """corrected: the sentence contains a self-correction, so its earlier part is
         superseded, not off topic. It is judged as a whole and never trimmed."""
+        if self.enabled and history_out_of_scope(command, history):
+            return Review(False, "", True)
         if not self.enabled or (is_room_command(command) and (corrected or not _JOINERS.search(command.lower()))):
             return Review(True, command)
         answer = await self._chat.complete(gate_messages(command, history or []), max_tokens=40)

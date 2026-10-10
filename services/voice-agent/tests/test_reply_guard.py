@@ -87,5 +87,29 @@ class SmallHelpersTests(unittest.TestCase):
         self.assertFalse(claims_action(unverified_reply()))
 
 
+class WithoutContactTests(unittest.TestCase):
+    def test_contact_sentences_are_removed_and_the_rest_kept(self):
+        from safety.reply_guard import without_contact
+
+        text = ("The Travis control system is the voice assistant built by White Tusker. It controls this space. "
+                "You can reach us at hello at thewhitetusker dot com.")
+        self.assertEqual(without_contact(text), "The Travis control system is the voice assistant built by White Tusker. It controls this space.")
+
+    def test_phone_and_email_words_and_addresses_go_too(self):
+        from safety.reply_guard import without_contact
+
+        self.assertEqual(without_contact("It runs the screens. Email hello@thewhitetusker.com for more. Call us on 99001."), "It runs the screens.")
+
+    def test_text_without_contact_is_unchanged(self):
+        from safety.reply_guard import without_contact
+
+        self.assertEqual(without_contact("The CMS controls lights, the AC and screens."), "The CMS controls lights, the AC and screens.")
+
+    def test_a_reply_that_is_only_contact_becomes_empty(self):
+        from safety.reply_guard import without_contact
+
+        self.assertEqual(without_contact("You can reach us at hello at thewhitetusker dot com."), "")
+
+
 if __name__ == "__main__":
     unittest.main()

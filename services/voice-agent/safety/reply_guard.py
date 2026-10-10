@@ -25,6 +25,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from nlu.spoken_names import say_names
+
 
 @dataclass
 class ToolResult:
@@ -87,7 +89,7 @@ def compose(results: list[ToolResult], wake_hint: str = "Hey Travis") -> str | N
     for r in results:
         if r.name in _SILENT:
             continue
-        text = _confirmation(r) if r.ok else clean_cms_message(r.message)
+        text = say_names(_confirmation(r) if r.ok else clean_cms_message(r.message))
         if text and text not in parts:
             parts.append(text)
     spoken = " ".join(parts)
@@ -121,6 +123,108 @@ _NOT_DONE = re.compile(
     r"no such|which|what|\?|couldn’t|can’t|didn’t|don’t|haven’t)",
     re.I,
 )
+
+
+_CONTACT_SENTENCE = re.compile(r"thewhitetusker|@|\bhello at\b|\b(?:reach us|e-?mail|phone|call us|contact us)\b", re.I)
+
+
+def without_contact(text: str) -> str:
+    """`text` minus any sentence giving contact details. The company's contact line belongs to answers about the company only: the
+    model adds it to answers about the CMS or Travis however it is told not to, so it is removed here, not just asked for."""
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+    return " ".join(s for s in sentences if not _CONTACT_SENTENCE.search(s)).strip()
+
+
+_STOP = frozenset("the a an and or of to in on at for with is are was were be been it its this that these those we our us you your they their them as by from not "
+                  "but so can will would could should do does did have has had i he she his her there here what which who how about into than then also just".split())
+
+
+def grounding(answer: str, knowledge: str, also_known: str = "") -> float:
+    """Share of the answer's content words that also occur in `knowledge`: 1.0 for a paraphrase that keeps its facts, low for an
+    answer that brings in things the knowledge never said. A cheap check, not a proof: it cannot tell a wrong combination of true words.
+    `also_known`: words that count as known as well (the visitor's own question: an answer that echoes "worked" back is not inventing it).
+    Names and numbers are NOT helped by this; see `unsupported_facts`."""
+    words = [w for w in re.findall(r"[a-z]+", (answer or "").lower()) if w not in _STOP and len(w) > 3]
+    if not words:
+        return 1.0
+    known = set(re.findall(r"[a-z]+", (knowledge or "").lower())) | set(re.findall(r"[a-z]+", (also_known or "").lower()))
+    return sum(w in known for w in words) / len(words)
+
+
+_NUMBER_WORDS = {w: str(i) for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
+_NUMBER_WORDS.update({"thirty": "30", "forty": "40", "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
+                      "hundred": "100", "thousand": "1000", "million": "1000000", "billion": "1000000000"})
+_NUMBER_WORDS.pop("one")  # "one studio", "one of the": an article far more often than a quantity
+_NUMBER_TOKEN = re.compile(r"\d[\d,]*(?:\.\d+)?")
+# Capitalised words that are not names: sentence openers and the like
+_OPENERS = frozenset(
+    "yes no sure absolutely certainly indeed unfortunately however also additionally currently generally typically today here there they them "
+    "their these those this that what which who when where why how our we you your it its the a an and or but so if as at by for from in of on to with "
+    "each every all some any many most more both either neither operators visitors please thanks okay ok hello hi hey one two three four five six "
+    "seven eight nine ten first second third next finally overall instead because since while whether once ask say just simply let using use without through "
+    "during after before between across within until still even only often usually sometimes always never anyone someone everyone nothing anything something "
+    "ensure make can could may might should would will shall do does did is are was were be been being has have had not nor yet than then thus hence "
+    "together beyond among around along per via like such other another own same few several various multiple whether".split())
+
+
+# The company, the assistant and the room's own vocabulary are not new facts whichever section was retrieved.
+_ALWAYS_KNOWN = frozenset("white tusker travis cms ac tv".split())
+
+
+def _numbers_in(text: str) -> set[str]:
+    out = {n.replace(",", "").rstrip(".") for n in _NUMBER_TOKEN.findall(text or "")}
+    out |= {_NUMBER_WORDS[w] for w in re.findall(r"[a-z]+", (text or "").lower()) if w in _NUMBER_WORDS}
+    return out
+
+
+def _names_in(text: str, question: str = "") -> set[str]:
+    """Capitalised words that look like names (proper nouns, companies, projects, acronyms), lower-cased. A word that only starts the sentence ("Founded in
+    1990") is a name only if it is not an ordinary opener AND something else says it is one: it is written capitalised in the middle of the visitor's
+    question or of the sentence, or it is an acronym or has a digit. (A new name that only ever starts a sentence is left to the overlap score.)"""
+    names: set[str] = set()
+    elsewhere = {w.lower() for w in re.findall(r"(?<!^)(?<![.!?]\s)(?<![A-Za-z0-9])([A-Z][A-Za-z0-9&'-]+)", question or "")}
+    elsewhere |= {w.lower() for w in re.findall(r"(?<=[a-z,;] )([A-Z][A-Za-z0-9&'-]+)", text or "")}
+    for sentence in re.split(r"(?<=[.!?])\s+", (text or "").strip()):
+        tokens = re.findall(r"[A-Za-z][A-Za-z0-9&'\u2019-]*", sentence)
+        for i, tok in enumerate(tokens):
+            word = tok.replace("\u2019", "'")
+            word = re.sub(r"'s$", "", word)
+            if len(word) < 2 or not word[0].isupper():
+                continue
+            if i == 0 and (word.lower() in _OPENERS or not (word.lower() in elsewhere or word.isupper() or any(ch.isdigit() for ch in word))):
+                continue
+            if word.lower() in _OPENERS and not word.isupper():
+                continue
+            names.add(word.lower())
+    return names
+
+
+def unsupported_facts(text: str, knowledge: str, question: str = "") -> list[str]:
+    """Names and numbers in `text` that the retrieved `knowledge` does not contain, whatever the overlap score: the visitor's words never vouch for
+    them ("Did you win a Nobel Prize" must not be answered with a Nobel Prize, "500 employees" with 500). Case-insensitive; a number counts as the
+    same in digits or words."""
+    known_words = set(re.findall(r"[a-z0-9&'-]+", (knowledge or "").lower().replace("\u2019", "'")))
+    known_words |= {re.sub(r"'s$", "", w) for w in known_words}
+    known_numbers = _numbers_in(knowledge)
+    missing = sorted(n for n in _names_in(text, question) if n not in known_words and n not in _ALWAYS_KNOWN)
+    missing += sorted(n for n in _numbers_in(text) if n not in known_numbers)
+    return missing
+
+
+_NEGATION = re.compile(r"\b(?:not|no|never|none|cannot|nothing|nobody|neither|nor|without)\b|n['\u2019]t\b", re.I)
+
+
+def has_negation(text: str) -> bool:
+    """not, no, never, none, cannot, n't forms... A sentence that denies something must stand on the knowledge alone."""
+    return bool(_NEGATION.search(text or ""))
+
+
+def check_sentence(text: str, knowledge: str, question: str = "") -> tuple[float, list[str]]:
+    """(grounding score, names/numbers the knowledge lacks) for one sentence of an answer. The visitor's own words count as known, EXCEPT in a sentence
+    that contains a negation: "Travis does not run the company's operations" is not vouched for by a question about the company's operations."""
+    g = grounding(text, knowledge, also_known="" if has_negation(text) else question)
+    return g, unsupported_facts(text, knowledge, question)
 
 
 def claims_action(text: str) -> bool:

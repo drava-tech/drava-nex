@@ -15,6 +15,7 @@ indexer is responsible for splitting long documents into embeddable chunks.
 """
 
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,7 @@ class Document:
     title: str  # short human label
     text: str  # the content to embed/return
     source_label: str  # spoken-friendly source tag, e.g. "Experience Center"
+    group: str = "company"  # what it is about: company | travis | cms (knowledge/*.md), or memory / okf
 
 
 def _read_pdf(path: Path) -> str:
@@ -53,6 +55,18 @@ def _read_pdf(path: Path) -> str:
     except Exception as e:
         print(f"[RAG] ⚠️ Could not read {path.name}: {e}")
         return ""
+
+
+_GROUP_LINE = re.compile(r"^\s*<!--\s*group:\s*([a-z_]+)\s*-->\s*\n?", re.I)
+_GROUP_BY_NAME = {"cms_platform": "cms", "travis": "travis"}  # when a file has no <!-- group: ... --> line; anything else is the company
+
+
+def split_group(text: str, stem: str) -> tuple[str, str]:
+    """(group, text without its <!-- group: x --> first line). Lets the operator say what a knowledge file is about."""
+    m = _GROUP_LINE.match(text)
+    if m:
+        return m.group(1).lower(), text[m.end():]
+    return _GROUP_BY_NAME.get(stem.lower(), "company"), text
 
 
 def load_user_docs() -> list[Document]:
@@ -80,12 +94,14 @@ def load_user_docs() -> list[Document]:
         if not text.strip():
             continue
         rel = path.relative_to(KNOWLEDGE_DIR).as_posix()
+        group, text = split_group(text, path.stem)
         docs.append(
             Document(
                 doc_id=f"doc:{rel}",
                 title=path.stem.replace("_", " ").title(),
                 text=text,
                 source_label="Experience Center",
+                group=group,
             )
         )
     return docs
@@ -163,6 +179,7 @@ def load_okf_documents() -> list[Document]:
                 title=title,
                 text=body,
                 source_label=meta.get("source_label", "Experience Center"),
+                group="okf",
             )
         )
     return docs
@@ -200,6 +217,7 @@ def load_memory_knowledge() -> list[Document]:
                     title=f"{category}: {label}",
                     text=f"{category.title()} — {label}: {value}",
                     source_label="What I know about you",
+                    group="memory",
                 )
             )
     return docs

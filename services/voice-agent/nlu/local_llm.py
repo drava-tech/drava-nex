@@ -167,6 +167,54 @@ class OllamaChat:
         except httpx.HTTPError as e:
             raise LocalLLMError(f"Ollama request failed: {e}") from e
 
+    async def complete_json(self, messages: list[dict], schema: dict, max_tokens: int = 400) -> str:
+        """An answer constrained to `schema` (Ollama's structured output), deterministic, not streamed.
+        The planner (nlu/planner.py) uses it so its plan is always well-formed JSON."""
+        payload = self._payload(messages, [], stream=False, num_predict=max_tokens, temperature=0.0)
+        payload.pop("tools")
+        payload["format"] = schema
+        try:
+            res = await self._client().post(f"{self.base_url}/api/chat", json=payload)
+            if res.status_code != 200:
+                raise LocalLLMError(f"Ollama returned {res.status_code}: {res.text[:200]}")
+            return str((res.json().get("message") or {}).get("content") or "").strip()
+        except httpx.HTTPError as e:
+            raise LocalLLMError(f"Ollama request failed: {e}") from e
+
+    async def stream_text(self, messages: list[dict], max_tokens: int = 300, schema: dict | None = None) -> AsyncIterator[str]:
+        """Plain text as it is generated: deterministic (temperature 0), no tools. Closing the generator (`aclose()`) closes the connection,
+        which makes Ollama stop generating. Used to speak a knowledge answer sentence by sentence (agent/knowledge_answer.py)."""
+        payload = self._payload(messages, [], stream=True, num_predict=max_tokens, temperature=0.0)
+        payload.pop("tools")
+        if schema is not None:
+            payload["format"] = schema  # structured output, streamed: the text that arrives is the JSON being written
+        in_think = False
+        try:
+            async with self._client().stream("POST", f"{self.base_url}/api/chat", json=payload) as res:
+                if res.status_code != 200:
+                    body = (await res.aread()).decode("utf-8", "replace")
+                    raise LocalLLMError(f"Ollama returned {res.status_code}: {body[:200]}")
+                async for line in res.aiter_lines():
+                    if not line.strip():
+                        continue
+                    chunk = json.loads(line)
+                    if chunk.get("error"):
+                        raise LocalLLMError(str(chunk["error"]))
+                    text = (chunk.get("message") or {}).get("content") or ""
+                    if "<think>" in text:  # thinking is disabled; a stray block never reaches the speaker
+                        in_think = True
+                    if in_think:
+                        if "</think>" not in text:
+                            continue
+                        in_think = False
+                        text = text.split("</think>", 1)[1]
+                    if text:
+                        yield text
+                    if chunk.get("done"):
+                        break
+        except httpx.HTTPError as e:
+            raise LocalLLMError(f"Ollama request failed: {e}") from e
+
     async def stream(self, messages: list[dict], tools: list[dict]) -> AsyncIterator[tuple[str, Any]]:
         calls: list[ToolCall] = []
         in_think = False
