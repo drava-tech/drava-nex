@@ -1,4 +1,4 @@
-# Travis FAQ: DRAFT for review. Not loaded by any code yet.
+# Travis FAQ: approved by the owner 2026-10-09. Loaded by agent/canned_route.py (only entries with status: approved are used).
 # Facts come only from knowledge/*.md (the sections named in `sources`). No contact details are written here:
 # add_email_line: true means the existing contact-line rule appends the email line in code.
 # `sources` use "file: section heading". `next_sections` are the headings a "tell me more" continues with, in order.
@@ -7,6 +7,7 @@ entries:
   # ───────────────────────── company ─────────────────────────
   - id: company_overview
     topic: company
+    question_type: [what]
     variants:
       - What is White Tusker
       - Tell me about White Tusker
@@ -21,10 +22,11 @@ entries:
       - "the_white_tusker.md: Who we are"
     next_sections: ["Our three verticals", "How we work", "Clients"]
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: company_approach
     topic: company
+    question_type: [what, how]
     variants:
       - What is your tagline
       - What is your philosophy
@@ -38,15 +40,16 @@ entries:
       - "the_white_tusker.md: Who we are"
     next_sections: ["How we work", "Our three verticals"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_verticals
     topic: company
+    question_type: [what]
     variants:
       - What services do you offer
       - What are your verticals
       - What are the areas of your business
-      - What all do you do
+      - Which fields does White Tusker work in
       - Which areas do you work in
       - What do you design
       - Services
@@ -56,10 +59,11 @@ entries:
       - "the_white_tusker.md: Our three verticals"
     next_sections: ["Projects", "Clients"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_clients
     topic: company
+    question_type: [who, what]
     variants:
       - Who are your clients
       - Which clients have you worked with
@@ -74,10 +78,11 @@ entries:
       - "the_white_tusker.md: Clients"
     next_sections: ["Projects", "Our three verticals"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_projects
     topic: company
+    question_type: [what]
     variants:
       - What projects have you done
       - Tell me about your projects
@@ -93,10 +98,11 @@ entries:
       - "the_white_tusker.md: Projects"
     next_sections: ["Clients", "Founders and leadership"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_other_projects
     topic: company
+    question_type: [what]
     variants:
       - Which experience centres have you designed
       - Have you done work for Boeing
@@ -111,10 +117,11 @@ entries:
       - "the_white_tusker.md: Projects"
     next_sections: ["Clients", "Team"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_founders
     topic: company
+    question_type: [who]
     variants:
       - Who founded White Tusker
       - Who are the founders
@@ -129,16 +136,17 @@ entries:
       - "the_white_tusker.md: Founders and leadership"
     next_sections: ["Our three verticals", "Team"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_team
     topic: company
+    question_type: [who, what]
     variants:
       - Tell me about your team
       - Who works at White Tusker
       - What kind of people work there
       - Who all are in your team
-      - What skills does your team have
+      - What expertise does your team bring
       - Does your team have architects
       - Team
       - Do you have developers and designers
@@ -147,10 +155,11 @@ entries:
       - "the_white_tusker.md: Team"
     next_sections: ["How we work", "Founders and leadership"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_culture
     topic: company
+    question_type: [what, how]
     variants:
       - What is your culture
       - What values do you follow
@@ -163,10 +172,11 @@ entries:
       - "the_white_tusker.md: Team"
     next_sections: ["How we work"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_how_we_work
     topic: company
+    question_type: [how, what, who]
     variants:
       - How do you work
       - What is your process
@@ -181,10 +191,11 @@ entries:
       - "the_white_tusker.md: How we work"
     next_sections: ["Team", "Projects"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: company_location_contact
     topic: company
+    question_type: [where, how, what]
     variants:
       - Where are you located
       - Where is your studio
@@ -199,11 +210,12 @@ entries:
       - "the_white_tusker.md: Where and how to reach us"
     next_sections: ["Team"]
     add_email_line: true
-    status: draft
+    status: approved
 
   # ───────────────────────── cms ─────────────────────────
   - id: cms_what_is
     topic: cms
+    question_type: [what]
     variants:
       - What is the CMS
       - Tell me about CMS
@@ -218,25 +230,27 @@ entries:
       - "cms_platform.md: What the CMS is"
     next_sections: ["Screens", "Experiences", "Controlling the room"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_screens
     topic: cms
+    question_type: [how, what]
     variants:
       - How are the screens managed in the CMS
-      - Can each screen be controlled separately
+      - Can screens be managed one by one
       - What happens when there is a power cut
       - What happens when the network goes down
-      - Tell me about screens in the CMS
+      - How does the CMS handle screens
     answer: Every screen is controlled on its own. An operator can show an experience or media item, queue videos, pause, skip, blank or reset it. If a screen loses power or network, it comes back showing what it was meant to show.
     sources:
       - "cms_platform.md: Screens"
     next_sections: ["Experiences", "Media and presentations"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_experiences
     topic: cms
+    question_type: [what, how]
     variants:
       - What is an experience in the CMS
       - What kind of experiences are there
@@ -251,10 +265,11 @@ entries:
       - "cms_platform.md: Experiences"
     next_sections: ["Media and presentations", "Products and portfolio"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_media
     topic: cms
+    question_type: [what, how]
     variants:
       - What is the media library
       - What kind of media can I upload
@@ -264,22 +279,20 @@ entries:
       - Can it handle presentations
       - Tell me about media in the CMS
       - What files does the CMS support
-    answer: The media library holds videos, images and documents such as presentations. Media can be uploaded, added from a web link, or arrive as an email attachment. An operator pushes an item to one or more screens, or queues several to play one after another.
+    answer: The media library holds videos, images and documents such as presentations. Media can be uploaded, added from a web link, or arrive as an attachment. An operator pushes an item to one or more screens, or queues several to play one after another.
     sources:
       - "cms_platform.md: Media and presentations"
     next_sections: ["Screens", "Experiences"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_room_controls
     topic: cms
+    question_type: [what, how]
     variants:
-      - What room equipment does the CMS run
       - Does the CMS control the room
-      - What does the CMS control besides content
       - Can the CMS handle air conditioning
-      - What equipment can operators control
-      - Can it control brightness and colour
+      - Does it support brightness and colour changes
       - Can the CMS change the volume
       - Can the CMS operate the entrance
     answer: The CMS also runs the room's equipment. Operators can switch lights on and off, set brightness and colour, change the air conditioning, adjust the TV volume with its remote, and lock or unlock the door.
@@ -287,10 +300,11 @@ entries:
       - "cms_platform.md: Controlling the room"
     next_sections: ["Room modes", "What you can say to Travis"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_room_modes
     topic: cms
+    question_type: [what, how]
     variants:
       - What are the room modes
       - What lighting modes are there
@@ -305,10 +319,11 @@ entries:
       - "cms_platform.md: Room modes"
     next_sections: ["Controlling the room"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_products_portfolio
     topic: cms
+    question_type: [where, what, how]
     variants:
       - Does the CMS store product details
       - Where is the portfolio kept
@@ -322,10 +337,11 @@ entries:
       - "cms_platform.md: Products and portfolio"
     next_sections: ["Experiences", "Whiteboards"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_whiteboards
     topic: cms
+    question_type: [what, how]
     variants:
       - Does the CMS have whiteboards
       - Can we draw live during a meeting
@@ -339,10 +355,11 @@ entries:
       - "cms_platform.md: Whiteboards"
     next_sections: ["Who can use it"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: cms_who_can_use
     topic: cms
+    question_type: [who]
     variants:
       - Who can use the CMS
       - Who are the users of the CMS
@@ -357,11 +374,12 @@ entries:
       - "cms_platform.md: Who can use it"
     next_sections: ["What the CMS is", "Whiteboards"]
     add_email_line: false
-    status: draft
+    status: approved
 
   # ───────────────────────── travis ─────────────────────────
   - id: travis_what_is
     topic: travis
+    question_type: [who, what]
     variants:
       - Who is Travis
       - What is Travis
@@ -376,28 +394,11 @@ entries:
       - "travis.md: About Travis"
     next_sections: ["What you can say to Travis", "Controlling the room"]
     add_email_line: false
-    status: draft
-
-  - id: travis_controls
-    topic: travis
-    variants:
-      - What does Travis control
-      - What all can you control
-      - Can I know what you control
-      - What does Travis connect to
-      - What all equipment does Travis look after
-      - What does Travis operate in this room
-      - Which equipment does Travis handle
-    answer: Travis controls the lights, AC, the door, and what plays on each screen. It uses the same controls as the CMS, which also adjust the TV volume.
-    sources:
-      - "travis.md: About Travis"
-      - "cms_platform.md: Controlling the room"
-    next_sections: ["What you can say to Travis", "Room modes"]
-    add_email_line: false
-    status: draft
+    status: approved
 
   - id: travis_how_to_talk
     topic: travis
+    question_type: [how, what]
     variants:
       - How do I talk to Travis
       - How do I give a command to Travis
@@ -412,10 +413,11 @@ entries:
       - "cms_platform.md: What you can say to Travis"
     next_sections: ["Controlling the room", "Room modes"]
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: travis_and_cms
     topic: travis
+    question_type: [how, what]
     variants:
       - Is Travis part of the CMS
       - How is Travis connected to the CMS
@@ -428,11 +430,12 @@ entries:
       - "cms_platform.md: Controlling the room"
     next_sections: ["What the CMS is", "What you can say to Travis"]
     add_email_line: false
-    status: draft
+    status: approved
 
   # ───────────────────────── experience_center ─────────────────────────
   - id: exp_what_is_this
     topic: experience_center
+    question_type: [what, where]
     variants:
       - What is this place
       - What is this experience centre
@@ -448,30 +451,11 @@ entries:
       - "cms_platform.md: Controlling the room"
     next_sections: ["Screens", "Experiences", "Controlling the room"]
     add_email_line: false
-    status: draft
-
-  - id: exp_room_equipment
-    topic: experience_center
-    variants:
-      - What equipment is in this room
-      - What equipment is installed in this room
-      - Which devices are in the room
-      - How is this room controlled
-      - Is this room automated
-      - What technology is in this room
-      - What is installed here
-    answer: The room has screens, lights, air conditioning, sound and a door, which an operator runs from one web page. Travis controls the lights, AC, the door and what plays on each screen.
-    sources:
-      - "cms_platform.md: What the CMS is"
-      - "cms_platform.md: Screens"
-      - "cms_platform.md: Controlling the room"
-      - "travis.md: About Travis"
-    next_sections: ["Room modes", "What you can say to Travis"]
-    add_email_line: false
-    status: draft
+    status: approved
 
   - id: exp_what_to_see
     topic: experience_center
+    question_type: [what]
     variants:
       - What can I see here
       - What will I experience here
@@ -487,7 +471,7 @@ entries:
       - "cms_platform.md: Media and presentations"
     next_sections: ["Products and portfolio", "Whiteboards"]
     add_email_line: false
-    status: draft
+    status: approved
 
 # ───────────────────────── no_info ─────────────────────────
 # Questions visitors are likely to ask that knowledge/*.md does NOT answer. Honest fallback plus ONE topic Travis can talk about.
@@ -496,6 +480,7 @@ no_info:
   - id: ni_founding_year
     type: no_info
     topic: company
+    question_type: [when, how]
     variants:
       - When was White Tusker founded
       - Since when are you in business
@@ -506,11 +491,12 @@ no_info:
     answer: I don't have that detail. I can tell you about our founders if you like.
     offers: our founders
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: ni_awards
     type: no_info
     topic: company
+    question_type: [what]
     variants:
       - Have you won any awards
       - What awards do you have
@@ -520,11 +506,12 @@ no_info:
     answer: I don't have that detail. I can tell you about our projects if you like.
     offers: our projects
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: ni_pricing
     type: no_info
     topic: company
+    question_type: [how_many, what]
     variants:
       - How much do you charge
       - What is the price of the CMS
@@ -536,11 +523,12 @@ no_info:
     answer: I don't have that detail. I can tell you about what the CMS is if you like.
     offers: what the CMS is
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_timeline
     type: no_info
     topic: company
+    question_type: [how, what, how_many]
     variants:
       - How long does a project take
       - What is the timeline for a project
@@ -550,11 +538,12 @@ no_info:
     answer: I don't have that detail. I can tell you about how we work if you like.
     offers: how we work
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: ni_careers
     type: no_info
     topic: company
+    question_type: [how]
     variants:
       - Are you hiring
       - Do you have job vacancies
@@ -565,11 +554,12 @@ no_info:
     answer: I don't have that detail. I can tell you about our team if you like.
     offers: our team
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_office_hours
     type: no_info
     topic: company
+    question_type: [what, when]
     variants:
       - What are your office hours
       - What are your timings
@@ -580,11 +570,12 @@ no_info:
     answer: I don't have that detail. I can tell you about where we are if you like.
     offers: where we are
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_team_size
     type: no_info
     topic: company
+    question_type: [how_many, how, what]
     variants:
       - How many people are there in the studio
       - How big is your team
@@ -594,11 +585,12 @@ no_info:
     answer: I don't have that detail. I can tell you about our team if you like.
     offers: our team
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: ni_other_offices
     type: no_info
     topic: company
+    question_type: [how_many]
     variants:
       - Do you have offices in other cities
       - Do you have a branch abroad
@@ -608,11 +600,12 @@ no_info:
     answer: I don't have that detail. I can tell you about where we are if you like.
     offers: where we are
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_phone_social
     type: no_info
     topic: company
+    question_type: [what]
     variants:
       - What is your phone number
       - Can I call you
@@ -622,11 +615,12 @@ no_info:
     answer: I don't have that detail. I can tell you about where we are if you like.
     offers: where we are
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_cms_technical
     type: no_info
     topic: cms
+    question_type: [what, how]
     variants:
       - Which technology stack does the CMS use
       - Is the CMS cloud based
@@ -637,11 +631,12 @@ no_info:
     answer: I don't have that detail. I can tell you about who can use it if you like.
     offers: who can use it
     add_email_line: false
-    status: draft
+    status: approved
 
   - id: ni_cms_purchase
     type: no_info
     topic: cms
+    question_type: [how, where, what]
     variants:
       - Can I buy the CMS
       - Can I get a demo of the CMS
@@ -651,19 +646,19 @@ no_info:
     answer: I don't have that detail. I can tell you about screens if you like.
     offers: screens
     add_email_line: true
-    status: draft
+    status: approved
 
   - id: ni_travis_technical
     type: no_info
     topic: travis
+    question_type: [what, how]
     variants:
       - Which languages does Travis speak
       - Does Travis speak Hindi
-      - Is Travis artificial intelligence
       - What model does Travis use
       - Does Travis work offline
       - How does Travis understand me
     answer: I don't have that detail. I can tell you what you can say to Travis if you like.
     offers: what you can say to Travis
     add_email_line: false
-    status: draft
+    status: approved

@@ -123,6 +123,13 @@ class ConfirmTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIsNone(self.a._confirm)
         self.assertIn("The experiences are: Mountain Flow", msg)
+        self.assertNotIn("media", msg.lower())  # the media library is not read out unless asked
+
+    def test_media_is_listed_only_when_media_was_asked_for(self):
+        ok, msg = self.ask("banana split", action="assign_media")
+        self.assertFalse(ok)
+        self.assertIn("The media items are: Lobby Loop", msg)
+        self.assertNotIn("experiences are", msg)
 
     def test_explicit_kind_only_suggests_that_kind(self):
         _, msg = self.ask("mountain flow tease", action="assign_experience")

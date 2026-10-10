@@ -97,6 +97,8 @@ class Candidate:
     score: float
     tool: str
     args: dict
+    also: list = field(default_factory=list)  # further (tool, args) calls of the same command, in order
+    trusted: bool = False  # the targets were resolved by the planner path (agent/planning.py): only values are checked
 
 
 @dataclass
@@ -106,6 +108,7 @@ class Confirm:
     candidates: list[Candidate]
     spoken: str
     index: int = 0
+    offer: bool = False  # Travis's own suggestion ("shall I play the portfolio?"), not a guess at a name: a "no" just drops it
     expires: float = field(default_factory=lambda: time.monotonic() + TTL_SEC)
 
     @property
@@ -120,6 +123,29 @@ class Confirm:
         self.index += 1
         self.expires = time.monotonic() + TTL_SEC
         return self.current
+
+
+_FILLER = {"travis", "hey", "please", "thanks", "thank", "you", "then", "well", "oh", "um", "uh", "so"}
+_YES_FIRST = {"yes", "yeah", "yep", "yup", "sure", "okay", "ok", "definitely", "absolutely", "certainly", "alright"}
+_YES_PHRASES = {"go ahead", "play it", "do it", "why not", "of course", "sounds good", "that would be great", "that sounds great",
+                "that would be nice", "show me", "show it", "go for it", "lets see it", "play the portfolio", "play portfolio"}
+_NO_FIRST = {"no", "nope", "nah"}
+_NO_PHRASES = {"not now", "maybe later", "not really", "skip it", "skip", "not interested", "no need", "later", "never mind", "dont", "i dont think", "i dont think so"}
+
+
+def offer_answer(text: str) -> str | None:
+    """"yes" / "no" / None for the answer to Travis's own offer ("shall I play the portfolio?"). Wider than a bare yes/no
+    because visitors answer an offer in their own words ("go ahead", "play it", "not now"); anything else is a new request."""
+    # (not normalize(): it throws away "okay", "now", "would"... which are the words that matter here)
+    words = [w for w in re.sub(r"[^a-z ]+", " ", (text or "").lower().replace("'", "")).split() if w not in _FILLER]
+    phrase = " ".join(words)
+    if not words:
+        return None
+    if words[0] in _NO_FIRST or phrase in _NO_PHRASES:
+        return "no"
+    if phrase in _YES_PHRASES or (words[0] in _YES_FIRST and len(words) <= 4):
+        return "yes"
+    return None
 
 
 def question(c: Confirm, wake_hint: str, first: bool = True) -> str:
