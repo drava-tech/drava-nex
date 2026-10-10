@@ -26,10 +26,12 @@ def latest_run() -> Path | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="bench.voice_bench", description=__doc__)
-    ap.add_argument("command", choices=["text", "audio", "all", "report", "record", "score", "review"])
+    ap.add_argument("command", choices=["text", "audio", "all", "report", "record", "score", "review", "conversation"])
     ap.add_argument("--out", help="results folder (default: bench/results/<timestamp>)")
     ap.add_argument("--category", action="append", help="only these categories (repeatable)")
     ap.add_argument("--id", help="only cases whose id contains this")
+    ap.add_argument("--group", action="append", help="conversation: only these groups (faq, smalltalk, room_state, knowledge, followup, portfolio, decline, lookalike)")
+    ap.add_argument("--report", help="conversation: where to write the report (default docs/CONVERSATION_RESULTS.md)")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--repeats", type=int, default=1, help="run each case N times (the LLM is not deterministic)")
     ap.add_argument("--cms-latency-ms", type=float, default=0.0, help="delay added to every mock CMS command")
@@ -54,6 +56,23 @@ def main() -> int:
         from . import record_clips
 
         return record_clips.score(args.session, latest_run() or RESULTS)
+
+    if args.command == "conversation":
+        import json
+
+        from .conversation import build_report, run_conversation
+        from .conversation_cases import conversation_cases
+
+        cases = [c for c in conversation_cases() if (not args.group or c.group in args.group) and (not args.id or args.id.lower() in c.id.lower())]
+        cases = cases[:args.limit] if args.limit else cases
+        out = Path(args.out) if args.out else RESULTS / ("conv-" + __import__("time").strftime("%Y%m%d-%H%M%S"))
+        repeats = args.repeats if "--repeats" in sys.argv else 3
+        results = asyncio.run(run_conversation(cases, out, repeats))
+        meta = json.loads((out / "conversation_meta.json").read_text(encoding="utf-8"))
+        report = Path(args.report) if args.report else ROOT / "docs" / "CONVERSATION_RESULTS.md"
+        build_report(results, report, repeats, meta)
+        print(f"[conv] report: {report}")
+        return 0
 
     out = Path(args.out) if args.out else (latest_run() if args.command == "report" else RESULTS / __import__("time").strftime("%Y%m%d-%H%M%S"))
     out.mkdir(parents=True, exist_ok=True)
