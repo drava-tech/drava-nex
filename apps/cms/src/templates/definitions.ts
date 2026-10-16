@@ -23,7 +23,6 @@ import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
 import { DEFAULT_OBJECT_RECOGNITION_CONTENT } from "@platform/ui/templates/object-recognition";
 import { DEFAULT_FLIGHT_SIMULATION_CONTENT } from "@platform/ui/templates/flight-simulation";
 import { DEFAULT_GALLERY_CONTENT } from "@platform/ui/templates/gallery";
-import { DEFAULT_DATA_ART_STUDIO_CONTENT } from "@platform/ui/templates/data-art-studio";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -101,7 +100,7 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     key: "data-art-studio",
     label: TEMPLATE_LABELS["data-art-studio"],
     Layout: DataArtStudioLayout,
-    defaultContent: DEFAULT_DATA_ART_STUDIO_CONTENT,
+    // No settings: "Edit" just opens the studio full-screen.
     Workspace: DataArtStudioEditorWorkspace,
   },
 };

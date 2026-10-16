@@ -11,7 +11,6 @@ import { readWelcomeContent } from "@platform/ui/templates/welcome";
 import { readObjectRecognitionContent } from "@platform/ui/templates/object-recognition";
 import { readFlightSimulationContent } from "@platform/ui/templates/flight-simulation";
 import { readGalleryContent } from "@platform/ui/templates/gallery";
-import { readDataArtStudioContent } from "@platform/ui/templates/data-art-studio";
 
 /**
  * Per-template reader for the experience's saved content slice. Table-driven so
@@ -30,7 +29,8 @@ const CONTENT_READERS: Record<
   "object-recognition": readObjectRecognitionContent,
   "flight-simulation": readFlightSimulationContent,
   gallery: readGalleryContent,
-  "data-art-studio": readDataArtStudioContent,
+  // Nothing is authored — the studio is shown exactly as the standalone app.
+  "data-art-studio": () => null,
 };
 
 interface EditPageProps {
