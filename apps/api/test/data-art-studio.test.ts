@@ -130,15 +130,34 @@ describe("GET /video", () => {
     expect((await get("/video?name=secrets.csv")).status).toBe(404);
   });
 
-  it("redirects to the public base when one is configured", async () => {
+  it("streams from the public base same-origin, passing Range through", async () => {
+    delete process.env["DATA_ART_R2_BUCKET"];
     process.env["DATA_ART_VIDEO_BASE_URL"] = "https://videos.example.test/";
-    const res = await get("/video?name=art_2_velocity.mp4");
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://videos.example.test/art_2_velocity.mp4");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response("ab", {
+          status: 206,
+          headers: {
+            "content-type": "video/mp4",
+            "content-range": "bytes 0-1/100",
+            "x-amz-secret-ish": "dropped",
+          },
+        })
+    );
+
+    const res = await app.request("/api/data-art-studio/video?name=art_2_velocity.mp4", {
+      headers: { Range: "bytes=0-1" },
+    });
+    expect(res.status).toBe(206);
+    expect(await res.text()).toBe("ab");
+    expect(res.headers.get("content-range")).toBe("bytes 0-1/100");
+    expect(res.headers.get("x-amz-secret-ish")).toBeNull();
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe("https://videos.example.test/art_2_velocity.mp4");
+    expect((init?.headers as Record<string, string>)["Range"]).toBe("bytes=0-1");
   });
 
-  it("presigns into the configured bucket and prefix otherwise", async () => {
-    delete process.env["DATA_ART_VIDEO_BASE_URL"];
+  it("presigns into DATA_ART_R2_BUCKET under the prefix when that is set", async () => {
     Object.assign(process.env, {
       FLIGHT_R2_ACCESS_KEY_ID: "id",
       FLIGHT_R2_SECRET_ACCESS_KEY: "secret",
@@ -155,8 +174,9 @@ describe("GET /video", () => {
     expect(location.searchParams.has("X-Amz-Signature")).toBe(true);
   });
 
-  it("answers 503 with no storage configured", async () => {
-    for (const k of ["DATA_ART_VIDEO_BASE_URL", "FLIGHT_R2_ACCESS_KEY_ID", "FLIGHT_R2_SECRET_ACCESS_KEY", "FLIGHT_R2_BUCKET", "FLIGHT_R2_ENDPOINT"]) {
+  it("answers 503 when a bucket is named but no R2 credentials are set", async () => {
+    process.env["DATA_ART_R2_BUCKET"] = "data-art";
+    for (const k of ["FLIGHT_R2_ACCESS_KEY_ID", "FLIGHT_R2_SECRET_ACCESS_KEY", "FLIGHT_R2_BUCKET", "FLIGHT_R2_ENDPOINT"]) {
       delete process.env[k];
     }
     expect((await get("/video?name=art_1_grayscale.mp4")).status).toBe(503);

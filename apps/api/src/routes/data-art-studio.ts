@@ -165,32 +165,72 @@ export function isStudioVideoName(name: string | undefined): name is string {
   return typeof name === "string" && VIDEO_NAMES.has(name);
 }
 
+/**
+ * The standalone studio's public bucket (the "data-art" R2 bucket's Public
+ * Development URL), where its renders actually live. Its CORS policy only
+ * allows the standalone dev origin, which is why /video streams from it rather
+ * than redirecting to it.
+ */
+const DEFAULT_VIDEO_BASE_URL = "https://pub-085468ffd2bd40868c645940c8033bb2.r2.dev";
+
+/** Upstream headers a <video> / fetch() needs to stream, seek and cache the clip. */
+const STREAM_HEADERS = [
+  "content-type",
+  "content-length",
+  "content-range",
+  "accept-ranges",
+  "etag",
+  "last-modified",
+];
+
 // GET /api/data-art-studio/video?name=art_1_grayscale.mp4
 //
-// 302s to the clip. With DATA_ART_VIDEO_BASE_URL set (a public bucket URL or
-// custom domain) it redirects there; otherwise it presigns a GET against the
-// R2 credentials the Flight Simulation already uses (FLIGHT_R2_*), optionally
-// in another bucket (DATA_ART_R2_BUCKET) and under a key prefix
-// (DATA_ART_R2_PREFIX). Either way the bucket's CORS must allow the CMS origin:
-// the studio uploads frames to WebGL, which a cross-origin video without CORS
-// headers would taint.
-dataArtStudioRouter.get("/video", (c) => {
+// By default, STREAMS the clip from the studio's public bucket
+// (DATA_ART_VIDEO_BASE_URL, defaulting to DEFAULT_VIDEO_BASE_URL), passing the
+// Range header through so playback can seek. Streaming rather than redirecting
+// keeps the video same-origin with the CMS: the studio uploads frames to WebGL,
+// which a cross-origin video without matching CORS headers would taint — and
+// that bucket's CORS doesn't allow the CMS.
+//
+// With DATA_ART_R2_BUCKET set it instead 302s to a presigned GET against the
+// FLIGHT_R2_* credentials, in that bucket and under DATA_ART_R2_PREFIX; that
+// bucket's CORS must then allow the CMS origin.
+dataArtStudioRouter.get("/video", async (c) => {
   const name = c.req.query("name");
   if (!isStudioVideoName(name)) {
     return sendJson(c, 404, { error: `unknown video: ${name}` });
   }
 
-  const publicBase = process.env["DATA_ART_VIDEO_BASE_URL"];
-  if (publicBase) {
-    c.header("Cache-Control", "public, max-age=3600");
-    return c.redirect(`${publicBase.replace(/\/$/, "")}/${name}`, 302);
+  const bucket = process.env["DATA_ART_R2_BUCKET"];
+  if (!bucket) {
+    const base = (process.env["DATA_ART_VIDEO_BASE_URL"] || DEFAULT_VIDEO_BASE_URL).replace(/\/$/, "");
+    const range = c.req.header("range");
+    try {
+      const upstream = await fetch(`${base}/${name}`, {
+        headers: range ? { Range: range } : undefined,
+        // Stop pulling from the bucket when the player hangs up (seeks, unmounts).
+        signal: c.req.raw.signal,
+      });
+      if (!upstream.ok) {
+        return sendJson(c, upstream.status === 404 ? 404 : 502, {
+          error: `video upstream → HTTP ${upstream.status}`,
+        });
+      }
+      const headers = new Headers({ "Cache-Control": "public, max-age=3600" });
+      for (const h of STREAM_HEADERS) {
+        const v = upstream.headers.get(h);
+        if (v) headers.set(h, v);
+      }
+      return new Response(upstream.body, { status: upstream.status, headers });
+    } catch (err) {
+      return sendJson(c, 502, { error: `video upstream unavailable: ${String(err)}` });
+    }
   }
 
   const config = readR2Config();
   if (!config) return sendJson(c, 503, { error: "Data Art Studio video storage is not configured" });
 
   try {
-    const bucket = process.env["DATA_ART_R2_BUCKET"] || config.bucket;
     const prefix = process.env["DATA_ART_R2_PREFIX"] ?? "";
     const url = presignR2Get({ ...config, bucket }, `${prefix}${name}`, 6 * 60 * 60);
     // Within the presign lifetime, so a cached redirect never outlives its URL.
