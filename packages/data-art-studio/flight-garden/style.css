@@ -1,0 +1,1981 @@
+/* =============================================================
+   FLIGHT GARDEN — premium glass control-tower UI
+   ============================================================= */
+
+:root {
+  --bg: #05070a;
+
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.85);
+
+  /* Glass for the small cards that float over the artwork — the terminal
+     captions and the hover tooltip.
+
+     Same 10-15% white as --glass: these read as glass because the
+     backdrop-filter tints them with the garden underneath, not because they
+     are a white fill. An opaque fill was the first thing tried here and it
+     looked like a sticker, not like the sidebar.
+
+     They need their own filter because the panel's cannot survive being
+     moved: --blur's saturate(150%) and brightness(1.05) are tuned for the
+     bright, near-neutral corner the sidebar happens to occupy. A caption
+     sits over dark moss, where that same filter renders a dim, strongly
+     green card. Dropping saturation and lifting brightness lands the card's
+     rendered surface on rgb(217,224,210) — the sidebar's own rgb(222,223,221)
+     — while keeping it genuinely see-through. */
+  --glass-card: rgba(255, 255, 255, 0.15);
+  --blur-card: blur(26px) saturate(35%) brightness(1.8);
+  --stroke: rgba(15, 23, 32, 0.12);
+  --stroke-soft: rgba(15, 23, 32, 0.07);
+
+  /* Panel ink. These sit on thin glass over a bright, moving garden, so
+     low-alpha greys wash out — the plate keeps shifting underneath them.
+     Kept as three steps so the hierarchy (content > label > count) still
+     reads, just with every step opaque enough to hold against the video. */
+  --text: #141a21;
+  --muted: rgba(20, 26, 33, 0.86);
+  --faint: rgba(20, 26, 33, 0.66);
+
+  --cyan: #62dcff;
+  --amber: #ffc46b;
+  --soft-white: rgba(255, 255, 255, 0.82);
+
+  --cyan-panel: #0b7594;
+  --amber-panel: #a3620f;
+  --mint-panel: #1f7a4d;
+  --red-panel: #b3261e;
+  --attendance-present: #0d330e;
+  --attendance-absent: #780606;
+  --attendance-late: #e86100;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85),
+    0 2px 10px -2px rgba(0, 0, 0, 0.6);
+
+  --pad: 16px;
+  --blur: blur(26px) saturate(150%) brightness(1.05);
+
+  --font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, "Cascadia Mono",
+    "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* HUD layout variables for desktop */
+  --hud-padding: clamp(14px, 2.2vw, 28px);
+  --panel-width: clamp(180px, 13vw, 220px);
+}
+
+/* Data Art Studio presents Flight Garden as an already-generated output.
+   Skip the standalone cinematic gate/reveal so its controls, terminal labels,
+   and live scene are all available as soon as the embedded frame appears. */
+html.embed-mode .panel {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+html.embed-mode .intro-gate,
+html.embed-mode .new-output-btn {
+  display: none !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The hidden attribute has to win over the layout rules further down.
+   .hp-block and .stats set `display`, and an author `display` silently beats
+   the UA stylesheet's [hidden] { display: none } — so scene switching would
+   set the attribute correctly and leave the panel on screen anyway. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =============================================================
+   STAGE
+   ============================================================= */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: none;
+}
+
+/* =============================================================
+   IN-WORLD LABELS (projected from Three.js)
+   ============================================================= */
+
+.label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 0.5s ease;
+  z-index: 10;
+}
+
+.zone-label,
+.gate-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  will-change: transform, opacity;
+  display: none !important;
+}
+
+.zone-label[data-kind="terminal"] {
+  display: flex !important;
+}
+
+/* =============================================================
+   FLOATING GLASS CARD
+   The sidebar's material (see .panel), at caption scale — used by the
+   terminal captions and the butterfly hover tooltip, so everything that
+   floats over the garden is made of the same thing.
+
+   The top hairline of light is painted as a background layer rather than
+   .panel's ::before, for two reasons: it clips to the border radius on its
+   own, and it can never end up on top of the content — which matters here
+   because the tooltip's text is a bare text node with no element to raise
+   above an overlapping pseudo-element.
+   ============================================================= */
+.zone-label,
+.tooltip {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur-card);
+  -webkit-backdrop-filter: var(--blur-card);
+  color: var(--text);
+
+  background:
+    linear-gradient(180deg,
+        var(--glass-hi) 0%,
+        rgba(255, 255, 255, 0) 100%) top / 100% 45% no-repeat,
+    var(--glass-card);
+}
+
+/* Caption-scale layout — see .panel.
+   A caption tracks its bloom across the whole garden, landing on the white
+   petals as often as on the dark moss, so it has to carry its own surface:
+   white ink with a black glow (what this was) vanishes against the petals,
+   and bare dark ink would vanish against the moss. */
+.zone-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+
+  padding: 9px 15px 10px;
+}
+
+/* The zone's own colour, kept as a hairline accent above the name
+   (see the data-kind rules below). */
+.zone-label::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  margin-bottom: 5px;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.zone-label .zl-name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/* Full --text, following .tower-sub — the panel's own equivalent subtitle,
+   which is near-black rather than faint. 9px mono is thinner than anything
+   on the panel, so the lighter greys measured below the panel's floor
+   (--faint 2.0:1, --muted 3.3:1, vs the panel's weakest at 4.0:1). The
+   hierarchy against the name is carried by size, weight, case and tracking,
+   not by ink. */
+.zone-label .zl-note {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.10em;
+  color: var(--text);
+}
+
+.zone-label[data-kind="arrival"] {
+  color: var(--cyan-panel);
+}
+
+.zone-label[data-kind="departure"] {
+  color: var(--amber-panel);
+}
+
+.zone-label[data-kind="holding"] {
+  color: var(--faint);
+}
+
+.zone-label[data-kind="terminal"] {
+  color: var(--mint-panel);
+}
+
+.zone-label[data-kind="runway"] {
+  color: #5b5f9e;
+}
+
+.gate-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(4, 8, 12, 0.45);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.5s ease, color 0.4s ease, border-color 0.4s ease;
+}
+
+/* Idle tint distinguishing the two terminals sharing the bloom — Terminal 2
+   (Garden Terminal, hero) reads mint like the terminal-zone label; Terminal 1
+   (Domestic Pier) reads a warmer neutral. Both are overridden by .occupied /
+   .inbound below once a flight actually claims the gate. */
+.gate-label.gate-t2 {
+  border-color: rgba(159, 230, 184, 0.22);
+}
+
+.gate-label.gate-t1 {
+  border-color: rgba(255, 196, 107, 0.18);
+}
+
+.gate-label.occupied {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.gate-label.inbound {
+  color: var(--cyan);
+  border-color: rgba(98, 220, 255, 0.35);
+}
+
+/* =============================================================
+   HUD SHELL
+   ============================================================= */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  padding: var(--hud-padding);
+  pointer-events: none;
+  z-index: 15;
+}
+
+.panel {
+  position: relative;
+  pointer-events: auto;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+
+  /* cinematic entrance */
+  opacity: 0;
+  transform: translateY(10px);
+  animation: panel-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.9s forwards;
+}
+
+/* Hairline of light along the top edge — the "glass art" tell.
+   Height-capped and z-indexed below the content on purpose: with inset:0
+   on a full-height sidebar the 38% fade ran ~350px down the panel, and
+   an absolutely-positioned ::before with no z-index paints over static
+   children — so it was washing a white veil across the heading. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 80px;
+  z-index: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+      var(--glass-hi) 0%,
+      rgba(255, 255, 255, 0) 100%);
+}
+
+@keyframes panel-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Single sidebar card holding every HUD section */
+.hud-panel {
+  position: fixed;
+  left: var(--hud-padding);
+  top: var(--hud-padding);
+  bottom: var(--hud-padding);
+  width: var(--panel-width);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.hp-block {
+  position: relative;
+  z-index: 1;   /* above .panel::before's top sheen */
+  padding: var(--pad);
+}
+
+.hp-block+.hp-block {
+  border-top: 1px solid var(--stroke-soft);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Generate: the explicit action that combines a Data pick and an Art pick
+   into an output — a filled, primary-feeling action rather than the quiet
+   outline the Realtime button uses, since it's the one control the full-
+   screen intro gate needs a user to press (see .gate-generate below). */
+.generate-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--cyan-panel);
+  border-radius: var(--radius-sm);
+  background: var(--cyan-panel);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.generate-btn:hover {
+  opacity: 0.88;
+}
+
+.generate-btn:active {
+  transform: scale(0.99);
+}
+
+.generate-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =============================================================
+   INTRO GATE — full-screen, pre-video: pick the Data, pick the Art,
+   then Generate. Sits above everything (including .veil) so nothing
+   plays until it's dismissed. The card itself is the exact same
+   glossy glass .panel every sidebar section sits in — same
+   background, border, shadow and blur tokens — so the very first
+   screen reads as the same system as the HUD that follows it, not a
+   different, separately-designed splash.
+   ============================================================= */
+
+.intro-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.intro-gate.gate-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Combined with .panel in the markup for the glass itself; this class only
+   adds sizing and cancels .panel's cinematic entrance — that 1.9s hold is
+   timed to the reveal that follows the intro gate, and this gate IS the
+   first thing on screen, so it must render immediately instead of fading
+   in after a delay.
+
+   .panel's own background is a near-transparent 10% white — it only reads
+   as bright glass because backdrop-filter is lifting a bright, moving
+   garden video behind it. Nothing plays yet behind the intro gate, so that
+   same 10% white over solid black would render as a barely-legible dark
+   slab; this overrides just the background with the opaque, near-white
+   tone the sidebar's glass *visually resolves to* once blurred over video,
+   so the card reads identically bright without needing that backdrop. */
+.gate-panel {
+  position: relative;
+  z-index: 1;   /* above .panel::before's top sheen, same as .hp-block */
+  background: rgba(240, 242, 238, 0.96);
+  animation: none;
+  opacity: 1;
+  transform: none;
+  width: 100%;
+  max-width: 900px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 40px 44px 36px;
+  text-align: center;
+}
+
+.gate-kicker {
+  display: block;
+  margin-bottom: 18px;
+  font-size: clamp(14px, 2vw, 18px);
+  font-weight: 200;
+  letter-spacing: 0.36em;
+  text-indent: 0.36em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.gate-title {
+  margin: 0 0 8px;
+  font-size: clamp(22px, 4vw, 34px);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gate-sub {
+  margin: 0 0 36px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.gate-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.gate-col-title {
+  margin: 0 0 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.gate-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Same surface the sidebar's own <select>s use (.select-wrap select) — a
+   thin-stroke card on faint ink-tinted glass — so a gate card and a sidebar
+   dropdown read as the same control language. */
+.gate-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 32, 0.05);
+  color: var(--text);
+  text-align: left;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+/* Art cards only (DATA has none) — a muted, looping thumbnail of that
+   render so a visitor can see what they're picking before Generate.
+   preload="none" on the element itself keeps the browser from fetching
+   every option's video up front; only hover/selection triggers a load. */
+.gate-option-preview {
+  width: 64px;
+  height: 40px;
+  flex: none;
+  border-radius: calc(var(--radius-sm) - 4px);
+  border: 1px solid var(--stroke);
+  background: rgba(15, 23, 32, 0.35);
+  object-fit: cover;
+}
+
+.gate-option:hover {
+  border-color: rgba(15, 23, 32, 0.24);
+  background: rgba(15, 23, 32, 0.08);
+}
+
+.gate-option.selected {
+  border-color: var(--cyan-panel);
+  background: rgba(11, 117, 148, 0.12);
+}
+
+.gate-option-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Shown in the ART column when the picked data has no art to run on yet. */
+.gate-option-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* Flight's one fixed render — shown, not chosen, so it reads as settled
+   rather than clickable (renderGateArtColumn renders it as a plain <div>,
+   never a <button>, but this belt-and-suspenders in case that changes). */
+.gate-option-locked {
+  cursor: default;
+}
+
+/* =============================================================
+   LIVE VIDEO PREVIEW SECTION (Intro Gate & New Output)
+   ============================================================= */
+
+.gate-preview-section {
+  margin-top: 14px;
+  margin-bottom: 28px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 32, 0.04);
+  border: 1px solid var(--stroke);
+  text-align: left;
+  transition: border-color 0.3s ease;
+}
+
+.gate-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gate-preview-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gate-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cyan-panel);
+  background: rgba(11, 117, 148, 0.12);
+  border: 1px solid rgba(11, 117, 148, 0.25);
+  border-radius: 999px;
+}
+
+.gate-preview-badge::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cyan-panel);
+  animation: preview-pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes preview-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.gate-preview-art-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.gate-preview-art-blurb {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+/* 16:9 Video Player Frame */
+.gate-video-player-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 380px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  overflow: hidden;
+  background: #020406;
+  border: 1px solid rgba(15, 23, 32, 0.2);
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gate-main-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+/* Center Play / Pause Floating Overlay Button */
+.gate-video-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(15, 23, 32, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  transition: opacity 0.25s ease, transform 0.25s ease, background 0.2s ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.gate-video-play-btn:hover {
+  background: rgba(11, 117, 148, 0.85);
+  border-color: rgba(98, 220, 255, 0.6);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.gate-video-play-btn:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.gate-video-play-btn .gate-play-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.gate-video-play-btn .pause-icon {
+  display: none;
+}
+
+.gate-video-player-frame.is-playing .gate-video-play-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gate-video-player-frame.is-playing:hover .gate-video-play-btn {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.gate-video-player-frame.is-playing .gate-video-play-btn .play-icon {
+  display: none;
+}
+
+.gate-video-player-frame.is-playing .gate-video-play-btn .pause-icon {
+  display: block;
+}
+
+/* Loading Spinner */
+.gate-video-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(2, 4, 6, 0.7);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  z-index: 6;
+  transition: opacity 0.2s ease;
+}
+
+.gate-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Bottom Glass Controls Bar */
+.gate-player-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, transparent 0%, rgba(2, 4, 6, 0.85) 60%, rgba(2, 4, 6, 0.95) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 4;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.gate-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+}
+
+.gate-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.gate-ctrl-btn:active {
+  transform: scale(0.92);
+}
+
+.gate-ctrl-btn .ctrl-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.gate-ctrl-btn .icon-pause {
+  display: none;
+}
+
+.gate-video-player-frame.is-playing .gate-ctrl-btn .icon-play {
+  display: none;
+}
+
+.gate-video-player-frame.is-playing .gate-ctrl-btn .icon-pause {
+  display: block;
+}
+
+.gate-ctrl-btn .icon-unmuted {
+  display: none;
+}
+
+.gate-video-player-frame.is-unmuted #gateCtrlMute .icon-muted {
+  display: none;
+}
+
+.gate-video-player-frame.is-unmuted #gateCtrlMute .icon-unmuted {
+  display: block;
+}
+
+/* Timeline / Seek Bar */
+.gate-timeline-wrap {
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.gate-timeline-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  transition: height 0.15s ease;
+}
+
+.gate-timeline-wrap:hover .gate-timeline-bar {
+  height: 7px;
+}
+
+.gate-timeline-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--cyan-panel) 0%, var(--cyan) 100%);
+  border-radius: 3px;
+  transition: width 0.08s linear;
+}
+
+/* Time Display */
+.gate-time-display {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.gate-generate {
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .gate-columns {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .gate-panel {
+    padding: 32px 24px 28px;
+  }
+}
+
+/* =============================================================
+   TOWER PANEL
+   ============================================================= */
+
+.tower-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Solid black, no shadow: the glass sits over the bright garden, so the
+   header reads by being darker than its backdrop. The subtitle drops the
+   58% --muted it used to carry — at 10px over a busy, moving plate that
+   translucency was what made it look washed out. */
+.tower-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #000;
+}
+
+.tower-sub {
+  margin: 4px 0 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #000;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #57e39a;
+  box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.55);
+  animation: pulse-dot 2.4s ease-out infinite;
+  flex: none;
+}
+
+@keyframes pulse-dot {
+  0% {
+    box-shadow: 0 0 0 0 rgba(87, 227, 154, 0.5);
+  }
+
+  70% {
+    box-shadow: 0 0 0 7px rgba(87, 227, 154, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(87, 227, 154, 0);
+  }
+}
+
+.select-wrap {
+  position: relative;
+  display: block;
+}
+
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -4px;
+  border-right: 1.4px solid var(--muted);
+  border-bottom: 1.4px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+/* Any select inside a .select-wrap, not one by id: the visualization
+   picker is the second one and adding a third should not need CSS. */
+.select-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: rgba(15, 23, 32, 0.05);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.select-wrap select:hover {
+  border-color: rgba(15, 23, 32, 0.24);
+}
+
+.select-wrap select:focus-visible {
+  outline: none;
+  border-color: var(--cyan-panel);
+  box-shadow: 0 0 0 3px rgba(11, 117, 148, 0.16);
+}
+
+.select-wrap select option {
+  background: #f5f6f8;
+  color: var(--text);
+}
+
+/* Country/city picker for the weather scene, sitting above its live
+   readout — same .select-wrap every other dropdown uses, just spaced off
+   the stats grid below it. */
+.location-select-wrap {
+  margin-bottom: 14px;
+}
+
+/* =============================================================
+   STATS PANEL
+   ============================================================= */
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+}
+
+.stat:nth-child(1),
+.stat:nth-child(2) {
+  padding-top: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stroke-soft);
+}
+
+.stat:nth-child(3),
+.stat:nth-child(4) {
+  padding-bottom: 0;
+}
+
+.stat:nth-child(odd) {
+  border-right: 1px solid var(--stroke-soft);
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.4s ease;
+}
+
+.stat[data-kind="arrival"] .stat-value {
+  color: var(--cyan-panel);
+}
+
+.stat[data-kind="departure"] .stat-value {
+  color: var(--amber-panel);
+}
+
+.stat[data-kind="parked"] .stat-value {
+  color: var(--mint-panel);
+}
+
+.stat[data-kind="active"] .stat-value {
+  color: var(--text);
+}
+
+/* Attendance scene's 3-up readout (present/absent/late) — one row instead
+   of the 2x2 grid the other stats blocks use. */
+.stats.stats-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.stats.stats-3 .stat {
+  border-bottom: none;
+  padding: 4px 8px;
+}
+
+.stats.stats-3 .stat:not(:last-child) {
+  border-right: 1px solid var(--stroke-soft);
+}
+
+.stat[data-kind="present"] .stat-value {
+  color: var(--attendance-present);
+}
+
+.stat[data-kind="absent"] .stat-value {
+  color: var(--attendance-absent);
+}
+
+.stat[data-kind="late"] .stat-value {
+  color: var(--attendance-late);
+}
+
+.stat-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Manual temp/wind override — type an exact value to test the weather
+   scene's colour mapping and speed without waiting on a live reading;
+   Realtime hands control back to the poll. */
+.weather-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 8px 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--stroke-soft);
+}
+
+/* One field per row — label and input share that one line, Temp above Wind. */
+.weather-field {
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-field-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.weather-field input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  padding: 3px 6px;
+  text-align: right;
+}
+
+.weather-field input[type="number"]:focus-visible {
+  outline: none;
+  border-color: var(--cyan-panel);
+}
+
+/* Chrome/Safari's spinner arrows crowd a field this narrow. */
+.weather-field input[type="number"]::-webkit-inner-spin-button,
+.weather-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.realtime-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  pointer-events: auto;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.realtime-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(15, 23, 32, 0.26);
+}
+
+/* Disabled means "already realtime" — no override to hand back. */
+.realtime-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Grey, still dot while live (nothing to hand back); green and pulsing
+   once a manual reading is in effect, matching the tower panel's own dot. */
+.realtime-btn:disabled .live-dot {
+  background: var(--faint);
+  box-shadow: none;
+  animation: none;
+}
+
+/* =============================================================
+   LEGEND PANEL
+   ============================================================= */
+
+.route-key,
+.airline-key {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.route-key li,
+.airline-key li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.route-key .line {
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.route-key .cyan {
+  background: var(--cyan);
+  box-shadow: 0 0 10px rgba(98, 220, 255, 0.7);
+}
+
+.route-key .amber {
+  background: var(--amber);
+  box-shadow: 0 0 10px rgba(255, 196, 107, 0.6);
+}
+
+.route-key .white.dashed {
+  background: repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.85) 0 4px, transparent 4px 7px);
+  box-shadow: none;
+}
+
+.airline-head {
+  margin-top: 16px;
+}
+
+.airline-key li {
+  justify-content: space-between;
+  gap: 8px;
+  transition: opacity 0.4s ease;
+}
+
+.airline-key li.idle {
+  opacity: 0.32;
+}
+
+.airline-key .ak-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.airline-key .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.airline-key .ak-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.airline-key .ak-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+
+/* =============================================================
+   DETAIL PANEL
+   ============================================================= */
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.unpin {
+  pointer-events: auto;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.unpin:hover {
+  color: var(--text);
+  border-color: rgba(15, 23, 32, 0.26);
+}
+
+/* Tower panel's own .unpin — reopens the intro gate so a new Data + Art
+   combination can be picked without a page reload. Block-level here (the
+   detail panel's .unpin sits inline in a flex header instead) and given air
+   on both sides since it sits between the tower subtitle and the airport
+   select rather than next to a heading. */
+.new-output-btn {
+  display: block;
+  margin: 10px 0 14px;
+}
+
+.detail-empty {
+  margin: 12px 0 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.detail-body {
+  margin-top: 12px;
+}
+
+.detail-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swatch {
+  width: 3px;
+  height: 32px;
+  border-radius: 3px;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.detail-id {
+  min-width: 0;
+  flex: 1;
+}
+
+.flight-no {
+  display: block;
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.airline-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-chip {
+  flex: none;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-chip[data-state="inbound"],
+.status-chip[data-state="final"] {
+  color: var(--cyan-panel);
+}
+
+.status-chip[data-state="holding"] {
+  color: var(--text);
+}
+
+.status-chip[data-state="parked"] {
+  color: var(--mint-panel);
+}
+
+.status-chip[data-state="boarding"],
+.status-chip[data-state="climb"] {
+  color: var(--amber-panel);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 10px;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--stroke-soft);
+}
+
+.detail-grid dt {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.detail-grid dd {
+  margin: 4px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+/* =============================================================
+   TOOLTIP
+   ============================================================= */
+
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -160%);
+  transition: opacity 0.18s ease;
+
+  /* Material comes from the shared floating-glass-card block above. */
+  padding: 7px 13px 8px;
+
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.tooltip.visible {
+  opacity: 1;
+}
+
+.tooltip .tt-accent {
+  /* --cyan is the bright on-dark accent; on light glass it washes out, so
+     the flight number uses the darker panel variant like every other
+     accent that sits on glass. */
+  color: var(--cyan-panel);
+  font-weight: 600;
+}
+
+/* =============================================================
+   CINEMATIC INTRO
+   ============================================================= */
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--bg);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.veil.lifted {
+  opacity: 0;
+}
+
+/* airport switch: quick breath of darkness */
+.veil.switching {
+  opacity: 0.72;
+  transition: opacity 0.28s ease-out;
+}
+
+.titlecard {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(84px, 16vh, 170px);
+  z-index: 25;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* The intro gate sits in front of this the whole time a visitor is still
+   choosing Data + Art, so the reveal can't run on page load the way it used
+   to — beginIntro() (fired only once Generate is pressed) adds this class,
+   which is what actually starts the animation. */
+.titlecard.playing {
+  /* Must be gone before the zone captions appear (see ZONE_REVEAL_AT). */
+  animation: titlecard 4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+
+@keyframes titlecard {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+
+/* The card lands on bright moss. Without a scrim the metaphor line —
+   the single most important sentence on the page — is unreadable. */
+.titlecard::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: min(820px, 96vw);
+  height: 260px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center,
+      rgba(0, 0, 0, 0.78) 0%,
+      rgba(0, 0, 0, 0.52) 40%,
+      rgba(0, 0, 0, 0) 72%);
+}
+
+.tc-kicker {
+  font-size: clamp(20px, 3.6vw, 34px);
+  font-weight: 200;
+  letter-spacing: 0.36em;
+  text-indent: 0.36em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.9);
+}
+
+.tc-line {
+  font-size: clamp(10px, 1.3vw, 12px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(233, 239, 243, 0.80);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.95);
+}
+
+.tc-sub {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(233, 239, 243, 0.60);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.95);
+}
+
+/* =============================================================
+   RESPONSIVE
+   ============================================================= */
+
+@media (max-width: 900px) {
+  :root {
+    --panel-width: 170px;
+  }
+
+  .stat {
+    padding: 2px 10px;
+  }
+
+  .stat-value {
+    font-size: 19px;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --pad: 13px;
+    --radius: 14px;
+  }
+
+  .hud {
+    padding: 12px;
+  }
+
+  /* Sidebar becomes a top bar, leaving room for the HUD toggle pill */
+  .hud-panel {
+    left: 12px;
+    right: 148px;
+    top: 12px;
+    bottom: auto;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Airline roster is the first thing to go — the garden must breathe */
+  .legend {
+    display: none;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .stat-label {
+    font-size: 7.5px;
+    letter-spacing: 0.10em;
+  }
+
+  .tower-sub {
+    margin-bottom: 11px;
+  }
+
+  .zone-label .zl-note {
+    display: none;
+  }
+
+  .zone-label .zl-name {
+    font-size: 8.5px;
+    letter-spacing: 0.16em;
+  }
+
+  /* keep the one note that names the gates, since the captions are hidden */
+  .zone-label[data-kind="terminal"] .zl-note {
+    display: block;
+  }
+
+  /* Ten gate captions collide at this scale. The rings still pulse, and
+     "T2 · C1–C6 · T1 · D1–D4" under Kempegowda Bloom carries the meaning. */
+  .gate-label {
+    display: none;
+  }
+
+  .titlecard {
+    bottom: 28vh;
+  }
+}
+
+@media (max-width: 400px) {
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+  }
+}
+
+/*
+ * Dedicated 195 × 390 portrait display.
+ * The garden remains a centred landscape diorama while the single control
+ * card shrinks to a compact top bar showing just Tower + Stats.
+ */
+@media (max-width: 240px) and (max-height: 460px) and (orientation: portrait) {
+  :root {
+    --pad: 7px;
+    --radius: 9px;
+    --radius-sm: 6px;
+  }
+
+  .hud {
+    padding: 0;
+  }
+
+  .hud-panel {
+    top: max(5px, env(safe-area-inset-top));
+    left: 5px;
+    right: 5px;
+    max-height: none;
+    border-radius: 9px;
+  }
+
+  .tower-head {
+    gap: 5px;
+  }
+
+  .live-dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  .tower-title {
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+  }
+
+  .tower-sub {
+    display: none;
+  }
+
+  .select-wrap {
+    margin-top: 6px;
+  }
+
+  .select-wrap::after {
+    right: 8px;
+    width: 4px;
+    height: 4px;
+  }
+
+  .select-wrap select {
+    height: 25px;
+    padding: 3px 22px 3px 8px;
+    font-size: 9px;
+    border-radius: 6px;
+  }
+
+  .stats {
+    padding: 6px 4px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .stat {
+    min-width: 0;
+    gap: 2px;
+    padding: 0 2px;
+  }
+
+  /* Single row here, not the 2×2 quad — reset the quad's dividers
+     and use a plain left-rule between every column instead. */
+  .stat:nth-child(1),
+  .stat:nth-child(2),
+  .stat:nth-child(3),
+  .stat:nth-child(4) {
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .stat:nth-child(odd) {
+    border-right: none;
+  }
+
+  .stat:not(:first-child) {
+    border-left: 1px solid var(--stroke-soft);
+  }
+
+  .stat-value {
+    font-size: 13px;
+  }
+
+  .stat-label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 5.5px;
+    letter-spacing: 0.01em;
+    text-overflow: clip;
+  }
+
+  .legend,
+  .detail,
+  .tooltip,
+  .zone-label,
+  .gate-label {
+    display: none !important;
+  }
+
+  .titlecard {
+    display: none;
+  }
+}
+
+/* Landscape phones: keep the stage clear */
+@media (max-height: 460px) and (orientation: landscape) {
+  .legend {
+    display: none;
+  }
+
+  .titlecard {
+    bottom: 14px;
+  }
+
+  .tc-kicker {
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation-duration: 0.01ms;
+    opacity: 1;
+    transform: none;
+  }
+
+  .titlecard {
+    animation-duration: 0.01ms;
+    animation-delay: 0s;
+    opacity: 0;
+  }
+
+  .live-dot {
+    animation: none;
+  }
+
+  .veil {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* --- COLLAPSIBLE HUD PANELS & TOGGLE --- */
+.panel {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+}
+
+/* Default collapsed state for panels when HUD is not active */
+.hud:not(.hud-active) .panel {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Slide the sidebar off-screen to the left on desktop layout */
+@media (min-width: 721px) {
+  .hud:not(.hud-active) .hud-panel {
+    transform: translateX(-115%) !important;
+  }
+}
+
+/* Slide the top bar up on mobile layout */
+@media (max-width: 720px) {
+  .hud:not(.hud-active) .hud-panel {
+    transform: translateY(-115%) !important;
+  }
+}
+
+/* Pill-shaped floating HUD toggle button */
+.hud-toggle-btn {
+  position: fixed;
+  top: var(--hud-padding);
+  right: var(--hud-padding);
+  width: 124px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.3s, transform 0.2s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+  pointer-events: auto;
+  padding: 0;
+}
+
+.hud-toggle-btn::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff4a4a;
+  /* red when closed */
+  box-shadow: 0 0 6px #ff4a4a;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.hud-toggle-btn:hover {
+  background: rgba(15, 23, 32, 0.08);
+  border-color: rgba(15, 23, 32, 0.28);
+  transform: scale(1.05);
+}
+
+/* Compact Data Art Studio return control, positioned directly beside the
+   HUD toggle so it reads as part of the same floating control group. */
+.studio-back-btn {
+  position: fixed;
+  top: var(--hud-padding);
+  right: calc(var(--hud-padding) + 134px);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  color: var(--text);
+  cursor: pointer;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s, transform 0.2s, border-color 0.3s;
+}
+
+.studio-back-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.studio-back-btn:hover {
+  background: rgba(15, 23, 32, 0.08);
+  border-color: rgba(15, 23, 32, 0.28);
+  transform: scale(1.05);
+}
+
+/* Open State */
+.hud-active-btn {
+  border-color: #0f7fb0;
+  color: #0f7fb0;
+  box-shadow: 0 0 12px rgba(15, 127, 176, 0.18);
+}
+
+.hud-active-btn::before {
+  background: #0f7fb0;
+  /* glowing blue when open */
+  box-shadow: 0 0 8px #0f7fb0;
+}
+
+/* Hide HUD layers when UI is inactive */
+body:not(.hud-active) .label-layer {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body:not(.hud-active) .tooltip {
+  display: none !important;
+}

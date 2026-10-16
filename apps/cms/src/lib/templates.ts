@@ -15,4 +15,5 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   "object-recognition": "Object Recognition",
   "flight-simulation": "Data Art",
   gallery: "Gallery",
+  "data-art-studio": "Data Art Studio",
 };

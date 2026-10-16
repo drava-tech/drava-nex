@@ -1,0 +1,1470 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #0b0d12;
+  color: #fff;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.back .arrow {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* ───────────── Clock ───────────── */
+
+.clock-view {
+  display: grid;
+  /* A studio grey behind the fabric. */
+  background: radial-gradient(ellipse at 35% 30%, #e2e2e2, #c9c9c9 55%, #adadad 100%);
+  grid-template-columns: repeat(var(--count, 5), 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Registered so the band's shades fade smoothly when the temperature changes. */
+@property --temp-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #3a3f4b;
+}
+
+.band {
+  /* --temp-color is set per band from its temperature in clock.js. */
+  --temp-color: #3a3f4b;
+  --ink: #fff;
+  position: relative;
+  /* All the writing sits in one small stack at the foot of the band, leaving
+     the rest of the band to the artwork. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1.6vh;
+  text-align: center;
+  padding: 0 1.2vw 5vh;
+  color: var(--ink);
+  /* Shades of the band's own temperature color. */
+  --shade-deep: color-mix(in oklab, var(--temp-color), black 42%);
+  --shade-dark: color-mix(in oklab, var(--temp-color), black 18%);
+  /* The map (art.js) shows clear through the top of every band so it reads
+     as one picture; the band's color rises only behind its writing, plus a
+     thin strip along the top edge to tie the band to its country's color. */
+  --glass-mid: color-mix(in oklab, var(--temp-color), transparent 62%);
+  --glass-dark: color-mix(in oklab, var(--shade-dark), transparent 18%);
+  --glass-deep: color-mix(in oklab, var(--shade-deep), transparent 4%);
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 58%,
+    var(--glass-mid) 72%,
+    var(--glass-dark) 84%,
+    var(--glass-deep) 100%
+  );
+  box-shadow: inset 0 3px 0 var(--temp-color);
+  transition: --temp-color 2s ease, color 2s ease;
+  border-right: 1px solid rgb(255 255 255 / 0.06);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Light fills (yellows) carry dark text, so their foot darkens less to keep
+   the writing readable. */
+.band.light {
+  --shade-deep: color-mix(in oklab, var(--temp-color), black 24%);
+  --shade-dark: color-mix(in oklab, var(--temp-color), black 10%);
+}
+
+.band:last-of-type {
+  border-right: 0;
+}
+
+.place {
+  width: 100%;
+  min-width: 0;
+}
+
+.country {
+  font-weight: 800;
+  font-size: clamp(0.95rem, 1.5vw, 1.6rem);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.meta {
+  margin-top: 0.4vh;
+  font-size: clamp(0.68rem, 0.75vw, 0.85rem);
+  font-weight: 400;
+  opacity: 0.8;
+  text-wrap: balance;
+}
+
+.clock {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 300;
+  font-size: clamp(1.2rem, 2.2vw, 2.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.date {
+  font-size: clamp(0.62rem, 0.7vw, 0.8rem);
+  opacity: 0.75;
+  margin-top: 0.6vh;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.temp {
+  font-weight: 600;
+  font-size: clamp(1.2rem, 2.2vw, 2.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.temp .unit {
+  font-weight: 300;
+  font-size: 0.55em;
+  vertical-align: top;
+  opacity: 0.8;
+}
+
+.band.loading .temp {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .band {
+    transition: none;
+  }
+}
+
+.art {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  display: block;
+}
+
+/* The bands have no panels of their own: the writing keeps out of the
+   artwork's way. Each city's name and a clock face showing its time sit in a
+   black frosted strip across the top, and its temperature and wind, labelled, in a matching strip
+   across the foot.
+   On phones the bands are rows, so they keep their panels and the fabric is
+   colored row by row (--art-rows). */
+@media (min-width: 641px) {
+  .clock-view {
+    /* One unit for every size here: a hundredth of the screen's tighter side
+       (its width, or its height at 16:9), so the writing scales with the
+       screen, from a laptop up to a 4K display, without crowding it. */
+    --cu: min(1vw, 1.78vh);
+    --strip-top: 5vh;
+    --clock-size: calc(8.4 * var(--cu));
+    /* The top strip ends at the clock faces' centres, so the faces hang half
+       out of it. */
+    --name-height: calc(2 * var(--cu));
+    --strip-height: calc(var(--name-height) + var(--clock-size) / 2);
+    --foot-height: calc(4.2 * var(--cu));
+    /* Between temperature and wind in the foot strip. */
+    --pair-gap: calc(3.03 * var(--cu));
+  }
+
+  .clock-view::before,
+  .clock-view::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--strip-top);
+    height: var(--strip-height);
+    z-index: 1;
+    /* Black frosted glass: the cloth behind is blurred under a dark veil that
+       keeps the white writing readable. */
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02)),
+      rgb(8 9 12 / 0.62);
+    border-top: 1px solid rgb(255 255 255 / 0.22);
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.5);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    pointer-events: none;
+  }
+
+  .clock-view::after {
+    top: auto;
+    bottom: var(--strip-top);
+    height: var(--foot-height);
+    /* Comes after the bands in the page, so it's put under their writing. */
+    z-index: 0;
+  }
+
+  .clock-view .band {
+    justify-content: flex-start;
+    gap: calc(0.25 * var(--cu));
+    padding: calc(var(--strip-top) + 0.9 * var(--cu)) 1vw 6vh;
+    color: #fff;
+    background: none;
+    box-shadow: none;
+    border-right: 0;
+    font-weight: 300;
+  }
+
+  .clock-view .country {
+    font-weight: 600;
+    font-size: max(10px, calc(0.95 * var(--cu)));
+    letter-spacing: 0.2em;
+    text-shadow: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .clock-view .meta {
+    display: none;
+  }
+
+  .clock-view .clock {
+    font-family: "Inter", system-ui, sans-serif;
+    font-weight: 300;
+    font-size: max(13px, calc(1.25 * var(--cu)));
+    letter-spacing: 0.12em;
+    text-shadow: none;
+  }
+
+  .clock-view .temp {
+    font-weight: 300;
+    font-size: max(13px, calc(1.25 * var(--cu)));
+    letter-spacing: 0.16em;
+    text-shadow: none;
+  }
+
+  .clock-view .temp .unit {
+    font-size: 1em;
+    vertical-align: baseline;
+    opacity: 1;
+  }
+
+  /* The city over its clock face in the top strip, then the readings side by
+     side in the foot strip, each a small label over its value. */
+  .clock-view .band {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: var(--name-height) var(--clock-size) calc(0.8 * var(--cu)) 1fr var(--foot-height);
+    column-gap: calc(0.4 * var(--cu));
+    row-gap: 0;
+    padding: var(--strip-top) 0.6vw;
+  }
+
+  .clock-view .place {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    align-self: end;
+    padding-bottom: calc(0.3 * var(--cu));
+  }
+
+  .clock-view .time {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    justify-content: center;
+  }
+
+  .clock-view .band .time .label,
+  .clock-view .band .clock {
+    display: none;
+  }
+
+  .clock-view .analog {
+    display: block;
+    width: var(--clock-size);
+    height: var(--clock-size);
+  }
+
+  .clock-view .temp,
+  .clock-view .band .wind {
+    grid-row: 5;
+    align-self: center;
+    /* The label stacked over the value, as wide as the wider of them. */
+    display: block;
+    text-align: center;
+    min-width: 0;
+    font-size: max(14px, calc(1.5 * var(--cu)));
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+
+  /* Temperature and wind meet either side of the band's middle with a set
+     gap between them, so they read as a pair. */
+  .clock-view .temp {
+    justify-self: end;
+    margin-right: calc(var(--pair-gap) / 2);
+  }
+
+  .clock-view .band .wind {
+    justify-self: start;
+    margin-left: calc(var(--pair-gap) / 2);
+  }
+
+  .clock-view .clock {
+    font-size: inherit;
+    letter-spacing: inherit;
+  }
+
+  .clock-view .band .wind {
+    font-weight: 300;
+  }
+
+  .clock-view .band .wind .unit {
+    margin-left: 0.25em;
+    font-size: 0.6em;
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+  }
+
+  .clock-view .band .label {
+    display: block;
+    margin-bottom: calc(0.2 * var(--cu));
+    font-size: max(9px, calc(0.65 * var(--cu)));
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-align: center;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+}
+
+/* With digital clocks chosen, the strip shows the time in figures under the
+   city instead of a clock face, and ends below it. */
+@media (min-width: 641px) {
+  .clock-view.digital {
+    --clock-size: calc(2.6 * var(--cu));
+    --strip-height: calc(var(--name-height) + var(--clock-size) + 0.9 * var(--cu));
+  }
+
+  .clock-view.digital .analog {
+    display: none;
+  }
+
+  .clock-view.digital .band .clock {
+    display: block;
+    align-self: center;
+    font-size: max(16px, calc(1.9 * var(--cu)));
+    letter-spacing: 0.12em;
+  }
+}
+
+/* Labels, wind and the clock face show only in the strips (above), not on
+   phones. */
+.band .label,
+.band .wind,
+.analog {
+  display: none;
+}
+
+/* The clock face (analogClock.js), after a brushed-silver watch dial. */
+.analog-rim {
+  fill: #b4b1ae;
+  stroke: #2a2a2a;
+  stroke-width: 0.8;
+}
+
+
+
+.analog-track {
+  fill: none;
+  stroke: #1a1a1a;
+  stroke-width: 0.6;
+}
+
+.analog-track-inner {
+  fill: none;
+  stroke: #1a1a1a;
+  stroke-width: 0.9;
+}
+
+.analog-tick {
+  stroke: #1a1a1a;
+  stroke-width: 0.55;
+}
+
+/* Black enamel numerals in polished silver frames with a fine dark edge:
+   the edge is a wider dark stroke behind a silver one. */
+.analog-roman,
+.analog-roman-edge {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.analog-roman-edge {
+  fill: #1a1a1a;
+  stroke: #2a2a2a;
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+}
+
+.analog-roman {
+  fill: #0d0d0d;
+  stroke: #f2f2f4;
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+.analog-ampm {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  fill: #1a1a1a;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.analog-hour,
+.analog-minute,
+.analog-second {
+  stroke: #111;
+  stroke-linecap: round;
+}
+
+.analog-hour {
+  stroke-width: 5;
+}
+
+.analog-minute {
+  stroke-width: 3;
+}
+
+.analog-second {
+  stroke: #c4161c;
+  stroke-width: 1.1;
+}
+
+.analog-pin {
+  fill: #111;
+  stroke: #d8d8dc;
+  stroke-width: 1;
+}
+
+@media (max-width: 640px) {
+  .clock-view {
+    --art-rows: 1;
+  }
+}
+
+/* The world map is drawn white on black. */
+.clock-view.map-art {
+  background: #000;
+}
+
+/* A barely-there line between the cities' columns over the map. */
+@media (min-width: 641px) {
+  .clock-view.map-art .band:not(:last-of-type) {
+    border-right: 1px solid rgb(255 255 255 / 0.07);
+  }
+}
+
+.clock-view.map-art .band {
+  color: #fff;
+}
+
+.map-art .credit {
+  color: rgb(255 255 255 / 0.45);
+}
+
+.map-art .credit:hover {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.credit {
+  position: fixed;
+  left: 10px;
+  bottom: 6px;
+  z-index: 2;
+  /* These grow with the screen like the bands' writing (see --cu). */
+  font-size: max(10px, calc(0.7 * min(1vw, 1.78vh)));
+  color: rgb(0 0 0 / 0.45);
+  text-decoration: none;
+}
+
+.credit:hover {
+  color: rgb(0 0 0 / 0.8);
+}
+
+/* Out of the way until the pointer comes near it. */
+.back {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  padding: 0.6em 1.1em;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+  font-size: max(13px, calc(0.9 * min(1vw, 1.78vh)));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.clock-view:hover .back,
+.back:focus-visible {
+  opacity: 1;
+}
+
+.status {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  font-size: max(11px, calc(0.75 * min(1vw, 1.78vh)));
+  color: #fff;
+  background: rgb(0 0 0 / 0.5);
+  padding: 0.35em 0.7em;
+  border-radius: 4px;
+}
+
+/* ───────────── Landing ─────────────
+   Matches Data Art Studio's "Compose your piece" landing: soft, raised white
+   surfaces, Manrope, uppercase labels and black selected states. */
+
+body:has(.landing-view) {
+  background: #ffffff;
+}
+
+.landing-view {
+  --lp-ink: #111111;
+  --lp-muted: #8a8a8a;
+  --lp-line: #e6e6e6;
+  --lp-raise: 0 10px 22px -8px rgba(0, 0, 0, 0.22), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --lp-raise-soft: 0 18px 40px -18px rgba(0, 0, 0, 0.22), inset 0 1px 0 #ffffff;
+  /* One unit drives every landing size so the layout scales as a whole:
+     1px on a 1440x900 viewport, limited by whichever side is tighter. */
+  --u: clamp(0.55px, min(100vw / 1440, 100vh / 900), 3px);
+  --u: clamp(0.55px, min(100vw / 1440, 100dvh / 900), 3px);
+  background: #ffffff;
+  color: var(--lp-ink);
+  font-family: "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.landing {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(40 * var(--u)) calc(28 * var(--u)) calc(32 * var(--u));
+}
+
+.landing-header {
+  text-align: center;
+  margin-bottom: calc(36 * var(--u));
+}
+
+.landing-kicker {
+  font-size: calc(48 * var(--u));
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.landing-kicker span {
+  color: #8c8c8c;
+  font-weight: 600;
+}
+
+.landing-title {
+  margin-top: calc(2 * var(--u));
+  line-height: 1.15;
+  font-size: calc(24 * var(--u));
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.landing-sub {
+  margin-top: calc(16 * var(--u));
+  font-size: calc(17 * var(--u));
+  color: #a6a6a6;
+}
+
+.lp-shell {
+  width: min(calc(1384 * var(--u)), 100%);
+  display: grid;
+  grid-template-columns: minmax(calc(230 * var(--u)), calc(280 * var(--u))) minmax(0, 1fr) minmax(calc(240 * var(--u)), calc(310 * var(--u)));
+  grid-template-areas: "bands preview countries";
+  align-items: start;
+  gap: calc(32 * var(--u));
+  padding: calc(48 * var(--u)) calc(36 * var(--u)) calc(40 * var(--u));
+  background: linear-gradient(180deg, rgba(251, 251, 251, 0.42) 0%, rgba(244, 244, 244, 0.55) 100%);
+  border: 1px solid rgba(237, 237, 237, 0.9);
+  border-radius: calc(32 * var(--u));
+  box-shadow: var(--lp-raise-soft);
+}
+
+.lp-panel {
+  background: linear-gradient(180deg, #fdfdfd 0%, #f5f5f5 100%);
+  border: 1px solid #ececec;
+  border-radius: calc(30 * var(--u));
+  box-shadow: var(--lp-raise-soft);
+  overflow: hidden;
+}
+
+.lp-panel-title {
+  padding: calc(26 * var(--u)) calc(20 * var(--u)) calc(22 * var(--u));
+  text-align: center;
+  font-size: calc(19 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.lp-bands {
+  grid-area: bands;
+}
+
+.lp-countries {
+  grid-area: countries;
+}
+
+/* ---- Bands (like Data's options) ---- */
+.band-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--u));
+  padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u));
+}
+
+.band-item {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  width: 100%;
+  height: calc(50 * var(--u));
+  padding: 0 calc(16 * var(--u));
+  border: 0;
+  border-radius: calc(14 * var(--u));
+  background: #ffffff;
+  box-shadow: var(--lp-raise);
+  text-align: left;
+  user-select: none;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.band-item.empty {
+  color: #b5b5b5;
+  box-shadow: inset 0 0 0 1px #ececec;
+  background: transparent;
+}
+
+.band-item.selected {
+  background: #111111;
+  color: #ffffff;
+  box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
+  cursor: grab;
+  /* Dragging a band reorders it (landing.js), so a touch on it mustn't
+     scroll the page. */
+  touch-action: none;
+}
+
+.band-item.selected:hover {
+  transform: translateY(-1px);
+}
+
+/* While a band is dragged, the others slide aside to make room for it. */
+.band-list > li {
+  transition: transform 0.18s ease;
+}
+
+.band-list.is-sorting {
+  cursor: grabbing;
+}
+
+.band-list.is-sorting .band-item.selected:hover {
+  transform: none;
+}
+
+.band-list > li.dragging {
+  position: relative;
+  z-index: 2;
+  transition: none;
+}
+
+.band-list > li.dragging .band-item {
+  cursor: grabbing;
+  transform: scale(1.03);
+  box-shadow: 0 22px 34px -12px rgba(0, 0, 0, 0.6);
+}
+
+.band-grip {
+  flex: none;
+  width: calc(7 * var(--u));
+  height: calc(12 * var(--u));
+  margin-right: calc(-2 * var(--u));
+  fill: currentColor;
+  opacity: 0.4;
+}
+
+.band-num {
+  width: calc(16 * var(--u));
+  font-size: calc(14 * var(--u));
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.band-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(15 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.band-x {
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.lp-clear {
+  display: block;
+  margin: 0 auto calc(30 * var(--u));
+  padding: calc(6 * var(--u)) calc(10 * var(--u));
+  border: 0;
+  background: none;
+  font-size: calc(13 * var(--u));
+  color: var(--lp-muted);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lp-clear:hover {
+  color: var(--lp-ink);
+}
+
+/* Back to Data Art Studio, only when the picker is embedded there. */
+.lp-exit {
+  position: fixed;
+  top: calc(20 * var(--u));
+  left: calc(20 * var(--u));
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  padding: calc(9 * var(--u)) calc(16 * var(--u));
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: var(--lp-raise);
+  font: inherit;
+  font-size: calc(13 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lp-ink);
+  cursor: pointer;
+}
+
+.lp-exit svg {
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+}
+
+.lp-exit:focus-visible {
+  outline: calc(2 * var(--u)) solid #111;
+  outline-offset: calc(3 * var(--u));
+}
+
+/* ---- Preview ---- */
+.lp-preview-col {
+  grid-area: preview;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(20 * var(--u));
+  min-width: 0;
+}
+
+.lp-preview {
+  width: 100%;
+  margin-bottom: calc(8 * var(--u));
+}
+
+.lp-preview-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  padding: calc(20 * var(--u)) calc(28 * var(--u)) calc(16 * var(--u));
+  border-bottom: 1px solid var(--lp-line);
+}
+
+.lp-badge {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(9 * var(--u));
+  padding: calc(8 * var(--u)) calc(14 * var(--u));
+  background: #ffffff;
+  border-radius: calc(14 * var(--u));
+  box-shadow: var(--lp-raise);
+  font-size: calc(16 * var(--u));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lp-badge::before {
+  content: "";
+  width: calc(8 * var(--u));
+  height: calc(8 * var(--u));
+  border-radius: 50%;
+  background: #111;
+}
+
+.lp-preview-title {
+  font-size: calc(17 * var(--u));
+  font-weight: 500;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lp-preview-blurb {
+  justify-self: end;
+  text-align: right;
+  font-size: calc(16 * var(--u));
+  color: var(--lp-muted);
+}
+
+/* A small copy of the clock screen. */
+.lp-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: radial-gradient(ellipse at 35% 30%, #e2e2e2, #c9c9c9 55%, #adadad 100%);
+  overflow: hidden;
+}
+
+.lp-art,
+.lp-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+.lp-frame.has-art .lp-art,
+.lp-frame.has-map .lp-map {
+  display: block;
+}
+
+/* The preview copies the clock's layout: black frosted strips across the
+   top (city and clock face) and foot (temperature and wind). */
+.lp-frame .mini-bands::before,
+.lp-frame .mini-bands::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5%;
+  height: 18%; /* ends at the clock faces' centres */
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02)),
+    rgb(8 9 12 / 0.62);
+  border-top: 1px solid rgb(255 255 255 / 0.22);
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+}
+
+.lp-frame .mini-bands::after {
+  top: auto;
+  bottom: 5%;
+  height: 12%;
+}
+
+.lp-frame .mini-band {
+  z-index: 1; /* over the foot strip, which comes after it */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 5% 6% 24% 2% 1fr 12% 5%;
+  padding: 0 calc(3 * var(--u));
+  column-gap: calc(2 * var(--u));
+}
+
+.lp-frame .mini-band::before {
+  content: none;
+}
+
+.lp-frame .mini-country {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: end;
+  padding-bottom: calc(2 * var(--u));
+}
+
+.lp-frame .mini-time {
+  position: relative;
+  grid-column: 1 / -1;
+  grid-row: 3;
+  align-self: stretch; /* fills its row, which the clock face is sized to */
+  min-height: 0;
+}
+
+.lp-frame .mini-time .mini-value {
+  display: none;
+}
+
+/* Sized to its row. */
+.lp-frame .analog {
+  display: block;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1;
+}
+
+.lp-frame .mini-temp,
+.lp-frame .mini-wind {
+  grid-row: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-size: calc(8 * var(--u));
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.lp-frame .mini-label {
+  display: block;
+  margin-bottom: calc(2 * var(--u));
+  font-size: calc(5 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+/* Digital clocks: the time in figures under the city, in a shorter strip. */
+.lp-frame.digital .mini-bands::before {
+  height: 15%;
+}
+
+.lp-frame.digital .mini-band {
+  grid-template-rows: 5% 6% 9% 2% 1fr 12% 5%;
+}
+
+.lp-frame.digital .analog {
+  display: none;
+}
+
+.lp-frame.digital .mini-time .mini-value {
+  display: block;
+  font-size: calc(11 * var(--u));
+  letter-spacing: 0.12em;
+}
+
+.lp-frame.digital .mini-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Labels and wind show only in the strips (above); the time needs none. */
+.lp-frame .mini-time .mini-label,
+.mini-label,
+.mini-wind {
+  display: none;
+}
+
+/* Dark, like the world map's clock, with the same faint column lines. */
+.lp-frame.has-map {
+  background: #000;
+}
+
+.lp-frame.has-map .mini-band:not(:last-child) {
+  border-right: 1px solid rgb(255 255 255 / 0.07);
+}
+
+.lp-frame .mini-band {
+  position: relative;
+  justify-content: flex-start;
+  gap: calc(3 * var(--u));
+  color: #fff;
+}
+
+/* Drops the writing into the strip. */
+.lp-frame .mini-band::before {
+  content: "";
+  flex: 0 0 5.6%;
+}
+
+.lp-frame .mini-country {
+  font-size: calc(7 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.lp-frame .mini-time {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: calc(10 * var(--u));
+  letter-spacing: 0.12em;
+}
+
+.lp-frame .mini-temp {
+  font-size: calc(10 * var(--u));
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  text-shadow: none;
+}
+
+.mini-bands {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--count, 1), minmax(0, 1fr));
+  height: 100%;
+}
+
+.mini-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 0 calc(8 * var(--u)) calc(22 * var(--u));
+  text-align: center;
+  animation: mini-in 0.35s ease;
+}
+
+@keyframes mini-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.mini-country {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(14 * var(--u));
+  font-weight: 700;
+}
+
+.mini-time {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: calc(26 * var(--u));
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.mini-temp {
+  min-height: 1.2em;
+  font-size: calc(16 * var(--u));
+  font-weight: 600;
+}
+
+.lp-empty {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  font-size: calc(14 * var(--u));
+  color: #7d8597;
+}
+
+.lp-frame.is-empty .lp-empty {
+  display: grid;
+}
+
+/* ---- Artwork picker ---- */
+.lp-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(14 * var(--u)) calc(32 * var(--u));
+}
+
+.lp-arts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(10 * var(--u));
+}
+
+.lp-arts-label {
+  margin-right: calc(6 * var(--u));
+  font-size: calc(14 * var(--u));
+  color: var(--lp-muted);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lp-art-option {
+  height: calc(40 * var(--u));
+  padding: 0 calc(20 * var(--u));
+  border: 0;
+  border-radius: calc(12 * var(--u));
+  background: #ffffff;
+  box-shadow: var(--lp-raise);
+  font-size: calc(14 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.lp-art-option:hover {
+  transform: translateY(-1px);
+}
+
+.lp-art-option[aria-checked="true"] {
+  background: #111111;
+  color: #ffffff;
+  box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
+}
+
+.lp-generate {
+  min-width: calc(250 * var(--u));
+  height: calc(50 * var(--u));
+  padding: 0 calc(32 * var(--u));
+  font-size: calc(17 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--lp-ink);
+  background: #ffffff;
+  border: 0;
+  border-radius: calc(14 * var(--u));
+  box-shadow: var(--lp-raise);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.lp-generate:hover {
+  background: #111111;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.lp-generate:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+  background: #ffffff;
+  color: var(--lp-ink);
+}
+
+.lp-hint {
+  font-size: calc(14 * var(--u));
+  color: var(--lp-muted);
+}
+
+/* ---- Countries (like Art's cards) ---- */
+.lp-search-wrap {
+  position: relative;
+  padding: calc(22 * var(--u)) calc(20 * var(--u)) calc(4 * var(--u));
+}
+
+.lp-search-icon {
+  position: absolute;
+  left: calc(36 * var(--u));
+  top: calc(45 * var(--u));
+  translate: 0 -50%;
+  width: calc(16 * var(--u));
+  height: calc(16 * var(--u));
+  fill: none;
+  stroke: var(--lp-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lp-search {
+  width: 100%;
+  height: calc(46 * var(--u));
+  padding: 0 calc(16 * var(--u)) 0 calc(42 * var(--u));
+  border: 0;
+  border-radius: calc(14 * var(--u));
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #e8e8e8;
+  font: inherit;
+  font-size: calc(15 * var(--u));
+  color: var(--lp-ink);
+  outline: none;
+}
+
+.lp-search:focus {
+  box-shadow: inset 0 0 0 calc(2 * var(--u)) #111;
+}
+
+.country-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--u));
+  max-height: calc(470 * var(--u));
+  overflow-y: auto;
+  padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(36 * var(--u));
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+.country-card {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  width: 100%;
+  height: calc(56 * var(--u));
+  padding: 0 calc(18 * var(--u)) 0 calc(16 * var(--u));
+  border: 0;
+  border-radius: calc(14 * var(--u));
+  background: #ffffff;
+  box-shadow: var(--lp-raise);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+
+.country-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.country-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: calc(26 * var(--u));
+  height: calc(26 * var(--u));
+  border-radius: 50%;
+  border: calc(2 * var(--u)) solid #d9d9d9;
+  font-size: calc(12 * var(--u));
+  font-weight: 700;
+}
+
+.country-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(16 * var(--u));
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.country-city {
+  flex: none;
+  font-size: calc(12 * var(--u));
+  color: var(--lp-muted);
+}
+
+.country-card.selected {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
+}
+
+.country-card.selected .country-badge {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #000000;
+}
+
+.country-card.selected .country-city {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.country-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.band-item.selected:focus-visible,
+.country-card:focus-visible,
+.lp-art-option:focus-visible,
+.lp-generate:focus-visible,
+.lp-clear:focus-visible {
+  outline: calc(2 * var(--u)) solid #111;
+  outline-offset: calc(3 * var(--u));
+}
+
+/* Tablet: Bands and Countries side by side, preview + Show Clock below. */
+@media (max-width: 1080px) {
+  .landing-view {
+    --u: 1px;
+  }
+
+  .lp-shell {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "bands countries" "preview preview";
+    padding: 36px 24px;
+  }
+}
+
+/* Phone: one column, Bands → Countries → Preview + Show Clock. */
+@media (max-width: 680px) {
+  .landing {
+    padding: 56px 16px 32px;
+  }
+
+  .landing-header {
+    margin-bottom: 28px;
+  }
+
+  .landing-sub {
+    font-size: 15px;
+  }
+
+  .lp-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "bands" "countries" "preview";
+    gap: 20px;
+    padding: 20px 14px;
+    border-radius: 24px;
+  }
+
+  .lp-panel {
+    border-radius: 22px;
+  }
+
+  .band-list {
+    padding: 16px 18px 10px;
+  }
+
+  .country-list {
+    max-height: 360px;
+    padding: 16px 18px 22px;
+  }
+
+  .lp-preview-head {
+    grid-template-columns: auto 1fr;
+    padding: 14px 16px;
+  }
+
+  .lp-preview-blurb {
+    display: none;
+  }
+
+  .lp-preview-title {
+    justify-self: end;
+  }
+
+  .mini-band {
+    gap: 3px;
+    padding: 0 4px 12px;
+  }
+
+  .mini-country {
+    font-size: 10px;
+  }
+
+  .mini-time {
+    font-size: 15px;
+    letter-spacing: -0.04em;
+  }
+
+  .mini-temp {
+    font-size: 11px;
+  }
+}
+
+/* ───────────── Phones ───────────── */
+
+@media (max-width: 640px) {
+  /* Five columns are too narrow on phones, so stack the bands as rows. */
+  .clock-view {
+    grid-template-columns: none;
+    grid-template-rows: repeat(var(--count, 5), 1fr);
+  }
+  .band {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "place temp"
+      "clock temp";
+    gap: 0.4vh 12px;
+    align-content: end;
+    justify-items: start;
+    text-align: left;
+    padding: 0 16px 1.6vh;
+    border-right: 0;
+    border-bottom: 1px solid rgb(0 0 0 / 0.18);
+  }
+  .place {
+    grid-area: place;
+  }
+  .time {
+    grid-area: clock;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .temp {
+    grid-area: temp;
+    align-self: end;
+  }
+  .country {
+    font-size: 1rem;
+  }
+  .clock,
+  .temp {
+    font-size: 1.25rem;
+  }
+  .back {
+    opacity: 1;
+    top: auto;
+    bottom: 10px;
+  }
+
+}
+
+/* The studio's landing preview is look-only. */
+.preview-mode .back {
+  display: none;
+}

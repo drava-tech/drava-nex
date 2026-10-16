@@ -29,6 +29,10 @@
       "import": "./src/templates/flight-simulation/index.ts",
       "types": "./src/templates/flight-simulation/index.ts"
     },
+    "./templates/data-art-studio": {
+      "import": "./src/templates/data-art-studio/index.ts",
+      "types": "./src/templates/data-art-studio/index.ts"
+    },
     "./templates/object-recognition": {
       "import": "./dist/templates/object-recognition/index.js",
       "types": "./dist/templates/object-recognition/index.d.ts"
