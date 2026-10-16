@@ -14,6 +14,8 @@ import { FlightSimulationLayout } from "./flight-simulation/flight-simulation-la
 import { FlightSimulationEditorWorkspace } from "./flight-simulation/editor-workspace";
 import { GalleryLayout } from "./gallery/gallery-layout";
 import { GalleryEditorWorkspace } from "./gallery/editor-workspace";
+import { DataArtStudioLayout } from "./data-art-studio/data-art-studio-layout";
+import { DataArtStudioEditorWorkspace } from "./data-art-studio/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
@@ -21,6 +23,7 @@ import { DEFAULT_WELCOME_CONTENT } from "@platform/ui/templates/welcome";
 import { DEFAULT_OBJECT_RECOGNITION_CONTENT } from "@platform/ui/templates/object-recognition";
 import { DEFAULT_FLIGHT_SIMULATION_CONTENT } from "@platform/ui/templates/flight-simulation";
 import { DEFAULT_GALLERY_CONTENT } from "@platform/ui/templates/gallery";
+import { DEFAULT_DATA_ART_STUDIO_CONTENT } from "@platform/ui/templates/data-art-studio";
 
 /**
  * A code-defined template: its key, a human label, and the Layout that renders an
@@ -93,6 +96,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: GalleryLayout,
     defaultContent: DEFAULT_GALLERY_CONTENT,
     Workspace: GalleryEditorWorkspace,
+  },
+  "data-art-studio": {
+    key: "data-art-studio",
+    label: TEMPLATE_LABELS["data-art-studio"],
+    Layout: DataArtStudioLayout,
+    defaultContent: DEFAULT_DATA_ART_STUDIO_CONTENT,
+    Workspace: DataArtStudioEditorWorkspace,
   },
 };
 

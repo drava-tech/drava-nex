@@ -14,6 +14,7 @@ COPY packages/db/package.json    ./packages/db/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json    ./packages/ui/
 COPY packages/vision-browser/package.json ./packages/vision-browser/
+COPY packages/data-art-studio/package.json ./packages/data-art-studio/
 
 RUN pnpm install --frozen-lockfile
 
