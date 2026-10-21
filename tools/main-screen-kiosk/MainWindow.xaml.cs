@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
@@ -26,6 +27,10 @@ public partial class MainWindow : Window
     // only reliable way to detect "already installed" and avoid re-adding it
     // every launch.
     private const string FrameUnlockExtensionName = "CMS Platform — Frame Unlock";
+
+    // Width (in CSS px) the page lays out at on any panel at least this wide —
+    // the same 1920x1080 design size ScreenStage uses. See ApplyPageZoom.
+    private const double ReferenceLayoutWidth = 1920.0;
 
     private bool _allowClose;
     private readonly DispatcherTimer _retryTimer;
@@ -81,6 +86,13 @@ public partial class MainWindow : Window
             //
             // See also app.manifest — that stops Windows bitmap-stretching the
             // whole window, which is the other half of the same problem.
+            //
+            // Side effect: at 1 a pushed web page lays out 3840px wide and
+            // reads as a desktop browser at 50% zoom. ApplyPageZoom fixes that
+            // with WebView2 page zoom instead of changing this flag — page zoom
+            // raises devicePixelRatio, so the layout is a normal 1920x1080
+            // while Chromium still rasterizes (and draws video) at the panel's
+            // physical 3840x2160.
             AdditionalBrowserArguments =
                 "--autoplay-policy=no-user-gesture-required --force-device-scale-factor=1",
         };
@@ -110,8 +122,16 @@ public partial class MainWindow : Window
             }
         };
 
+        ApplyPageZoom();
+        SizeChanged += (_, _) => ApplyPageZoom();
+        DpiChanged += (_, _) => ApplyPageZoom();
+
         core.NavigationCompleted += (_, args) =>
         {
+            // The WPF control can drop its zoom on a navigation (including the
+            // retry timer's re-navigate), so it is re-applied every time.
+            ApplyPageZoom();
+
             if (!args.IsSuccess)
             {
                 _retryTimer.Stop();
@@ -138,6 +158,28 @@ public partial class MainWindow : Window
         await EnsureFrameUnlockExtensionLoadedAsync(core);
 
         core.Navigate(TargetUrl);
+    }
+
+    /// <summary>
+    /// Zooms the page so it lays out at ReferenceLayoutWidth CSS px across the
+    /// panel's physical width: 2.0 on the 4K TV, 1.0 (no zoom) on a 1080p
+    /// panel or narrower. Physical width = WPF's DIP width x the monitor's DPI
+    /// scale, which is exact because app.manifest makes this window
+    /// PerMonitorV2 DPI aware. User zoom stays disabled (IsZoomControlEnabled).
+    /// </summary>
+    private void ApplyPageZoom()
+    {
+        if (Browser.CoreWebView2 is null || ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var physicalWidth = ActualWidth * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var zoom = Math.Max(1.0, physicalWidth / ReferenceLayoutWidth);
+        if (Math.Abs(Browser.ZoomFactor - zoom) > 0.001)
+        {
+            Browser.ZoomFactor = zoom;
+        }
     }
 
     /// <summary>
