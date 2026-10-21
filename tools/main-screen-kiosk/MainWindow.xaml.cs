@@ -33,6 +33,12 @@ public partial class MainWindow : Window
     private const double ReferenceLayoutWidth = 1920.0;
 
     private bool _allowClose;
+    // True after Esc: a normal window with a title bar (minimize, maximize,
+    // close), like the Grid player. F11 or maximize brings the kiosk back.
+    private bool _windowed;
+    // Set while this code itself changes WindowState, so StateChanged doesn't
+    // react to its own switch.
+    private bool _switching;
     private readonly DispatcherTimer _retryTimer;
 
     public MainWindow()
@@ -149,7 +155,16 @@ public partial class MainWindow : Window
 
         StateChanged += (_, _) =>
         {
-            if (WindowState != WindowState.Minimized)
+            if (_switching || WindowState == WindowState.Minimized)
+            {
+                return;
+            }
+
+            // Kiosk restored from minimized (taskbar, remote): back to full
+            // screen. Windowed and maximized (its button or a title-bar
+            // double-click): that's asking for the whole screen, which a
+            // maximized window doesn't give (title bar and taskbar stay).
+            if (!_windowed || WindowState == WindowState.Maximized)
             {
                 RestoreKiosk();
             }
@@ -266,14 +281,41 @@ public partial class MainWindow : Window
 
     private void RestoreKiosk()
     {
+        _windowed = false;
+        _switching = true;
+        // Normal first: switching the frame off on an already-maximized window
+        // leaves it sized to the work area, i.e. the taskbar still shows.
+        WindowState = WindowState.Normal;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
         WindowState = WindowState.Maximized;
+        _switching = false;
         ShowInTaskbar = false;
         Topmost = true;
     }
 
+    /// <summary>Esc: a normal window with a title bar, so it can be minimized, moved or closed.</summary>
+    private void LeaveKiosk()
+    {
+        _windowed = true;
+        _switching = true;
+        Topmost = false;
+        ShowInTaskbar = true;
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        ResizeMode = ResizeMode.CanResize;
+        WindowState = WindowState.Normal;
+        Width = Math.Min(1280, SystemParameters.WorkArea.Width);
+        Height = Math.Min(720, SystemParameters.WorkArea.Height);
+        Left = SystemParameters.WorkArea.Left + (SystemParameters.WorkArea.Width - Width) / 2;
+        Top = SystemParameters.WorkArea.Top + (SystemParameters.WorkArea.Height - Height) / 2;
+        _switching = false;
+    }
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!_allowClose)
+        // Full screen it can't be closed by accident (Alt+F4 on the TV);
+        // windowed (after Esc) its close button and Alt+F4 work normally.
+        if (!_allowClose && !_windowed)
         {
             e.Cancel = true;
         }
@@ -293,8 +335,30 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Escape || e.Key == Key.F11 ||
-            (e.Key == Key.System && e.SystemKey == Key.F4))
+        // Same keys as the Grid player: Esc leaves full screen, F11 goes back.
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            if (!_windowed)
+            {
+                LeaveKiosk();
+            }
+            return;
+        }
+
+        if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            if (_windowed)
+            {
+                RestoreKiosk();
+            }
+            return;
+        }
+
+        // Alt+F4 only while full screen; windowed, it closes like any app
+        // (MainWindow_Closing decides).
+        if (key == Key.F4 && Keyboard.Modifiers == ModifierKeys.Alt && !_windowed)
         {
             e.Handled = true;
         }

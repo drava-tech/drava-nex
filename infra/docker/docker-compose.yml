@@ -1,12 +1,20 @@
 # CMS Platform — Full Docker Stack
-# All services run in containers. Nginx is exposed on port 80; PostgreSQL (5432)
-# and MQTT (1883) are also published to the host so local dev tools and LAN
+# All services run in containers. HTTP(S) comes in through the shared edge stack
+# (E:\edge, which must be up first) to this stack's nginx. PostgreSQL (5432)
+# and MQTT (1883) are published to the host so local dev tools and LAN
 # smart devices can reach them. Everything else stays on the internal network.
 #
 # Start:  docker compose --env-file ../../.env -f docker-compose.yml up -d
 # Stop:   docker compose -f docker-compose.yml down
 # Logs:   docker compose -f docker-compose.yml logs -f
 # Build:  docker compose --env-file ../../.env -f docker-compose.yml build
+
+# Project name. Without it Compose names the project after this folder
+# ("docker"), which is what Docker Desktop showed and what prefixed the images
+# (docker-api, docker-cms) and networks. Built images are now nexus-api /
+# nexus-cms. The Postgres volumes at the bottom keep their old docker_* names
+# on purpose — see the note there.
+name: nexus
 
 # ─── Shared log policy ───────────────────────────────────────────────────────
 # Applied to EVERY service below. Docker's stock json-file driver has no size
@@ -23,11 +31,11 @@ x-logging: &default-logging
 services:
 
   # ─── PostgreSQL ─────────────────────────────────────────────────────────────
-  # pgvector build of Postgres 16 (Debian-based) — same PG major as the previous
-  # postgres:16-alpine, so the existing data volume is reused as-is. The vector
+  # pgvector build of Postgres 18 (Debian-based). Upgraded from pg16 by dump/restore
+  # into the postgres18-data volume (PG18 keeps data under /var/lib/postgresql/18). The vector
   # extension is required by the vision service's visitor table (migration 0010).
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.8.5-pg18
     container_name: cms-postgres
     restart: unless-stopped
     environment:
@@ -45,7 +53,7 @@ services:
       #   pwsh infra/scripts/migrate-postgres-to-volume.ps1
       # (takes the stack down; dumps, switches and restores, verifying row
       # counts, and leaves the old directory untouched for rollback).
-      - postgres-data:/var/lib/postgresql/data
+      - postgres18-data:/var/lib/postgresql
     # Docker's default /dev/shm is 64 MB. Postgres uses it for parallel query
     # and hash-join work areas, and past that ceiling it fails outright with
     # "could not resize shared memory segment" under exactly the concurrent
@@ -362,14 +370,17 @@ services:
       - internal # so cms-api can reach it directly (http://homeassistant:8123) —
                  # the internal network has no route to the host's own LAN IP
 
-  # ─── Nginx (only public entry point) ────────────────────────────────────────
+  # ─── Nginx (nexus's entry point, behind edge) ───────────────────────────────
+  # No host ports: the shared edge Caddy (E:\edge) owns 80/443 for every project
+  # on this box and forwards ec-cms / 192.168.1.250 / nexus.tailb6da34.ts.net
+  # here over the `edge` network. nginx keeps all of nexus's own routing.
   nginx:
     image: nginx:alpine
     container_name: cms-nginx
     restart: unless-stopped
-    ports:
-      - "80:80" # the ONLY Docker entry point exposed to the host
-      - "443:443"
+    expose:
+      - "80"
+      - "443"
     volumes:
       - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ../nginx/certs:/etc/nginx/certs:ro
@@ -402,8 +413,12 @@ services:
       api:
         condition: service_healthy
     networks:
-      - internal
-      - public
+      internal: {}
+      public: {}
+      # The shared front door (E:\edge) reaches this nginx as nexus-web. Edge
+      # also routes the private https://nexus.tailb6da34.ts.net address here.
+      edge:
+        aliases: [nexus-web]
 
 # ─── Networks ──────────────────────────────────────────────────────────────────
 networks:
@@ -412,11 +427,21 @@ networks:
     internal: true # no direct internet access from any container on this network
   public:
     driver: bridge # Nginx bridges the host and internal services
+  # Owned by the edge stack (E:\edge\compose.yml), which must be up first.
+  edge:
+    external: true
 
 # Native Docker volume for the Postgres data directory.
 # Deliberately NOT a Windows bind mount: under Docker Desktop that path is
 # proxied from the WSL2 VM to NTFS over 9p/virtiofs, which serialises every WAL
 # fsync (measured 2.2 ms/commit vs ~0.2 ms here) and gives weaker durability
 # guarantees than Postgres expects from its data directory.
+#
+# Both are pinned to their real names. Named volumes otherwise take the project
+# prefix, so renaming the project to "nexus" would have silently pointed
+# Postgres at a fresh, EMPTY nexus_postgres18-data volume.
 volumes:
   postgres-data:
+    name: docker_postgres-data # pre-pg18 data, kept for rollback
+  postgres18-data:
+    name: docker_postgres18-data # live database

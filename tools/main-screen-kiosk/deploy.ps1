@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-  Publishes EMS - Main Display (EMS.exe, + the frame-unlock-extension folder
+  Publishes Nexus - Main Display (Nexus.exe, + the frame-unlock-extension folder
   it needs alongside it) and deploys it to a kiosk PC over the LAN.
 
 .DESCRIPTION
   1. dotnet publish (unless -SkipPublish).
-  2. Best-effort: stop the remote EMS.exe process over PowerShell Remoting,
+  2. Best-effort: stop the remote Nexus.exe process over PowerShell Remoting,
      so the copy below isn't blocked by a locked exe. Also stops the
-     pre-rename MainScreenKiosk.exe, re-points any Startup-folder shortcut
-     that still targets it at EMS.exe, and creates an "EMS - Main Display"
+     pre-rename EMS.exe / MainScreenKiosk.exe, re-points any Startup-folder
+     shortcut that still targets one at Nexus.exe, and creates a "Nexus - Main Display"
      shortcut on the Public Desktop.
   3. robocopy /MIR the publish output to an admin share on the target
      (\\ComputerName\C$\...), so the destination folder always ends up an
      exact mirror, including the frame-unlock-extension subfolder.
-  4. Best-effort: relaunch EMS.exe remotely.
+  4. Best-effort: relaunch Nexus.exe remotely.
 
   Steps 2 and 4 need PowerShell Remoting (WinRM) enabled on the kiosk PC and
   fail gracefully (a warning, not a hard stop) if it isn't - the copy in step
@@ -62,13 +62,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $publishDir = Join-Path $root 'bin\Release\net8.0-windows\win-x64\publish'
-$exeName = 'EMS.exe'
-# The exe was called MainScreenKiosk.exe before the EMS rename; kiosk PCs
-# deployed before then still run it and auto-start it from a shortcut.
-$legacyExeName = 'MainScreenKiosk.exe'
+$exeName = 'Nexus.exe'
+# Earlier names of the same app (EMS.exe, and MainScreenKiosk.exe before
+# that); kiosk PCs deployed back then still run one and auto-start it from a
+# shortcut.
+$legacyExeNames = @('EMS.exe', 'MainScreenKiosk.exe')
 
 if (-not $SkipPublish) {
-    Write-Host "Publishing EMS - Main Display..." -ForegroundColor Cyan
+    Write-Host "Publishing Nexus - Main Display..." -ForegroundColor Cyan
     Push-Location $root
     try {
         dotnet publish -c Release -r win-x64 --self-contained true `
@@ -93,8 +94,8 @@ if (-not $SkipRestart) {
     Write-Host "Stopping $exeName on $ComputerName (if running) and clearing its old WebView2 profile..." -ForegroundColor Cyan
     try {
         Invoke-Command @remoteParams -ScriptBlock {
-            param($remotePath, $exeName, $legacyExeName)
-            foreach ($name in @($exeName, $legacyExeName)) {
+            param($remotePath, $exeName, $legacyExeNames)
+            foreach ($name in @($exeName) + $legacyExeNames) {
                 Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($name)) -ErrorAction SilentlyContinue | Stop-Process -Force
                 # A profile created before browser-extension support was added
                 # to this app doesn't pick it up just by upgrading the exe -
@@ -106,15 +107,15 @@ if (-not $SkipRestart) {
                 Remove-Item -Path (Join-Path $remotePath "$name.WebView2") -Recurse -Force -ErrorAction SilentlyContinue
             }
 
-            # robocopy /MIR below deletes the old MainScreenKiosk.exe, so a
-            # Startup shortcut still pointing at it would stop the kiosk
-            # auto-starting after a reboot. Re-point any such shortcut.
+            # robocopy /MIR below deletes an older exe, so a Startup shortcut
+            # still pointing at one would stop the kiosk auto-starting after a
+            # reboot. Re-point any such shortcut.
             $startupDirs = @(Get-Item 'C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' -ErrorAction SilentlyContinue) +
                 @(Get-Item 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp' -ErrorAction SilentlyContinue)
             $shell = New-Object -ComObject WScript.Shell
             foreach ($lnk in ($startupDirs | ForEach-Object { Get-ChildItem -Path $_.FullName -Filter '*.lnk' -ErrorAction SilentlyContinue })) {
                 $shortcut = $shell.CreateShortcut($lnk.FullName)
-                if ($shortcut.TargetPath -like "*\$legacyExeName") {
+                if ($legacyExeNames | Where-Object { $shortcut.TargetPath -like "*\$_" }) {
                     $shortcut.TargetPath = Join-Path (Split-Path -Parent $shortcut.TargetPath) $exeName
                     $shortcut.Save()
                     Write-Host "Re-pointed startup shortcut $($lnk.FullName) at $exeName"
@@ -122,25 +123,26 @@ if (-not $SkipRestart) {
             }
 
             # Desktop shortcut for every user on the PC (Public Desktop). Any
-            # older desktop shortcut to MainScreenKiosk.exe is removed rather
-            # than re-pointed, so the desktop doesn't end up with two icons.
+            # older desktop shortcut to an earlier exe is removed rather than
+            # re-pointed, so the desktop doesn't end up with two icons.
             $desktopDirs = @(Get-Item 'C:\Users\*\Desktop' -ErrorAction SilentlyContinue)
             foreach ($lnk in ($desktopDirs | ForEach-Object { Get-ChildItem -Path $_.FullName -Filter '*.lnk' -ErrorAction SilentlyContinue })) {
-                if ($shell.CreateShortcut($lnk.FullName).TargetPath -like "*\$legacyExeName") {
+                $target = $shell.CreateShortcut($lnk.FullName).TargetPath
+                if ($legacyExeNames | Where-Object { $target -like "*\$_" }) {
                     Remove-Item -Path $lnk.FullName -Force
                     Write-Host "Removed old desktop shortcut $($lnk.FullName)"
                 }
             }
-            $desktopLnk = $shell.CreateShortcut('C:\Users\Public\Desktop\EMS - Main Display.lnk')
+            $desktopLnk = $shell.CreateShortcut('C:\Users\Public\Desktop\Nexus - Main Display.lnk')
             $desktopLnk.TargetPath = Join-Path $remotePath $exeName
             $desktopLnk.WorkingDirectory = $remotePath
             $desktopLnk.IconLocation = "$(Join-Path $remotePath $exeName),0"
-            $desktopLnk.Description = 'EMS - Main Display'
+            $desktopLnk.Description = 'Nexus - Main Display'
             $desktopLnk.Save()
-            Write-Host "Desktop shortcut: C:\Users\Public\Desktop\EMS - Main Display.lnk"
-        } -ArgumentList $RemotePath, $exeName, $legacyExeName
+            Write-Host "Desktop shortcut: C:\Users\Public\Desktop\Nexus - Main Display.lnk"
+        } -ArgumentList $RemotePath, $exeName, $legacyExeNames
     } catch {
-        Write-Warning "Couldn't reach $ComputerName over PowerShell Remoting (WinRM) to stop the running app / clear its old profile: $($_.Exception.Message)`nIf $exeName (or the older $legacyExeName) is currently running there, the copy below may fail to overwrite it - close it by hand on that PC first, then re-run this script. If Frame Unlock still doesn't load after deploying, also manually delete '$RemotePath\$exeName.WebView2' on that PC and relaunch. If that PC auto-starts $legacyExeName from its Startup folder, point that shortcut at $exeName by hand, and create the desktop shortcut to $exeName by hand too."
+        Write-Warning "Couldn't reach $ComputerName over PowerShell Remoting (WinRM) to stop the running app / clear its old profile: $($_.Exception.Message)`nIf $exeName (or an older $($legacyExeNames -join ' / ')) is currently running there, the copy below may fail to overwrite it - close it by hand on that PC first, then re-run this script. If Frame Unlock still doesn't load after deploying, also manually delete '$RemotePath\$exeName.WebView2' on that PC and relaunch. If that PC auto-starts an older exe from its Startup folder, point that shortcut at $exeName by hand, and create the desktop shortcut to $exeName by hand too."
     }
 }
 
@@ -159,7 +161,8 @@ try {
     # /XD excludes this machine's own local WebView2 profile (cache, cookies,
     # whatever extension state came from testing here) from ever being shipped
     # to the target - it's per-machine runtime state, not a build artifact.
-    robocopy $publishDir $destUnc /MIR /XD (Join-Path $publishDir "$exeName.WebView2") (Join-Path $publishDir "$legacyExeName.WebView2") /R:2 /W:2 /NFL /NDL /NJH /NJS
+    $localProfiles = @($exeName) + $legacyExeNames | ForEach-Object { Join-Path $publishDir "$_.WebView2" }
+    robocopy $publishDir $destUnc /MIR /XD @localProfiles /R:2 /W:2 /NFL /NDL /NJH /NJS
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed (exit code $LASTEXITCODE) copying to $destUnc" }
 } finally {
     if ($tempDrive) { Remove-PSDrive -Name KioskDeploy -ErrorAction SilentlyContinue }
