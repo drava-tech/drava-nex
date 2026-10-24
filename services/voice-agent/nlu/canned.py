@@ -30,6 +30,8 @@ ACTION_WORDS = frozenset(
     "turn switch set play open close lock unlock increase decrease mute unmute start stop show".split()
 )
 APPROVED = ("approved", "approve")
+_ASKING_WORDS = frozenset("what whats how why where who when which can could would will do does is are tell show explain".split())
+_REPLY_ONLY_MAX_WORDS = 7
 _FILLER = re.compile(r"\b(please|hey travis|travis|ok|okay|so|um|uh|can you|could you|would you|kindly)\b")
 
 
@@ -47,6 +49,7 @@ class Entry:
     offers: str = ""
     status: str = "draft"
     intent: str = ""  # small talk: greeting, joke, ...
+    reply_only: bool = False  # answers a feeling ("I'm good"): never taken when the sentence also asks or requests something ("good thanks, what can you do")
 
 
 @dataclass
@@ -87,6 +90,7 @@ def load_entries(faq_path: Path, smalltalk_path: Path | None = None, statuses: t
             out.append(Entry(
                 id=e["id"], kind="smalltalk", topic="smalltalk", variants=list(e.get("variants") or []),
                 answers=[str(a) for a in (e.get("answers") or [])], status=str(e.get("status")), intent=e["id"],
+                reply_only=bool(e.get("reply_only", False)),
             ))
     return out
 
@@ -161,6 +165,8 @@ class CannedMatcher:
         second = ranked[1][0] if len(ranked) > 1 else 0.0
         if top[0] < self.threshold or top[0] - second < self.margin:
             return None
+        if self.entries[top[1]].reply_only and (words & _ASKING_WORDS or len(words) > _REPLY_ONLY_MAX_WORDS):
+            return None  # a feeling plus a question or request goes on to the planner, which answers the rest
         if _fuzzy(normalise(text), normalise(top[2])) < self.min_fuzzy:  # close in meaning but sharing almost no words: not a rewording of this entry
             return None
         return Match(self.entries[top[1]], top[0], top[0] - second, top[2])

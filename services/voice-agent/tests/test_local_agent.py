@@ -320,7 +320,7 @@ class NeverConfirmWhatDidNotHappenTests(unittest.TestCase):
         self.assertIn("Door locked.", said)
         self.assertIn("tusker L9", said)
         self.assertNotIn("Only offer these", said)
-        self.assertTrue(said.endswith("Say Hey Travis, then your answer."))
+        self.assertTrue(said.endswith("Say the wake word, then your answer."))
 
     def test_the_same_call_twice_runs_once(self):
         a, _ = self.run_llm(
@@ -333,7 +333,7 @@ class NeverConfirmWhatDidNotHappenTests(unittest.TestCase):
 
     def test_a_question_says_how_to_answer_it(self):
         a, _ = self.run_llm([[("text", "Which light do you mean?")]])
-        self.assertEqual(" ".join(a.said), "Which light do you mean? Say Hey Travis, then your answer.")
+        self.assertEqual(" ".join(a.said), "Which light do you mean? Say the wake word, then your answer.")
 
     def test_results_that_need_interpreting_go_back_to_the_model(self):
         a, llm = self.run_llm(
@@ -378,7 +378,7 @@ class NeverConfirmWhatDidNotHappenTests(unittest.TestCase):
         _hear(a)
         said = " ".join(a.said)
         self.assertNotIn("Only offer these", said)
-        self.assertTrue(said.endswith("Say Hey Travis, then your answer."))
+        self.assertTrue(said.endswith("Say the wake word, then your answer."))
 
 
 class MultiActionExecutionTests(unittest.TestCase):
@@ -471,7 +471,7 @@ class AsksInsteadOfGuessingTests(unittest.TestCase):
         said = " ".join(a.said)
         self.assertIn("Which light do you mean", said)  # asks, and names the real choices
         self.assertIn("cove light", said)
-        self.assertIn("Say Hey Travis, then your answer.", said)
+        self.assertIn("Say the wake word, then your answer.", said)
 
     def test_the_model_correcting_itself_runs_only_the_good_call(self):
         llm = _FakeLLM(

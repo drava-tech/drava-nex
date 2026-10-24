@@ -17,6 +17,7 @@ import json
 import re
 from dataclasses import dataclass
 
+from nlu.names import same as same_name
 from nlu.canned import ACTION_WORDS
 from nlu.spoken_names import HIDDEN_FROM_LISTS, say_names
 
@@ -34,7 +35,7 @@ SCHEMA = {
 }
 SYSTEM = """You read one message said to a room assistant and decide whether it asks about the CURRENT STATE of the room: what is on or off, how many of something there are, what level or temperature something is at, what is playing on a screen, whether the door is locked.
 It is NOT a state question if it asks for something the room cannot report (a slide number, a playback position, a time), if it points at something unnamed ("this", "that", "it") that cannot be told from the sentence, if it asks for anything to change (turn, switch, set, make, play, show, lock, unlock, open, close, raise, lower), or if it asks about the company, the CMS software, Travis or how things work.
-Fields: asks_state (true only for a state question); subject: lights, ac, tv (the TV, the display, the main screen as a device), screens (what is showing, the presentation, the content), door, volume, or none; question: count (how many), which_on (which ones are on), status (is it on/off, what is its level or temperature), playing (what is showing), locked (is the door locked), level (volume or brightness level), list (which exist), or none; which: the device or screen exactly as the visitor named it, or "" when none was named.
+Fields: asks_state (true only for a state question); subject: lights, ac, tv (the TV, the display, the main screen as a device), screens (what is showing, the presentation, the content), door, volume (only the SOUND: its level, whether it is muted; a light's brightness is lights), or none; question: count (how many), which_on (which ones are on), status (is it on/off, what is its level or temperature), playing (what is showing), locked (is the door locked), level (volume or brightness level), list (which exist), or none; which: the device or screen exactly as the visitor named it, or "" when none was named.
 Examples (placeholders for names):
 "how many lights are there" -> {"asks_state":true,"subject":"lights","question":"count","which":""}
 "which lights are on" -> {"asks_state":true,"subject":"lights","question":"which_on","which":""}
@@ -44,6 +45,8 @@ Examples (placeholders for names):
 "what is playing on <screen A>" -> {"asks_state":true,"subject":"screens","question":"playing","which":"<screen A>"}
 "what presentation is open" -> {"asks_state":true,"subject":"screens","question":"playing","which":""}
 "is the door locked" -> {"asks_state":true,"subject":"door","question":"locked","which":""}
+"how bright is <light A>" -> {"asks_state":true,"subject":"lights","question":"status","which":"<light A>"}
+"is the TV muted" -> {"asks_state":true,"subject":"volume","question":"level","which":""}
 "what slide are we on" -> {"asks_state":false,"subject":"none","question":"none","which":""}
 "how long is the video" -> {"asks_state":false,"subject":"none","question":"none","which":""}
 "which screen is showing this" -> {"asks_state":false,"subject":"none","question":"none","which":""}
@@ -89,6 +92,48 @@ def could_be_state_question(request: str) -> bool:
         return False
     words = [w for w in re.findall(r"[a-z']+", (request or "").lower()) if w not in _LEAD]
     return bool(words) and words[0] in _ASKING
+
+
+_IMPERATIVE_LEAD = frozenset("make turn set put raise lower bring increase decrease switch show play open close lock unlock give get dim brighten push take drop crank".split())
+
+
+def sentence_form(request: str) -> str:
+    """"question" (wh-word or auxiliary first), "request" (an action word, or an imperative verb first) or "statement" (neither). Form only, like the
+    other sentence-shape checks in this module: "It's too cold in here" is a statement; "why is the AC so cold" and "can I see the portfolio" are
+    questions; "make it warmer" and "show me ..." are requests."""
+    words = [w for w in re.findall(r"[a-z']+", (request or "").lower()) if w not in _LEAD]
+    if not words:
+        return "question"  # nothing to go on: never taken for a statement
+    if words[0] in _ASKING or words[0] in ("why", "whys"):
+        return "question"
+    if words[0] in _IMPERATIVE_LEAD or asks_for_a_change(request):
+        return "request"
+    return "statement"
+
+
+# ── the embedding gate ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# After the shape test, a question is compared (local nomic-embed-text, about 11 ms) with typical questions about the room. Far from all of them -> the 0.6 s
+# classifier is not asked. Calibrated on the 27 real room questions in the benchmarks (lowest similarity 0.625, "What devices are available in this room"):
+# 0.55 keeps every one of them with a 0.07 margin and skips about 60% of the other question-shaped requests ("Which TV should I buy", "What is the CMS").
+STATE_EXEMPLARS = ["Is the AC on", "Which lights are on", "How many lights are there", "How many screens are there", "What is playing on the main screen",
+                   "Is the cove light on", "What temperature is the AC set to", "Is the door locked", "What is the volume", "What presentation is open",
+                   "Are the lights on", "What is the brightness of the sky light", "Is the TV on", "Is the TV muted", "What is showing on tusker 86"]
+MIN_SIMILARITY = 0.55
+_exemplar_vectors = None
+
+
+def similarity_to_state_questions(request: str) -> float:
+    """The highest cosine similarity between `request` and the typical room questions (blocking: one cached embedding call). Raises if the embedding
+    model is unavailable: the caller then asks the classifier as before."""
+    global _exemplar_vectors
+    from rag import retriever  # (the query embedding is the one the knowledge probe's search uses next: cached, so it is computed once)
+
+    if _exemplar_vectors is None:
+        import numpy as np
+
+        _exemplar_vectors = np.vstack([retriever._embed_query(" ".join(t.split())) for t in STATE_EXEMPLARS])
+    q = retriever._embed_query(" ".join((request or "").split()))[0]
+    return float((_exemplar_vectors @ q).max())
 
 
 def parse(raw: str, request: str) -> StateQuestion | None:
@@ -141,6 +186,11 @@ def lights(devices: list[dict]) -> list[dict]:
     return out
 
 
+def find_ac(devices: list[dict]) -> dict | None:
+    """The air conditioner in the CMS device list, or None."""
+    return next((d for d in devices if (d.get("type") == "ir" and "ac" in str(d.get("name", "")).lower()) or str(d.get("name", "")).lower().endswith(" ac")), None)
+
+
 def _find(which: str, items: list[dict]) -> dict | None:
     w = re.sub(r"[^a-z0-9 ]", "", say_names(which).lower()).replace("the ", "").strip()
     if not w:
@@ -157,7 +207,7 @@ def _level(it: dict) -> str:
 
 
 def _main_screen(screens: list[dict]) -> dict | None:
-    return next((s for s in screens if str(s.get("screenName", "")).strip().lower() == "tusker 86"), None)
+    return next((s for s in screens if same_name(str(s.get("screenName", "")), "tusker 86")), None)
 
 
 def _showing(s: dict) -> str | None:
@@ -171,7 +221,7 @@ def answer(q: StateQuestion, devices: list[dict], screens: list[dict]) -> str:
     if q.subject == "door":
         return "I can't tell whether the door is locked: the CMS has no door status to read. I can lock or unlock it if you ask."
     if q.subject == "volume" or (q.subject == "tv" and q.question == "level"):
-        return "I can't read the volume: the TV remote only sends volume up, volume down and mute."
+        return "I can't read the volume or tell whether it's muted: the TV remote only sends volume up, volume down and mute."
 
     if q.subject == "lights":
         ls = lights(devices)
@@ -194,7 +244,7 @@ def answer(q: StateQuestion, devices: list[dict], screens: list[dict]) -> str:
         return "I can't answer that about the lights."
 
     if q.subject == "ac":
-        ac = next((d for d in devices if (d.get("type") == "ir" and "ac" in str(d.get("name", "")).lower()) or str(d.get("name", "")).lower().endswith(" ac")), None)
+        ac = find_ac(devices)
         if ac is None:
             return "The CMS lists no air conditioner."
         s = ac.get("state") or {}
@@ -235,7 +285,7 @@ def answer(q: StateQuestion, devices: list[dict], screens: list[dict]) -> str:
             bits = [b for b, s in zip(bits, chosen) if _showing(s)] or bits
         text = ". ".join(bits) + "."
         if q.subject == "tv":
-            tv = next((d for d in devices if str(d.get("name", "")).strip().lower() == "tv"), None)
+            tv = next((d for d in devices if same_name(str(d.get("name", "")), "tv")), None)
             s = (tv or {}).get("state") or {}
             if "power" in s and not s.get("power"):
                 text = "The CMS shows the TV off. " + text

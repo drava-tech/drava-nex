@@ -80,6 +80,13 @@ _RETRYABLE_EXCEPTIONS = (requests.ConnectionError, requests.Timeout)
 _RETRY_DELAY_SEC = 0.3
 
 
+def _unreachable(method: str, error: Exception) -> str:
+    """What to say when the CMS did not answer. A command that was SENT and then timed out waiting for the reply may have been carried out (it only
+    never said so), so that is "can't tell", never a plain failure; a connection that never opened (or a read) was certainly not carried out."""
+    sent_and_waiting = method.upper() != "GET" and isinstance(error, requests.Timeout) and not isinstance(error, requests.ConnectTimeout)
+    return "The CMS didn't answer in time, so I can't tell whether that went through." if sent_and_waiting else "Could not reach the CMS."
+
+
 def _request(
     method: str,
     path: str,
@@ -130,10 +137,10 @@ def _request(
             res = send()
         except requests.RequestException as e:
             print(f"[cms] could not reach {url}: {e}")
-            raise CmsClientError("Could not reach the CMS.") from e
+            raise CmsClientError(_unreachable(method, e)) from e
     except requests.RequestException as e:
         print(f"[cms] could not reach {url}: {e}")
-        raise CmsClientError("Could not reach the CMS.") from e
+        raise CmsClientError(_unreachable(method, e)) from e
 
     if 300 <= res.status_code < 400:
         print(f"[cms] {url} answered {res.status_code} with a redirect; not following it")
@@ -161,11 +168,16 @@ def _cached_list(key: str, path: str) -> list[dict]:
     return data
 
 
-def list_devices() -> list[dict]:
+def list_devices(fresh: bool = False) -> list[dict]:
+    """`fresh`: skip the 30 s name cache. Names change rarely, but a STATE that is spoken as fact (on, off, at 20 degrees) must be read now."""
+    if fresh:
+        _name_cache.pop("devices", None)
     return _cached_list("devices", "/devices")
 
 
-def list_screens() -> list[dict]:
+def list_screens(fresh: bool = False) -> list[dict]:
+    if fresh:
+        _name_cache.pop("screens", None)
     return _cached_list("screens", "/screens")
 
 

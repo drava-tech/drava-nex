@@ -25,12 +25,13 @@ from dataclasses import dataclass, field, replace
 from actions import cms_client
 from types import SimpleNamespace
 
-from nlu import followup, repairs
+from nlu import followup, repairs, room_state
+from nlu.names import key as name_key, same as same_name
 from nlu.command_matcher import match_command, normalize
 from nlu.plan import OPS, Action, Plan, Target, quote_supported
 from nlu.planner import Planner
 from nlu import title_match
-from nlu.resolver import ALL, Focus, Resolved, Resolver
+from nlu.resolver import ALL, Focus, Resolved, Resolver, points_back
 from settings import load_api_config
 from nlu.spoken_names import HIDDEN_FROM_LISTS, say_names
 from safety.action_guard import AC_FANS, AC_MAX_TEMP, AC_MIN_TEMP, AC_MODES, MAX_VOLUME_STEPS
@@ -188,20 +189,40 @@ class PlanMixin:
                 screens = cms_client.list_screens()
             except Exception:
                 return None
-            titles = [t for t in experiences if (t.strip().lower() == wanted if wanted else "portfolio" in t.lower())]
+            titles = [t for t in experiences if (same_name(t, wanted) if wanted else "portfolio" in name_key(t))]
             if len(titles) > 1:
                 print(f"[Voice Agent] 🎞️ No portfolio offer: {len(titles)} experiences match ({titles}); set portfolio_experience.")
-            screen = next((x for x in screens if str(x.get("screenName", "")).strip().lower() == screen_want), None)
+            screen = next((x for x in screens if same_name(str(x.get("screenName", "")), screen_want)), None)
             if len(titles) != 1 or screen is None:
                 return None
-            if not screen.get("blanked") and str(screen.get("experienceName") or "").strip().lower() == titles[0].strip().lower():
+            if not screen.get("blanked") and same_name(str(screen.get("experienceName") or ""), titles[0]):
                 return None  # it is already playing there
             return titles[0], str(screen.get("screenName"))
 
-        found = await asyncio.get_running_loop().run_in_executor(None, look)
+        # A hard limit on the wait: with the CMS unreachable the two reads took 4.4 s (connect timeouts and retries). Past the limit the answer is "no offer",
+        # the lookup thread finishes on its own, and the CMS is not asked again for 60 s.
+        limit = float(cfg.get("portfolio_lookup_timeout_sec", 1.0))
+        try:
+            found = await asyncio.wait_for(asyncio.get_running_loop().run_in_executor(None, look), limit)
+        except asyncio.TimeoutError:
+            print(f"[Voice Agent] 🎞️ No portfolio offer: the CMS did not answer within {limit:g} s.")
+            found = None
         if found is None:
             self._portfolio_skip_until = time.monotonic() + 60.0
         return found
+
+    _portfolio_task: "asyncio.Task | None" = None
+
+    def _prefetch_portfolio(self, topic: str) -> None:
+        """Start the CMS lookup for the portfolio offer NOW, before the answer is spoken, so it runs while the answer is generated and played: by the time
+        `_maybe_offer_portfolio` needs it, it has usually finished. Nothing is awaited here, and nothing is started unless an offer could follow."""
+        cfg = load_api_config()
+        after = int(cfg.get("portfolio_offer_after", 1) or 1)
+        if (topic != "company" or not cfg.get("portfolio_offer", True) or self._portfolio_offered or self._portfolio_declined
+                or self._company_answers + 1 < after or time.monotonic() < self._portfolio_skip_until):
+            return
+        if self._portfolio_task is None or self._portfolio_task.done():
+            self._portfolio_task = asyncio.ensure_future(self._find_portfolio())
 
     async def _maybe_offer_portfolio(self, reply: str, topic: str) -> str:
         """From the first real answer about White Tusker in a conversation (config `portfolio_offer_after`, default 1), once, unless it was declined or
@@ -210,7 +231,8 @@ class PlanMixin:
         after = int(load_api_config().get("portfolio_offer_after", 1) or 1)
         if topic != "company" or self._company_answers < after or self._portfolio_offered or self._portfolio_declined:
             return reply
-        portfolio = await self._find_portfolio()
+        task, self._portfolio_task = self._portfolio_task, None
+        portfolio = await (task if task is not None else self._find_portfolio())  # (started earlier by _prefetch_portfolio: usually done)
         if portfolio is None:
             return reply
         title, screen = portfolio
@@ -219,7 +241,7 @@ class PlanMixin:
             "portfolio", offer=True,
         )
         self._portfolio_offered = True
-        where = "main screen" if screen.strip().lower() == "tusker 86" else screen
+        where = "main screen" if same_name(screen, "tusker 86") else screen
         offer = f"Would you like me to play our portfolio on the {where}?"
         if not float(load_api_config().get("followup_window_sec", 8) or 0):
             offer += f" Say {self._wake_hint}, yes or no."
@@ -249,9 +271,19 @@ class PlanMixin:
         self._timing["plan_done"] = time.monotonic()
         self._plan_log = plan.as_dict()
         print(f"[Voice Agent] 🧭 Plan: {self._plan_log}")
-        if plan.kind == "other" or (plan.kind == "question" and plan.topic in ("chat", "experience_center")):
+        if plan.kind == "suggest":
+            # A statement ("it's too cold in here"): proposed and confirmed, never done on its own (agent/suggest_route.py). A question or a request the
+            # model wrongly took for a statement, or a statement it did not quote, is treated as not understood and goes the way "other" goes.
+            form = room_state.sentence_form(request)
+            proposed = await self._suggest(plan, request, ask_only=form == "request") if form != "question" else None
+            if proposed is not None:
+                return proposed
+            plan.kind = "other"
+        names_a_device = plan.kind == "question" and any(n.lower() in request.lower() for n in self._device_words())  # "what brightness is <light A> at"
+        if plan.kind == "other" or (plan.kind == "question" and (plan.topic in ("chat", "experience_center") or names_a_device)):
             # Not a command and not about the company, the CMS or Travis: maybe a question about the room right now, answered from the CMS.
-            # (A command never gets here: the planner has already read it as actions.)
+            # (A command never gets here: the planner has already read it as actions. A "question" that names one of the room's devices is read
+            # as one too: only the room-state classifier below, not the knowledge file, can say what a device is doing.)
             state_reply = await self._answer_room_state(request)
             if state_reply is not None:
                 return state_reply
@@ -480,8 +512,8 @@ class PlanMixin:
         target = replace(act.target, type="light")
         if not target.name and not target.words:
             target = replace(target, words=act.quote)  # the model left the words out: its quote has them
-        if target.scope == "reference" and not quote_supported(target.words, self._cu):
-            # "and brightness to 80" points back at nothing: pointing words must really have been said.
+        if target.scope == "reference" and not (quote_supported(target.words, self._cu) and points_back(target.words)):
+            # "and brightness to 80" or "brightness of light" point back at nothing: pointing words (it, them, that one...) must really have been said.
             out.notes.append(f"{act.op}: reference without pointing words ({target.words!r}); asking")
             return ask(f"Which light would you like: {self._resolver._light_choices()}?", "light")
         res: Resolved = self._resolver.resolve(target, self._focus)
@@ -502,7 +534,7 @@ class PlanMixin:
     def _compile_screen(self, act: Action, args: dict, tool: str, out: Compiled, ask) -> None:
         target = replace(act.target, type="screen")
         content = str(act.parameters.get("content") or "").strip()
-        if target.scope == "reference" and not quote_supported(target.words, self._cu):
+        if target.scope == "reference" and not (quote_supported(target.words, self._cu) and points_back(target.words)):
             target = replace(target, scope="none")
         if act.op == "screen_show" and not content:
             return ask("What would you like me to show?")

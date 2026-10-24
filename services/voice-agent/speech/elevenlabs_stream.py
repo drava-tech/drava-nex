@@ -101,24 +101,28 @@ class ElevenLabsStreamer:
         """
         return await self.ensure_session()
 
-    async def send_text(self, text: str) -> None:
-        """Send a chunk of text to be synthesized immediately."""
+    async def send_text(self, text: str) -> bool:
+        """Send a chunk of text to be synthesized immediately. False = it did not go out (no key, no session, a send error that dropped the session):
+        a caller speaking an answer in pieces stops there rather than starting a new session in the middle of it."""
         if not text or not self.is_available:
-            return
+            return False
 
         if not await self.ensure_session():
-            return
+            return False
 
         try:
             payload = {
                 "text": text,
                 "try_trigger_generation": True,
             }
-            if _is_open(self._ws):
-                await self._ws.send(json.dumps(payload))
+            if not _is_open(self._ws):
+                return False
+            await self._ws.send(json.dumps(payload))
+            return True
         except Exception as exc:
             print(f"[ElevenLabs] ⚠️ Send error: {exc}")
             await self.cancel()
+            return False
 
     async def flush(self) -> None:
         """Signal turn completion so ElevenLabs flushes any buffered audio."""

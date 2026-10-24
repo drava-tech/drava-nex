@@ -40,7 +40,7 @@ Our flagship is the Collins Aerospace campus in Bengaluru: an experience centre 
 
 <!-- say: our founders -->
 
-White Tusker was founded by Smriti Attavar, Naveen DC and Varun Parikh. All three are directors of the studio and together lead its three verticals: architecture and interiors, immersive technology, and brand solutions.
+White Tusker was founded by Naveen DC, Smriti Attavar and Varun Parikh. All three are directors of the studio and together lead its three verticals: architecture and interiors, immersive technology, and brand solutions.
 
 ## Team
 

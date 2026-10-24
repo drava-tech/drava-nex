@@ -12,7 +12,7 @@ opened. In safety mode a request is allowed only when ALL of this holds:
 Anything else is refused before any connection, written to logs/safety.jsonl and printed as an error. The mock's fixed secret is used
 instead of cms_voice_secret, so the real secret is never sent anywhere while safety mode is on.
 
-Switching it off takes two deliberate steps: "safety_mode": false in the config AND the environment variable TRAVIS_ALLOW_REAL_DEVICES=1.
+The one switch is "safety_mode" in config/api_keys.json: true = mock only, false = real CMS (a loud banner prints at startup).
 ALLOWED_PORTS is a constant on purpose: no config key can widen it (tests patch it).
 """
 
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import os
 import socket
 import time
 from pathlib import Path
@@ -29,7 +28,7 @@ from urllib.parse import urlsplit, urlunsplit
 LOG_PATH = Path(__file__).resolve().parents[1] / "logs" / "safety.jsonl"
 ALLOWED_PORTS = frozenset({4010})
 SAFE_SECRET = "bench-secret"  # what the mock CMS accepts; the real cms_voice_secret is never used in safety mode
-ENV_ALLOW_REAL = "TRAVIS_ALLOW_REAL_DEVICES"
+ENV_ALLOW_REAL = "TRAVIS_ALLOW_REAL_DEVICES"  # no longer needed; kept so old scripts/tests that set it don't break
 
 _announced_off = False
 
@@ -39,9 +38,9 @@ class SafetyBlocked(Exception):
 
 
 def enabled(cfg: dict) -> bool:
-    """Safety mode is on unless the config says so (false) AND the environment confirms it."""
+    """Safety mode is on unless the config says exactly `"safety_mode": false` (anything else, or a missing key, keeps it on)."""
     global _announced_off
-    if cfg.get("safety_mode") is False and os.environ.get(ENV_ALLOW_REAL) == "1":
+    if cfg.get("safety_mode") is False:
         if not _announced_off:
             _announced_off = True
             print("\n" + "!" * 78 + "\n!! SAFETY MODE IS OFF: Travis can reach the REAL CMS and real devices.\n" + "!" * 78 + "\n", flush=True)

@@ -367,7 +367,7 @@ class ActionGuard:
                 args["screen"] = ctx
             elif a in ("assign_experience", "assign_media", "assign_content"):
                 # Not "which screen?" alone: the answer would arrive without the title.
-                return ask(repeat_message("Hey Travis"), "no screen was named")
+                return ask(repeat_message("the wake word"), "no screen was named")
             else:
                 return ask(self._ask_screen(), "no screen was named")
         elif strict and not (self._said(s, utterance) or (pron and self._fresh("screen") == s)):

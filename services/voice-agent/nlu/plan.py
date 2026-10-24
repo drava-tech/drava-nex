@@ -70,7 +70,9 @@ SCOPES = ["all", "specific", "group", "reference", "none"]
 # What the model is shown for "none": a word that cannot be read as "no target needed" when the
 # request does name a kind of thing ("the lights"); measured +3 of 30 phrasings over "none".
 _SCOPE_ENUM = ["all", "specific", "group", "reference", "unspecified"]
-KINDS = ["actions", "clarify", "cancel", "question", "other"]
+KINDS = ["actions", "clarify", "cancel", "question", "suggest", "other"]
+# What a "suggest" statement ("it's too cold in here") says the room should be: Travis proposes the change and does it only after a yes (agent/suggest_route.py).
+NEEDS = ["warmer", "cooler", "brighter", "dimmer", "louder", "quieter"]
 # What a "question" is about: answered from the knowledge base, never from the model's own memory.
 TOPICS = ["company", "cms", "travis", "experience_center", "chat"]
 
@@ -145,6 +147,8 @@ PLAN_SCHEMA: dict = {
         },
         "question": {"type": "string"},
         "topic": {"type": "string", "enum": TOPICS},
+        "need": {"type": "string", "enum": NEEDS},
+        "need_quote": {"type": "string"},
         "leftover": {"type": "string"},
     },
     "required": ["kind", "actions"],
@@ -188,6 +192,8 @@ class Plan:
     question: str = ""
     topic: str = ""  # for kind "question": company | cms | travis | experience_center | chat
     leftover: str = ""  # words of the request that are not about the room and got no action ("tell me a joke")
+    need: str = ""  # for kind "suggest": one of NEEDS
+    need_quote: str = ""  # the words of the statement that say it (checked against the request)
 
     def as_dict(self) -> dict:
         return {
@@ -199,6 +205,7 @@ class Plan:
             **({"question": self.question} if self.question else {}),
             **({"topic": self.topic} if self.topic else {}),
             **({"leftover": self.leftover} if self.leftover else {}),
+            **({"need": self.need, "need_quote": self.need_quote} if self.need else {}),
         }
 
 
@@ -269,4 +276,9 @@ def parse_plan(text: str) -> Plan | None:
     if kind == "actions" and question and not leftover:
         leftover = question  # the model wrote the part it can't do ("what is the capital of France") as a question
     topic = str(raw.get("topic") or "").lower()
-    return Plan(kind, actions, question if kind != "actions" else "", leftover=leftover, topic=topic if topic in TOPICS else "")
+    need = str(raw.get("need") or "").lower()
+    need_quote = str(_clean(raw.get("need_quote")) or "").strip()
+    if kind == "suggest" and (need not in NEEDS or actions):
+        kind = "other"  # a suggestion names one need and no action; anything else is not understood well enough to propose a change
+    return Plan(kind, actions, question if kind != "actions" else "", leftover=leftover, topic=topic if topic in TOPICS else "",
+                need=need if kind == "suggest" else "", need_quote=need_quote if kind == "suggest" else "")

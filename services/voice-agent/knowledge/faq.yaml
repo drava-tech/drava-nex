@@ -408,7 +408,7 @@ entries:
       - What commands does Travis understand
       - How do I speak to you
       - What is the wake word
-    answer: Say Hey Travis, then a request, such as set the AC to twenty two, lock the door or lower the volume. Travis can also show an experience or media item on a screen.
+    answer: Say the wake word, then a request, such as set the AC to twenty two, lock the door or lower the volume. Travis can also show an experience or media item on a screen.
     sources:
       - "cms_platform.md: What you can say to Travis"
     next_sections: ["Controlling the room", "Room modes"]

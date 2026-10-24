@@ -291,7 +291,7 @@
     {
       "intent": "LIGHT_NO_ACTION",
       "phrases": ["{light} [lights|light]"],
-      "reply": "On or off? Say Hey Travis, turn on, then the name."
+      "reply": "On or off? Say the wake word, turn on, then the name."
     },
     {
       "intent": "DOOR_LOCK",
@@ -492,7 +492,7 @@
     {
       "intent": "HOW_ARE_YOU",
       "phrases": ["how are you [doing|today]", "how is it going", "how are things"],
-      "reply": "I'm doing great, thanks for asking. How can I help?"
+      "reply": "I'm doing great, thanks for asking. How about you? Say the wake word, then tell me what you'd like."
     },
     {
       "intent": "LIST_LIGHTS",
@@ -534,12 +534,12 @@
         "how can you help [me]",
         "what commands [do you know|can i use|are there]"
       ],
-      "reply": "I can turn the lights on or off, set their brightness and colour, switch lighting modes, control the AC, lock or unlock the door, change the volume, and play, pause, stop or push content to the screens. Just say Hey Travis, then the command."
+      "reply": "I can turn the lights on or off, set their brightness and colour, switch lighting modes, control the AC, lock or unlock the door, change the volume, and play, pause, stop or push content to the screens. Just say the wake word, then the command."
     },
     {
       "intent": "ABOUT_YOU",
       "phrases": ["tell me about yourself", "who are you", "what are you", "introduce yourself", "what is your name"],
-      "reply": "I'm Travis, the voice assistant for this space. I control the lights, AC, door, sound and screens through the CMS. Just say Hey Travis, then what you need."
+      "reply": "I'm Travis, the voice assistant for this space. I control the lights, AC, door, sound and screens through the CMS. Just say the wake word, then what you need."
     }
   ]
 }

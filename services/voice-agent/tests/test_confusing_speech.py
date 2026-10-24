@@ -81,7 +81,7 @@ class AskedNotRunTests(unittest.TestCase):
         a = self.run_cmd("Hey Travis turn the lights on and off")
         self.assertEqual(a.calls, [])  # not even the first half
         self.assertIn('"off"', " ".join(a.said))
-        self.assertIn("Say Hey Travis, then your answer.", " ".join(a.said))
+        self.assertIn("Say the wake word, then your answer.", " ".join(a.said))
 
     def test_two_temperatures_asks(self):
         a = self.run_cmd("Hey Travis set the AC to 20 and 28")

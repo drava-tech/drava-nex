@@ -304,7 +304,7 @@ def decline() -> list[C]:
         c.append(one(f"dc.{cid}", "decline", say, decline=True, cms="none"))
     c.append(one("dc.mixed_ac_weather", "decline", "Turn on the AC and tell me the weather", cms="do", do=[AC("on")], reply_any=("the rest",), reply_none=("sunny", "degrees outside")))
     c.append(one("dc.mixed_lights_maths", "decline", "Turn off tusker edge and what is 5 plus 5", cms="do", do=[L("off", "tusker edge")], reply_any=("the rest",), reply_none=("ten", "10")))
-    c.append(one("dc.fragment", "decline", "I won", cms="none", reply_any=("didn't catch", "not sure", "sorry")))
+    c.append(one("dc.fragment", "decline", "I won", cms="none", reply_any=("didn't catch", "not sure", "sorry", "mid-sentence")))
     # asked wrongly in the past: these are in scope
     c.append(one("dc.keep_how_many_lights", "decline", "How many lights are there", cms="read", reply_none=("only help with this room", "can only help")))
     c.append(one("dc.keep_whiteboards", "decline", "Does it support whiteboards", cms="noact", reply_none=("can only help", "only help with this room")))

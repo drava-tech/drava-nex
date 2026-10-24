@@ -12,10 +12,15 @@ import numpy as np
 # pyrefly: ignore [missing-import]
 import sounddevice as sd
 
+from pathlib import Path
+
 from settings import (
     CHANNELS, CHUNK_SIZE, RECEIVE_SAMPLE_RATE, load_api_config,
 )
+from agent.audio_cache import AudioCache
 from audio.devices import apply_gain, reinit_portaudio, resolve_output_device
+
+AUDIO_DIR = Path(__file__).resolve().parent.parent / "cache" / "tts"  # same folder as agent/canned_route.py
 
 
 class _ChimeMarker:
@@ -51,6 +56,41 @@ def cue_pcm(rate: int) -> bytes:
     t = np.arange(int(rate * 0.11)) / rate
     fade = np.minimum(1.0, np.minimum(t, t[::-1]) / 0.015)
     return (np.clip(np.sin(2 * np.pi * 660.0 * t) * fade * 0.18, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+
+
+def load_wake_ack(cfg: dict) -> bytes | None:
+    """The wake acknowledgement ("Uh huh" by default, `wake_ack_text`; "" = keep the tone chime) in
+    Travis's own ElevenLabs voice, as PCM at `RECEIVE_SAMPLE_RATE`. Rendered once (a few characters)
+    and kept in the TTS audio cache, so every later wake word plays it from disk with no network.
+    Blocking: call it from a thread. None = not available (no key, offline...) -> the chime plays."""
+    text = str(cfg.get("wake_ack_text", "Uh huh") or "").strip()
+    key = str(cfg.get("elevenlabs_api_key") or "").strip()
+    voice = str(cfg.get("elevenlabs_voice_id") or "").strip()
+    if not text or not key or not voice:
+        return None
+    model = str(cfg.get("elevenlabs_model_id") or "eleven_flash_v2_5").strip()
+    cache = AudioCache(Path(cfg.get("tts_cache_dir") or AUDIO_DIR), voice, model, RECEIVE_SAMPLE_RATE)
+    pcm = cache.load(text)
+    if pcm is None:
+        try:
+            import requests
+
+            r = requests.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{voice}",
+                params={"output_format": f"pcm_{RECEIVE_SAMPLE_RATE}"},
+                headers={"xi-api-key": key, "content-type": "application/json"},
+                json={"text": text, "model_id": model, "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}},
+                timeout=15,
+            )
+            r.raise_for_status()
+            pcm = r.content
+            if not pcm or len(pcm) % 2:
+                return None
+            cache.store(text, pcm)
+        except Exception as e:  # noqa: BLE001
+            print(f"[Voice Agent] ⚠️ Could not render the wake acknowledgement ({type(e).__name__}); using the chime.")
+            return None
+    return pcm
 
 
 def _abort_and_close(stream) -> None:
@@ -179,6 +219,12 @@ class PlaybackMixin:
         next_open_at = 0.0  # monotonic time before which we don't retry opening the speaker
         ever_opened = False
         last_drop_note = 0.0
+        wake_ack = None
+        if output_enabled and cfg.get("wake_chime", True):
+            try:
+                wake_ack = await asyncio.to_thread(load_wake_ack, cfg)
+            except Exception:
+                wake_ack = None
         if not output_enabled:
             # The CMS/room audio system owns audible output: discard TTS
             # locally but keep draining the queue so it doesn't grow and the
@@ -240,8 +286,14 @@ class PlaybackMixin:
                         self.set_speaking(False)
                     continue
                 is_chime = isinstance(chunk, _ChimeMarker)
+                if not is_chime and getattr(self, "_drop_tts_audio", False):
+                    self._stale_chunks_dropped = getattr(self, "_stale_chunks_dropped", 0) + 1
+                    continue  # audio of a reply a new wake word replaced (agent/local.py _barge_in)
                 if is_chime:
-                    chunk = (cue_pcm if chunk is CUE else chime_pcm)(RECEIVE_SAMPLE_RATE)
+                    if chunk is CHIME and wake_ack:
+                        chunk = wake_ack
+                    else:
+                        chunk = (cue_pcm if chunk is CUE else chime_pcm)(RECEIVE_SAMPLE_RATE)
                 else:
                     # First audio chunk received (from ElevenLabs) this exchange.
                     self._timing.setdefault("first_audio_chunk_received", time.monotonic())

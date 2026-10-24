@@ -18,6 +18,13 @@ _FILLER = r"(?:(?:hey|ok|okay|so|um|uh|well|and|travis)\s+)*"
 _SUBJECT = r"(?:the\s+)?(?:cms(?:\s+platform|\s+system)?|control\s+system|system|platform|app|travis|it|this|that)"
 _SUBJECT_OR_PERSON = rf"(?:i|we|you|one|{_SUBJECT})"
 
+# Unambiguous questions about ability, even in the "you" form: "are you able to mute the TV", "do you support volume", and "can you control / change / adjust
+# the volume" (a general verb with no direction, no value and no on/off: nothing to carry out, so it can only be asking what Travis can do).
+_ABILITY_PATTERNS: list[re.Pattern] = [
+    re.compile(rf"^{_FILLER}(?:are\s+(?:you|u)\s+(?:able|capable)\s+(?:to|of)|do\s+you\s+(?:support|have|offer))\s+(?P<rest>.+)$"),
+    re.compile(rf"^{_FILLER}(?:can|could)\s+(?:you|u)\s+(?P<rest>(?:control|handle|adjust|change|manage|operate|set)\s+(?!.*\b(?:\d+|up|down|on|off|to)\b).+)$"),
+]
+_GENERIC_VERB = re.compile(r"^(?:control|handle|adjust|change|manage|operate|set)\b")
 _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("can", re.compile(rf"^{_FILLER}(?:can|could|does|do)\s+{_SUBJECT}\s+(?P<rest>.+)$")),
     ("can", re.compile(rf"^{_FILLER}is\s+it\s+possible\s+to\s+(?P<rest>.+)$")),
@@ -33,6 +40,12 @@ _POLITE_REQUEST = re.compile(r"^(?:hey\s+|travis\s+|ok\s+|okay\s+)*(?:please|(?:
 class Lead:
     kind: str  # can | howto | happens
     inner: str  # what is asked about, as words: "turn on the lights"
+    ability: bool = False  # asked in the "can you / are you able to" form (not "can the CMS", "how do I")
+
+    @property
+    def generic(self) -> bool:
+        """"change the volume": a general verb, so there is no single command to offer; the answer is what Travis can do with it."""
+        return self.ability and bool(_GENERIC_VERB.match(self.inner))
 
 
 def _clean(text: str) -> str:
@@ -44,7 +57,14 @@ def _clean(text: str) -> str:
 def classify(text: str) -> Lead | None:
     """The question about an action in `text`, or None (a request, a statement, or no such question form)."""
     t = _clean(text)
-    if not t or _POLITE_REQUEST.match(t):
+    if not t:
+        return None
+    for pattern in _ABILITY_PATTERNS:
+        m = pattern.match(t)
+        if m:
+            inner = re.sub(r"^(?:to|just|actually)\s+", "", m.group("rest").strip())
+            return Lead("can", inner, ability=True) if inner else None
+    if _POLITE_REQUEST.match(t):
         return None
     for kind, pattern in _PATTERNS:
         m = pattern.match(t)

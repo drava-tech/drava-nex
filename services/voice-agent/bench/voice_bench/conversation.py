@@ -296,6 +296,9 @@ class _Tripwire:
 
 async def run_conversation(selected: list[C], out_dir: Path, repeats: int = 3, quiet: bool = False) -> list[dict]:
     os.environ.setdefault("TRAVIS_CANNED_STATUSES", "draft,approved")
+    from agent import fallback_stats
+
+    fallback_stats.reset()
     out_dir.mkdir(parents=True, exist_ok=True)
     from actions import cms_client
     from nlu.relevance import gate_messages
@@ -377,7 +380,8 @@ async def run_conversation(selected: list[C], out_dir: Path, repeats: int = 3, q
     sink.close()
     mock.stop()
     results.append({"_meta": True, "elevenlabs_calls": trip.count})
-    (out_dir / "conversation_meta.json").write_text(json.dumps({"elevenlabs_calls": trip.count, "repeats": repeats}), encoding="utf-8")
+    (out_dir / "conversation_meta.json").write_text(json.dumps({"elevenlabs_calls": trip.count, "repeats": repeats, "fallback": fallback_stats.snapshot()}), encoding="utf-8")
+    print(f"[conv] fallback path: {fallback_stats.snapshot()}", flush=True)
     return results
 
 

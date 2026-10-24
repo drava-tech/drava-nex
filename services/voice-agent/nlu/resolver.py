@@ -78,6 +78,15 @@ def _join(names: list[str]) -> str:
     return ", ".join(names[:-1]) + f" or {names[-1]}"
 
 
+# Words that really point back at something said or used earlier. A reference target must contain one: a plain noun ("light") is not a pointer, and
+# the model once wrote "light" as a reference, which silently meant "whichever light was used last".
+POINTING_WORDS = frozenset("it its them they those these that this same one ones both first second third fourth fifth last other another previous again".split())
+
+
+def points_back(words: str) -> bool:
+    return bool(POINTING_WORDS & set(re.findall(r"[a-z]+", (words or "").lower())))
+
+
 class Resolver:
     def __init__(self, registry: Registry, light_names: list[str], offered_lights: list[str], screen_names: list[str]):
         self._registry = registry
@@ -116,6 +125,10 @@ class Resolver:
         bare = " ".join(w for w in key.split() if w not in _NOISE)
         for alias, value in table.items():
             if " ".join(w for w in alias.split() if w not in _NOISE) == bare and bare:
+                return value
+        joined = key.replace(" ", "")
+        for alias, value in table.items():
+            if alias.replace(" ", "") == joined:  # only the spacing differs ("tusker86", "sky light" / "skylight")
                 return value
         # A close spelling is fine ("tusker edge" heard as "tusker age"), a different number is not.
         best, score = None, 0.0
@@ -217,7 +230,7 @@ class Resolver:
             i = t.index - 1 if t.index > 0 else t.index
             if -len(known) <= i < len(known):
                 return Resolved(ok=True, names=[known[i]], why=f"item {t.index} of the last list")
-            return Resolved(question=f"I only listed {len(known)}. Which light do you mean?", why="index out of range")
+            return Resolved(question=f"I only listed {len(known)}. Which light do you mean: {self._light_choices()}?", why="index out of range")
         if known == [ALL]:
             return Resolved(ok=True, everything=True, why="them = all lights")
         return Resolved(ok=True, names=known, why="them = " + ", ".join(known))

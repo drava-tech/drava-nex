@@ -27,6 +27,7 @@ from agent.exchange_log import ExchangeLog
 from nlu.command_matcher import load_registry
 from nlu import pending as pending_mod
 from nlu.local_llm import OllamaChat, tools_to_json_schema
+from nlu import capabilities
 from nlu.intent import IntentCheck
 from nlu.relevance import RelevanceGate
 from speech.stt import WhisperSTT
@@ -35,6 +36,7 @@ from agent.canned_route import CannedMixin
 from agent.knowledge_answer import KnowledgeMixin
 from agent.repair_route import RepairMixin
 from agent.room_state import RoomStateMixin
+from agent.suggest_route import SuggestMixin
 from actions import cms_client
 from settings import (
     BASE_DIR, COMMANDS_PATH, LOCAL_PROMPT_PATH, PLANNER_PROMPT_PATH,
@@ -49,6 +51,7 @@ from nlu.spoken_names import say_names
 from agent.base import TravisBase
 from agent.commands import CommandMixin, _PendingHandled  # noqa: F401
 from agent.planning import PlanMixin
+from agent.turn import TURN_GEN, is_stale
 
 
 DECLINES = (
@@ -58,7 +61,7 @@ DECLINES = (
 )
 
 
-class TravisLocal(CannedMixin, RoomStateMixin, KnowledgeMixin, PlanMixin, RepairMixin, CommandMixin, TravisBase):
+class TravisLocal(CannedMixin, RoomStateMixin, SuggestMixin, KnowledgeMixin, PlanMixin, RepairMixin, CommandMixin, TravisBase):
     """TRAVIS on a local language model, with ElevenLabs for speech both ways:
 
   mic (while awake) -> WebRTC VAD endpointing (speech/vad.py)
@@ -142,7 +145,8 @@ a command runs and while Travis speaks."""
             "min_confidence": float(cfg.get("fast_path_min_confidence", 0.75)),
         }
         self._llm_tools = tools_to_json_schema(TOOL_DECLARATIONS)
-        self._system_prompt = LOCAL_PROMPT_PATH.read_text(encoding="utf-8")
+        # What Travis can do, read back and not do (nlu/capabilities.py) rides in the static system prompt: part of the cached prefix, no cost per request.
+        self._system_prompt = LOCAL_PROMPT_PATH.read_text(encoding="utf-8").rstrip() + "\n\n" + capabilities.text()
         self._history: list[dict] = []
         self._history_at = 0.0
         self._command_lock = asyncio.Lock()
@@ -160,6 +164,11 @@ a command runs and while Travis speaks."""
         self._path: str | None = None
         self._first_say: float | None = None
         self._last_heard: dict = {}
+        self._generation = 0
+        self._turn_task: asyncio.Task | None = None
+        # After a barge-in, reply audio is discarded until a current request speaks (agent/playback.py).
+        self._drop_tts_audio = False
+        self._stale_chunks_dropped = 0
 
     # ── Hooks into TravisBase's mic callback ─────────────────────────────
     def _on_wake(self):
@@ -176,6 +185,33 @@ a command runs and while Travis speaks."""
             q.put_nowait((time.monotonic(), item["data"]))
         except asyncio.QueueFull:
             self._wake_stats["drop_full"] += 1
+
+    def _turn_busy(self) -> bool:
+        task = self._turn_task
+        return task is not None and not task.done()
+
+    def _barge_in(self):
+        self._generation += 1
+        task, self._turn_task = self._turn_task, None
+        if task is not None and not task.done():
+            task.cancel()
+            print("[Voice Agent] ✋ Dropped the request in progress — a new wake word came in.")
+        self._exchange_active = False  # the old task may have set it after the audio thread reset it
+        if self._first_say is not None or (self.audio_in_queue is not None and not self.audio_in_queue.empty()):
+            self._drop_tts_audio = True
+            self._stale_chunks_dropped = 0
+            self._drain_audio_queue()
+            self.set_speaking(False)
+            self._first_say = None
+        self._endpointer.reset()
+
+    def _open_audio_gate(self):
+        """A current request is about to speak: stop discarding reply audio."""
+        if getattr(self, "_drop_tts_audio", False):
+            self._drop_tts_audio = False
+            n, self._stale_chunks_dropped = self._stale_chunks_dropped, 0
+            if n:
+                print(f"[Voice Agent] 🗑️ Discarded {n} audio chunk(s) of the dropped reply.")
 
     def speak(self, text: str):
         """Say `text` now — the nudge (from the audio thread), a tool error,
@@ -200,15 +236,21 @@ a command runs and while Travis speaks."""
             await self._finish_reply()
 
     # ── Speech out ───────────────────────────────────────────────────────
-    async def _say(self, text: str):
+    async def _say(self, text: str) -> bool:
+        """Send `text` to the voice. False only when the voice was there and refused it (a dropped ElevenLabs session): an answer spoken in pieces
+        stops on that. Nothing to say, or no voice configured (tests, the bench), is not a failure."""
+        if is_stale(self):
+            return True
         text = say_names(speakable(text))
         if not text.strip():
-            return
+            return True
         if self._first_say is None:
             self._first_say = time.monotonic()
         self._on_model_activity()
+        self._open_audio_gate()
         if self.elevenlabs is not None:
-            await self.elevenlabs.send_text(text.rstrip() + " ")
+            return await self.elevenlabs.send_text(text.rstrip() + " ") is not False
+        return True
 
     async def _finish_reply(self):
         if self.elevenlabs is not None:
@@ -238,6 +280,7 @@ a command runs and while Travis speaks."""
                 or self.ui.muted
                 or speaking
                 or self._exchange_active
+                or self._turn_busy()
                 or captured_at < self._ignore_before
             ):
                 # Asleep, Travis's own voice, or after a command was taken
@@ -246,21 +289,26 @@ a command runs and while Travis speaks."""
                 continue
             for utterance in self._endpointer.feed(pcm):
                 self._timing["vad_speech_end"] = time.monotonic()
-                self._utterance_inflight += 1  # keeps the "what do you need?" nudge quiet while Whisper works
-                try:
-                    # Smart Turn said the sentence was unfinished and then the speaker went quiet for the whole grace period
-                    # ("Can you tell me about the..."): what was heard is not a request to guess the end of.
-                    reason = getattr(self._endpointer, "last_reason", None)
-                    if reason is not None:  # only the smart endpointer says why it ended
-                        turn = getattr(self._endpointer, "last_turn_prob", None)
-                        print(f"[Voice Agent] 🏁 Utterance ended by {reason}" + (f" (Smart Turn {turn:.2f})" if turn is not None else "") + ".")
-                    await self._handle_utterance(utterance, unfinished=reason == "grace")
-                except Exception as e:
-                    print(f"[Voice Agent] ⚠️ Utterance handling failed: {e}")
-                    traceback.print_exc()
-                finally:
-                    self._utterance_inflight -= 1
+                reason = getattr(self._endpointer, "last_reason", None)
+                if reason is not None:
+                    turn = getattr(self._endpointer, "last_turn_prob", None)
+                    print(f"[Voice Agent] 🏁 Utterance ended by {reason}" + (f" (Smart Turn {turn:.2f})" if turn is not None else "") + ".")
+                self._turn_task = asyncio.create_task(self._run_turn(utterance, unfinished=reason == "grace"))
                 break
+
+    async def _run_turn(self, pcm: bytes, unfinished: bool):
+        TURN_GEN.set(self._generation)
+        self._utterance_inflight += 1
+        try:
+            await self._handle_utterance(pcm, unfinished=unfinished)
+        except asyncio.CancelledError:
+            self._log_ignored("replaced by a new wake word", self._last_heard.get("text", ""))
+            raise
+        except Exception as e:
+            print(f"[Voice Agent] ⚠️ Utterance handling failed: {e}")
+            traceback.print_exc()
+        finally:
+            self._utterance_inflight -= 1
 
     async def _handle_utterance(self, pcm: bytes, unfinished: bool = False):
         stt = self._stt
@@ -332,10 +380,11 @@ a command runs and while Travis speaks."""
         if unsure:
             print(f"[Voice Agent] 🤔 Whisper is unsure ({transcript.avg_logprob:.2f} < {self._min_logprob:.2f}): not acting on {command!r}.")
         try:
-            await self._run_command(command, unsure=unsure, unfinished=unfinished)
+            await self._run_command(command, unsure=unsure, unfinished=unfinished, heard_logprob=transcript.avg_logprob)
         finally:
-            self._ignore_before = time.monotonic()
-            self._endpointer.reset()
+            if not is_stale(self):
+                self._ignore_before = time.monotonic()
+                self._endpointer.reset()
 
     async def _prewarm_stt(self):
         """Wake the GPU while the user is still speaking their command, so Whisper is not paying the

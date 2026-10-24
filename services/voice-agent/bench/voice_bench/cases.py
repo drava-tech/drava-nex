@@ -98,6 +98,8 @@ def confusing() -> list[Case]:
     add("too_dark", "It's too dark in here.", "clarify")
     add("freezing", "It's freezing in here.", "clarify")
     add("cant_hear", "I can't hear anything.", "clarify")
+    add("too_bright", "It's too bright.", "clarify")
+    add("screen_too_loud", "The screen is too loud.", "clarify")
     # contradictions and nonsense: ask, change nothing
     add("on_and_off", "Turn the lights on and off.", "clarify")
     add("two_temps", "Set the AC to 20 and 28.", "clarify")

@@ -127,7 +127,7 @@ talks only to a localhost mock:
 - a refused request is never sent: it is printed as `[safety] BLOCKED ...`, appended to `logs/safety.jsonl`, and Travis says it was blocked.
 - the real `cms_voice_secret` is never sent in safety mode (the mock's fixed secret is used); redirects are never followed and
   `HTTP(S)_PROXY` variables are ignored.
-- to use the real CMS you must do both: `"safety_mode": false` in the config **and** `TRAVIS_ALLOW_REAL_DEVICES=1` in the environment.
+- one switch: `"safety_mode"` in `config/api_keys.json`. `true` (or missing) = mock only; `false` = real CMS and devices.
   Startup then prints a banner. The allowed ports are a constant in `actions/safety.py`, not a config key.
 
 `config/test_safe.json` is a config with no real keys. Run Travis against the simulator with

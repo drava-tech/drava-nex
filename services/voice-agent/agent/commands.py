@@ -15,15 +15,20 @@ from nlu.command_matcher import match_command, normalize, resolve, similarity
 from nlu.multi_action import is_fragment, resolve_multi, resolve_parts
 from nlu import pending as pending_mod
 from agent.repair_route import RepairOutcome
-from nlu import capability
+from nlu import capabilities, capability
+from nlu.names import resolve as resolve_name
+from agent.knowledge_answer import knowledge_timing
+from agent.turn import is_stale
+from nlu.room_state import asks_for_a_change
 from nlu import repairs
 from nlu import missing_target
 from nlu import title_match
+from nlu import describe
 from nlu.spoken_names import say_names
 from nlu.local_llm import LocalLLMError
 from nlu.intent import Verdict
 from nlu.transcript_fixes import fix_company_name
-from safety.reply_guard import ToolResult, claims_action, compose, invents_number, unverified_reply, with_wake_hint
+from safety.reply_guard import ToolResult, claims_action, claims_state, compose, invents_number, unverified_reply, unverified_state_reply, with_wake_hint
 from actions import cms_client
 from settings import load_api_config
 from actions.device_control import run_device_control
@@ -52,12 +57,36 @@ class CommandMixin:
     _question_mode = False
 
     # ── Commands ─────────────────────────────────────────────────────────
-    async def _run_command(self, command: str, unsure: bool = False, unfinished: bool = False):
+    async def _offer_guess(self, command: str, logprob: float | None) -> str | None:
+        """Whisper was not sure of this sentence. If it still reads as a clear room request, say what it would do and ask: a visitor only says yes
+        or no and never has to know the wording. Nothing runs before the yes (the offer is the same step as every other offer, `_confirm_step`).
+        None = no guess worth offering (noise-level score, not a room action, a door, nothing that can be said plainly): the request is asked for again."""
+        floor = float(load_api_config().get("stt_offer_min_logprob", -0.9) or 0)
+        if floor and logprob is not None and logprob < floor:
+            return None  # this unsure is closer to noise than to a misheard sentence: a guess would be invented
+        found = await self._calls_for(command)
+        if not found:
+            return None
+        calls, trusted = found
+        if capability.touches_door(calls):
+            return None  # a lock or unlock is never offered from a sentence that was not heard properly
+        phrase = describe.say_calls(calls)
+        if not phrase:
+            return None
+        tool, args = calls[0]
+        self._confirm = title_match.Confirm(
+            [title_match.Candidate("command", phrase, 1.0, tool, args, also=list(calls[1:]), trusted=trusted)], phrase, offer=True)
+        hint = "" if float(load_api_config().get("followup_window_sec", 8) or 0) else f" Say {self._wake_hint}, yes or no."
+        print(f"[Voice Agent] 💡 Not sure what was said ({command!r}, {logprob}): offering {phrase!r}.")
+        return f"Did you mean {phrase}?{hint}"
+
+    async def _run_command(self, command: str, unsure: bool = False, unfinished: bool = False, heard_logprob: float | None = None):
         async with self._command_lock:
             self._calls_log, self._path, self._first_say = [], None, None
             self._plan_log = None
             self._off_topic = False
             self._question_mode = False
+            self._portfolio_task = None  # (a lookup left over from an earlier turn is not this turn's)
             command = repairs.strip_hesitations(command) or command
             command = fix_company_name(command, self._device_words())  # "whitest cove" -> "White Tusker" (whole phrase, never in a device command)
             self._exchange_active = True
@@ -80,7 +109,10 @@ class CommandMixin:
                     if unfinished:  # both doubts at once: say the more useful one
                         reply = f"It sounded like you stopped mid-sentence. Please say {self._wake_hint} and repeat the whole request."
                     else:
-                        reply = f"I'm not sure I heard that right. Please say {self._wake_hint} and repeat the command."
+                        guess = await self._offer_guess(command, heard_logprob)
+                        if guess is not None:
+                            self._path = "declined (offered a guess)"
+                        reply = guess or f"I'm not sure I heard that right. Please say {self._wake_hint} and repeat the command."
                     await self._say(reply)
                     raise _PendingHandled
                 # An answer to Travis's last question finishes that request first.
@@ -219,10 +251,11 @@ class CommandMixin:
                 await self._say(reply)
             finally:
                 # (before _finish_reply: the mic callback decides what comes next the moment the reply is complete)
-                self._followup_wanted = self._expects_answer(reply)
-                await self._finish_reply()
-                if not self.ui.muted:
-                    self.ui.set_state("LISTENING")
+                if not is_stale(self):
+                    self._followup_wanted = self._expects_answer(reply)
+                    await self._finish_reply()
+                    if not self.ui.muted:
+                        self.ui.set_state("LISTENING")
             if reply:
                 print(f"[Voice Agent] 💬 TRAVIS: {reply}")
                 self.ui.write_log(f"TRAVIS: {reply}")
@@ -247,8 +280,12 @@ class CommandMixin:
     def _log_exchange(self, record: dict, speech_end: float | None, timing: dict) -> None:
         """Write the exchange line. The first AUDIO arrives after the reply has been handed over, so when there is a voice and a speech-end time the
         line is written once the audio has started (at most `_AUDIO_WAIT_SEC` later), with `speech_end_to_first_audio_ms`."""
+        def with_timing() -> dict:
+            kt = knowledge_timing(timing)
+            return {**record, **({"knowledge_timing_ms": kt} if kt else {})}
+
         if not (speech_end and self.elevenlabs is not None and self._first_say):
-            self._xlog.write({**record, "speech_end_to_first_audio_ms": None})
+            self._xlog.write({**with_timing(), "speech_end_to_first_audio_ms": None})
             return
 
         async def later() -> None:
@@ -256,7 +293,9 @@ class CommandMixin:
             while "first_audio_chunk_received" not in timing and time.monotonic() < deadline:
                 await asyncio.sleep(0.05)
             got = timing.get("first_audio_chunk_received")
-            self._xlog.write({**record, "speech_end_to_first_audio_ms": (got - speech_end) * 1000 if got else None})
+            if got and timing.get("knowledge_marks") and "playback_started" not in timing:
+                await asyncio.sleep(0.3)  # the speaker's first write follows the first audio bytes by a few milliseconds
+            self._xlog.write({**with_timing(), "speech_end_to_first_audio_ms": (got - speech_end) * 1000 if got else None})
 
         task = asyncio.get_running_loop().create_task(later())
         self._xlog_tasks = [t for t in getattr(self, "_xlog_tasks", []) if not t.done()] + [task]
@@ -272,6 +311,14 @@ class CommandMixin:
             if self._path == "faq":
                 canned = await self._maybe_offer_portfolio(canned, self._kb_last_topic)
             return canned
+        if lead.generic:  # "can you change the volume": no single command to offer, so no guessed direction; the model answers from the capability list
+            self._path = "capability question (answered)"
+            about = capabilities.about(lead.inner)
+            if about is None:
+                return await self._run_llm(request)
+            reply = f"Yes, I can handle {about}. Just say {self._wake_hint}, then what you'd like."
+            await self._say(reply)
+            return reply
         found = await self._calls_for(lead.inner)
         if not found:
             return None
@@ -373,7 +420,9 @@ class CommandMixin:
             return reply
         if review.dropped:
             print(f"[Voice Agent] 🚧 Part off topic — keeping only: {review.command!r}")
-        if not review.dropped:
+        if not review.dropped and not asks_for_a_change(review.command):
+            # (A request to DO something is never answered from the knowledge file: "open a whiteboard" must not get the paragraph that describes whiteboards.
+            # The model answers it with the capability list in its prompt and can say what Travis can't do by voice.)
             answered = await self._probe_knowledge(review.command)  # in scope but not a room request: the knowledge answers if it can
             if answered is not None:
                 return answered
@@ -665,10 +714,16 @@ class CommandMixin:
         (see nlu/title_match.py) instead of failing."""
         content = str(args.get("content") or "")
         kinds = {"assign_experience": ["experience"], "assign_media": ["media"]}.get(str(args.get("action")))
-        titles: dict[str, list[str]] | None = None
+        # The CMS compares names more narrowly than speech varies (it keeps dots, apostrophes and "&" and treats only hyphens as breaks), so a spoken title
+        # is first matched to the ONE real title it means here (nlu/names.py), and that exact title is what is sent.
+        experiences, media = await self._content_titles()
+        real = {k: resolve_name(content, pool) for k, pool in (("experience", experiences), ("media", media))}
+        chosen = [k for k in kinds if real[k]] if kinds else [k for k in ("experience", "media") if real[k]]
+        if len(chosen) == 1:
+            args = {**args, "content": real[chosen[0]], "action": "assign_experience" if chosen[0] == "experience" else "assign_media"}
+            content, kinds = args["content"], [chosen[0]]
+        titles = {"experience": experiences, "media": media}
         if kinds is None:
-            experiences, media = await self._content_titles()
-            titles = {"experience": experiences, "media": media}
             want = normalize(content)
 
             def best(names: list[str]) -> float:
@@ -685,9 +740,6 @@ class CommandMixin:
             wrong_kind = "matching" in message and ("experience" in message or "media item" in message)
             if not wrong_kind:
                 return False, message  # a screen problem, or similar: the other kind won't help
-        if titles is None:
-            experiences, media = await self._content_titles()
-            titles = {"experience": experiences, "media": media}
         candidates = sorted(
             (
                 title_match.Candidate(
@@ -718,8 +770,8 @@ class CommandMixin:
 
     @property
     def _wake_hint(self) -> str:
-        """How to address Travis, as spoken in "Say Hey Travis, then ..."."""
-        return (self._wake_model.label if self._wake_model else "hey travis").title()
+        """How a reply tells the user to wake Travis ("Say the wake word, then ..."): never the phrase itself."""
+        return "the wake word"
 
     @staticmethod
     def _dedupe_calls(calls):
@@ -739,12 +791,13 @@ class CommandMixin:
         done_text = compose(actions, self._wake_hint) if actions else ""
         # With no tool behind it, a level or temperature the user never said is invented.
         invented = bool(text) and not results and invents_number(text, self._guard._numbers(self._utterance))
-        if text and (claims_action(text) or invented):
+        state_claim = bool(text) and claims_state(text)  # "the TV is muted": a device state, and nothing in this turn read it (a read is spoken by compose, never here)
+        if text and (claims_action(text) or invented or state_claim):
             if actions:
                 text = done_text or ""
             else:
                 print(f"[Voice Agent] 🛑 Blocked an unbacked claim: {text!r}")
-                text = unverified_reply(self._wake_hint)
+                text = unverified_state_reply() if state_claim and not (claims_action(text) or invented) else unverified_reply(self._wake_hint)
         elif text and done_text:
             text = f"{done_text} {text}"  # what was done, then the question or answer
         elif not text and rejected:
@@ -838,6 +891,8 @@ class CommandMixin:
         screen commands report real success (the fast path's own short
         confirmation is only spoken then); anything else goes through
         TravisBase._run_tool."""
+        if is_stale(self):
+            return False, "Replaced by a newer request."
         runner = {
             "device_control": run_device_control,
             "screen_control": run_screen_control,

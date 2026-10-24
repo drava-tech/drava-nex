@@ -33,7 +33,10 @@ class SlotTests(unittest.TestCase):
         for text in ("Feels like it too bright. Can you reduce", "I want dim the light", "make it dimmer"):
             p = seed(text)
             self.assertIsNotNone(p, text)
-            self.assertEqual(pending.question(p, NAMES), "Which light, and what brightness from 0 to 100 percent?")
+            q = pending.question(p, NAMES)
+            self.assertTrue(q.startswith("Which light, and what brightness from 0 to 100 percent?"), q)
+            for name in NAMES:
+                self.assertIn(name, q)  # the choices are listed: nobody has to remember the names
 
     def test_other_requests_are_not_brightness(self):
         for text in ("increase the volume", "lower the AC to 22", "turn on the light", "what time is it"):

@@ -12,6 +12,7 @@ import random
 from pathlib import Path
 
 from agent.audio_cache import AudioCache
+from agent.turn import is_stale
 from agent.vocabulary import speakable
 from nlu import canned
 from nlu.spoken_names import say_names
@@ -74,6 +75,8 @@ class CannedMixin:
         self._path = {"faq": "faq", "no_info": "faq (no info)", "smalltalk": "small talk"}[entry.kind]
         self._plan_log = {"canned": {"entry": entry.id, "kind": entry.kind, "score": round(hit.score, 3), "margin": round(hit.margin, 3), "variant": hit.variant}}
         print(f"[Voice Agent] 💬 {entry.kind} {entry.id!r} ({hit.score:.2f}, margin {hit.margin:.2f}, as {hit.variant!r})")
+        if entry.kind == "faq":
+            self._prefetch_portfolio(entry.topic)  # the portfolio lookup runs while the answer plays
         await self._speak_canned(text)
         if entry.kind == "faq":
             await self._remember_faq(entry)
@@ -88,9 +91,12 @@ class CannedMixin:
             return
         import time
 
+        if is_stale(self):
+            return
         if self._first_say is None:
             self._first_say = time.monotonic()
         self._on_model_activity()
+        self._open_audio_gate()
         for chunk in self._audio_cache.chunks(pcm):
             self.audio_in_queue.put_nowait(chunk)
         print("[Voice Agent] 🔊 Playing pre-rendered audio.")

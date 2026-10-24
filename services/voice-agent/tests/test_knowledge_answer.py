@@ -275,6 +275,22 @@ class OffTopicTests(unittest.TestCase):
         self.assertTrue(f.a._off_topic)
         self.assertEqual(f.a._calls_log, [])
 
+    def test_a_declined_question_never_starts_the_portfolio_lookup(self):
+        """The CMS is not asked about a portfolio until a real answer about the company is being given (the off-topic cases forbid any CMS call)."""
+        f = Fixture(self, [company(query="Who is the CEO of Google")], [{"found": False, "answer": ""}])
+        self._gate(f, allowed=False)
+        started = []
+        f.a._prefetch_portfolio = lambda topic: started.append(topic)
+        f.ask("Who is the CEO of Google?")
+        self.assertEqual(started, [])
+
+    def test_the_lookup_starts_with_the_first_spoken_sentence_of_a_company_answer(self):
+        f = Fixture(self, [company()], [{"found": True, "answer": "White Tusker is a brand experience design studio."}])
+        started = []
+        f.a._prefetch_portfolio = lambda topic: started.append(topic)
+        f.ask("tell me about white tusker")
+        self.assertEqual(started, ["company"])
+
     def test_a_question_about_us_that_the_file_does_not_answer_is_not_declined(self):
         f = Fixture(self, [company(query="who founded White Tusker")], [{"found": False, "answer": ""}])
         self._gate(f, allowed=True)
@@ -871,3 +887,98 @@ class GroundingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpeakWhileGeneratingTests(unittest.TestCase):
+    """The answer reaches the voice sentence by sentence while the model is still writing; a lost voice or a cancelled request ends it cleanly."""
+
+    TEXT = "White Tusker is a brand experience design studio. We design spaces that respond to people, content, data and events. The studio is in Indiranagar, Bengaluru."
+
+    def test_the_first_sentence_is_with_the_voice_before_the_last_chunk_is_generated(self):
+        f = Fixture(self, [company()], [self.TEXT])
+        at_last_chunk = []
+        make = f.a._llm.stream_text
+
+        def spy(messages, max_tokens=300, schema=None):
+            stream = make(messages, max_tokens=max_tokens, schema=schema)
+            parts = stream.parts
+
+            async def gen():
+                for i, part in enumerate(parts):
+                    if i == len(parts) - 1:
+                        at_last_chunk.append(list(f.a.said))
+                    yield part
+
+            stream._gen = gen
+            return stream
+
+        f.a._llm.stream_text = spy
+        f.ask("tell me about white tusker")
+        self.assertEqual(at_last_chunk[0][:1], ["White Tusker is a brand experience design studio."])
+        self.assertLess(len(at_last_chunk[0]), 3)  # the rest had not been generated yet
+
+    def test_when_the_voice_drops_a_sentence_nothing_later_is_sent_and_nothing_is_repeated(self):
+        f = Fixture(self, [company()], [self.TEXT])
+        sent = []
+
+        async def flaky(text):
+            if sent:
+                return False  # the second sentence is refused: the session is gone
+            sent.append(text)
+            f.a.said.append(text)
+            return True
+
+        f.a._say = flaky
+        f.ask("tell me about white tusker")
+        self.assertEqual(f.a.said, ["White Tusker is a brand experience design studio."])
+        self.assertTrue(f.streams[0].closed)
+        self.assertIn("speech unavailable", f.a._plan_log["knowledge"]["verdict"])
+
+    def test_a_cancelled_request_closes_the_stream_and_drops_the_queued_audio(self):
+        f = Fixture(self, [company()], [{"raw": ['{"found": true, "answer": "White Tusker is a brand experience design studio. We design spaces']}])
+        dropped = []
+        f.a._drain_audio_queue = lambda: dropped.append(True)
+
+        class Hanging(FakeStream):
+            async def _gen(self):
+                for part in self.parts:
+                    yield part
+                await asyncio.sleep(3600)
+
+        make = f.a._llm.stream_text
+
+        def hang(messages, max_tokens=300, schema=None):
+            stream = Hanging(make(messages, max_tokens=max_tokens, schema=schema).parts)
+            f.streams[-1] = stream
+            return stream
+
+        f.a._llm.stream_text = hang
+        f._cur = f._plans.pop(0)
+
+        async def go():
+            task = asyncio.ensure_future(f.a._answer_from_knowledge(SimpleNamespace(topic="company"), "tell me about white tusker"))
+            await asyncio.sleep(0.3)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        asyncio.run(go())
+        self.assertEqual(f.a.said, ["White Tusker is a brand experience design studio."])
+        self.assertEqual(dropped, [True])
+        self.assertTrue(f.streams[-1].closed)
+
+    def test_the_stage_timings_are_recorded_in_order_without_any_conversation_text(self):
+        from agent.knowledge_answer import knowledge_timing
+
+        f = Fixture(self, [company()], [self.TEXT])
+        f.ask("tell me about white tusker")
+        marks = f.a._timing["knowledge_marks"]
+        self.assertLessEqual(marks["start"], marks["generate"])
+        self.assertLessEqual(marks["generate"], marks["first_token"])
+        self.assertLessEqual(marks["first_token"], marks["first_sentence"])
+        self.assertLessEqual(marks["first_sentence"], marks["done"])
+        timing = dict(f.a._timing, first_audio_chunk_received=marks["first_sentence"] + 0.1, playback_started=marks["first_sentence"] + 0.12)
+        got = knowledge_timing(timing)
+        self.assertEqual(list(got), ["model_started", "first_token", "first_sentence", "tts_first_audio", "playback_started", "completed"])
+        self.assertTrue(all(isinstance(v, int) for v in got.values()))
+        self.assertIsNone(knowledge_timing({}))

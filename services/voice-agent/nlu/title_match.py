@@ -18,6 +18,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from nlu.names import same as same_name
 from nlu.command_matcher import normalize, similarity
 
 MIN_SCORE = 0.6  # below this the title is not "similar sounding" — better to list nothing than guess
@@ -66,6 +67,8 @@ def score(spoken: str, title: str) -> float:
     s, t = _tokens(spoken), _tokens(title)
     if not s or not t:
         return 0.0
+    if same_name(spoken, title):
+        return 1.0  # only punctuation, spacing or case differ ("PORT-FOLIO" / "portfolio")
     nums_s, nums_t = re.findall(r"\d+", " ".join(s)), re.findall(r"\d+", " ".join(t))
     if nums_s != nums_t:
         # "Welcome Reel 2025" is not "Welcome Reel 2024", and "tusker L9" is neither "tusker L1" nor

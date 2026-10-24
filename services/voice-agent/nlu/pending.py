@@ -160,6 +160,9 @@ def question(p: Pending, names: list[str]) -> str | None:
             "Tell me the brightness you want, from 0 to 100 percent."
         )
     if p.name is None and p.level is None:
+        listed = ", ".join(names[:-1]) + (f" or {names[-1]}" if len(names) > 1 else "")
+        if names:
+            return f"Which light, and what brightness from 0 to 100 percent? The lights are {listed}."
         return "Which light, and what brightness from 0 to 100 percent?"
     if p.name is None:
         listed = ", ".join(names[:-1]) + (f" or {names[-1]}" if len(names) > 1 else "")

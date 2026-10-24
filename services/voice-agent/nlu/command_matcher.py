@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -74,7 +75,9 @@ NAME_NOISE = {"light", "lights", "screen", "display"}
 
 def basic_normalize(text: str) -> str:
     """Lowercase, strip punctuation, collapse whitespace, "%" -> "percent"."""
-    text = text.lower().replace("%", " percent ")
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))  # "Café" is "cafe", not "caf"
+    text = text.lower().replace("%", " percent ").replace("&", " and ")
     text = re.sub(r"°c?", " degrees ", text)
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return re.sub(r"\s+", " ", text).strip()

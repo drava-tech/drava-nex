@@ -57,7 +57,7 @@ class ComposeTests(unittest.TestCase):
     def test_instructions_for_a_model_are_not_spoken(self):
         spoken = compose([dev("lights_on", ok=False, message='I couldn\'t find exactly one device matching "x". Which one did you mean? The devices are: a, b. Only offer these.')])
         self.assertNotIn("Only offer these", spoken)
-        self.assertTrue(spoken.endswith("Say Hey Travis, then your answer."))
+        self.assertTrue(spoken.endswith("Say the wake word, then your answer."))
 
     def test_results_that_need_interpreting_return_none(self):
         self.assertIsNone(compose([ToolResult("knowledge_search", {"query": "x"}, True, "long text")]))
@@ -76,8 +76,8 @@ class ComposeTests(unittest.TestCase):
 class SmallHelpersTests(unittest.TestCase):
     def test_wake_hint_only_on_questions_and_only_once(self):
         self.assertEqual(with_wake_hint("Door locked."), "Door locked.")
-        self.assertEqual(with_wake_hint("Which one?"), "Which one? Say Hey Travis, then your answer.")
-        again = "Which one? Say Hey Travis, then the name."
+        self.assertEqual(with_wake_hint("Which one?"), "Which one? Say the wake word, then your answer.")
+        again = "Which one? Say the wake word, then the name."
         self.assertEqual(with_wake_hint(again), again)
 
     def test_clean_cms_message(self):

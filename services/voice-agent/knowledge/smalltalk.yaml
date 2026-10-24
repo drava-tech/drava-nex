@@ -21,7 +21,7 @@ intents:
     answers:
       - Hello, and welcome. I'm Travis, here whenever you need me.
       - Welcome. It's nice to have you here.
-      - Hello there. Just say Hey Travis whenever you need something.
+      - Hello there. Just say the wake word whenever you need something.
     status: approved
 
   - id: how_are_you
@@ -36,9 +36,48 @@ intents:
       - All good with you
       - How are things going with you
     answers:
-      - I'm doing well, thank you for asking.
-      - All good here, thanks. I hope your visit is going well too.
-      - Doing great, thank you. It's a good day to be in this space.
+      - I'm doing well, thank you for asking. How about you? Say the wake word, then tell me what you'd like.
+      - All good here, thanks. How are you doing? Say the wake word, then tell me what you'd like.
+      - Doing great, thank you. How is your visit going? Say the wake word, then tell me what you'd like.
+    status: approved
+
+  # The visitor's answer to "How about you?" on its own (a command or question inside it never gets here: those go to the planner)
+  - id: feeling_good
+    type: smalltalk
+    reply_only: true
+    variants:
+      - I'm good
+      - I'm fine
+      - I'm doing well
+      - Doing great
+      - Not bad
+      - All good, thanks
+      - I'm great, thank you
+      - Pretty good
+      - I'm okay
+      - Good thanks
+    answers:
+      - Glad to hear it. Say the wake word whenever you need something.
+      - That's good to hear. Just say the wake word if you need anything.
+      - Wonderful. Say the wake word when you'd like something.
+    status: approved
+
+  - id: feeling_low
+    type: smalltalk
+    reply_only: true
+    variants:
+      - Not great today
+      - I'm tired
+      - Pretty tired honestly
+      - I've had a long day
+      - So so
+      - Not so good
+      - Could be better
+      - I'm exhausted
+    answers:
+      - Sorry to hear that. I hope this visit helps. Say the wake word if there's anything I can do.
+      - That sounds like a long day. Say the wake word if I can help with anything here.
+      - I'm sorry to hear it. Just say the wake word if you need anything.
     status: approved
 
   - id: thanks
@@ -59,7 +98,7 @@ intents:
     answers:
       - You're welcome.
       - Happy to help.
-      - Anytime. Just say Hey Travis if you need anything else.
+      - Anytime. Just say the wake word if you need anything else.
     status: approved
 
   - id: goodbye
@@ -113,7 +152,7 @@ intents:
     answers:
       - I can control the lights, the AC, the door and the volume, and switch lighting modes. I can also put experiences and media on the screens.
       - Lights, AC, door, volume, room modes and the screens are all mine to look after. I can also tell you about White Tusker and this centre.
-      - Say Hey Travis, then a request for the lights, AC, door, volume or screens. I can also answer questions about White Tusker and the CMS.
+      - Say the wake word, then a request for the lights, AC, door, volume or screens. I can also answer questions about White Tusker and the CMS.
     status: approved
 
   - id: are_you_robot_or_ai
@@ -176,6 +215,12 @@ intents:
       - The architect brought a pencil to the party, just to draw some attention.
       - The camera was invited everywhere. It always knew how to focus.
       - A voice assistant went back to school to improve its speech.
-      - Designers love a clean room. It has plenty of white space.
+      - Why don’t skeletons fight each other? They don’t have the guts.
+      - The guy who invented the knock-knock joke should get a “No Bell” prize.
+      - Why can't a bike stand on its own? Because it's two tired.
+      - I'm always listening. Mostly to people saying "not you, Travis."
+      - I can set timers, play music and dim the lights. Basically, I'm a very expensive light switch with opinions.
+      - I don't sleep. I just wait for someone to say my name wrong.
+      - People ask me for the weather every morning. Just look outside. I don't even have a window.
     pick: random
     status: approved

@@ -93,6 +93,13 @@ class MatchTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(m.match(text))
 
+    def test_a_feeling_reply_is_taken_alone_but_never_when_it_also_asks_something(self):
+        e = entry("feeling", ["I'm good", "I'm fine", "Good thanks"], "Glad to hear it.", kind="smalltalk", topic="smalltalk", reply_only=True)
+        m = matcher([e])
+        self.assertIsNotNone(m.match("I'm good"))
+        self.assertIsNone(m.match("Good thanks, what can you do"))
+        self.assertIsNone(m.match("I'm good can you tell me about the studio"))
+
     def test_an_action_word_blocks_even_a_perfect_match(self):
         e = entry("x", ["Turn on the cove light please"], "No.")
         self.assertIsNone(matcher([e]).match("Turn on the cove light please"))

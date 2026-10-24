@@ -75,10 +75,16 @@ def _confirmation(r: ToolResult) -> str:
             return f"AC fan set to {params['fan']}."
         if cmd == "power" and not params:
             return "Pressed power on the TV."
+    if r.name == "device_control" and str(a.get("action", "")).lower() == "lights_set":
+        level, target = a.get("brightness"), a.get("target")
+        if (isinstance(level, (int, float)) and not a.get("color") and isinstance(target, str) and target.lower() not in ("lights", "all lights")
+                and str(int(level)) not in (r.message or "")):
+            # The CMS's own sentence for one light can say only "is now on" (no level in it); the level that was set is what the visitor asked about.
+            return f"The {say_names(target)} is at {int(level)}%."
     return clean_cms_message(r.message)
 
 
-def compose(results: list[ToolResult], wake_hint: str = "Hey Travis") -> str | None:
+def compose(results: list[ToolResult], wake_hint: str = "the wake word") -> str | None:
     """The spoken reply for this round of tool results, or None when the model has to
     write it (a result like knowledge_search needs interpreting)."""
     if not results:
@@ -96,7 +102,7 @@ def compose(results: list[ToolResult], wake_hint: str = "Hey Travis") -> str | N
     return with_wake_hint(spoken, wake_hint) if spoken else ""
 
 
-def with_wake_hint(text: str, wake_hint: str = "Hey Travis") -> str:
+def with_wake_hint(text: str, wake_hint: str = "the wake word") -> str:
     """The mic closes after each exchange, so a question must say how to answer it."""
     text = text.strip()
     # "?" anywhere: a question is usually followed by the list of options to pick from.
@@ -234,6 +240,22 @@ def claims_action(text: str) -> bool:
     return bool(_PERFORMED.search(t) or _PROMISED.search(t)) and not _NOT_DONE.search(t)
 
 
+# A device state stated as fact ("the TV is muted", "it's disconnected"). Only a copula + a state word: "it might be muted" or "I can't tell if it is muted"
+# are not assertions. Unlike claims_action, a question after it does not excuse it ("It's muted. Want me to unmute it?" still asserts the state).
+_STATE_WORDS = (r"muted|unmuted|silent|on mute|connected|disconnected|offline|online|paired|unplugged|powered (?:on|off)|switched (?:on|off)|"
+                r"(?:turned|switched) (?:on|off|up|down)|locked|unlocked|(?:set|turned up|turned down) (?:to|at) \d+|at \d+ ?(?:%|percent)|"
+                r"(?:very |too |really )?(?:loud|quiet|low|high)|playing|paused|stopped|blank")
+_STATE_CLAIM = re.compile(rf"\b(?:is|are|was|were|it'?s|they'?re|seems?|looks?|appears?)\s+(?:to be\s+)?(?:currently\s+|still\s+|already\s+|now\s+)?(?:{_STATE_WORDS})(?![a-z])", re.I)
+_CANT_TELL = re.compile(r"\b(?:can'?t|cannot|couldn'?t|unable to|not able to|don'?t know|do not know|no way to|not sure|doesn'?t (?:report|say|show|tell)|no (?:status|state))\b", re.I)
+
+
+def claims_state(text: str) -> bool:
+    """True if the text asserts how a device is right now (muted, connected, locked, at some level) and does not say it cannot tell. With no read of the CMS
+    behind it, that is a guess spoken as fact."""
+    t = (text or "").replace("’", "'")
+    return bool(_STATE_CLAIM.search(t)) and not _CANT_TELL.search(t)
+
+
 _UNIT_NUMBER = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|percent|degrees?)", re.I)
 
 
@@ -243,5 +265,10 @@ def invents_number(text: str, said: set[float]) -> bool:
     return any(float(n) not in said for n in _UNIT_NUMBER.findall(text or ""))
 
 
-def unverified_reply(wake_hint: str = "Hey Travis") -> str:
+def unverified_state_reply() -> str:
+    """Said instead of a device state nobody read: honest about it, and not an invitation to repeat a command that was never given."""
+    return "I can't confirm that from here, because the CMS doesn't report it."
+
+
+def unverified_reply(wake_hint: str = "the wake word") -> str:
     return f"I haven't changed anything yet. What would you like me to do, and on which device? Say {wake_hint}, then your request."

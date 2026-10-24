@@ -504,6 +504,34 @@ class PlaybackRecoveryTests(unittest.TestCase):
         self.assertIn("Speaker unavailable", out)
         self.assertIn("Speaker is back", out)
 
+    def test_after_a_barge_in_reply_audio_is_discarded_but_chimes_play(self):
+        h = Harness()
+        h._drop_tts_audio = True
+        h._stale_chunks_dropped = 0
+        stream = FakeOut()
+        speaking = []
+        real_set_speaking = h.set_speaking
+        h.set_speaking = lambda v: (speaking.append(v), real_set_speaking(v))
+
+        async def feed(h):
+            h.audio_in_queue.put_nowait(b"\x01\x00" * 100)
+            h.audio_in_queue.put_nowait(CHIME)
+            h.audio_in_queue.put_nowait(b"\x02\x00" * 100)
+
+        self._run(h, lambda cfg: stream, 0.5, feed)
+        self.assertEqual(h._stale_chunks_dropped, 2)
+        self.assertEqual(len(stream.written), 1)  # only the chime reached the speaker
+        self.assertNotIn(True, speaking)  # the dropped chunks never marked Travis as speaking
+
+    def test_open_audio_gate_stops_discarding_and_resets_the_counter(self):
+        from agent.local import TravisLocal
+
+        a = SimpleNamespace(_drop_tts_audio=True, _stale_chunks_dropped=3)
+        with redirect_stdout(io.StringIO()):
+            TravisLocal._open_audio_gate(a)
+        self.assertFalse(a._drop_tts_audio)
+        self.assertEqual(a._stale_chunks_dropped, 0)
+
     def test_reply_while_speaker_is_down_is_dropped_with_a_note_not_a_hang(self):
         h = Harness()
 

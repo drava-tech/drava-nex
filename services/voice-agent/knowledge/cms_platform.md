@@ -60,4 +60,4 @@ Operators sign in from a web browser. The CMS has users and roles, so administra
 
 <!-- say: what you can say to Travis -->
 
-Say Hey Travis, then a request, such as turn off the cove light, set the AC to 22, lock the door, lower the volume, or stop the main screen. Travis can also show an experience or media item on a screen. Travis only uses the names of devices and screens that really exist in this room.
+Say the wake word, then a request, such as turn off the cove light, set the AC to 22, lock the door, lower the volume, or stop the main screen. Travis can also show an experience or media item on a screen. Travis only uses the names of devices and screens that really exist in this room.

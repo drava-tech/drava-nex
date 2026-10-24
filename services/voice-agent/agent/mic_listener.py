@@ -26,6 +26,15 @@ class MicListenerMixin:
     async def _prewarm_stt(self):
         """Overridden where there is a local speech-to-text model (agent/local.py)."""
 
+    _REWAKE_DEBOUNCE_S = 1.5
+
+    def _turn_busy(self) -> bool:
+        """Overridden in agent/local.py: True while a request is being worked on."""
+        return False
+
+    def _barge_in(self):
+        """Overridden in agent/local.py: drop the request in progress. Runs on the event loop."""
+
     def _clear_preroll(self):
         self._preroll_pcm.clear()
 
@@ -71,7 +80,16 @@ class MicListenerMixin:
             # we're not playing the agent's own audio back into the mic).
             if not travis_speaking and not tool_active and not self.ui.muted:
                 if self._detect_wake_word(data):
-                    if not self._awake:
+                    rewake = self._awake and (self._turn_busy() or self._exchange_active)
+                    last_wake = getattr(self, "_wake_engaged_at", None) or 0.0
+                    if rewake and time.monotonic() - last_wake < self._REWAKE_DEBOUNCE_S:
+                        rewake = False  # the same wake word, seen on a second chunk
+                    if rewake:
+                        print("[Voice Agent] 🔁 Wake word during a request — dropping it and starting over.")
+                        # Must be scheduled BEFORE _play_chime and the pre-roll flush in the block below
+                        # (call_soon_threadsafe callbacks run in order).
+                        loop.call_soon_threadsafe(self._barge_in)
+                    if not self._awake or rewake:
                         # Real-mic wake lag: walk back from the newest chunk
                         # through the contiguous voiced run to where it began.
                         # "Voiced" is relative to this room's noise floor (the

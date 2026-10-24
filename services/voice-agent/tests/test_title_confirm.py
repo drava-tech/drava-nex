@@ -71,7 +71,7 @@ class ConfirmTests(unittest.TestCase):
         ok, msg = self.ask("mountain flows")
         self.assertFalse(ok)
         self.assertIn("Did you mean Mountain Flow, the experience?", msg)
-        self.assertIn("Hey Travis, yes or no", msg)
+        self.assertIn("the wake word, yes or no", msg)
         self.assertEqual(self.a.pushed, [])  # nothing pushed before the yes
         reply = self.say("yes")
         self.assertEqual(self.a.pushed, [{"action": "assign_experience", "screen": "tusker edge", "content": "Mountain Flow"}])

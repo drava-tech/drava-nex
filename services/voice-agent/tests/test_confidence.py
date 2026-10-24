@@ -85,14 +85,24 @@ class UnfinishedSentenceTests(unittest.TestCase):
 
 class UnsureTests(unittest.TestCase):
     def test_an_unsure_command_runs_nothing_and_asks_to_repeat(self):
+        # (a sentence that is not a room request: there is nothing to offer, so it is asked for again)
         a = _agent()
         a._pending = a._confirm = None
-        asyncio.run(a._run_command("turn on the AC", unsure=True))
+        asyncio.run(a._run_command("tell me about the weather", unsure=True))
         said = " ".join(a.said)
         self.assertIn("not sure I heard that right", said)
         self.assertIn("repeat the command", said)
         self.assertEqual(a.calls, [])
         self.assertEqual(a._history, [])  # not kept as conversation
+
+    def test_an_unsure_room_request_is_offered_and_runs_nothing(self):
+        # (tests/test_unsure_offer.py covers the yes / no / door / noise cases)
+        a = _agent()
+        a._pending = a._confirm = None
+        asyncio.run(a._run_command("turn on the AC", unsure=True))
+        self.assertIn("Did you mean turn on the AC?", " ".join(a.said))
+        self.assertEqual(a.calls, [])
+        self.assertEqual(a._history, [])
 
     def test_low_confidence_transcript_is_not_acted_on(self):
         t = Transcript("Hey Travis. Turn off tusker l3.", "en", 1.0, 1.0)
@@ -101,8 +111,8 @@ class UnsureTests(unittest.TestCase):
         from tests.test_local_agent import _hear
 
         _hear(a)
-        self.assertEqual(a.calls, [])
-        self.assertIn("not sure I heard that right", " ".join(a.said))
+        self.assertEqual(a.calls, [])  # not run: offered ("Did you mean turn off the sky light?") and only a yes runs it
+        self.assertIn("Did you mean turn off the sky light?", " ".join(a.said))
 
     def test_a_confident_transcript_runs_as_before(self):
         t = Transcript("Hey Travis, turn on the edge.", "en", 1.0, 1.0)

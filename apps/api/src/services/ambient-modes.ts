@@ -36,6 +36,13 @@ export const SCENE_MODE_GROUPS: Record<string, { warm: number[]; colour: number[
  */
 export const SCENE_SETTLE_MS = 800;
 
+/**
+ * Level a scene is recalled at. A scene is only used to flip a group between its white and colour LEDs; the colour and brightness that follow are the
+ * real target. Recalled at the default 255 the fixtures jump to full brightness first and then fall back to the mode's level (a visible flash), so the
+ * recall happens at 0: the LEDs change while dark and the real level fades up. UNVERIFIED on the hardware that level 0 still switches the balance.
+ */
+export const SCENE_RECALL_LEVEL = 0;
+
 const STRIP_GROUP = "Strip Light";
 
 /**
@@ -137,7 +144,7 @@ export async function applyAmbientMode(
     planAmbientMode(mode, lights).map(async (step): Promise<AmbientApplyResult> => {
       if (step.scenes.length > 0 && driver) {
         try {
-          await Promise.all(step.scenes.map((n) => driver.triggerMeshScene(n)));
+          await Promise.all(step.scenes.map((n) => driver.triggerMeshScene(n, SCENE_RECALL_LEVEL)));
         } catch (err) {
           console.error(`[ambient] scene recall failed for ${step.group}:`, err);
           return { applied: 0, failed: step.members.length };
@@ -173,7 +180,7 @@ export async function prepareGroupsForColor(
   if (!driver || groups.size === 0) return [];
 
   const kind = sceneKindFor(color);
-  await Promise.all([...groups].flatMap((g) => SCENE_MODE_GROUPS[g]![kind]).map((n) => driver.triggerMeshScene(n)));
+  await Promise.all([...groups].flatMap((g) => SCENE_MODE_GROUPS[g]![kind]).map((n) => driver.triggerMeshScene(n, SCENE_RECALL_LEVEL)));
   const settleMs = opts.settleMs ?? SCENE_SETTLE_MS;
   if (settleMs > 0) await sleep(settleMs);
 

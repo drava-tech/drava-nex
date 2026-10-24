@@ -12,6 +12,12 @@ from nlu.capability import classify, reply_text, touches_door  # noqa: E402
 from tests.test_local_agent import _agent, _hear  # noqa: E402
 
 QUESTIONS = [
+    ("can u change the temperature of ac", "can", "change the temperature of ac"),
+    ("Can you set the temperature", "can", "set the temperature"),
+    ("Are you able to mute the TV", "can", "mute the tv"),
+    ("Do you support volume control", "can", "volume control"),
+    ("Can you change the volume", "can", "change the volume"),
+    ("Can you control the AC", "can", "control the ac"),
     ("Can the CMS turn on the lights", "can", "turn on the lights"),
     ("can Travis switch off the lights", "can", "switch off the lights"),
     ("Can it turn on the AC", "can", "turn on the ac"),
@@ -26,6 +32,8 @@ QUESTIONS = [
     ("Hey Travis, can the CMS turn on the lights?", "can", "turn on the lights"),
 ]
 REQUESTS = [
+    "can you change the temperature to 22", "can u set the AC to 22", "Can you set the temperature to 24 degrees",
+    "Can you change the volume to 5", "Can you turn the volume up", "Can you adjust the lights on",
     "Can you turn on the AC", "Could you lock the door", "would you dim the lights", "Will you turn it off", "Please turn on the lights",
     "Can I have the lights on", "can we have the AC on", "Turn on the lights", "do it", "Hey Travis, can you set the AC to 22",
     "I would like the lights on", "Lights on please",

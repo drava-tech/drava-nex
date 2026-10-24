@@ -21,6 +21,7 @@ import re
 import time
 from types import SimpleNamespace
 
+from agent import fallback_stats
 from nlu.local_llm import LocalLLMError
 from nlu.query_rewrite import _FROM_PLANNER, asks_for_contact, needs_rewrite, rewrite_question
 from nlu.json_answer import ANSWER_SCHEMA, AnswerStream
@@ -55,6 +56,20 @@ _CONTACT_LINE = re.compile(r"@|https?://|www\.|\.com\b|^\s*(?:e-?mail|phone|tel|
 
 def _without_contact_lines(text: str) -> str:
     return "\n".join(line for line in text.splitlines() if not _CONTACT_LINE.search(line)).strip()
+
+
+def knowledge_timing(timing: dict) -> dict | None:
+    """Where the time went for a knowledge answer, in ms after the request reached this route (numbers only, no conversation content):
+    model_started (the request to the model goes out), first_token, first_sentence (the first complete, checked sentence handed to the voice),
+    tts_first_audio (first audio bytes back from ElevenLabs), playback_started (first sound on the speaker; needs a wake word in this exchange),
+    completed (the whole answer handed to the voice). None for a turn that was not a knowledge answer. A stage that did not happen is absent."""
+    marks = timing.get("knowledge_marks")
+    if not marks:
+        return None
+    t0 = marks["start"]
+    stages = {"model_started": marks.get("generate"), "first_token": marks.get("first_token"), "first_sentence": marks.get("first_sentence"),
+              "tts_first_audio": timing.get("first_audio_chunk_received"), "playback_started": timing.get("playback_started"), "completed": marks.get("done")}
+    return {name: round((t - t0) * 1000) for name, t in stages.items() if t is not None and t >= t0}
 
 
 class KnowledgeMixin:
@@ -101,8 +116,10 @@ class KnowledgeMixin:
         words are never trusted for a fact about the company, the CMS or Travis: it once said the CMS has no whiteboards when the file says it does."""
         words = re.findall(r"[a-z0-9']+", request.lower())
         if len(words) < PROBE_MIN_WORDS:  # "The lights." is a fragment to ask about, not a question to look up
+            fallback_stats.note("probe.skipped_fragment")
             return None
         if ROOM_WORDS & set(words) or any(n.lower() in request.lower() for n in self._device_words()):
+            fallback_stats.note("probe.skipped_room_words")
             return None
         cfg = load_api_config()
         floor = float(cfg.get("knowledge_probe_min_score", 0.6))
@@ -112,7 +129,9 @@ class KnowledgeMixin:
         except Exception:
             return None
         if not close:
+            fallback_stats.note("probe.skipped_embedding")  # no knowledge section is close: the model is not asked
             return None
+        fallback_stats.note("probe.asked")
         return await self._answer_from_knowledge(SimpleNamespace(topic="experience_center"), request, probe=True)
 
     async def _answer_from_knowledge(self, plan, request: str, probe: bool = False, force_more: bool = False) -> str | None:
@@ -213,6 +232,8 @@ class KnowledgeMixin:
                 ms[name] = round((marks[name] - prev) * 1000)  # each stage's own time
                 prev = marks[name]
         info["ms"] = ms
+        marks["done"] = time.monotonic()
+        self._timing["knowledge_marks"] = marks  # the audio stages arrive later: knowledge_timing() reads them when the exchange line is written
         if getattr(self, "_plan_log", None) is None:
             self._plan_log = {}  # "tell me more" is answered before the planner: still log the knowledge details
         self._calls_log.append({"name": "knowledge_search", "args": {"query": query}, "ok": self._kb_ok, "message": info.get("verdict", "")})
@@ -287,13 +308,18 @@ class KnowledgeMixin:
                 return False
             if not spoken:  # the first sentence that is really said
                 self._mark_answered(hits, topic)
+                self._prefetch_portfolio(topic)  # a real answer about the company is being given: the portfolio lookup runs while the rest is generated and played
                 if marks is not None:
                     marks["first_sentence"] = time.monotonic()
+            if await self._say(text) is False:  # the voice dropped it (ElevenLabs session lost): nothing later is sent into a new session mid-answer
+                verdict = f"speech unavailable after {len(spoken)} sentence(s)" if spoken else "speech unavailable"
+                return False
             spoken.append(text)
-            await self._say(text)
             return True
 
         keep_going = True
+        if marks is not None:
+            marks["generate"] = time.monotonic()  # the request to the model goes out as the first chunk is awaited
         try:
             async for chunk in stream:
                 self._timing.setdefault("llm_first_token", time.monotonic())
@@ -327,6 +353,12 @@ class KnowledgeMixin:
             verdict = f"unavailable: {e}"
             if not spoken:
                 raise
+        except asyncio.CancelledError:
+            # The request was cancelled while the answer was being spoken: what is queued for the voice and the speaker is dropped, so nothing plays after it.
+            drain = getattr(self, "_drain_audio_queue", None)
+            if drain is not None:
+                drain()
+            raise
         finally:
             await stream.aclose()  # stops Ollama generating if we left early
         info.update(grounding=grounds, sentences=len(spoken), found=parser.found, **({"blocked_facts": blocked} if blocked else {}))

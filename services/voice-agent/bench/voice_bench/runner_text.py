@@ -58,6 +58,9 @@ async def run_text(
     llm_temperature: float | None = None,
     quiet: bool = False,
 ) -> list[dict]:
+    from agent import fallback_stats
+
+    fallback_stats.reset()
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict] = []
     mock = MockCms(latency_ms=cms_latency_ms).start()
@@ -122,6 +125,8 @@ async def run_text(
             hang.close()
     sink.close()
     mock.stop()
+    (out_dir / "fallback_stats.json").write_text(json.dumps(fallback_stats.snapshot(), indent=1), encoding="utf-8")
+    print(f"[bench] fallback path: {fallback_stats.snapshot()}", flush=True)
     return results
 
 

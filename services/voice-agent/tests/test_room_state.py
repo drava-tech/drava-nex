@@ -140,6 +140,8 @@ class RouteTests(unittest.TestCase):
         "is the door locked": ("door", "locked", ""),
     }
 
+    similarity = 1.0  # what the embedding gate says about every question (tests that exercise the gate change it)
+
     def agent(self, planner_answers, devices=None, screens=None, down=False):
         a = _planned("x", *planner_answers)
         del a._answer_room_state  # the real route
@@ -157,7 +159,7 @@ class RouteTests(unittest.TestCase):
         self.reads = []
 
         def reader(name, data):
-            def read():
+            def read(*_a, **_k):
                 self.reads.append(name)
                 if down:
                     raise OSError("CMS unreachable")
@@ -169,7 +171,8 @@ class RouteTests(unittest.TestCase):
 
         for patch in (mock.patch("agent.room_state.cms_client.list_devices", reader("devices", DEVICES if devices is None else devices)),
                       mock.patch("agent.room_state.cms_client.list_screens", reader("screens", SCREENS if screens is None else screens)),
-                      mock.patch("actions.cms_client.device_command", never), mock.patch("actions.cms_client.screen_command", never)):
+                      mock.patch("actions.cms_client.device_command", never), mock.patch("actions.cms_client.screen_command", never),
+                      mock.patch("nlu.room_state.similarity_to_state_questions", lambda request: self.similarity)):  # (no embedding model in unit tests)
             patch.start()
             self.addCleanup(patch.stop)
         a.model_asked = []
@@ -295,7 +298,8 @@ class ShapeGateTests(unittest.TestCase):
              "What temperature is the AC set to", "Is the door locked", "How many screens are there", "What is playing on the main screen",
              "Tell me which lights are on", "Can you tell me if the AC is running", "What's showing on the kiosk", "Are any lights on right now",
              "hey travis is the AC on", "Let me know if the door is locked", "Check if the lights are on")
-    NOT_STATE = ("Show the whiteboard", "There's no projector here, can you check", "Explain how air conditioners work", "Play some music", "Make it warmer",
+    NOT_STATE = ("It's too cold in here", "I can't hear anything", "It's too bright", "The screen is too loud", "It's too dark in here", "It's freezing in here",
+                 "Show the whiteboard", "There's no projector here, can you check", "Explain how air conditioners work", "Play some music", "Make it warmer",
                  "Turn it up", "Turn on the lights", "Book room 3 for Wednesday", "Open the whiteboard please", "Switch it off")
 
     def test_every_room_question_has_the_shape(self):
@@ -341,3 +345,54 @@ class SkippedClassifierTests(RouteTests):
                     self.assertEqual(a._path, "list", text)  # or the command list did ("turn it up" is a known phrase)
                 self.assertEqual(self.classifier_calls, [], text)
                 self.assertNotEqual(a._path, "room state", text)
+
+
+    def test_an_indirect_request_phrased_as_a_statement_is_not_a_state_question_and_changes_nothing(self):
+        """"It's too cold in here" asks for a change without saying so. It is not a question about the room (the shape test skips the state classifier),
+        the planner asks what to do, and nothing is sent to the CMS (the `never` patches in RouteTests.agent fail the test if anything is)."""
+        clarify = json.dumps({"kind": "clarify", "actions": [], "question": "Would you like the AC to warm up the room?"})
+        for text in ("It's too cold in here", "I can't hear anything", "It's too bright", "The screen is too loud"):
+            with self.subTest(text=text):
+                a = self.agent([clarify if "cold" in text or "bright" in text else self.OTHER])
+                _say(a, text)
+                self.assertEqual(self.classifier_calls, [], text)  # the state classifier was never asked
+                self.assertEqual(a.calls, [], text)
+                self.assertNotEqual(a._path, "room state", text)
+
+
+class EmbeddingGateTests(RouteTests):
+    """A question shaped like one about the room but unlike any of them (by embedding) does not cost the classifier call."""
+
+    def test_a_question_unlike_any_room_question_skips_the_classifier(self):
+        self.similarity = 0.30
+        a = self.agent([self.OTHER])
+        _say(a, "Which TV should I buy for my living room?")
+        self.assertEqual(self.classifier_calls, [])
+        self.assertEqual(a.model_asked, ["Which TV should I buy for my living room?"])  # went on to the model path, as before
+
+    def test_a_question_close_to_a_room_question_asks_the_classifier_and_is_answered(self):
+        self.similarity = 0.80
+        a = self.agent([self.OTHER])
+        _say(a, "Is the AC on?")
+        self.assertEqual(self.classifier_calls, ["is the ac on"])
+        self.assertIn("23 degrees", " ".join(a.said))
+
+    def test_the_threshold_keeps_every_real_room_question(self):
+        """0.55 is calibrated on the 27 real room questions in the benchmarks (lowest similarity 0.625)."""
+        self.assertLess(room_state.MIN_SIMILARITY, 0.625)
+
+    def test_without_the_embedding_model_the_classifier_is_asked_as_before(self):
+        a = self.agent([self.OTHER])
+        with mock.patch("nlu.room_state.similarity_to_state_questions", side_effect=OSError("embedding model down")):
+            _say(a, "Is the AC on?")
+        self.assertEqual(self.classifier_calls, ["is the ac on"])
+        self.assertIn("23 degrees", " ".join(a.said))
+
+    def test_the_counters_say_what_was_skipped(self):
+        from agent import fallback_stats
+
+        fallback_stats.reset()
+        self.similarity = 0.3
+        a = self.agent([self.OTHER])
+        _say(a, "Which TV should I buy for my living room?")
+        self.assertEqual(fallback_stats.snapshot().get("room_state.skipped_embedding"), 1)

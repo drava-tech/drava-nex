@@ -11,7 +11,9 @@ from __future__ import annotations
 import asyncio
 
 from actions import cms_client
+from agent import fallback_stats
 from nlu import room_state
+from settings import load_api_config
 
 MIN_WORDS = 3
 _UNREACHABLE = "I couldn't reach the CMS, so I can't tell you that right now."
@@ -21,8 +23,23 @@ class RoomStateMixin:
     async def _answer_room_state(self, request: str) -> str | None:
         """The spoken answer to a question about the room right now, or None if `request` is not one. A fragment ("The AC.") is not a question:
         it is left to the normal route, which asks what is wanted."""
-        if len(request.split()) < MIN_WORDS or not room_state.could_be_state_question(request):
-            return None  # a fragment, a change, or not shaped like a question: no 0.6 s model call to find out
+        fallback_stats.note("fallback_turns")
+        if len(request.split()) < MIN_WORDS:
+            fallback_stats.note("room_state.skipped_fragment")
+            return None
+        if not room_state.could_be_state_question(request):
+            fallback_stats.note("room_state.skipped_shape")  # a change, or not shaped like a question: no 0.6 s model call to find out
+            return None
+        floor = float(load_api_config().get("room_state_min_similarity", room_state.MIN_SIMILARITY))
+        if floor > 0:
+            try:
+                close = await asyncio.get_running_loop().run_in_executor(None, room_state.similarity_to_state_questions, request)
+            except Exception:  # no embedding: ask the classifier, as before
+                close = 1.0
+            if close < floor:
+                fallback_stats.note("room_state.skipped_embedding")  # shaped like a question, but unlike any question about the room
+                return None
+        fallback_stats.note("room_state.asked")
         try:
             raw = await self._llm.complete_json(
                 [{"role": "system", "content": room_state.SYSTEM}, {"role": "user", "content": request}], room_state.SCHEMA, max_tokens=90)
@@ -40,11 +57,11 @@ class RoomStateMixin:
         screens: list[dict] = []
         try:
             if q.subject in ("lights", "ac", "tv", "volume"):
-                devices = await loop.run_in_executor(None, cms_client.list_devices)
+                devices = await loop.run_in_executor(None, lambda: cms_client.list_devices(fresh=True))
             if q.subject in ("tv", "screens"):
-                screens = await loop.run_in_executor(None, cms_client.list_screens)
+                screens = await loop.run_in_executor(None, lambda: cms_client.list_screens(fresh=True))
                 if q.subject == "tv":
-                    devices = await loop.run_in_executor(None, cms_client.list_devices)
+                    devices = await loop.run_in_executor(None, lambda: cms_client.list_devices(fresh=True))
             reply = room_state.answer(q, devices or [], screens or [])
         except Exception as e:
             print(f"[Voice Agent] ⚠️ Room-state read failed: {e}")

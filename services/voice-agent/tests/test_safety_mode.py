@@ -159,15 +159,18 @@ class SwitchTests(_Base):
         self.assertTrue(safety.enabled({}))
         self.assertTrue(safety.enabled({"safety_mode": True}))
 
-    def test_config_alone_does_not_switch_it_off(self):
-        self.assertTrue(safety.enabled({"safety_mode": False}))
+    def test_config_false_switches_it_off(self):
+        self.assertFalse(safety.enabled({"safety_mode": False}))
 
     def test_the_environment_alone_does_not_switch_it_off(self):
         os.environ[safety.ENV_ALLOW_REAL] = "1"
         self.assertTrue(safety.enabled({}))
 
-    def test_both_together_switch_it_off_and_then_real_addresses_pass(self):
-        os.environ[safety.ENV_ALLOW_REAL] = "1"
+    def test_only_a_literal_false_switches_it_off(self):
+        for v in (None, 0, "false", "off", ""):
+            self.assertTrue(safety.enabled({"safety_mode": v}), v)
+
+    def test_off_in_config_then_real_addresses_pass(self):
         cfg = _cfg("http://192.168.1.250", safety_mode=False)
         sess = _Capture()
         self.call_with(cfg, sess)  # fake session: still nothing leaves this machine

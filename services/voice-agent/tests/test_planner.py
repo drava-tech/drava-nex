@@ -536,6 +536,14 @@ class PortfolioOfferTests(unittest.TestCase):
         self.assertIsNotNone(a._confirm)
         self.assertIn("portfolio", " ".join(a.said).lower())
 
+    def test_a_hyphenated_title_is_still_the_portfolio(self):
+        """The real experience is titled "The White Tusker PORT-FOLIO": the offer must find it, and yes must play exactly that title."""
+        a = self._asked(experiences=["Welcome Screen", "The White Tusker PORT-FOLIO", "Future Shopping"])
+        self.assertIsNotNone(a._confirm)
+        a.calls.clear()
+        _say(a, "yes")
+        self.assertEqual(a.calls, [("screen_control", {"action": "assign_experience", "screen": "tusker 86", "content": "The White Tusker PORT-FOLIO"})])
+
     def test_the_offer_can_wait_for_a_later_answer_through_the_config(self):
         self.assertIsNone(self._asked(times=1, portfolio_offer_after=2)._confirm)
         self.assertIsNotNone(self._asked(times=2, portfolio_offer_after=2)._confirm)
@@ -641,6 +649,82 @@ class PortfolioOfferTests(unittest.TestCase):
         a = self._asked(portfolio_offer=False)
         self.assertIsNone(a._confirm)
 
+    def test_a_cms_that_does_not_answer_costs_at_most_the_limit_and_then_no_offer(self):
+        """The lookup used to take 4.4 s with the CMS down. Now: at most `portfolio_lookup_timeout_sec`, no offer, and no new lookup for 60 s."""
+        import time
+        from unittest import mock
+
+        def hangs():
+            time.sleep(1.5)  # a CMS that is slow to refuse (the thread finishes on its own)
+            return [{"title": "White Tusker Portfolio"}]
+
+        a = self._asked_with(hangs, portfolio_lookup_timeout_sec=0.3)
+        self.assertLess(a.turn_seconds, 1.0)  # (the turn itself; the abandoned thread finishes on its own)
+        self.assertIsNone(a._confirm)
+        self.assertNotIn("portfolio", " ".join(a.said).lower())
+        self.assertGreater(a._portfolio_skip_until, time.monotonic() + 30)  # not asked again for a minute
+
+    def test_the_lookup_starts_before_the_answer_and_is_not_repeated(self):
+        import asyncio
+
+        looks = []
+
+        def list_experiences():
+            looks.append(1)
+            return [{"title": "White Tusker Portfolio"}]
+
+        a = self._asked_with(list_experiences)
+        self.assertEqual(len(looks), 1)  # one lookup: the one started by the prefetch, taken by the offer
+        self.assertIsNotNone(a._confirm)
+        self.assertIsNone(a._portfolio_task)  # consumed
+
+    def test_prefetch_only_for_company_answers_that_could_get_an_offer(self):
+        import asyncio
+
+        a = self._asked_with(lambda: [{"title": "White Tusker Portfolio"}], topic="cms")
+        self.assertIsNone(a._portfolio_task)  # not a company answer
+        b = self._asked_with(lambda: [{"title": "White Tusker Portfolio"}])
+        b._portfolio_offered = True
+        asyncio.run(asyncio.sleep(0)) if False else None
+        b._prefetch_portfolio("company")
+        self.assertIsNone(b._portfolio_task)  # already offered in this conversation
+
+    def _asked_with(self, list_experiences, topic="company", **cfg):
+        from unittest import mock
+
+        a = _planned("x", *[json.dumps({"kind": "question", "actions": [], "topic": topic})] * 5)
+
+        async def answer(plan, request):
+            a._new_conversation_check()
+            a._kb_ok = True
+            a._kb_last_topic = plan.topic
+            if plan.topic == "company":
+                a._kb_company_said = True
+                a._company_answers += 1
+            a._prefetch_portfolio(plan.topic)  # as agent/knowledge_answer.py does before it speaks
+            await a._say(self.REPLY)
+            return self.REPLY
+
+        a._answer_from_knowledge = answer
+        a._portfolio_skip_until = 0.0
+        config = {"portfolio_offer": True, **cfg}
+        patches = [mock.patch("agent.planning.load_api_config", lambda: config),
+                   mock.patch("agent.planning.cms_client.list_screens", lambda: [{"screenName": "tusker 86", "blanked": False, "experienceName": None}]),
+                   mock.patch("agent.planning.cms_client.list_experiences", list_experiences)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        import asyncio
+        import time
+
+        async def turn():
+            started = time.perf_counter()
+            await a._run_command("tell me about white tusker")
+            return time.perf_counter() - started
+
+        a.turn_seconds = asyncio.run(turn())
+        return a
+
     def test_without_a_follow_up_window_the_offer_says_how_to_answer(self):
         a = self._asked(followup_window_sec=0)
-        self.assertIn("Say Hey Travis, yes or no.", " ".join(a.said))
+        self.assertIn("Say the wake word, yes or no.", " ".join(a.said))
