@@ -37,6 +37,8 @@ export { whiteboardDocument } from "./whiteboards.js";
 
 // ─── Visitors (face-recognition entrance tracking) ────────────────────────────
 export { visitor } from "./visitors.js";
+export { visitorGreeting } from "./visitor-greeting.js";
+export { appSetting } from "./app-setting.js";
 
 // ─── Door Events (Yale lock webhook history) ──────────────────────────────────
 export { doorEvent } from "./door-events.js";

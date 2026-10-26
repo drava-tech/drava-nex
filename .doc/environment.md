@@ -70,6 +70,32 @@ build` time, so changing them needs a rebuild.
 | `UPLOAD_DIR` | `/data/uploads` | Container path — bind-mounted from `E:\EC\cms-platform-data\uploads` |
 | `LOG_DIR` | `/data/logs` | Container path — bind-mounted from `E:\EC\cms-platform-data\logs` |
 
+### Greet on arrival
+
+Read by the **api** container only. In production set them in `.env.production` (the api service's `env_file`) — never in the compose `environment:` block, which overrides `env_file`. The template to copy is the "Greet on arrival" section of `.env.example`; behaviour, defaults and troubleshooting are in [greeting.md](./greeting.md), the rollout order in [greeting-rollout.md](./greeting-rollout.md).
+
+| Variable | Default | Notes |
+|---|---|---|
+| `GREETING_ENABLED` | `false` | Master switch. Only `1`/`true`/`yes`/`on` enable it; a typo means off. Off = the system behaves exactly as before. |
+| `GREETING_TZ` | `Asia/Kolkata` | IANA zone defining "today" and the part of day. Invalid → default + warning. |
+| `GREET_UNKNOWN` | `screen` | Unnamed visitors: `screen` (welcome screen, silent) · `generic` ("Good afternoon. Welcome.") · `off`. |
+| `GREETING_VOICE` | `screen` | `screen` (the TV speaks) · `off` (log only) · `travis` (stub). |
+| `GREETING_VOICE_NAME` | unset | Prefer this `speechSynthesis` voice on the TV (exact or partial name). |
+| `GREET_NAME_MODE` | `full` | `full` · `first` · `none`. Names are always cleaned and capped at 40 characters. |
+| `GREET_BATCH_WINDOW_MS` | `3000` | 0–60000. People seen within the window are greeted in one line (0 = no grouping). |
+| `GREET_MAX_NAMES` | `4` | 1–20. More names → "everyone". |
+| `GREET_PRESENCE_WINDOW_SECONDS` | `120` | 1–86400. "In the room" for rename/merge greetings. |
+| `GREET_ARRIVAL_FRESH_SECONDS` | `30` | 1–600. Maximum age of a sighting (the DB `last_seen` is allowed this + 30 s). |
+| `GREET_AFTERNOON_HOUR` / `GREET_EVENING_HOUR` | `12` / `17` | Part-of-day boundaries; evening must be after afternoon. |
+| `WELCOME_SCREEN_DURATION_SECONDS` | `20` | 1–3600. Then the screen returns to what it was showing. |
+| `WELCOME_VIDEO_MUTED` | unset | Unset: muted while greetings are on, untouched while off. `true`/`false` force it. |
+| `GREET_BUSY_SKIPS_DAY` | `all` | Busy-screen reasons that block the visitor for the rest of the day: `all` or `whiteboard`. |
+| `GREETING_RETENTION_DAYS` | `30` | 1–3650. `visitor_greeting` rows older than this are purged daily. |
+
+Invalid values never stop the API: each logs a `[greeting] …` warning and falls back to its default.
+
+**Local dev:** these must reach the API through turbo, whose strict env mode drops undeclared shell variables. `apps/api/turbo.json` lists them for the `dev` task (production builds are unaffected). Add any new variable there as well.
+
 ### Obsolete — no longer read by any code
 
 The TV player used to be a separate `screens` Next.js app on port `3001`. It is now a route

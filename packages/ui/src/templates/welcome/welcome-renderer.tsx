@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { WelcomeContent } from "./content";
+import { unmuteButtonVisible } from "../../lib/greeting";
 
 const TYPE_SPEED_MS = 95;
 const START_DELAY_MS = 900;
@@ -67,6 +68,10 @@ export function WelcomeRenderer({
   const title = content?.title || "Welcome to Tusker Digital Experience Center";
   const subtitle = content?.subtitle;
   const videoUrl = content?.videoUrl;
+  // API-set (never authored): muted = silent and not unmutable here; narrate
+  // false = the GREET voice line owns the audio. Both unset = today's behaviour.
+  const forceMuted = content?.muted === true;
+  const narrate = content?.narrate !== false;
 
   const typedTitle = useTypewriter(title, START_DELAY_MS);
   const subtitleDelay = START_DELAY_MS + title.length * TYPE_SPEED_MS + 250;
@@ -83,7 +88,7 @@ export function WelcomeRenderer({
   // tap-to-unmute button below becomes the fallback. Same contract as
   // VideoRenderer.tsx, minus the unattended-kiosk assumption — this template
   // keeps the button since a muted fallback here does have a real click path.
-  const [muted, setMuted] = useState(preview);
+  const [muted, setMuted] = useState(preview || forceMuted);
   // A videoUrl pointing at a deleted/missing asset (e.g. removed from the
   // Media Library after being saved here) would otherwise fail to load
   // silently — the <video> element just sits there black with nothing on
@@ -93,8 +98,8 @@ export function WelcomeRenderer({
   const [videoFailed, setVideoFailed] = useState(false);
   useEffect(() => {
     setVideoFailed(false);
-    setMuted(preview);
-  }, [videoUrl, preview]);
+    setMuted(preview || forceMuted);
+  }, [videoUrl, preview, forceMuted]);
 
   useEffect(() => {
     // A CMS-side embed never attempts unmuted playback at all — skipping
@@ -114,7 +119,7 @@ export function WelcomeRenderer({
   }, [videoUrl, preview]);
 
   const handleUnmute = () => {
-    if (preview) return;
+    if (preview || forceMuted) return;
     setMuted(false);
     // A muted-autoplaying video can visually stall right when unmuted on some
     // browsers/TV webviews — nudge it to keep playing under the same click
@@ -129,7 +134,7 @@ export function WelcomeRenderer({
     // video falls back to the text branch below, so it should speak same as
     // if no video had been set at all.
     const showingVideo = videoUrl && !videoFailed;
-    if (!speak || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (!speak || !narrate || showingVideo || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     let cancelled = false;
@@ -183,7 +188,7 @@ export function WelcomeRenderer({
       synth.cancel();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speak, title, subtitle, videoFailed]);
+  }, [speak, narrate, title, subtitle, videoFailed]);
 
   // A video takes over the whole screen on its own — no headline, subtitle,
   // gradient, or padding around it, just the video edge-to-edge.
@@ -206,7 +211,7 @@ export function WelcomeRenderer({
           onError={() => setVideoFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-        {muted && !preview && (
+        {unmuteButtonVisible({ muted, preview, forceMuted }) && (
           <button
             onClick={handleUnmute}
             style={{

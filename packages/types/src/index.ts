@@ -194,6 +194,34 @@ export const IDLE_WS_CONTENT: WsContent = {
   source: "",
 };
 
+/**
+ * Transient SCREEN_COMMAND that greets a visitor on the main screen (see
+ * apps/api/src/services/greeting). Like MEDIA_SEEK — and unlike SET_* — it is an
+ * instruction to act now: the gateway must never cache or replay it.
+ */
+export const GREET_COMMAND = 'GREET';
+
+export interface GreetCommandValue {
+  /** Full spoken line, e.g. "Good afternoon, Priya. Welcome back." */
+  text: string;
+  /** Whether the screen should speak `text` aloud. */
+  speak: boolean;
+  /** Pin a specific speechSynthesis voice by name (GREETING_VOICE_NAME); falls back to en-IN, then any English. */
+  voice?: string;
+}
+
+/**
+ * What the TV reports back after a GREET with speak=true. The kiosk runs with
+ * devtools disabled, so this is the only way to see whether speech worked.
+ */
+export interface GreetAck {
+  spoke: boolean;
+  /** Name of the voice actually used, when it spoke. */
+  voice?: string;
+  /** Why it did not speak (no speechSynthesis, blocked, engine error, never started...). */
+  error?: string;
+}
+
 export interface AudioStatus {
   volume: number;
   muted: boolean;
@@ -273,6 +301,8 @@ export type WsClientMessage =
       viewport?: { dpr: number; innerW: number; innerH: number; screenW: number; screenH: number };
     }
   | { type: 'CMS_REGISTER' }
+  // A real (non-preview) TV reporting the outcome of a spoken GREET — see GreetAck.
+  | ({ type: 'GREET_ACK'; screenId: string } & GreetAck)
   | { type: 'CONTENT_CHANGE_REQUEST'; screenId: string; content: WsContent }
   // A user interaction on one client (e.g. CMS control view or a touchscreen)
   // that should be applied on every client of the screen, keeping them in sync.

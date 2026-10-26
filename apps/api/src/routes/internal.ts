@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import {
   applyMatInventoryUpdate,
   applyProductDetection,
@@ -8,6 +9,8 @@ import {
 } from "../ws/gateway.js";
 import { ok, fail } from "../lib/response.js";
 import { showWelcomeScreenIfIdle, isVisionTriggerArmed } from "../services/door-screen-trigger.js";
+import { isGreetingEnabled } from "../lib/greeting-flag.js";
+import { LogOnce } from "../lib/log-once.js";
 import { setLatestSnapshot } from "../services/vision-snapshot-store.js";
 import { secretsMatch, sourceIp, RateLimiter, logAuthFailure, logRateLimited } from "../lib/internal-auth.js";
 
@@ -17,7 +20,9 @@ import { secretsMatch, sourceIp, RateLimiter, logAuthFailure, logRateLimited } f
  * machine on the internal network, never from a browser. VISITOR_DETECTED
  * fans a face-vision identity match out to the CMS over WebSocket so the
  * Visitors list updates live. PERSON_PRESENT is identity-agnostic (fired
- * straight off raw detection) and is what drives the welcome-screen trigger.
+ * straight off raw detection) and drives the legacy welcome-screen trigger
+ * (only when GREETING_ENABLED=false; otherwise VISITOR_DETECTED drives the
+ * greeting — see services/greeting).
  * CAMERA_SNAPSHOT feeds the CMS camera debug preview (see vision-snapshot.ts).
  * PRODUCT_DETECTED / PRODUCT_LOST are the single-item counterpart driven by
  * the browser detection loop over the screen WebSocket; handled here too
@@ -28,6 +33,17 @@ import { secretsMatch, sourceIp, RateLimiter, logAuthFailure, logRateLimited } f
  * contents, not a single best guess) — see gateway.applyMatInventoryUpdate.
  */
 export const internalRouter = new Hono();
+
+// Largest accepted body: a CAMERA_SNAPSHOT (640 px JPEG, base64) is roughly 60-120 KB.
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+internalRouter.use(
+  "*",
+  bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (c) => fail(c, "PAYLOAD_TOO_LARGE", "Request body too large.", 413) })
+);
+
+const disarmedLog = new LogOnce();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function checkSecret(c: Context): boolean {
   return secretsMatch(c.req.header("x-broadcast-secret"), process.env["BROADCAST_SECRET"]);
@@ -58,22 +74,44 @@ internalRouter.post("/vision-event", async (c) => {
   }
 
   switch (body?.["type"]) {
-    case "VISITOR_DETECTED":
+    case "VISITOR_DETECTED": {
+      const uuid = String(body["uuid"] ?? "");
       broadcastToCms({
         type: "VISITOR_DETECTED",
-        uuid: String(body["uuid"] ?? ""),
+        uuid,
         name: String(body["name"] ?? ""),
         isNew: Boolean(body["isNew"]),
         lastSeen: String(body["lastSeen"] ?? ""),
         hasImage: Boolean(body["hasImage"]),
       });
+      // Greet on arrival (GREETING_ENABLED, default off — with it off nothing
+      // from services/greeting is even loaded). Only the uuid is used: the
+      // greeting re-reads the visitor from the DB (the event's `name` is always
+      // blank anyway). Fire-and-forget: never delay or fail the relay.
+      if (isGreetingEnabled() && UUID_RE.test(uuid)) {
+        if (isVisionTriggerArmed()) {
+          // The event's own timestamp lets the greeting ignore a stale/replayed sighting.
+          const eventLastSeen = typeof body["lastSeen"] === "string" ? body["lastSeen"] : undefined;
+          void import("../services/greeting/index.js")
+            .then((greeting) => greeting.onVisitorDetected(uuid, { eventLastSeen }))
+            .catch((err) => console.error("[vision-event] arrival greeting failed:", err));
+        } else {
+          // Quiet: at most one line per 10 minutes, however many sightings arrive.
+          disarmedLog.log("disarmed", 10 * 60_000, () =>
+            console.info("[greeting] disarmed (welcome-trigger switch is OFF) — arrivals ignored")
+          );
+        }
+      }
       return ok(c, { ok: true });
+    }
 
     case "PERSON_PRESENT":
       // Identity-agnostic — any human in frame. Gated by the manual kill
       // switch (see /api/vision-trigger) and idle-guarded on top so it never
-      // disrupts real assigned content.
-      if (isVisionTriggerArmed()) {
+      // disrupts real assigned content. With GREETING_ENABLED, VISITOR_DETECTED
+      // is the only trigger (it knows who arrived, so the screen can name them)
+      // and this event does nothing.
+      if (isVisionTriggerArmed() && !isGreetingEnabled()) {
         showWelcomeScreenIfIdle(new Date()).catch((err) =>
           console.error("[vision-event] failed to show welcome screen:", err)
         );

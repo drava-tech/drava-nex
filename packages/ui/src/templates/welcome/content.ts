@@ -11,6 +11,13 @@ export interface WelcomeContent {
   // lookup (it only ever receives this plain JSON blob over the WS push).
   videoAssetId?: string;
   videoUrl?: string;
+  // Runtime flags set by the API on the content it sends to the TV (see
+  // apps/api/src/lib/welcome-policy.ts). They are never authored in the CMS or
+  // stored on the experience.
+  /** true = the video must play silent and cannot be unmuted from the screen. */
+  muted?: boolean;
+  /** false = don't read the headline aloud (a GREET voice line owns the audio). */
+  narrate?: boolean;
 }
 
 export const DEFAULT_WELCOME_CONTENT: WelcomeContent = {

@@ -11,7 +11,6 @@ import {
   advanceScreenQueue,
   setScreenDefaultMedia,
   setScreenBlanked,
-  getScreenContent,
   screenExists,
   getRecentContentForScreen,
 } from "@platform/db";
@@ -19,6 +18,7 @@ import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { broadcast, broadcastToCms, sendCommandToScreen, setScreenBlankState, getConnectedScreenIds, resetScreenTakeover, clearTakeoverFlag, getLiveObjectRecognitionContent, setScreenWhiteboardDocument, getActiveWhiteboardDocuments, stopScreenWhiteboard } from "../ws/gateway.js";
 
+import { getScreenContent } from "../lib/screen-content.js";
 // Everything under /api/screens. The GET reads are public (unauthenticated display
 // screens sync off them); mutations/commands are guarded per-route.
 export const screensRouter = new Hono();

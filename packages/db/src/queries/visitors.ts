@@ -171,6 +171,48 @@ export async function updateVisitorContact(
   return row;
 }
 
+export interface VisitorUpdateResult {
+  visitor: VisitorRow;
+  /** The name as it was immediately before this update (locked, so it can't race). */
+  previousName: string;
+}
+
+/**
+ * Same update as updateVisitorContact, but it also reports the previous name.
+ * Only used when greetings are enabled; with them off the route calls the plain
+ * single UPDATE above. The old name is read under a row lock in the same
+ * transaction, so two concurrent edits can't both observe "was blank" — the
+ * unknown -> named transition is seen exactly once. It locks a single visitor
+ * row and takes no second lock while holding it, so it cannot form a lock
+ * cycle with mergeVisitor.
+ */
+export async function updateVisitorContactWithPrevious(
+  uuid: string,
+  input: UpdateVisitorInput
+): Promise<VisitorUpdateResult> {
+  const patch: Partial<Pick<Visitor, "name" | "email">> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.email !== undefined) patch.email = input.email;
+
+  return db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ name: visitor.name })
+      .from(visitor)
+      .where(eq(visitor.uuid, uuid))
+      .for("update")
+      .limit(1);
+    if (!before) throw new VisitorNotFoundError();
+
+    const [row] = await tx
+      .update(visitor)
+      .set(patch)
+      .where(eq(visitor.uuid, uuid))
+      .returning(visitorColumns);
+    if (!row) throw new VisitorNotFoundError();
+    return { visitor: row, previousName: before.name };
+  });
+}
+
 /** Move one face identity into another while preserving both identities' samples. */
 export async function mergeVisitor(sourceUuid: string, targetUuid: string): Promise<VisitorRow> {
   if (sourceUuid === targetUuid) throw new InvalidVisitorMergeError();

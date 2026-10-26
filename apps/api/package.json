@@ -11,6 +11,7 @@
     "seed:ir": "tsx src/scripts/seed-ir-devices.ts",
     "seed:casambi": "tsx src/scripts/seed-casambi-devices.ts",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "tuya:discover": "tsx src/scripts/tuya-ir-discover.ts",
     "migrate:names": "tsx src/scripts/migrate-tusker-names.ts",
     "dev:tsx": "tsx watch --env-file=../../.env src/index.ts"

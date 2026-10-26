@@ -11,6 +11,8 @@ import { useInView } from "./lib/use-in-view";
 export { cn };
 export { dispatchReplayableEvent, useReplayableWindowEvent, lastReplayableDetail };
 export { useInView };
+export { speakGreeting } from "./lib/greeting";
+export type { GreetResult } from "./lib/greeting";
 
 // ==========================================
 // 1. SHADCN BUTTON

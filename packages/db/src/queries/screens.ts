@@ -110,6 +110,43 @@ export async function getScreenLiveRow(screenId: string): Promise<
   return row;
 }
 
+export interface GreetingScreenState {
+  kind: string | null;
+  currentMediaAssetId: string | null;
+  defaultMediaAssetId: string | null;
+  /** The assigned experience, if it exists and isn't soft-deleted. */
+  experienceId: string | null;
+  blanked: boolean;
+  /** screen.whiteboard_active (persisted); the live in-memory state is the gateway's. */
+  whiteboardActive: boolean;
+}
+
+/**
+ * Everything the greeting controller needs to classify a screen, in ONE query
+ * (assignment, default-media comparison, blank, whiteboard). Undefined when the
+ * screen doesn't exist. "Idle" is derived from these columns by the same rule as
+ * isScreenIdle() — covered by an equivalence test against the real table.
+ */
+export async function getScreenGreetingState(screenId: string): Promise<GreetingScreenState | undefined> {
+  const [row] = await db
+    .select({
+      kind: screen.currentContentKind,
+      currentMediaAssetId: screen.currentMediaAssetId,
+      defaultMediaAssetId: screen.defaultMediaAssetId,
+      experienceId: experience.id,
+      blanked: screen.blanked,
+      whiteboardActive: screen.whiteboardActive,
+    })
+    .from(screen)
+    .leftJoin(
+      experience,
+      and(eq(screen.currentExperienceId, experience.id), isNull(experience.deletedAt))
+    )
+    .where(and(eq(screen.screenId, screenId), isNull(screen.deletedAt)))
+    .limit(1);
+  return row ? { ...row, experienceId: row.experienceId ?? null } : undefined;
+}
+
 /**
  * Resolve the WsContent currently assigned to a screen, or null when nothing is
  * assigned (or the referenced content was deleted). Resolves by the screen's

@@ -1,7 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import {
-  getScreenContent,
   getScreenIdsByTemplateKey,
   setScreenExperience,
   getScreenWhiteboardState,
@@ -36,9 +35,11 @@ import type {
   MatInventoryDisplayItem,
 } from '@platform/types';
 import { getCameraScreen } from '../lib/camera-map.js';
+import { recordGreetAck } from '../lib/greet-ack.js';
 import { resolveDetectedProduct } from '../services/detection.js';
 import { resolveMatInventory } from '../services/inventory.js';
 
+import { getScreenContent } from '../lib/screen-content.js';
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Per-screen WebSocket connections (one screen can have multiple tabs/devices)
 const screenRegistry = new Map<string, Set<WebSocket>>();
@@ -1171,6 +1172,13 @@ export function createGateway(): WebSocketServer {
             cameraId: msg.cameraId,
             label: msg.label,
           }).catch((err) => console.error('[gateway] PRODUCT_LOST failed:', err));
+          break;
+        }
+
+        case 'GREET_ACK': {
+          // A real TV reporting whether a spoken GREET worked (CMS previews never speak).
+          if ((ws as WebSocket & { isPreview?: boolean }).isPreview) break;
+          recordGreetAck(String(msg.screenId ?? ''), { spoke: msg.spoke === true, voice: msg.voice, error: msg.error });
           break;
         }
 

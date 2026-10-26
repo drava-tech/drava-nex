@@ -36,6 +36,7 @@ tools/cms-android/android/keystore.properties
 .env.test.local
 .env.production
 .env.production.local
+.env.backup-*
 
 # IDE configurations
 .vscode/

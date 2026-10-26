@@ -26,6 +26,7 @@ const WhiteboardOverlay = dynamic(
   { ssr: false }
 );
 import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
+import { GreetingStatusBadge } from './greeting-status-badge';
 import { StoreProvider } from '@/store/store-provider';
 
 export function DashboardLayoutClient({
@@ -66,7 +67,8 @@ export function DashboardLayoutClient({
           {/* Global — every dashboard page, not just Visitors. Admin-only
               since arming/disarming requires it server-side anyway. */}
           {isAdmin && (
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-3">
+              <GreetingStatusBadge />
               <WelcomeTriggerToggle initialArmed={initialTriggerArmed} />
             </div>
           )}

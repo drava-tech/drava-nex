@@ -1,0 +1,29 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "GREETING_ENABLED",
+        "GREETING_TZ",
+        "GREETING_VOICE",
+        "GREETING_VOICE_NAME",
+        "GREETING_RETENTION_DAYS",
+        "GREET_UNKNOWN",
+        "GREET_PRESENCE_WINDOW_SECONDS",
+        "GREET_AFTERNOON_HOUR",
+        "GREET_EVENING_HOUR",
+        "GREET_BATCH_WINDOW_MS",
+        "GREET_MAX_NAMES",
+        "GREET_BUSY_SKIPS_DAY",
+        "GREET_NAME_MODE",
+        "GREET_ARRIVAL_FRESH_SECONDS",
+        "WELCOME_SCREEN_DURATION_SECONDS",
+        "WELCOME_VIDEO_MUTED",
+        "HA_URL",
+        "HA_TOKEN",
+        "MQTT_BROKER_URL"
+      ]
+    }
+  }
+}

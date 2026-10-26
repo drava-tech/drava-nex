@@ -274,6 +274,27 @@
       "when": 1789981662599,
       "tag": "0038_ambient_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792824225858,
+      "tag": "0039_visitor_greeting",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792849376957,
+      "tag": "0040_visitor_greeting_skipped",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792992908836,
+      "tag": "0041_app_setting",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,7 @@ import { usersRouter } from './routes/users.js';
 import { visitorsRouter } from './routes/visitors.js';
 import { createDoorEventsRouter } from './routes/door-events.js';
 import { visionTriggerRouter } from './routes/vision-trigger.js';
+import { greetingRouter } from './routes/greeting.js';
 import { visionSnapshotRouter } from './routes/vision-snapshot.js';
 import { projectsRouter } from './routes/projects.js';
 import { meRouter } from './routes/me.js';
@@ -39,6 +40,7 @@ import { createGateway, getConnectedScreenIds, setScreenBlankState } from './ws/
 import { audioRouter } from './routes/audio.js';
 import { audioService } from './services/audio.js';
 import { whiteboardsRouter } from './routes/whiteboards.js';
+import { isGreetingEnabled } from './lib/greeting-flag.js';
 
 const app = new Hono();
 
@@ -113,6 +115,7 @@ app.route('/api/experiences', experiencesRouter);
 app.route('/api/experience-types', experienceTypesRouter);
 app.route('/api/flight-simulation', flightSimulationRouter);
 app.route('/api/internal', internalRouter);
+app.route('/api/greeting', greetingRouter);
 app.route('/api/internal/voice', voiceInternalRouter);
 app.route('/api/ambient-modes', ambientModesRouter);
 app.route('/api/media', mediaRouter);
@@ -200,7 +203,22 @@ process.on('SIGTERM', () => void resetScreensAndExit('SIGTERM'));
 // before the server starts accepting connections so no screen can register
 // over WS and get replayed stale content first. Best-effort: a failure here
 // shouldn't block the whole API from starting.
-resetAllScreensToIdle()
+// With GREETING_ENABLED the welcome screen is transient, so a stale one is
+// reverted first (logged, pushed like a normal revert); the reset then clears
+// everything else. With it off (the default) this is exactly the plain reset.
+function resetScreensOnBoot(): Promise<void> {
+  if (!isGreetingEnabled()) return resetAllScreensToIdle();
+  return import('./services/greeting/index.js')
+    .then(async (greeting) => {
+      await greeting.restoreArmedState(); // the operator's arm/disarm choice (disarmed if unreadable)
+      await greeting.revertStaleWelcomeOnStartup();
+      greeting.startRetentionPurge();
+    })
+    .catch((err: unknown) => console.error('[startup] greeting startup failed:', err))
+    .then(() => resetAllScreensToIdle());
+}
+
+resetScreensOnBoot()
   .then(() => console.info('[startup] all screens reset to idle'))
   .catch((err: unknown) => console.error('[startup] failed to reset screens to idle:', err))
   .finally(() => {

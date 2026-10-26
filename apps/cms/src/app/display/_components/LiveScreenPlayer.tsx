@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IDLE_WS_CONTENT } from "@platform/types";
-import type { WsContent } from "@platform/types";
-import { cn, dispatchReplayableEvent } from "@platform/ui";
+import { GREET_COMMAND, IDLE_WS_CONTENT } from "@platform/types";
+import type { GreetCommandValue, WsContent } from "@platform/types";
+import { cn, dispatchReplayableEvent, speakGreeting, type GreetResult } from "@platform/ui";
 import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates/portfolio";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
@@ -135,6 +135,9 @@ export function LiveScreenPlayer({
     [queueContent]
   );
 
+  // Filled in below, once the WebSocket exists (handleCommand is built first).
+  const greetAckRef = useRef<((ack: GreetResult) => void) | null>(null);
+
   const handleCommand = useCallback((command: string, value?: any) => {
     // Commands a framed viewer owns are ALSO republished for HtmlRenderer to
     // relay into its iframe (a separate JS realm the branches below can't
@@ -243,6 +246,15 @@ export function LiveScreenPlayer({
       window.dispatchEvent(new CustomEvent("whiteboard-undo"));
     } else if (command === WHITEBOARD_CLEAR) {
       window.dispatchEvent(new CustomEvent("whiteboard-clear"));
+    } else if (command === GREET_COMMAND) {
+      // Transient (never cached/replayed by the gateway): a line to speak now.
+      // The API only sends it while the welcome screen is up (just pushed or
+      // already showing), so there is nothing else to check here. Real TV only:
+      // never in a CMS preview/mirror.
+      const greet = value as GreetCommandValue | undefined;
+      if (!greet?.speak || preview || !greet.text) return;
+      // Report the outcome: the kiosk has no devtools, so this is how speech problems get seen.
+      void speakGreeting(greet.text, { voiceName: greet.voice }).then((result) => greetAckRef.current?.(result));
     } else if (command === "SCREEN_BLANK") {
       window.dispatchEvent(new CustomEvent("screen-blank"));
     } else if (command === "SCREEN_UNBLANK") {
@@ -274,13 +286,14 @@ export function LiveScreenPlayer({
 
   // ponytail: sendRaw was only used by the (now-disconnected) browser detection
   // hook to emit CAMERA_/PRODUCT_ events. Restore it here when re-enabling.
-  const { status, sendInteraction } = useScreenWebSocket({
+  const { status, sendInteraction, sendRaw } = useScreenWebSocket({
     screenId,
     onContentUpdate: handleContentUpdate,
     onCommand: handleCommand,
     wsUrl,
     preview,
   });
+  greetAckRef.current = (ack) => sendRaw({ type: "GREET_ACK", screenId, ...ack });
 
   // Five taps in the top-left corner: on the TV, toggle fullscreen locally; on
   // a CMS mirror, relay it so the TV exits instead of the operator's own tab.

@@ -7,6 +7,7 @@ import {
   getVisitorPhoto,
   deleteVisitorPhoto,
   updateVisitorContact,
+  updateVisitorContactWithPrevious,
   mergeVisitor,
   VisitorNotFoundError,
   InvalidVisitorMergeError,
@@ -21,6 +22,7 @@ import {
 } from "@platform/types";
 import { requireAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
+import { isGreetingEnabled } from "../lib/greeting-flag.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,6 +41,31 @@ function toItem(row: VisitorRow): VisitorListItem {
     firstSeen: row.firstSeen.toISOString(),
     lastSeen: row.lastSeen.toISOString(),
   };
+}
+
+/**
+ * Greeting hooks (GREETING_ENABLED, default off). With the flag off this is a
+ * no-op and nothing from services/greeting is loaded. With it on, the hook runs
+ * detached in its own try/catch — it cannot throw into the route, so a greeting
+ * problem can never turn an already-committed rename/merge into a 500, nor
+ * delay the response. Armed (/api/vision-trigger) is checked inside.
+ */
+function greetingHook(
+  label: string,
+  run: (greeting: typeof import("../services/greeting/index.js"), armed: boolean) => Promise<void> | void
+): void {
+  if (!isGreetingEnabled()) return;
+  void (async () => {
+    try {
+      const [greeting, trigger] = await Promise.all([
+        import("../services/greeting/index.js"),
+        import("../services/door-screen-trigger.js"),
+      ]);
+      await run(greeting, trigger.isVisionTriggerArmed());
+    } catch (err) {
+      console.error(`[visitors] ${label} failed:`, err);
+    }
+  })();
 }
 
 export const visitorsRouter = new Hono();
@@ -77,7 +104,21 @@ visitorsRouter.patch("/:uuid", async (c) => {
   }
 
   try {
-    return ok(c, toItem(await updateVisitorContact(uuid, parsed.data)));
+    if (!isGreetingEnabled()) {
+      // Default: the original single UPDATE, byte-for-byte the old behaviour.
+      return ok(c, toItem(await updateVisitorContact(uuid, parsed.data)));
+    }
+
+    // Greetings on: also learn the previous name (locked) so unknown -> named
+    // can be detected exactly once. Same response either way.
+    const { visitor: updated, previousName } = await updateVisitorContactWithPrevious(uuid, parsed.data);
+    // Only unknown -> named greets; fixing or clearing a name never does.
+    if (previousName.trim() === "" && updated.name.trim() !== "") {
+      greetingHook("rename greeting", (greeting, armed) =>
+        armed ? greeting.onVisitorRenamed(uuid) : greeting.invalidateVisitor(uuid)
+      );
+    }
+    return ok(c, toItem(updated));
   } catch (err) {
     if (err instanceof VisitorNotFoundError) {
       return fail(c, "NOT_FOUND", err.message, 404);
@@ -104,7 +145,13 @@ visitorsRouter.post("/:uuid/merge", async (c) => {
   }
 
   try {
-    return ok(c, toItem(await mergeVisitor(uuid, parsed.data.targetUuid)));
+    // mergeVisitor has committed by the time it returns, so the greeting sees
+    // the merged row.
+    const merged = await mergeVisitor(uuid, parsed.data.targetUuid);
+    greetingHook("merge greeting", (greeting, armed) =>
+      armed ? greeting.onVisitorMerged(parsed.data.targetUuid) : greeting.invalidateVisitor(parsed.data.targetUuid)
+    );
+    return ok(c, toItem(merged));
   } catch (err) {
     if (err instanceof InvalidVisitorMergeError) {
       return fail(c, "VALIDATION", err.message, 422);

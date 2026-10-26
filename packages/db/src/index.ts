@@ -23,6 +23,8 @@ export * from "./queries/products.js";
 export * from "./queries/devices.js";
 export * from "./queries/users.js";
 export * from "./queries/visitors.js";
+export * from "./queries/visitor-greetings.js";
+export * from "./queries/app-settings.js";
 export * from "./queries/door-events.js";
 export * from "./queries/voice-command-log.js";
 export * from "./queries/auth-failure-log.js";
