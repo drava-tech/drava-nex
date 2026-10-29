@@ -3162,6 +3162,7 @@
       setTimeout(() => {
         splash.classList.add('hidden');
         page1.classList.add('active');
+        onStudioShown();
       }, 2800);
 
       const page1 = document.getElementById('page1');
@@ -3223,6 +3224,7 @@
         if (event.source === worldClockFrame.contentWindow && event.data && event.data.type === 'world-clock-back') {
           goToPage(1);
           worldClockFrame.removeAttribute('src');
+          emitSyncState();
         }
       });
 
@@ -3234,6 +3236,7 @@
           // Unload the heavy WebGL/video scene while it is off-screen. It is
           // recreated on the next visit so the opening reveal plays again.
           embeddedFlightGarden.removeAttribute('src');
+          emitSyncState();
         }
       });
 
@@ -3362,16 +3365,92 @@
         });
       }
 
-      document.querySelectorAll('.data-item').forEach(item => onActivate(item, selectData));
-      document.querySelectorAll('.art-card').forEach(card => onActivate(card, selectArt));
+      document.querySelectorAll('.data-item').forEach(item => onActivate(item, (el) => { selectData(el); emitSyncState(); }));
+      document.querySelectorAll('.art-card').forEach(card => onActivate(card, (el) => { selectArt(el); emitSyncState(); }));
 
       lpGenerateBtn.addEventListener('click', () => {
         const art = document.querySelector('.art-card.selected');
         if (art) openCard(art);
+        emitSyncState();
       });
 
+      // ── CMS sync ───────────────────────────────────────────────────────
+      // Inside the CMS this page is an iframe, and the same screen can be open
+      // in several places (the wall, a control surface). The landing choices —
+      // data source, art, Generate/back — are shared through the parent frame
+      // (see DataArtStudioRenderer): what the operator does here is posted up,
+      // and what other clients did is posted back down and applied by driving
+      // the same functions a click would. Anything deeper in a scene (sliders,
+      // the Flight Garden / World Clock internals) is not shared.
+      const SYNCED = window.parent !== window;
+      let applyingRemote = false;
+      let studioShown = false;
+      let pendingRemote = null;
+
+      function syncState() {
+        const data = document.querySelector('.data-item.selected');
+        const art = document.querySelector('.art-card.selected');
+        return { data: data ? data.id : null, art: art ? art.id : null, open: currentPage >= 2 };
+      }
+
+      // Only for choices made on this page — never for a view we were handed,
+      // or two clients would answer each other forever.
+      let lastSent = '';
+      let lastSentAt = 0;
+      function emitSyncState() {
+        if (!SYNCED || applyingRemote) return;
+        const state = syncState();
+        lastSent = JSON.stringify(state);
+        lastSentAt = Date.now();
+        window.parent.postMessage({ type: 'data-art-state', state }, location.origin);
+      }
+
+      function returnToLanding() {
+        goToPage(1);
+        worldClockFrame.removeAttribute('src');
+        const flightFrame = document.getElementById('flightGardenFrame');
+        if (flightFrame) flightFrame.removeAttribute('src');
+      }
+
+      function applySyncState(want) {
+        // The splash still owns the screen for its first moments; opening an
+        // artwork under it would leave the landing page active as well.
+        if (!studioShown) { pendingRemote = want; return; }
+        // The echo of something this page just sent: by the time it comes back
+        // the operator may already have moved on, and replaying it would undo that.
+        if (Date.now() - lastSentAt < 1500 && JSON.stringify({ data: want.data, art: want.art, open: want.open === true }) === lastSent) return;
+        const have = syncState();
+        if (have.open === want.open && (!want.data || have.data === want.data) && (!want.art || have.art === want.art)) return;
+        applyingRemote = true;
+        try {
+          if (have.open) returnToLanding();
+          const dataEl = want.data && document.getElementById(want.data);
+          if (dataEl && dataEl.classList.contains('data-item') && !dataEl.classList.contains('selected')) selectData(dataEl);
+          const artEl = want.art && document.getElementById(want.art);
+          if (artEl && artEl.classList.contains('art-card') && artEl.style.display !== 'none' && !artEl.classList.contains('selected')) selectArt(artEl);
+          if (want.open) {
+            const art = document.querySelector('.art-card.selected');
+            if (art) openCard(art);
+          }
+        } finally {
+          applyingRemote = false;
+        }
+      }
+
+      function onStudioShown() {
+        studioShown = true;
+        if (pendingRemote) { const want = pendingRemote; pendingRemote = null; applySyncState(want); }
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== window.parent || event.origin !== location.origin) return;
+        const msg = event.data;
+        if (msg && msg.type === 'data-art-apply' && msg.state) applySyncState(msg.state);
+      });
+      if (SYNCED) window.parent.postMessage({ type: 'data-art-ready' }, location.origin);
+
       updateArtFilter();
-      backBtn.addEventListener('click', () => goToPage(1));
+      backBtn.addEventListener('click', () => { goToPage(1); emitSyncState(); });
 
       const mainVideo = document.getElementById('mainVideo');
       const mainVideoB = document.getElementById('mainVideoB');
@@ -3830,9 +3909,9 @@
       weatherHudToggle.addEventListener('click', () => {
         setWeatherHudVisible(!weatherHud.classList.contains('hud-active'));
       });
-      weatherBackBtn.addEventListener('click', () => goToPage(1));
+      weatherBackBtn.addEventListener('click', () => { goToPage(1); emitSyncState(); });
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && currentPage === 4 && !document.fullscreenElement) goToPage(1);
+        if (e.key === 'Escape' && currentPage === 4 && !document.fullscreenElement) { goToPage(1); emitSyncState(); }
       });
 
       fullscreenBtn.addEventListener('click', () => {
