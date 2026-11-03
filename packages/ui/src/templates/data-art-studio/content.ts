@@ -37,6 +37,15 @@ export interface DataArtView {
   data: string | null;
   art: string | null;
   open: boolean;
+  /** World Clock only: the running clock ("Show Clock" pressed); null = city picker / other art. */
+  clock: DataArtClock | null;
+}
+
+/** The World Clock a screen is showing: place ids, artwork id and clock style id. */
+export interface DataArtClock {
+  places: string[];
+  art: string | null;
+  style: string | null;
 }
 
 /** Studio -> parent: the operator changed something. */
@@ -51,5 +60,15 @@ export function readDataArtView(value: unknown): DataArtView | null {
   if (typeof value !== "object" || value === null) return null;
   const v = value as Record<string, unknown>;
   const id = (x: unknown) => (typeof x === "string" && x.length <= 64 ? x : null);
-  return { data: id(v["data"]), art: id(v["art"]), open: v["open"] === true };
+  return { data: id(v["data"]), art: id(v["art"]), open: v["open"] === true, clock: readClock(v["clock"]) };
+}
+
+function readClock(value: unknown): DataArtClock | null {
+  if (typeof value !== "object" || value === null) return null;
+  const c = value as Record<string, unknown>;
+  if (!Array.isArray(c["places"])) return null;
+  const id = (x: unknown) => (typeof x === "string" && x.length <= 64 ? x : null);
+  const places = c["places"].filter((p): p is string => typeof p === "string" && p.length <= 64).slice(0, 5);
+  if (places.length === 0) return null;
+  return { places, art: id(c["art"]), style: id(c["style"]) };
 }

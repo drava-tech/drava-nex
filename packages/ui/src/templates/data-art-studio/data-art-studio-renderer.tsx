@@ -14,7 +14,7 @@ import {
 } from "./content";
 
 /** What a cleared view (RESET_VIEW) means: back to the landing page, picks kept. */
-const CLOSED: DataArtView = { data: null, art: null, open: false };
+const CLOSED: DataArtView = { data: null, art: null, open: false, clock: null };
 
 /**
  * Renders the Data Art Studio full-bleed — the standalone app, unchanged. Used

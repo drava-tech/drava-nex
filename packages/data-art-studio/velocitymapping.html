@@ -3215,15 +3215,43 @@
       const pageClock = document.getElementById('pageClock');
       const worldClockFrame = document.getElementById('worldClockFrame');
 
-      function openWorldClock(art) {
-        worldClockFrame.src = 'world-clock/index.html?embed=1&art=' + encodeURIComponent(art);
+      // The running clock (cities, art, clock style), or null while its city
+      // picker is showing. The World Clock page reports it (world-clock-state)
+      // so "Show Clock" is shared with the other screens like Generate is.
+      let clockState = null;
+
+      function readClock(c) {
+        if (!c || typeof c !== 'object' || !Array.isArray(c.places)) return null;
+        const places = c.places.filter(p => typeof p === 'string' && p.length <= 64).slice(0, 5);
+        if (!places.length) return null;
+        const id = (x) => (typeof x === 'string' && x.length <= 64 ? x : null);
+        return { places, art: id(c.art), style: id(c.style) };
+      }
+
+      function openWorldClock(art, clock) {
+        clockState = readClock(clock);
+        let src = 'world-clock/index.html?embed=1&art=' + encodeURIComponent(art);
+        if (clockState) {
+          src = 'world-clock/index.html?embed=1&places=' + clockState.places.map(encodeURIComponent).join(',') +
+            '&art=' + encodeURIComponent(clockState.art || art);
+          if (clockState.style) src += '&clock=' + encodeURIComponent(clockState.style);
+        }
+        worldClockFrame.src = src;
         goToPage(5);
       }
 
       window.addEventListener('message', (event) => {
         if (event.source === worldClockFrame.contentWindow && event.data && event.data.type === 'world-clock-back') {
+          clockState = null;
           goToPage(1);
           worldClockFrame.removeAttribute('src');
+          emitSyncState();
+        }
+        if (event.source === worldClockFrame.contentWindow && event.origin === location.origin &&
+            event.data && event.data.type === 'world-clock-state') {
+          const next = readClock(event.data.clock);
+          if (JSON.stringify(next) === JSON.stringify(clockState)) return;
+          clockState = next;
           emitSyncState();
         }
       });
@@ -3240,9 +3268,9 @@
         }
       });
 
-      function openCard(cardEl) {
+      function openCard(cardEl, clock) {
         if (cardEl.dataset.clockArt) {
-          openWorldClock(cardEl.dataset.clockArt);
+          openWorldClock(cardEl.dataset.clockArt, clock);
           return;
         }
 
@@ -3390,7 +3418,7 @@
       function syncState() {
         const data = document.querySelector('.data-item.selected');
         const art = document.querySelector('.art-card.selected');
-        return { data: data ? data.id : null, art: art ? art.id : null, open: currentPage >= 2 };
+        return { data: data ? data.id : null, art: art ? art.id : null, open: currentPage >= 2, clock: currentPage === 5 ? clockState : null };
       }
 
       // Only for choices made on this page — never for a view we were handed,
@@ -3406,6 +3434,7 @@
       }
 
       function returnToLanding() {
+        clockState = null;
         goToPage(1);
         worldClockFrame.removeAttribute('src');
         const flightFrame = document.getElementById('flightGardenFrame');
@@ -3418,9 +3447,11 @@
         if (!studioShown) { pendingRemote = want; return; }
         // The echo of something this page just sent: by the time it comes back
         // the operator may already have moved on, and replaying it would undo that.
-        if (Date.now() - lastSentAt < 1500 && JSON.stringify({ data: want.data, art: want.art, open: want.open === true }) === lastSent) return;
+        const wantClock = readClock(want.clock);
+        if (Date.now() - lastSentAt < 1500 && JSON.stringify({ data: want.data, art: want.art, open: want.open === true, clock: wantClock }) === lastSent) return;
         const have = syncState();
-        if (have.open === want.open && (!want.data || have.data === want.data) && (!want.art || have.art === want.art)) return;
+        if (have.open === want.open && (!want.data || have.data === want.data) && (!want.art || have.art === want.art) &&
+            JSON.stringify(have.clock) === JSON.stringify(wantClock)) return;
         applyingRemote = true;
         try {
           if (have.open) returnToLanding();
@@ -3430,7 +3461,7 @@
           if (artEl && artEl.classList.contains('art-card') && artEl.style.display !== 'none' && !artEl.classList.contains('selected')) selectArt(artEl);
           if (want.open) {
             const art = document.querySelector('.art-card.selected');
-            if (art) openCard(art);
+            if (art) openCard(art, wantClock);
           }
         } finally {
           applyingRemote = false;

@@ -10,7 +10,16 @@ describe("readDataArtView", () => {
       data: "dataCard2",
       art: "artCard1",
       open: true,
+      clock: null,
     });
+  });
+
+  it("keeps a running World Clock so Show Clock reaches the other screens", () => {
+    expect(
+      readDataArtView({ data: "d", art: "a", open: true, clock: { places: ["london", "tokyo", 3], art: "fabric", style: "digital" } })?.clock,
+    ).toEqual({ places: ["london", "tokyo"], art: "fabric", style: "digital" });
+    expect(readDataArtView({ data: "d", art: "a", open: true, clock: { places: [] } })?.clock).toBeNull();
+    expect(readDataArtView({ data: "d", art: "a", open: true, clock: "x" })?.clock).toBeNull();
   });
 
   it("treats missing or wrongly-typed fields as nothing picked / not open", () => {
@@ -18,6 +27,7 @@ describe("readDataArtView", () => {
       data: null,
       art: null,
       open: false,
+      clock: null,
     });
   });
 
