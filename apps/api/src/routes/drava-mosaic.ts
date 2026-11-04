@@ -1,7 +1,8 @@
-// Runtime data for the Data Art Studio template.
+// Runtime data for the Drava Mosaic template.
 //
-// The studio is the standalone Data Art Studio app (packages/data-art-studio),
-// served by the CMS as static pages under /data-art-studio/. Standalone, it ran
+// The template is a replica of the standalone drava-mosaic app
+// (github.com/drava-tech/drava-mosaic, copied into packages/drava-mosaic),
+// served by the CMS as static pages under /drava-mosaic/. Standalone, it runs
 // on Vercel with four serverless functions beside it; these routes replace them
 // so the pages work on the LAN with the same keys the Flight Simulation uses.
 //
@@ -15,9 +16,9 @@
 import { Hono, type Context } from "hono";
 import { resolveLocation } from "../services/flight-locations.js";
 import { presignR2Get, readR2Config } from "../services/flight-video.js";
-import { MAX_CLOCK_PLACES, resolveClockLocation } from "../services/data-art-locations.js";
+import { MAX_CLOCK_PLACES, resolveClockLocation } from "../services/drava-mosaic-locations.js";
 
-export const dataArtStudioRouter = new Hono();
+export const dravaMosaicRouter = new Hono();
 
 function sendJson(c: Context, status: 200 | 400 | 404 | 502 | 503, body: unknown) {
   c.header("Cache-Control", "no-store");
@@ -39,10 +40,10 @@ async function fetchCurrentWeather(key: string, query: string): Promise<WeatherA
   return (await res.json()) as WeatherApiCurrent;
 }
 
-// GET /api/data-art-studio/wind?location=bengaluru → { kph, tempC, condition }
+// GET /api/drava-mosaic/wind?location=bengaluru → { kph, tempC, condition }
 // The studio's Weather output and its Flight Garden's weather scene. Same
 // location allowlist as /api/flight-simulation/wind — the ids are shared.
-dataArtStudioRouter.get("/wind", async (c) => {
+dravaMosaicRouter.get("/wind", async (c) => {
   const key = process.env["WEATHERAPI_KEY"];
   if (!key) return sendJson(c, 503, { error: "WEATHERAPI_KEY not configured" });
 
@@ -63,10 +64,10 @@ dataArtStudioRouter.get("/wind", async (c) => {
   }
 });
 
-// GET /api/data-art-studio/weather?ids=newyork,london
+// GET /api/drava-mosaic/weather?ids=newyork,london
 //   → [{ id, tempC, windKph, condition, tzId }]
 // The World Clock's weather bands.
-dataArtStudioRouter.get("/weather", async (c) => {
+dravaMosaicRouter.get("/weather", async (c) => {
   const key = process.env["WEATHERAPI_KEY"];
   if (!key) return sendJson(c, 503, { error: "WEATHERAPI_KEY not configured" });
 
@@ -96,12 +97,12 @@ dataArtStudioRouter.get("/weather", async (c) => {
   }
 });
 
-// GET /api/data-art-studio/attendance
+// GET /api/drava-mosaic/attendance
 //   → { date, total, present, late, absent, halfDay, onLeave }
 // Today's headcounts for the studio's Attendance output. Same upstream and
 // env vars as /api/flight-simulation/attendance, but the studio wants the full
 // summary (total, half-day, on-leave), not just the three zone counts.
-dataArtStudioRouter.get("/attendance", async (c) => {
+dravaMosaicRouter.get("/attendance", async (c) => {
   const base = process.env["TRAVA_ATTENDANCE_API_URL"];
   const workspaceId = process.env["TRAVA_ATTENDANCE_WORKSPACE_ID"];
   if (!base || !workspaceId) {
@@ -159,6 +160,8 @@ const VIDEO_NAMES = new Set([
   "art_3_velocity.mp4",
   "art_4_grayscale.mp4",
   "art_4_velocity.mp4",
+  // World Clock's Particles art (world-clock/particleArt.js).
+  "particle_fabric.mp4",
 ]);
 
 export function isStudioVideoName(name: string | undefined): name is string {
@@ -183,27 +186,27 @@ const STREAM_HEADERS = [
   "last-modified",
 ];
 
-// GET /api/data-art-studio/video?name=art_1_grayscale.mp4
+// GET /api/drava-mosaic/video?name=art_1_grayscale.mp4
 //
 // By default, STREAMS the clip from the studio's public bucket
-// (DATA_ART_VIDEO_BASE_URL, defaulting to DEFAULT_VIDEO_BASE_URL), passing the
+// (DRAVA_MOSAIC_VIDEO_BASE_URL, defaulting to DEFAULT_VIDEO_BASE_URL), passing the
 // Range header through so playback can seek. Streaming rather than redirecting
 // keeps the video same-origin with the CMS: the studio uploads frames to WebGL,
 // which a cross-origin video without matching CORS headers would taint — and
 // that bucket's CORS doesn't allow the CMS.
 //
-// With DATA_ART_R2_BUCKET set it instead 302s to a presigned GET against the
-// FLIGHT_R2_* credentials, in that bucket and under DATA_ART_R2_PREFIX; that
+// With DRAVA_MOSAIC_R2_BUCKET set it instead 302s to a presigned GET against the
+// FLIGHT_R2_* credentials, in that bucket and under DRAVA_MOSAIC_R2_PREFIX; that
 // bucket's CORS must then allow the CMS origin.
-dataArtStudioRouter.get("/video", async (c) => {
+dravaMosaicRouter.get("/video", async (c) => {
   const name = c.req.query("name");
   if (!isStudioVideoName(name)) {
     return sendJson(c, 404, { error: `unknown video: ${name}` });
   }
 
-  const bucket = process.env["DATA_ART_R2_BUCKET"];
+  const bucket = process.env["DRAVA_MOSAIC_R2_BUCKET"];
   if (!bucket) {
-    const base = (process.env["DATA_ART_VIDEO_BASE_URL"] || DEFAULT_VIDEO_BASE_URL).replace(/\/$/, "");
+    const base = (process.env["DRAVA_MOSAIC_VIDEO_BASE_URL"] || DEFAULT_VIDEO_BASE_URL).replace(/\/$/, "");
     const range = c.req.header("range");
     try {
       const upstream = await fetch(`${base}/${name}`, {
@@ -228,10 +231,10 @@ dataArtStudioRouter.get("/video", async (c) => {
   }
 
   const config = readR2Config();
-  if (!config) return sendJson(c, 503, { error: "Data Art Studio video storage is not configured" });
+  if (!config) return sendJson(c, 503, { error: "Drava Mosaic video storage is not configured" });
 
   try {
-    const prefix = process.env["DATA_ART_R2_PREFIX"] ?? "";
+    const prefix = process.env["DRAVA_MOSAIC_R2_PREFIX"] ?? "";
     const url = presignR2Get({ ...config, bucket }, `${prefix}${name}`, 6 * 60 * 60);
     // Within the presign lifetime, so a cached redirect never outlives its URL.
     c.header("Cache-Control", "private, max-age=3600");

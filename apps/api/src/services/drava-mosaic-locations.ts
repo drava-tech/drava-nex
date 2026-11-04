@@ -1,14 +1,14 @@
 /**
- * Every city the Data Art Studio's World Clock may ask WeatherAPI about.
+ * Every city the Drava Mosaic's World Clock may ask WeatherAPI about.
  *
  * An allowlist, not a passthrough — the clock sends ids, never a raw query, so
- * GET /api/data-art-studio/weather cannot be turned into an open relay for
+ * GET /api/drava-mosaic/weather cannot be turned into an open relay for
  * arbitrary lookups against our key. Same role flight-locations.ts plays for
  * the wind route.
  *
  * The browser-side half is LOCATIONS in
- * packages/data-art-studio/world-clock/locations.js; the ids must match (a test
- * in apps/api/test/data-art-studio.test.ts checks it). Values are the WeatherAPI
+ * packages/drava-mosaic/world-clock/locations.js; the ids must match (a test
+ * in apps/api/test/drava-mosaic.test.ts checks it). Values are the WeatherAPI
  * `q`: "city, country" so e.g. "Lima" can't resolve to Lima, Ohio. This file is
  * the security boundary.
  */

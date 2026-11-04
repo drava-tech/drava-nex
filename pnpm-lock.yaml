@@ -107,12 +107,12 @@ importers:
       '@fontsource/tinos':
         specifier: ^5.3.0
         version: 5.3.0
-      '@platform/data-art-studio':
-        specifier: workspace:*
-        version: link:../../packages/data-art-studio
       '@platform/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@platform/drava-mosaic':
+        specifier: workspace:*
+        version: link:../../packages/drava-mosaic
       '@platform/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -187,22 +187,6 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  packages/data-art-studio:
-    dependencies:
-      three:
-        specifier: 0.158.0
-        version: 0.158.0
-      topojson-client:
-        specifier: ^3.1.0
-        version: 3.1.0
-      world-atlas:
-        specifier: ^2.0.2
-        version: 2.0.2
-    devDependencies:
-      vite:
-        specifier: ^7.0.0
-        version: 7.3.7(@types/node@20.19.41)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3)
-
   packages/db:
     dependencies:
       '@platform/types':
@@ -236,6 +220,22 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.41)(jsdom@29.1.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)
+
+  packages/drava-mosaic:
+    dependencies:
+      three:
+        specifier: 0.158.0
+        version: 0.158.0
+      topojson-client:
+        specifier: ^3.1.0
+        version: 3.1.0
+      world-atlas:
+        specifier: ^2.0.2
+        version: 2.0.2
+    devDependencies:
+      vite:
+        specifier: ^7.0.0
+        version: 7.3.7(@types/node@20.19.41)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3)
 
   packages/iot:
     dependencies:

@@ -137,11 +137,8 @@ export function startArt(canvas, bands) {
   const ctx = overlay.getContext("2d");
 
   // The GLB's CC BY 4.0 licence requires credit.
-  const credit = document.createElement("a");
+  const credit = document.createElement("span");
   credit.className = "credit";
-  credit.href = "https://sketchfab.com/3d-models/world-map-b4c6c0cb9b2b4713beb3a6250381d2b0";
-  credit.target = "_blank";
-  credit.rel = "noopener";
   credit.textContent = "World Map by Daniel.Riches · CC BY 4.0";
   overlay.after(credit);
 

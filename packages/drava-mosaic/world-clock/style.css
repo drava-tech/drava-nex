@@ -189,7 +189,7 @@ button {
     --strip-height: calc(var(--name-height) + var(--clock-size) / 2);
     --foot-height: calc(4.2 * var(--cu));
     /* Between temperature and wind in the foot strip. */
-    --pair-gap: calc(3.03 * var(--cu));
+    --pair-gap: calc(1.5 * var(--cu));
   }
 
   .clock-view::before,
@@ -345,6 +345,17 @@ button {
     opacity: 0.8;
   }
 
+  /* An artwork without wind leaves the temperature alone in the middle. */
+  .clock-view.no-wind .band .wind {
+    display: none;
+  }
+
+  .clock-view.no-wind .temp {
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-right: 0;
+  }
+
   .clock-view .band .label {
     display: block;
     margin-bottom: calc(0.2 * var(--cu));
@@ -373,6 +384,7 @@ button {
     display: block;
     align-self: center;
     font-size: max(16px, calc(1.9 * var(--cu)));
+    font-weight: 600;
     letter-spacing: 0.12em;
   }
 }
@@ -385,92 +397,53 @@ button {
   display: none;
 }
 
-/* The clock face (analogClock.js), after a brushed-silver watch dial. */
-.analog-rim {
-  fill: #b4b1ae;
-  stroke: #2a2a2a;
+/* The clock face (analogClock.js), after a clean wall-clock dial. */
+.analog-face {
+  fill: rgb(255 255 255 / 0.9);
+  stroke: rgb(0 0 0 / 0.08);
   stroke-width: 0.8;
 }
 
-
-
-.analog-track {
-  fill: none;
-  stroke: #1a1a1a;
-  stroke-width: 0.6;
-}
-
-.analog-track-inner {
-  fill: none;
-  stroke: #1a1a1a;
-  stroke-width: 0.9;
-}
-
 .analog-tick {
-  stroke: #1a1a1a;
-  stroke-width: 0.55;
+  stroke: #6b6b6b;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
-/* Black enamel numerals in polished silver frames with a fine dark edge:
-   the edge is a wider dark stroke behind a silver one. */
-.analog-roman,
-.analog-roman-edge {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 22px;
+.analog-hour-tick {
+  stroke: #8a8a8a;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+}
+
+.analog-numeral {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
   font-weight: 700;
-  text-anchor: middle;
-  dominant-baseline: central;
-}
-
-.analog-roman-edge {
-  fill: #1a1a1a;
-  stroke: #2a2a2a;
-  stroke-width: 2.6px;
-  stroke-linejoin: round;
-}
-
-.analog-roman {
-  fill: #0d0d0d;
-  stroke: #f2f2f4;
-  stroke-width: 1.3px;
-  stroke-linejoin: round;
-  paint-order: stroke;
-}
-
-.analog-ampm {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  fill: #1a1a1a;
+  fill: #111;
   text-anchor: middle;
   dominant-baseline: central;
 }
 
 .analog-hour,
-.analog-minute,
-.analog-second {
-  stroke: #111;
-  stroke-linecap: round;
-}
-
-.analog-hour {
-  stroke-width: 5;
-}
-
 .analog-minute {
-  stroke-width: 3;
+  fill: #111;
 }
 
 .analog-second {
-  stroke: #c4161c;
-  stroke-width: 1.1;
+  fill: #d4141c;
 }
 
 .analog-pin {
   fill: #111;
-  stroke: #d8d8dc;
-  stroke-width: 1;
+}
+
+.analog-pin-red {
+  fill: #d4141c;
+}
+
+.analog-pin-dot {
+  fill: #fff;
 }
 
 @media (max-width: 640px) {
@@ -495,12 +468,22 @@ button {
   color: #fff;
 }
 
-.map-art .credit {
-  color: rgb(255 255 255 / 0.45);
+/* Dotted lines between the cities, for an artwork whose colors melt together. */
+@media (min-width: 641px) {
+  .clock-view.band-lines .band:not(:last-of-type) {
+    border-right: 1px dotted rgb(255 255 255 / 0.4);
+  }
 }
 
+@media (max-width: 640px) {
+  .clock-view.band-lines .band:not(:last-of-type) {
+    border-bottom: 1px dotted rgb(255 255 255 / 0.4);
+  }
+}
+
+.map-art .credit,
 .map-art .credit:hover {
-  color: rgb(255 255 255 / 0.8);
+  color: #000;
 }
 
 .credit {
@@ -512,6 +495,14 @@ button {
   font-size: max(10px, calc(0.7 * min(1vw, 1.78vh)));
   color: rgb(0 0 0 / 0.45);
   text-decoration: none;
+  /* Hidden like .back until the pointer is over the view. */
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.clock-view:hover .credit,
+.credit:focus-visible {
+  opacity: 1;
 }
 
 .credit:hover {
@@ -976,6 +967,28 @@ body:has(.landing-view) {
   white-space: nowrap;
 }
 
+/* Temperature and wind meet either side of the band's middle with a set gap,
+   as on the clock, so the gap holds however many bands there are. */
+.lp-frame .mini-temp {
+  justify-self: end;
+  margin-right: calc(5 * var(--u));
+}
+
+.lp-frame .mini-wind {
+  justify-self: start;
+  margin-left: calc(5 * var(--u));
+}
+
+.lp-frame.no-wind .mini-wind {
+  display: none;
+}
+
+.lp-frame.no-wind .mini-temp {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-right: 0;
+}
+
 .lp-frame .mini-label {
   display: block;
   margin-bottom: calc(2 * var(--u));
@@ -987,12 +1000,17 @@ body:has(.landing-view) {
 }
 
 /* Digital clocks: the time in figures under the city, in a shorter strip. */
+/* Even room above the city and below the time inside the strip. */
 .lp-frame.digital .mini-bands::before {
-  height: 15%;
+  height: 13.5%;
 }
 
 .lp-frame.digital .mini-band {
-  grid-template-rows: 5% 6% 9% 2% 1fr 12% 5%;
+  grid-template-rows: 5% 5% 7% 3% 1fr 12% 5%;
+}
+
+.lp-frame.digital .mini-country {
+  padding-bottom: calc(1 * var(--u));
 }
 
 .lp-frame.digital .analog {
@@ -1025,6 +1043,10 @@ body:has(.landing-view) {
 
 .lp-frame.has-map .mini-band:not(:last-child) {
   border-right: 1px solid rgb(255 255 255 / 0.07);
+}
+
+.lp-frame.band-lines .mini-band:not(:last-child) {
+  border-right: 1px dotted rgb(255 255 255 / 0.4);
 }
 
 .lp-frame .mini-band {

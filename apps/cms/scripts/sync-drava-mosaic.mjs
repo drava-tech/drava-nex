@@ -1,9 +1,9 @@
-// Copies the built Data Art Studio (packages/data-art-studio/dist) into
-// public/data-art-studio, where Next serves it as static files for the
-// "data-art-studio" template's iframe.
+// Copies the built Drava Mosaic (packages/drava-mosaic/dist) into
+// public/drava-mosaic, where Next serves it as static files for the
+// "drava-mosaic" template's iframe.
 //
 // Runs before `next dev` and `next build`. Turbo builds the studio first
-// (@platform/data-art-studio is a workspace dependency, and both tasks depend
+// (@platform/drava-mosaic is a workspace dependency, and both tasks depend
 // on ^build). The copy is generated output and gitignored.
 //
 // --optional: warn instead of failing when the studio hasn't been built, so
@@ -14,14 +14,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = resolve(here, "../../../packages/data-art-studio/dist");
-const target = resolve(here, "../public/data-art-studio");
+const source = resolve(here, "../../../packages/drava-mosaic/dist");
+const target = resolve(here, "../public/drava-mosaic");
 const optional = process.argv.includes("--optional");
 
 if (!existsSync(resolve(source, "velocitymapping.html"))) {
   const message =
-    "[data-art-studio] packages/data-art-studio/dist is missing — run " +
-    "`pnpm --filter @platform/data-art-studio build` first.";
+    "[drava-mosaic] packages/drava-mosaic/dist is missing — run " +
+    "`pnpm --filter @platform/drava-mosaic build` first.";
   if (optional) {
     console.warn(message);
     process.exit(0);
@@ -32,4 +32,4 @@ if (!existsSync(resolve(source, "velocitymapping.html"))) {
 
 rmSync(target, { recursive: true, force: true });
 cpSync(source, target, { recursive: true });
-console.log(`[data-art-studio] synced ${source} → ${target}`);
+console.log(`[drava-mosaic] synced ${source} → ${target}`);

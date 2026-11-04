@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { Experience } from "@platform/db";
-import { DataArtStudioRenderer } from "@platform/ui/templates/data-art-studio";
+import { DravaMosaicRenderer } from "@platform/ui/templates/drava-mosaic";
 
 /**
- * "Edit" for the Data Art Studio template. There are no settings — the studio
+ * "Edit" for the Drava Mosaic template. There are no settings — the studio
  * is shown exactly as the standalone app, and everything is chosen inside it —
  * so this is just the studio full-screen with a way back to the CMS.
  */
-export function DataArtStudioEditorWorkspace({ experience }: { experience: Experience; initialContent: unknown }) {
+export function DravaMosaicEditorWorkspace({ experience }: { experience: Experience; initialContent: unknown }) {
   return (
     <div className="relative h-screen w-screen bg-[#05070a]">
-      <DataArtStudioRenderer />
+      <DravaMosaicRenderer />
       <Link
         href="/experiences"
         title={`Back to experiences (${experience.name})`}

@@ -243,7 +243,7 @@ const FRAGMENT = /* glsl */ `
 
 export function startFabricArt(canvas, getBands) {
   const gl = canvas.getContext("webgl", { alpha: true, antialias: false, depth: true, premultipliedAlpha: true });
-  if (!gl) return () => {};
+  if (!gl) return () => { };
 
   const program = gl.createProgram();
   for (const [type, source] of [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]]) {

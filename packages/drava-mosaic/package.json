@@ -1,9 +1,9 @@
 {
-  "name": "@platform/data-art-studio",
+  "name": "@platform/drava-mosaic",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Data Art Studio (VelocityMap studio, Flight Garden, World Clock) — built as static pages the CMS serves under /data-art-studio/.",
+  "description": "Drava Mosaic (studio, Flight Garden, World Clock) — a replica of the drava-mosaic app, built as static pages the CMS serves under /drava-mosaic/.",
   "scripts": {
     "serve": "vite",
     "build": "vite build"

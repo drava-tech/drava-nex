@@ -1,5 +1,4 @@
 import { startArt } from "./art.js";
-import { startFabricArt } from "./fabricArt.js";
 import { createAnalogClock } from "./analogClock.js";
 
 const WEATHER_REFRESH_MS = 10 * 60 * 1000;
@@ -42,7 +41,7 @@ export function inkFor([r, g, b]) {
  * (an entry of ARTS in arts.js).
  */
 export function startClock(root, places, { art, clockStyle, onBack }) {
-  root.className = ["clock-view", art.id === "map" && "map-art", clockStyle === "digital" && "digital"].filter(Boolean).join(" ");
+  root.className = ["clock-view", art.id === "map" && "map-art", art.noWind && "no-wind", art.bandLines && "band-lines", clockStyle === "digital" && "digital"].filter(Boolean).join(" ");
   root.style.setProperty("--count", places.length);
 
   const canvas = document.createElement("canvas");
@@ -117,7 +116,7 @@ export function startClock(root, places, { art, clockStyle, onBack }) {
 
   async function loadWeather() {
     try {
-      const res = await fetch(`/api/data-art-studio/weather?ids=${places.map((p) => p.id).join(",")}`);
+      const res = await fetch(`/api/drava-mosaic/weather?ids=${places.map((p) => p.id).join(",")}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
@@ -131,7 +130,7 @@ export function startClock(root, places, { art, clockStyle, onBack }) {
         band.el.style.setProperty("--ink", ink);
         band.el.classList.toggle("light", ink !== "#ffffff");
         band.el.classList.remove("loading");
-        band.art = { color, windKph: w.windKph };
+        band.art = { color, tempC: w.tempC, windKph: w.windKph };
         band.value.textContent = Math.round(w.tempC);
         if (w.windKph != null) band.wind.textContent = Math.round(w.windKph);
         band.meta.textContent = w.condition ? `${band.place.country} · ${w.condition}` : band.place.country;
@@ -147,8 +146,7 @@ export function startClock(root, places, { art, clockStyle, onBack }) {
   tick();
   loadWeather();
   const timers = [setInterval(tick, 1000), setInterval(loadWeather, WEATHER_REFRESH_MS)];
-  const stopArt =
-    art.id === "map" ? startArt(canvas, bands) : startFabricArt(canvas, () => bands.map((b) => b.art));
+  const stopArt = art.start ? art.start(canvas, () => bands.map((b) => b.art)) : startArt(canvas, bands);
 
   return function stop() {
     timers.forEach(clearInterval);

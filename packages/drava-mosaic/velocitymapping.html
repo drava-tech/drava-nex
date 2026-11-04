@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Data Art · VelocityMap Studio</title>
-  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -653,24 +653,6 @@
       white-space: nowrap;
     }
 
-    .art-view {
-      display: inline-flex;
-      align-items: center;
-      gap: calc(6 * var(--u));
-      font-size: calc(12 * var(--u));
-      color: var(--lp-muted);
-    }
-
-    .art-view svg {
-      width: calc(12 * var(--u));
-      height: calc(12 * var(--u));
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     .art-card.selected {
       background: #000000;
       color: #ffffff;
@@ -679,10 +661,6 @@
 
     .art-card.selected .art-thumb {
       border-color: #ffffff;
-    }
-
-    .art-card.selected .art-view {
-      color: rgba(255, 255, 255, 0.7);
     }
 
     /* Tablet: Data and Art side by side, preview + Generate below. */
@@ -2632,7 +2610,7 @@
               <span class="data-name">Attendance</span>
             </div>
 
-            <div class="data-item" id="dataCard4" data-title="World Clock" data-arts="clockMapCard,clockFabricCard"
+            <div class="data-item" id="dataCard4" data-title="World Clock" data-arts="clockMapCard,clockFabricCard,clockParticlesCard,clockPlaneCard"
               role="radio" tabindex="0" aria-checked="false">
               <span class="data-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -2691,9 +2669,6 @@
               data-sh="-0.8" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/garden_thumb.jpg" alt=""></span>
               <span class="art-name">Garden</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="artCard1" data-title="ART 1" data-blurb="Coloured by data and motion"
@@ -2701,9 +2676,6 @@
               data-sh="-0.8" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/art_1_thumb.jpg" alt=""></span>
               <span class="art-name">ART 1</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="artCard2" data-title="ART 2" data-blurb="Coloured by data and motion"
@@ -2711,9 +2683,6 @@
               data-sh="-0.8" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/art_2_thumb.jpg" alt=""></span>
               <span class="art-name">ART 2</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="artCard3" data-title="ART 3" data-blurb="Coloured by data and motion"
@@ -2721,9 +2690,6 @@
               data-hl="0.4" data-sh="0.2" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/art_3_thumb.jpg" alt=""></span>
               <span class="art-name">ART 3</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="artCard4" data-title="ART 4" data-blurb="Coloured by data and motion"
@@ -2731,9 +2697,6 @@
               data-sh="-0.8" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/art_4_thumb.jpg" alt=""></span>
               <span class="art-name">ART 4</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="clockMapCard" data-title="World Map" data-clock-art="map"
@@ -2741,9 +2704,6 @@
               aria-checked="false">
               <span class="art-thumb"><img src="assets/clock_map_thumb.jpg" alt=""></span>
               <span class="art-name">World Map</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
             </div>
 
             <div class="art-card" id="clockFabricCard" data-title="Fabric" data-clock-art="fabric"
@@ -2751,9 +2711,20 @@
               aria-checked="false">
               <span class="art-thumb"><img src="assets/clock_fabric_thumb.jpg" alt=""></span>
               <span class="art-name">Fabric</span>
-              <span class="art-view">View <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg></span>
+            </div>
+
+            <div class="art-card" id="clockParticlesCard" data-title="Particles" data-clock-art="particles"
+              data-blurb="Each city's local time and weather over a film of blended particles" role="radio" tabindex="0"
+              aria-checked="false">
+              <span class="art-thumb"><img src="assets/clock_particles_thumb.jpg" alt=""></span>
+              <span class="art-name">Particles</span>
+            </div>
+
+            <div class="art-card" id="clockPlaneCard" data-title="Aeroplane" data-clock-art="plane"
+              data-blurb="Each city's local time and weather over a particle aeroplane" role="radio" tabindex="0"
+              aria-checked="false">
+              <span class="art-thumb"><img src="assets/clock_plane_thumb.jpg" alt=""></span>
+              <span class="art-name">Aeroplane</span>
             </div>
           </div>
         </section>
@@ -3499,9 +3470,8 @@
       const weatherManualWind = document.getElementById('weatherManualWind');
       const weatherRealtimeBtn = document.getElementById('weatherRealtimeBtn');
 
-      // CMS: videos live in the private data-art R2 bucket; the API 302s an
-      // allowlisted object name to a short-lived presigned URL.
-      const VIDEO_BASE_URL = '/api/data-art-studio/video?name=';
+      // Public URL of the Cloudflare R2 bucket (data-art) holding every video.
+      const VIDEO_BASE_URL = '/api/drava-mosaic/video?name='; // nex: the API streams videos same-origin so WebGL can read the frames.
 
       const WEATHER_LOCATIONS = [
         { id: 'bengaluru', label: 'Bengaluru, India', lat: 12.9716, lon: 77.5946 },
@@ -3626,8 +3596,8 @@
 
       async function fetchWeatherReading() {
         const location = WEATHER_LOCATIONS.find(item => item.id === selectedWeatherLocation) || WEATHER_LOCATIONS[0];
-        // WeatherAPI.com via the CMS API (/api/data-art-studio/wind), which keeps WEATHERAPI_KEY server-side.
-        const response = await fetch(`/api/data-art-studio/wind?location=${encodeURIComponent(location.id)}`, { cache: 'no-store' });
+        // WeatherAPI.com via the nex API (/api/drava-mosaic/wind), which keeps WEATHERAPI_KEY server-side.
+        const response = await fetch(`/api/drava-mosaic/wind?location=${encodeURIComponent(location.id)}`, { cache: 'no-store' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || `Weather HTTP ${response.status}`);
         const tempC = Number(payload.tempC);
@@ -3649,7 +3619,7 @@
           if (token !== weatherRequestToken || activeDataMode !== 'weather') return;
           applyWeatherReading(reading, 'live');
         } catch (error) {
-          console.warn('[Data Art Studio] Live weather unavailable; keeping the last reading.', error);
+          console.warn('[Drava Mosaic] Live weather unavailable; keeping the last reading.', error);
           if (token === weatherRequestToken && activeDataMode === 'weather') {
             setWeatherStatus('Offline - last reading', 'error');
             applyWeatherReading(lastWeatherReading, 'live');
@@ -3719,7 +3689,7 @@
       }
 
       async function fetchAttendanceReading() {
-        const response = await fetch('/api/data-art-studio/attendance', { cache: 'no-store' });
+        const response = await fetch('/api/drava-mosaic/attendance', { cache: 'no-store' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || `Attendance HTTP ${response.status}`);
         const counts = ['total', 'present', 'late', 'absent'];
@@ -3738,7 +3708,7 @@
           applyAttendanceReading(reading);
           setAttendanceStatus('Live', 'live');
         } catch (error) {
-          console.warn('[Data Art Studio] Live attendance unavailable; keeping the last reading.', error);
+          console.warn('[Drava Mosaic] Live attendance unavailable; keeping the last reading.', error);
           if (token === attendanceRequestToken && activeDataMode === 'attendance') {
             setAttendanceStatus(lastAttendanceReading ? 'Offline - last reading' : 'Offline', 'error');
           }
@@ -4150,7 +4120,6 @@
       // the R2 bucket. Full URLs (typed into the editor) are used as-is.
       function videoUrl(src) {
         if (/^(https?:|blob:)/i.test(src)) return src;
-        // The "?v=2" cache-busters on the cards don't apply to a presigned URL.
         return VIDEO_BASE_URL + encodeURIComponent(src.replace(/^\/+/, '').split('?')[0]);
       }
       function setStatus(el, state, text) {

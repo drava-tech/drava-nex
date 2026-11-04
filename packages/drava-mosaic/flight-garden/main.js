@@ -1664,8 +1664,7 @@ async function loadGardenVideoTexture(url, {
  * VideoTexture is uploaded to the GPU, so without CORS headers the WebGL
  * context is tainted and the upload throws.
  */
-// CMS: empty, so every clip goes through the API presigner (/api/data-art-studio/video).
-const R2_PUBLIC_BASE = "";
+const R2_PUBLIC_BASE = ""; // nex: empty, so every clip goes through /api/drava-mosaic/video.
 
 /** Object names in the data-art R2 bucket (shared with the Data Art Studio). */
 const VIDEO_PATHS = {
@@ -1713,8 +1712,8 @@ const ART = {
 
     const path = VIDEO_PATHS[videoId];
     if (R2_PUBLIC_BASE && path) return R2_PUBLIC_BASE.replace(/\/$/, "") + "/" + path;
-    // CMS: the API signs object names (shared with the studio page), not ids.
-    return `/api/data-art-studio/video?name=${encodeURIComponent(path ?? videoId)}`;
+    // nex: the API serves object names (shared with the studio page), not ids.
+    return `/api/drava-mosaic/video?name=${encodeURIComponent(path ?? videoId)}`;
   }
 };
 
@@ -1932,7 +1931,7 @@ const DATA_SOURCES = {
       line: "Live weather, rendered as a living garden",
       sub: "Temperature colours the garden · Wind sets its pace"
     },
-    endpoint: "/api/data-art-studio/wind",
+    endpoint: "/api/drava-mosaic/wind",
     // Tells pollData to append ?location=<selectedLocationId> to the
     // endpoint (see WEATHER_LOCATIONS/buildLocationSelector) — the only
     // data source with a location picker.
@@ -1960,7 +1959,7 @@ const DATA_SOURCES = {
       line: "Attendance, rendered as a living garden",
       sub: "Pakistan green is present · Blood red is absent · Orange is late"
     },
-    endpoint: "/api/data-art-studio/attendance",
+    endpoint: "/api/drava-mosaic/attendance",
     // Temporarily use the fixed preview counts above. Switch this back to
     // fetchAttendanceReading when the deployed Tusker API URL is available.
     fetch: fetchStaticAttendanceReading,

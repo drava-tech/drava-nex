@@ -1,17 +1,17 @@
 import { Hono } from "hono";
 import { describe, it, expect, afterEach, vi } from "vitest";
 
-import { dataArtStudioRouter, isStudioVideoName } from "../src/routes/data-art-studio.js";
-import { CLOCK_LOCATION_IDS, resolveClockLocation } from "../src/services/data-art-locations.js";
+import { dravaMosaicRouter, isStudioVideoName } from "../src/routes/drava-mosaic.js";
+import { CLOCK_LOCATION_IDS, resolveClockLocation } from "../src/services/drava-mosaic-locations.js";
 // The studio's own city list, which this API's allowlist must mirror.
-import { LOCATIONS, MAX_PLACES } from "../../../packages/data-art-studio/world-clock/locations.js";
+import { LOCATIONS, MAX_PLACES } from "../../../packages/drava-mosaic/world-clock/locations.js";
 
-// The Data Art Studio's data routes replace its standalone Vercel functions.
+// The Drava Mosaic's data routes replace its standalone Vercel functions.
 // They keep those functions' bare-JSON contract (the ported pages parse it
 // unchanged) and the same allowlists, so no proxy becomes an open relay.
 
-const app = new Hono().route("/api/data-art-studio", dataArtStudioRouter);
-const get = (path: string) => app.request(`/api/data-art-studio${path}`);
+const app = new Hono().route("/api/drava-mosaic", dravaMosaicRouter);
+const get = (path: string) => app.request(`/api/drava-mosaic${path}`);
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -125,14 +125,15 @@ describe("GET /attendance", () => {
 describe("GET /video", () => {
   it("only accepts allowlisted object names", async () => {
     expect(isStudioVideoName("art_1_grayscale.mp4")).toBe(true);
+    expect(isStudioVideoName("particle_fabric.mp4")).toBe(true);
     expect(isStudioVideoName("../secrets.csv")).toBe(false);
     expect(isStudioVideoName("constructor")).toBe(false);
     expect((await get("/video?name=secrets.csv")).status).toBe(404);
   });
 
   it("streams from the public base same-origin, passing Range through", async () => {
-    delete process.env["DATA_ART_R2_BUCKET"];
-    process.env["DATA_ART_VIDEO_BASE_URL"] = "https://videos.example.test/";
+    delete process.env["DRAVA_MOSAIC_R2_BUCKET"];
+    process.env["DRAVA_MOSAIC_VIDEO_BASE_URL"] = "https://videos.example.test/";
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response("ab", {
@@ -145,7 +146,7 @@ describe("GET /video", () => {
         })
     );
 
-    const res = await app.request("/api/data-art-studio/video?name=art_2_velocity.mp4", {
+    const res = await app.request("/api/drava-mosaic/video?name=art_2_velocity.mp4", {
       headers: { Range: "bytes=0-1" },
     });
     expect(res.status).toBe(206);
@@ -157,14 +158,14 @@ describe("GET /video", () => {
     expect((init?.headers as Record<string, string>)["Range"]).toBe("bytes=0-1");
   });
 
-  it("presigns into DATA_ART_R2_BUCKET under the prefix when that is set", async () => {
+  it("presigns into DRAVA_MOSAIC_R2_BUCKET under the prefix when that is set", async () => {
     Object.assign(process.env, {
       FLIGHT_R2_ACCESS_KEY_ID: "id",
       FLIGHT_R2_SECRET_ACCESS_KEY: "secret",
       FLIGHT_R2_BUCKET: "flight-bucket",
       FLIGHT_R2_ENDPOINT: "https://account.r2.cloudflarestorage.com/flight-bucket",
-      DATA_ART_R2_BUCKET: "data-art",
-      DATA_ART_R2_PREFIX: "studio/",
+      DRAVA_MOSAIC_R2_BUCKET: "data-art",
+      DRAVA_MOSAIC_R2_PREFIX: "studio/",
     });
     const res = await get("/video?name=art_1_grayscale.mp4");
     expect(res.status).toBe(302);
@@ -175,7 +176,7 @@ describe("GET /video", () => {
   });
 
   it("answers 503 when a bucket is named but no R2 credentials are set", async () => {
-    process.env["DATA_ART_R2_BUCKET"] = "data-art";
+    process.env["DRAVA_MOSAIC_R2_BUCKET"] = "data-art";
     for (const k of ["FLIGHT_R2_ACCESS_KEY_ID", "FLIGHT_R2_SECRET_ACCESS_KEY", "FLIGHT_R2_BUCKET", "FLIGHT_R2_ENDPOINT"]) {
       delete process.env[k];
     }
