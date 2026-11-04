@@ -1,58 +1,64 @@
-# infra/nginx — Nginx Reverse Proxy
+# infra/nginx — nexus's own router
 
-> **Contains:** the Nginx config that makes `:80` the single public entry point.
-> **Mounted into:** the `cms-nginx` container via a read-only volume.
+> **Contains:** the nginx config that routes nexus's paths (api vs cms, TVs on http, uploads, websockets).
+> **Mounted into:** the `cms-nginx` container (alias `nexus-web`) via read-only volumes.
+> **Sits behind:** the shared edge Caddy in `E:\edge` (another repo), which owns the host ports.
 
 ---
 
-## What Lives Here
+## Two layers, two jobs
+
+```
+LAN (TVs, PCs, APK) ─┐
+internet ─► Cloudflare (Access login) ─► tunnel ─┤
+                                                 ▼
+                      E:\edge  edge-caddy  — picks the PROJECT (host/port), client TLS, real client IP
+                                                 │ :80 plain (TVs) / :443 TLS (edge-CA cert "nexus-web")
+                                                 ▼
+                      cms-nginx (this folder) — picks the PATH
+                         ├─ /api/* · /media/<file> · /ws · /ws/ · /health → api:4000
+                         ├─ /vision/*                                    → vision-inference:8000
+                         └─ everything else (dashboard, /display, /media pages) → cms:3000
+```
+
+Path rules change with the app, so they live here; Caddy only knows hostnames.
+
+## What lives here
 
 ```
 infra/nginx/
-├── default.conf   → Docker mode — upstreams are service names (api/cms/screens)
-└── nginx.conf     → local-dev mode — upstreams are host.docker.internal
+├── default.conf             → http-level settings + the :80 and :443 servers (only their differences)
+├── snippets/nexus-routes.conf → the routes both servers share (mounted at /etc/nginx/snippets)
+└── nginx.conf               → old local-dev config (not used by docker-compose.local.yml)
 ```
 
-One `server` block. Routes by **path**, not hostname (so it works for any host/IP).
-
----
-
-## What Nginx Does
-
-```
-LAN browser / TV / stream publisher
-        │  :80
-        ▼
-      cms-nginx ──┬─ /api/auth|upload|media   → cms:3000   (CMS-owned API routes)
-                  ├─ /api/ · /health · /ws · /ws/ → api:4000 (REST + WebSocket)
-                  ├─ /display (+ /display/_next/static) → screens:3001 (basePath /display, TV)
-                  └─ /                          → cms:3000   (catch-all, last; incl. /screens + /screens/<id>)
-```
-
-Key points:
-- **Both `= /ws` and `/ws/` upgrade** to the API gateway. The exact `= /ws` block is required
-  because the app clients connect to `/ws` (no slash) — without it Nginx 301-redirects and the
-  WebSocket handshake fails (this silently broke all real-time sync once).
-- The screens app uses `basePath:/display`, so `/display/...` is **proxied without stripping**.
-  `/screens` and `/screens/<id>` are CMS routes (admin list + per-screen control).
-- `client_max_body_size 500M`; all locations forward `Host` / `X-Forwarded-*` headers.
-
----
+- **:80** — plain http for TVs/kiosks: `/display`, `/media`, `/data-art-studio/`, `/ws` stay on http;
+  `/api/auth/*` and the dashboard 301 to https (better-auth's Secure cookies need it).
+- **:443** — everything, plus the sign-up block (`/api/auth/sign-up/*` → 403).
+- **Unknown Host** → `444` on both ports. Known names: `ec-cms`, `192.168.1.250`, and on :443
+  `nexus.drava.technology` (public) and `nexus-web` (the name Caddy dials).
+- **Proxy headers are set once at http level.** Never add `proxy_set_header` inside a location:
+  nginx then drops all the inherited ones for that location.
+- **Real client IP** comes from Caddy only (`set_real_ip_from 172.30.0.10`), as a single-value
+  `X-Forwarded-For`; it's passed upstream as `X-Real-IP` and `X-Forwarded-For`.
+- **New CMS page under `/media/`?** It 404s from the API until it gets its own block in
+  `snippets/nexus-routes.conf` (see the comment there).
 
 ## Operating it
 
-The config is a read-only volume mount:
-- Apply changes: `docker exec cms-nginx nginx -t && docker exec cms-nginx nginx -s reload`.
-- After recreating app containers (`infra:up`), **restart Nginx** (`docker restart cms-nginx`)
-  so it re-resolves their new IPs — otherwise routes return `502`.
+- Config change: `docker exec cms-nginx nginx -t && docker exec cms-nginx nginx -s reload`.
+- Recreated api/cms containers are picked up automatically (variable `proxy_pass` + Docker DNS);
+  no nginx restart needed.
+- Health check from the host must send a known Host: `curl -H "Host: ec-cms" http://localhost/health`
+  goes through Caddy; inside the container, `wget --header="Host: ec-cms" http://127.0.0.1/health`.
+- Certificate: `E:\edge\nexus\nexus-web.crt/.key` (edge CA, renew with
+  `E:\edge\scripts\issue-cert.ps1 -Out nexus\nexus-web -Names nexus-web`, then `up -d nginx`
+  and `docker restart edge-caddy`).
 
----
-
-## Connects To
+## Connects to
 
 | Direction | Target | How |
 |---|---|---|
-| ← loaded by | `infra/docker/docker-compose.yml` | volume mount into `cms-nginx` |
-| → proxies | `cms:3000`, `screens:3001`, `api:4000` | HTTP + WebSocket reverse proxy |
-
-See [`.doc/networking.md`](../../.doc/networking.md) for the full route table.
+| ← loaded by | `infra/docker/docker-compose.yml` | volume mounts into `cms-nginx` |
+| ← reached from | `E:\edge` Caddy | `edge` network, alias `nexus-web` |
+| → proxies | `api:4000`, `cms:3000`, `vision-inference:8000` | HTTP + WebSocket |

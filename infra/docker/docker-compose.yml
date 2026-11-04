@@ -370,10 +370,11 @@ services:
       - internal # so cms-api can reach it directly (http://homeassistant:8123) —
                  # the internal network has no route to the host's own LAN IP
 
-  # ─── Nginx (nexus's entry point, behind edge) ───────────────────────────────
+  # ─── Nginx (nexus's own router, behind edge) ────────────────────────────────
   # No host ports: the shared edge Caddy (E:\edge) owns 80/443 for every project
-  # on this box and forwards ec-cms / 192.168.1.250 / nexus.tailb6da34.ts.net
-  # here over the `edge` network. nginx keeps all of nexus's own routing.
+  # on this box and forwards ec-cms / 192.168.1.250 (LAN) and
+  # nexus.drava.technology (Cloudflare tunnel) here over the `edge` network.
+  # Caddy picks the project; nginx keeps all of nexus's own path routing.
   nginx:
     image: nginx:alpine
     container_name: cms-nginx
@@ -383,7 +384,14 @@ services:
       - "443"
     volumes:
       - ../nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ../nginx/certs:/etc/nginx/certs:ro
+      # Routes shared by the :80 and :443 servers. NOT under conf.d, which
+      # nginx includes at http level by itself.
+      - ../nginx/snippets:/etc/nginx/snippets:ro
+      # The certificate Caddy verifies on the hop to :443, issued by the edge
+      # CA for the name nexus-web (E:\edge\scripts\issue-cert.ps1). Must exist
+      # before `up`: a missing file makes Docker create a directory instead.
+      - ${EDGE_DIR:-E:/edge}/nexus/nexus-web.crt:/etc/nginx/edge/nexus-web.crt:ro
+      - ${EDGE_DIR:-E:/edge}/nexus/nexus-web.key:/etc/nginx/edge/nexus-web.key:ro
       # The /var/log/nginx bind mount is deliberately GONE. nginx now logs to
       # stdout/stderr (the official image symlinks them), so Docker's rotation
       # policy above covers it like every other service. On the bind mount there
@@ -415,8 +423,7 @@ services:
     networks:
       internal: {}
       public: {}
-      # The shared front door (E:\edge) reaches this nginx as nexus-web. Edge
-      # also routes the private https://nexus.tailb6da34.ts.net address here.
+      # The shared front door (E:\edge) reaches this nginx as nexus-web.
       edge:
         aliases: [nexus-web]
 
