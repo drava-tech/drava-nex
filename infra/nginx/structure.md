@@ -10,7 +10,7 @@
 
 ```
 LAN (TVs, PCs, APK) ─┐
-internet ─► Cloudflare (Access login) ─► tunnel ─┤
+internet ─► Cloudflare ─► tunnel ─► (login gate) ┤
                                                  ▼
                       E:\edge  edge-caddy  — picks the PROJECT (host/port), client TLS, real client IP
                                                  │ :80 plain (TVs) / :443 TLS (edge-CA cert "nexus-web")
