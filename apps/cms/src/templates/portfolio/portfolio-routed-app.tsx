@@ -11,8 +11,25 @@ import {
   DEFAULT_PORTFOLIO_CONTENT,
   SPLIT_VIEW_SEGMENT,
   type PortfolioContent,
+  type PortfolioOrigin,
   type PortfolioViewState,
 } from "@platform/ui/templates/portfolio";
+
+/** `back` query value: "card.section.project" plus ".s" if that page came from the split view. */
+function formatOrigin(o: PortfolioOrigin): string {
+  return `${o.cardIndex}.${o.sectionIndex}.${o.projectIndex}${o.cameFromSplit ? ".s" : ""}`;
+}
+
+function parseOrigin(value: string | null): PortfolioOrigin | undefined {
+  const m = value?.match(/^(\d+)\.(\d+)\.(\d+)(\.s)?$/);
+  if (!m) return undefined;
+  return {
+    cardIndex: Number(m[1]),
+    sectionIndex: Number(m[2]),
+    projectIndex: Number(m[3]),
+    cameFromSplit: m[4] ? true : undefined,
+  };
+}
 
 /**
  * URL-driven portfolio navigation for the CMS: each view state maps to a
@@ -42,7 +59,11 @@ export function PortfolioRoutedApp({
   // identical whether reached from the split view or the overview's "Explore"
   // button — so it's carried as a query param instead, read back here.
   const effectiveView: PortfolioViewState = baseHref
-    ? { ...view, cameFromSplit: searchParams.get("from") === "split" }
+    ? {
+        ...view,
+        cameFromSplit: searchParams.get("from") === "split",
+        from: parseOrigin(searchParams.get("back")),
+      }
     : localView;
 
   const navigate = (v: PortfolioViewState) => {
@@ -66,11 +87,20 @@ export function PortfolioRoutedApp({
           // Project 0 is the default, so it stays out of the URL — the links
           // pre-dating companies keep the exact addresses they had.
           const projects = sections[v.sectionIndex]?.projects ?? [];
-          if (v.projectIndex) {
-            const slug = projectSlugs(projects)[v.projectIndex];
+          // ...except on a Films section, where project 0 is a real choice
+          // (open the first company's film) and no company means the grid.
+          const isFilms = sections[v.sectionIndex]?.type === "videos";
+          const pi = v.projectIndex;
+          if (pi != null && (isFilms || pi > 0)) {
+            const slug = projectSlugs(projects)[pi];
             if (slug) href += `/${slug}`;
           }
-          if (v.cameFromSplit) query = "?from=split";
+          const params = new URLSearchParams();
+          if (v.cameFromSplit) params.set("from", "split");
+          // The page a sideways jump started from, so Back can return to it.
+          if (v.from) params.set("back", formatOrigin(v.from));
+          const qs = params.toString();
+          if (qs) query = `?${qs}`;
         }
       }
     }

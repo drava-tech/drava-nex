@@ -154,6 +154,21 @@ export interface PortfolioViewState {
    * the split view — its back button returns to the split view instead of
    * the overview. */
   cameFromSplit?: boolean;
+  /**
+   * Set when this page was reached by a sideways jump from another category
+   * (the "also seen in…" links on a company page). Its back button returns to
+   * that page rather than to the split view or overview. One level deep: the
+   * origin's own origin is not kept.
+   */
+  from?: PortfolioOrigin;
+}
+
+/** A company page a sideways jump started from — enough to go back to it. */
+export interface PortfolioOrigin {
+  cardIndex: number;
+  sectionIndex: number;
+  projectIndex: number;
+  cameFromSplit?: boolean;
 }
 
 export interface PortfolioContent {
