@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, LayoutGrid, Play } from "lucide-react";
 import { GalleryView, type GalleryControl, type GalleryLink, type GalleryPager } from "../../gallery/gallery-view";
 import type { GalleryContent } from "../../gallery/content";
@@ -210,11 +210,18 @@ function FilmsGridView({
   projects,
   style,
   textTopInset,
+  focusProject,
   onBack,
 }: {
   projects: PortfolioProject[];
   style: Required<PortfolioGalleryStyle>;
   textTopInset: number;
+  /**
+   * Set when the page was reached from one company's page ("also in Brand
+   * Films"): that company's first film opens in the player straight away
+   * instead of the grid of every company. Absent = the grid, as before.
+   */
+  focusProject?: number;
   onBack: () => void;
 }) {
   // Every company gets a grid tile, even with no films yet — a placeholder
@@ -267,6 +274,18 @@ function FilmsGridView({
   const openFilm = (flatIndex: number) => {
     applyFilmView({ mode: "player", index: flatIndex }, { emit: true });
   };
+
+  // Arrived from a company's page: open that company's film. Declared after the
+  // replay listener above so it wins over a stale replayed grid/player state, and
+  // emitted so the TV and any mirror land on the same film. A company with no
+  // films yet stays on the grid, where its placeholder tile is.
+  useEffect(() => {
+    if (focusProject === undefined) return;
+    if ((companies[focusProject]?.videos ?? []).length === 0) return;
+    applyFilmView({ mode: "player", index: startOffsets[focusProject]! }, { emit: true });
+    // Once per arrival — later grid/player changes are the visitor's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Nothing to play yet — the grid (with its placeholder tiles) is the only
   // thing that makes sense to show.
@@ -478,8 +497,11 @@ export function GallerySectionView({
   style,
   links,
   pager,
+  focusProject,
   onBack,
 }: {
+  /** Videos-kind only — see FilmsGridView. */
+  focusProject?: number;
   section: PortfolioSection;
   /** The company whose work is showing (photos-kind path) — one entry of `section.projects`. */
   project?: PortfolioProject;
@@ -509,6 +531,7 @@ export function GallerySectionView({
         projects={projects}
         style={s}
         textTopInset={textTopInset}
+        focusProject={focusProject}
         onBack={onBack}
       />
     );

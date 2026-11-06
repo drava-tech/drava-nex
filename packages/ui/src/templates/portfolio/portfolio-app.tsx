@@ -94,6 +94,9 @@ export function PortfolioApp({
       card={card}
       activeSectionIndex={sectionIndex}
       activeProjectIndex={projectIndex}
+      // Only a deliberate jump names a company (even company 0); a plain visit
+      // to the Films page has none, and shows the grid.
+      focusProject={view.projectIndex ?? undefined}
       galleryStyle={content?.gallery}
       links={links}
       // Same navigation as a cross-category link, only staying put — which is

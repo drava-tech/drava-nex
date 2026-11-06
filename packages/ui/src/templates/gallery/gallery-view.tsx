@@ -322,7 +322,11 @@ export function GalleryView({
     <>
       <h1
         style={{
-          margin: 0,
+          // Optical left alignment: a glyph's built-in left gap grows with its
+          // size, so the big title otherwise looks indented next to the smaller
+          // subtitle and description. Em-based, so it tracks the font-size
+          // controls. The rail keeps no pull-back (its text is much smaller).
+          margin: railMode ? 0 : "0 0 0 -0.04em",
           // The rail is narrow — step the title down so it still fits on a
           // line or two instead of wrapping into a wall of text.
           fontSize: `calc(${TITLE_SIZE} * ${(railMode ? 0.62 : 1) * titleScale})`,
@@ -342,10 +346,19 @@ export function GalleryView({
       {page.subtitle ? (
         <p
           style={{
-            margin: `${gap * (railMode ? 0.6 : 1.6)}px 0 0`,
+            // Same `gap` as the description's margin below, so the space under
+            // the title equals the space under the subtitle.
+            margin: `${gap * (railMode ? 0.6 : 1)}px 0 0`,
             fontSize: railMode ? Math.round(subtitleSize * 0.85) : subtitleSize,
-            fontWeight: 700,
+            // Same face as the title above it: weight, tracking and the 1.1x
+            // widening — not bold. Spacing (margin above, line height) is
+            // unchanged, so the description below sits where it did.
+            fontWeight: TITLE_WEIGHT,
+            letterSpacing: TITLE_TRACKING,
             lineHeight: 1.2,
+            maxWidth: "90%",
+            transform: "scaleX(1.1)",
+            transformOrigin: "left",
             transition: `font-size ${FAST}, margin ${FAST}`,
           }}
         >

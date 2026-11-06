@@ -29,8 +29,11 @@ export function VerticalView({
   galleryStyle,
   links,
   onOpenProject,
+  focusProject,
   onBack,
 }: {
+  /** Films section only: open this company's film instead of the grid. */
+  focusProject?: number;
   card: OverviewCard;
   activeSectionIndex: number;
   /** Which company's project a gallery section is showing. */
@@ -58,6 +61,7 @@ export function VerticalView({
           section={section}
           projects={projects}
           style={galleryStyle}
+          focusProject={focusProject}
           onBack={onBack}
         />
       );

@@ -87,8 +87,12 @@ export function PortfolioRoutedApp({
           // Project 0 is the default, so it stays out of the URL — the links
           // pre-dating companies keep the exact addresses they had.
           const projects = sections[v.sectionIndex]?.projects ?? [];
-          if (v.projectIndex) {
-            const slug = projectSlugs(projects)[v.projectIndex];
+          // ...except on a Films section, where project 0 is a real choice
+          // (open the first company's film) and no company means the grid.
+          const isFilms = sections[v.sectionIndex]?.type === "videos";
+          const pi = v.projectIndex;
+          if (pi != null && (isFilms || pi > 0)) {
+            const slug = projectSlugs(projects)[pi];
             if (slug) href += `/${slug}`;
           }
           const params = new URLSearchParams();
