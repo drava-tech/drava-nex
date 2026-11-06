@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Film, LayoutGrid, Play } from "lucide-react";
-import { GalleryView, type GalleryLink, type GalleryPager } from "../../gallery/gallery-view";
+import { GalleryView, type GalleryControl, type GalleryLink, type GalleryPager } from "../../gallery/gallery-view";
 import type { GalleryContent } from "../../gallery/content";
 import { useReplayableWindowEvent } from "../../../lib/replayable-window-event";
 import { useInView } from "../../../lib/use-in-view";
@@ -493,6 +493,7 @@ export function GallerySectionView({
   onBack: () => void;
 }) {
   const s = { ...DEFAULT_PORTFOLIO_GALLERY_STYLE, ...(style ?? {}) };
+  const galleryRef = useRef<GalleryControl | null>(null);
 
   // The button floats over the layout's top-left corner, which is exactly where
   // the title starts. Push the text down by however much the button overhangs
@@ -538,6 +539,14 @@ export function GallerySectionView({
     ],
   };
 
+  // Back from an expanded photo closes the photo (back to the page with the
+  // description); only from the page itself does it leave the category.
+  const handleBack = () => {
+    const gallery = galleryRef.current;
+    if (gallery?.isOpen) gallery.collapse();
+    else onBack();
+  };
+
   return (
     <div className="w-full h-full relative" style={{ overflow: "hidden" }}>
       <GalleryView
@@ -546,8 +555,9 @@ export function GallerySectionView({
         topInset={textTopInset}
         links={links}
         pager={pager}
+        controlRef={galleryRef}
       />
-      <BackButton onBack={onBack} />
+      <BackButton onBack={handleBack} />
     </div>
   );
 }

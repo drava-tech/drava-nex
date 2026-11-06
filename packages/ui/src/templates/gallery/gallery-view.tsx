@@ -112,6 +112,12 @@ export interface GalleryLink {
   onSelect: () => void;
 }
 
+/** Handle to the page's expanded-photo state — see `controlRef` below. */
+export interface GalleryControl {
+  isOpen: boolean;
+  collapse: () => void;
+}
+
 /** Stepping through sibling pages in place — see `pager` below. */
 export interface GalleryPager {
   index: number;
@@ -125,7 +131,16 @@ export function GalleryView({
   topInset = 0,
   links,
   pager,
+  controlRef,
 }: {
+  /**
+   * Lets a caller with its own back button ask "is a photo open?" and close it,
+   * so Back from an expanded photo returns to the page with the description
+   * instead of leaving the page. Assigned on every render; read it in a click
+   * handler. Closing goes through the same path as a tap, so mirrored screens
+   * follow.
+   */
+  controlRef?: React.MutableRefObject<GalleryControl | null>;
   content?: GalleryContent;
   pageIndex?: number;
   /**
@@ -301,6 +316,7 @@ export function GalleryView({
   // Deliberately leaves `railOrder` alone: the rail fades out still holding the
   // three photos that were in it, instead of a fourth popping in mid-fade.
   const collapse = () => applyExpansion({ expanded: null, railOrder }, { emit: true });
+  if (controlRef) controlRef.current = { isOpen, collapse };
 
   const heading = (railMode: boolean) => (
     <>
