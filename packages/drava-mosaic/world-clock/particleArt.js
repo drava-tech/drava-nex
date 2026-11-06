@@ -14,7 +14,7 @@ const MAX_BANDS = 5;
 const WAITING_COLOR = [150, 156, 170];
 
 // In the R2 video bucket; its ends are cross-dissolved, so it loops cleanly.
-const VIDEO_URL = "/api/drava-mosaic/video?name=particle_fabric.mp4"; // nex: streamed same-origin by the API.
+const VIDEO_URL = "/api/drava-mosaic/video?name=particle_fabric.mp4";
 const VIDEO_ASPECT = 16 / 9; // until the video says otherwise
 const PLAYBACK_RATE = 0.75;
 const RETRY_MS = 5000;
