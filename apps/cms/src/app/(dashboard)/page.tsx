@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@platform/ui";
 import {
+  getMediaLibraryStats,
   listScreens,
   UPTIME_WINDOW,
   UPTIME_TIME_ZONE,
@@ -43,7 +44,10 @@ function humanTemplate(key: string): string {
 }
 
 export default async function DashboardPage() {
-  await requireGuestOrAdmin();
+  const viewer = await requireGuestOrAdmin();
+  // A User sees only their own media (as on the Media page), so their media
+  // figures are theirs too — and not the shared, library-wide cache.
+  const mediaOwner = viewer.role === "GUEST" ? { userId: viewer.id, email: viewer.email } : null;
   const [
     screenRows,
     activeScreenIds,
@@ -59,7 +63,7 @@ export default async function DashboardPage() {
     // lib/dashboard-cache.ts.
     listScreens(),
     getActiveScreens(),
-    getCachedMediaLibraryStats(),
+    mediaOwner ? getMediaLibraryStats({}, 4, mediaOwner) : getCachedMediaLibraryStats(),
     getCachedDailyScreenUptime(),
     getCachedScreenUptimeRecordingSince(),
     getCachedRecentActivity(),

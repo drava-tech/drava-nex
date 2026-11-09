@@ -91,10 +91,43 @@ export interface MediaCursorResult {
  * range predicates on the bare column (rather than a date-cast) so the index
  * still applies — casting created_at here would make it unsargable.
  */
-function mediaWhere(filter: Partial<MediaFilter> = {}): SQL | undefined {
+/**
+ * Whose media a listing is limited to. A User (the GUEST role) sees only their
+ * own: what they uploaded or added as a link, and attachments of emails they
+ * sent from their own address. Admins pass no owner and see the whole library.
+ */
+export interface MediaOwner {
+  userId: string;
+  email: string;
+}
+
+/** SQL for "owned by `owner`" — see MediaOwner. */
+function ownedBy(owner: MediaOwner): SQL {
+  const email = owner.email.trim().toLowerCase();
+  // position(), not LIKE: an email's "_" would be a LIKE wildcard. email_from is
+  // a "Name <address>" header, so this matches the address inside it.
+  const fromThem = and(
+    eq(mediaAsset.source, "email"),
+    sql`position(${email} in lower(coalesce(${mediaAsset.emailFrom}, ''))) > 0`
+  );
+  return or(eq(mediaAsset.uploadedByUserId, owner.userId), email ? fromThem : sql`false`)!;
+}
+
+/** Whether a single asset belongs to `owner` (same rule as the listing). */
+export function isMediaOwnedBy(
+  asset: Pick<MediaAsset, "uploadedByUserId" | "source" | "emailFrom">,
+  owner: MediaOwner
+): boolean {
+  if (asset.uploadedByUserId === owner.userId) return true;
+  const email = owner.email.trim().toLowerCase();
+  return !!email && asset.source === "email" && (asset.emailFrom ?? "").toLowerCase().includes(email);
+}
+
+function mediaWhere(filter: Partial<MediaFilter> = {}, owner?: MediaOwner | null): SQL | undefined {
   const conditions: (SQL | undefined)[] = [
     isNull(mediaAsset.deletedAt),
     eq(mediaAsset.pendingSave, false),
+    owner ? ownedBy(owner) : undefined,
   ];
 
   if (filter.search) {
@@ -129,11 +162,12 @@ function mediaWhere(filter: Partial<MediaFilter> = {}): SQL | undefined {
 
 /** Offset paging — backs /media's numbered pages, so it pays for a COUNT. */
 export async function listMediaAssets(
-  query: Partial<MediaFilter> & { page?: number; pageSize?: number } = {}
+  query: Partial<MediaFilter> & { page?: number; pageSize?: number } = {},
+  owner?: MediaOwner | null
 ): Promise<MediaListResult> {
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
-  const where = mediaWhere(query);
+  const where = mediaWhere(query, owner);
 
   const totalRows = await db.select({ total: count() }).from(mediaAsset).where(where);
   const total = totalRows[0]?.total ?? 0;
@@ -161,12 +195,13 @@ export async function listMediaAssets(
  * form that can't lose a row.
  */
 export async function listMediaAssetsCursor(
-  query: Partial<MediaFilter> & { cursor?: string; limit?: number } = {}
+  query: Partial<MediaFilter> & { cursor?: string; limit?: number } = {},
+  owner?: MediaOwner | null
 ): Promise<MediaCursorResult> {
   const limit = Math.min(100, Math.max(1, query.limit ?? 30));
   const cursor: MediaCursor | null = decodeMediaCursor(query.cursor);
 
-  const conditions: (SQL | undefined)[] = [mediaWhere(query)];
+  const conditions: (SQL | undefined)[] = [mediaWhere(query, owner)];
   if (cursor) {
     conditions.push(
       sql`(${mediaAsset.createdAt}, ${mediaAsset.id}) < (${new Date(cursor.createdAt)}, ${cursor.id})`
@@ -230,9 +265,10 @@ export interface MediaLibraryStats {
  */
 export async function getMediaLibraryStats(
   filter: Partial<MediaFilter> = {},
-  recentLimit = 4
+  recentLimit = 4,
+  owner?: MediaOwner | null
 ): Promise<MediaLibraryStats> {
-  const where = mediaWhere(filter);
+  const where = mediaWhere(filter, owner);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [grouped, recentRows, recentCountRows] = await Promise.all([

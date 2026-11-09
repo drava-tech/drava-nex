@@ -51,7 +51,7 @@ const ALL_NAV = [
     title: "Media",
     url: "/media",
     icon: Film,
-    roles: ["ADMIN"] as string[],
+    roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
   {

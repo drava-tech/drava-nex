@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "@/lib/auth-client";
+import { getMediaInbox } from "@/actions/media-inbox-actions";
 import {
   Search,
   Upload,
@@ -121,6 +123,15 @@ function SourceBadge({ source }: { source?: string | null }) {
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function MediaPage() {
+  // A User has a library of their own (see apps/api/src/routes/media.ts), so
+  // their empty state says how to fill it.
+  const { data: session } = useSession();
+  const sessionUser = session?.user as { role?: string; email?: string } | undefined;
+  const isUser = sessionUser?.role === "GUEST";
+  const [inbox, setInbox] = useState<string | null>(null);
+  useEffect(() => {
+    if (isUser) getMediaInbox().then(setInbox).catch(() => setInbox(null));
+  }, [isUser]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   /** Total matching the current filters, across all pages — the paging controls
    *  need it, and it can no longer be read off mediaItems.length now that only
@@ -651,8 +662,27 @@ export default function MediaPage() {
         ) : total === 0 && !uploading ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
             <Folder className="h-8 w-8 text-zinc-400 opacity-60" />
-            <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
-            <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
+            {isUser && !searchQuery && selectedCategories.size === 0 && selectedSources.size === 0 && !dateFrom && !dateTo ? (
+              <>
+                <p className="text-sm text-foreground">Your media library is empty</p>
+                <p className="max-w-md text-xs text-muted-foreground">
+                  This is your own space: you see only what you add. Upload files or add a link above
+                  {inbox ? (
+                    <>
+                      , or email attachments to <span className="text-foreground">{inbox}</span> from{" "}
+                      <span className="text-foreground">{sessionUser?.email}</span> and press Load Email.
+                    </>
+                  ) : (
+                    <>, or email them to Nex from {sessionUser?.email} and press Load Email.</>
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
+                <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
+              </>
+            )}
           </div>
         ) : (
           /* Media Table */
