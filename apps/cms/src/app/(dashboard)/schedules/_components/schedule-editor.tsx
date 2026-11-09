@@ -23,12 +23,14 @@ import {
   DEFAULT_SCHEDULE_TIMEZONE,
   describeDays,
   describeWindow,
+  formatClock,
   formatDuration,
   isValidTimezone,
   MAX_ITEM_SECONDS,
   MIN_ITEM_SECONDS,
   nextWindowStart,
   playlistSeconds,
+  queueTimeline,
   SCHEDULE_DAY_LABELS,
   schedulesOverlap,
   WEEKDAYS,
@@ -120,6 +122,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const [startDate, setStartDate] = useState(base?.startDate ?? "");
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
+  const [loop, setLoop] = useState(base?.loop ?? true);
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
   const [items, setItems] = useState<DraftItem[]>(
@@ -154,6 +157,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
     startTime: allDay ? null : startTime,
     endTime: allDay ? null : endTime,
     timezone,
+    loop,
     items: items
       .filter((i) => !i.missing)
       .map((i) => ({ id: i.key, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -161,6 +165,12 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   };
   const draftTargets = targetScreenIds({ screenIds: [...screenIds], groupIds: [...groupIds] }, screens);
   const loopSeconds = playlistSeconds(draftSpec.items);
+  // Where each item falls on the clock the first time through the queue.
+  const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
+  const timeline = queueTimeline(windowSpec, draftSpec.items);
+  const timelineByKey = new Map(draftSpec.items.map((i, n) => [i.id, timeline[n]!]));
+  const windowSeconds = windowLengthSeconds(windowSpec);
+  const unfitCount = timeline.filter((t) => !t.fits).length;
   const nextStart = days.length ? nextWindowStart(draftSpec, new Date()) : null;
 
   const conflicts = useMemo(() => {
@@ -253,6 +263,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
       startTime: allDay ? null : startTime,
       endTime: allDay ? null : endTime,
       timezone,
+      loop,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
       items: items.filter((i) => !i.missing).map((i) => ({ kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -352,7 +363,11 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
           {/* ─── Playlist ─── */}
           <Section
             title="Queue"
-            hint={draftSpec.items.length ? `${draftSpec.items.length} items · loops every ${formatDuration(loopSeconds)}` : "Plays top to bottom, then loops"}
+            hint={
+              draftSpec.items.length
+                ? `${draftSpec.items.length} items · ${formatDuration(loopSeconds)} in total${loop ? ", then repeats" : ", played once"}`
+                : "Plays top to bottom"
+            }
           >
             {items.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
@@ -378,7 +393,14 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{item.title}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {item.missing ? "Deleted — removed when you save" : item.kind === "experience" ? "Experience" : item.mediaType ?? "Media"}
+                        {item.missing ? (
+                          "Deleted — removed when you save"
+                        ) : (
+                          <>
+                            {item.kind === "experience" ? "Experience" : item.mediaType ?? "Media"}
+                            <ItemTime slot={timelineByKey.get(item.key)} />
+                          </>
+                        )}
                       </p>
                     </div>
                     {!item.missing && <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />}
@@ -398,6 +420,34 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
               <button type="button" onClick={() => setPickingMedia(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
                 <Plus className="h-4 w-4" /> Media
               </button>
+            </div>
+            <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-border p-3">
+              <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
+              <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
+                {(
+                  [
+                    [true, "Repeat", "Start again from the top until the time slot ends"],
+                    [false, "Play once", "Then the screen goes back to what it showed before"],
+                  ] as const
+                ).map(([value, label, hint]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    role="radio"
+                    aria-checked={loop === value}
+                    onClick={() => setLoop(value)}
+                    title={hint}
+                    className={`rounded-full px-4 py-1.5 text-sm ${loop === value ? "btn-active" : "btn-surface"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {draftSpec.items.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {fitSummary({ loop, loopSeconds, windowSeconds, unfitCount, lastEnd: timeline.at(-1)?.endSecond ?? 0 })}
+                </p>
+              )}
             </div>
           </Section>
 
@@ -562,17 +612,88 @@ function IconButton({ label, disabled, onClick, children }: { label: string; dis
   );
 }
 
-/** Minutes and seconds, stored as seconds. */
-function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  const cls = "w-12 rounded-lg border border-input bg-background px-1.5 py-1 text-center text-xs tabular-nums outline-none focus:border-ring";
+/** Length of the daily time slot, in seconds (all day = 24h). */
+function windowLengthSeconds(spec: { startTime: string | null; endTime: string | null }): number {
+  if (!spec.startTime || !spec.endTime) return 86400;
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const len = toMin(spec.endTime) - toMin(spec.startTime);
+  return (len > 0 ? len : len + 1440) * 60;
+}
+
+/** One line on how the queue fits the time slot. */
+function fitSummary(x: { loop: boolean; loopSeconds: number; windowSeconds: number; unfitCount: number; lastEnd: number }): string {
+  const head = `The time slot is ${formatDuration(x.windowSeconds)} and the queue is ${formatDuration(x.loopSeconds)}. `;
+  if (x.unfitCount > 0) {
+    return head + `${x.unfitCount} item${x.unfitCount === 1 ? "" : "s"} won't get a turn: shorten the ones above or make the slot longer.`;
+  }
+  if (!x.loop) {
+    return x.loopSeconds < x.windowSeconds
+      ? head + `It finishes at ${formatClock(x.lastEnd)}; then the screen goes back to what it showed before, until the next slot.`
+      : head + "It fills the slot.";
+  }
+  const times = Math.floor(x.windowSeconds / Math.max(1, x.loopSeconds));
+  return x.loopSeconds < x.windowSeconds
+    ? head + `It plays through about ${times} time${times === 1 ? "" : "s"}.`
+    : head + "It fills the slot once.";
+}
+
+/** "· 09:00–12:00", or a warning when the item doesn't fit the slot. */
+function ItemTime({ slot }: { slot?: { startSecond: number; endSecond: number; fits: boolean; cutShort: boolean } }) {
+  if (!slot) return null;
+  if (!slot.fits) return <span className="text-warning"> · won't play: the time slot ends first</span>;
   return (
-    <div className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground" title="How long it stays on screen">
-      <input type="number" min={0} max={1440} value={m} aria-label="Minutes" onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value) || 0)) * 60 + s)} className={cls} />
+    <span className={slot.cutShort ? "text-warning" : "text-foreground/80"}>
+      {" · "}
+      {formatClock(slot.startSecond)}–{formatClock(slot.endSecond)}
+      {slot.cutShort && " (cut short when the slot ends)"}
+    </span>
+  );
+}
+
+const DURATION_PRESETS: [string, number][] = [
+  ["15s", 15],
+  ["30s", 30],
+  ["1m", 60],
+  ["5m", 300],
+  ["15m", 900],
+  ["30m", 1800],
+  ["1h", 3600],
+  ["2h", 7200],
+  ["3h", 10800],
+];
+
+/** Hours, minutes and seconds, stored as seconds, with quick picks. */
+function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const set = (nh: number, nm: number, ns: number) =>
+    onChange(Math.min(MAX_ITEM_SECONDS, nh * 3600 + nm * 60 + ns));
+  const num = (v: string, max: number) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
+  const cls =
+    "w-11 rounded-lg border border-input bg-background px-1 py-1 text-center text-xs tabular-nums outline-none focus:border-ring";
+  const preset = DURATION_PRESETS.find(([, v]) => v === seconds)?.[1];
+  return (
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-[11px] text-muted-foreground" title="How long it stays on screen">
+      <input type="number" min={0} max={24} value={h} aria-label="Hours" onChange={(e) => set(num(e.target.value, 24), m, s)} className={cls} />
+      h
+      <input type="number" min={0} max={59} value={m} aria-label="Minutes" onChange={(e) => set(h, num(e.target.value, 59), s)} className={cls} />
       m
-      <input type="number" min={0} max={59} value={s} aria-label="Seconds" onChange={(e) => onChange(m * 60 + Math.min(59, Math.max(0, Math.round(Number(e.target.value) || 0))))} className={cls} />
+      <input type="number" min={0} max={59} value={s} aria-label="Seconds" onChange={(e) => set(h, m, num(e.target.value, 59))} className={cls} />
       s
+      <select
+        value={preset ?? ""}
+        onChange={(e) => e.target.value && onChange(Number(e.target.value))}
+        aria-label="Quick duration"
+        className="ml-1 rounded-lg border border-input bg-background px-1 py-1 text-xs outline-none focus:border-ring"
+      >
+        <option value="">Quick…</option>
+        {DURATION_PRESETS.map(([label, v]) => (
+          <option key={v} value={v}>
+            {label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

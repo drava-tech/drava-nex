@@ -29,6 +29,8 @@ export const schedule = pgTable("schedule", {
   startTime: text("start_time"),
   endTime: text("end_time"),
   timezone: text("timezone").notNull().default("Asia/Kolkata"),
+  /** true: the queue repeats until the window ends; false: it plays once. */
+  loop: boolean("loop").notNull().default(true),
   /** Screens targeted directly, and groups whose screens are targeted (resolved live). */
   screenIds: jsonb("screen_ids").$type<string[]>().notNull().default([]),
   groupIds: jsonb("group_ids").$type<string[]>().notNull().default([]),

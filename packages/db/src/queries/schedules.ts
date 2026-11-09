@@ -37,6 +37,7 @@ export interface ScheduleRow {
   startTime: string | null;
   endTime: string | null;
   timezone: string;
+  loop: boolean;
   screenIds: string[];
   groupIds: string[];
   items: ScheduleItemRow[];
@@ -55,6 +56,7 @@ export interface ScheduleInput {
   startTime: string | null;
   endTime: string | null;
   timezone: string;
+  loop: boolean;
   screenIds: string[];
   groupIds: string[];
   items: { kind: ScheduleContentKind; contentId: string; durationSeconds: number }[];
@@ -116,6 +118,7 @@ export async function listSchedules(): Promise<ScheduleRow[]> {
     startTime: s.startTime,
     endTime: s.endTime,
     timezone: s.timezone,
+    loop: s.loop,
     screenIds: s.screenIds,
     groupIds: s.groupIds,
     items: bySchedule.get(s.id) ?? [],
@@ -137,6 +140,7 @@ export function toScheduleSpec(row: ScheduleRow): ScheduleSpec {
     startTime: row.startTime,
     endTime: row.endTime,
     timezone: row.timezone,
+    loop: row.loop,
     items: row.items
       .filter((i) => i.title !== null && i.contentId)
       .map((i) => ({ id: i.id, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -161,6 +165,7 @@ function scheduleValues(input: ScheduleInput) {
     startTime: input.startTime,
     endTime: input.endTime,
     timezone: input.timezone,
+    loop: input.loop,
     screenIds: input.screenIds,
     groupIds: input.groupIds,
   };

@@ -18,6 +18,7 @@ export function toScheduleSpecClient(row: ScheduleRow): ScheduleSpec {
     startTime: row.startTime,
     endTime: row.endTime,
     timezone: row.timezone,
+    loop: row.loop,
     items: row.items
       .filter((i) => i.title !== null && i.contentId)
       .map((i) => ({ id: i.id, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),

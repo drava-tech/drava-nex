@@ -39,6 +39,8 @@ const scheduleSchema = z
     startTime: timeString.nullable(),
     endTime: timeString.nullable(),
     timezone: z.string().refine(isValidTimezone, "Unknown timezone."),
+    // Optional for callers that predate it: a schedule repeats unless told otherwise.
+    loop: z.boolean().default(true),
     screenIds: z.array(z.string().min(1)).max(500),
     groupIds: z.array(z.string().min(1)).max(500),
     items: z

@@ -41,6 +41,11 @@ export interface ScheduleSpec {
   /** IANA name, e.g. "Asia/Kolkata". */
   timezone: string;
   items: ScheduleItemSpec[];
+  /**
+   * true: the queue repeats until the window ends. false: it plays once, and
+   * the schedule is off air for the rest of the window.
+   */
+  loop: boolean;
   /** ISO timestamp; breaks priority ties (the newer schedule wins). */
   createdAt: string;
 }
@@ -199,13 +204,25 @@ export function activeWindow(spec: ScheduleSpec, at: Date): ActiveWindow | null 
   return null;
 }
 
-/** Each day's slice of the window, in local minutes, for the 7 days from `firstDate`. */
+/**
+ * How long the schedule is actually on air each window, in minutes: the whole
+ * window, or for a queue that plays once, just until it finishes.
+ */
+export function onAirMinutes(spec: ScheduleSpec): number {
+  const { length } = windowBounds(spec);
+  if (spec.loop) return length;
+  return Math.min(length, Math.ceil(playlistSeconds(spec.items) / 60));
+}
+
+/** Each day's on-air slice, in local minutes, for the 7 days from `firstDate`. */
 export function weekSegments(
   spec: ScheduleSpec,
   firstDate: string,
   days = 7
 ): { date: string; startMinute: number; endMinute: number }[] {
-  const { start, length } = windowBounds(spec);
+  const { start } = windowBounds(spec);
+  const length = onAirMinutes(spec);
+  if (length <= 0) return [];
   const out: { date: string; startMinute: number; endMinute: number }[] = [];
   // From the day before, for an overnight window spilling into the first day.
   for (let i = -1; i < days; i++) {
@@ -248,9 +265,15 @@ export interface PlaylistPosition {
   itemRemainingSeconds: number;
 }
 
-export function playlistPosition(items: ScheduleItemSpec[], elapsedSeconds: number): PlaylistPosition | null {
+export function playlistPosition(
+  items: ScheduleItemSpec[],
+  elapsedSeconds: number,
+  loop = true
+): PlaylistPosition | null {
   const total = playlistSeconds(items);
   if (items.length === 0 || total <= 0) return null;
+  // Played once and finished: nothing more this window.
+  if (!loop && elapsedSeconds >= total) return null;
   const cycle = Math.floor(elapsedSeconds / total);
   let t = elapsedSeconds - cycle * total;
   for (let index = 0; index < items.length; index++) {
@@ -292,7 +315,7 @@ export function resolveSchedules(specs: ScheduleSpec[], at: Date): ScheduleResol
     if (!spec.enabled || spec.items.length === 0) continue;
     const window = activeWindow(spec, at);
     if (!window) continue;
-    const position = playlistPosition(spec.items, window.elapsedSeconds);
+    const position = playlistPosition(spec.items, window.elapsedSeconds, spec.loop);
     if (position) live.push({ spec, window, position });
   }
   if (live.length === 0) return null;
@@ -341,6 +364,35 @@ export function describeWindow(spec: Pick<ScheduleSpec, "startTime" | "endTime">
   const end = parseTimeOfDay(spec.endTime);
   if (start === null || end === null) return "All day";
   return `${spec.startTime}–${spec.endTime}${end <= start ? " (next day)" : ""}`;
+}
+
+/**
+ * Where each item of the queue falls on the clock during the first pass
+ * through it, from the window's start: [startMinute, endMinute) in local
+ * minutes after midnight (may pass 1440 for a window running past midnight),
+ * and whether it starts before the window ends. For the editor's timeline.
+ */
+export function queueTimeline(
+  spec: Pick<ScheduleSpec, "startTime" | "endTime">,
+  items: Pick<ScheduleItemSpec, "durationSeconds">[]
+): { startSecond: number; endSecond: number; fits: boolean; cutShort: boolean }[] {
+  const { start, length } = windowBounds(spec);
+  const windowStart = start * 60;
+  const windowEnd = windowStart + length * 60;
+  let t = windowStart;
+  return items.map((i) => {
+    const d = Math.max(MIN_ITEM_SECONDS, i.durationSeconds);
+    const row = { startSecond: t, endSecond: t + d, fits: t < windowEnd, cutShort: t < windowEnd && t + d > windowEnd };
+    t += d;
+    return row;
+  });
+}
+
+/** Seconds after midnight → "HH:MM" (or "HH:MM:SS" when it isn't on a minute). */
+export function formatClock(secondsAfterMidnight: number): string {
+  const s = ((Math.round(secondsAfterMidnight) % 86400) + 86400) % 86400;
+  const hm = formatTimeOfDay(Math.floor(s / 60));
+  return s % 60 ? `${hm}:${String(s % 60).padStart(2, "0")}` : hm;
 }
 
 /** "1m 30s", "45s", "2h 5m". */

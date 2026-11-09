@@ -39,6 +39,7 @@ const lobby: ScheduleRow = {
   startTime: "09:00",
   endTime: "18:00",
   timezone: "Asia/Kolkata",
+  loop: true,
   screenIds: [],
   groupIds: ["grp-lobby"],
   items: [

@@ -5,7 +5,9 @@ import {
   describeWindow,
   localParts,
   nextWindowStart,
+  onAirMinutes,
   playlistPosition,
+  queueTimeline,
   resolveSchedules,
   schedulesOverlap,
   weekSegments,
@@ -33,6 +35,7 @@ function spec(over: Partial<ScheduleSpec> = {}): ScheduleSpec {
     startTime: "09:00",
     endTime: "18:00",
     timezone: TZ,
+    loop: true,
     items: [
       { id: "a", kind: "media", contentId: "m1", durationSeconds: 10 },
       { id: "b", kind: "experience", contentId: "e1", durationSeconds: 20 },
@@ -105,6 +108,37 @@ describe("playlist", () => {
     expect(r?.position.index).toBe(1); // 45s into a 30s loop: 15s → item b
     expect(r?.key).toBe("s1:2026-11-09:1:1");
     expect(r?.changesInSeconds).toBe(15);
+  });
+});
+
+describe("long items and play once", () => {
+  // 09:00–18:00: a 3-hour item, then a 1-hour item.
+  const long = () =>
+    spec({
+      items: [
+        { id: "a", kind: "media", contentId: "m1", durationSeconds: 3 * 3600 },
+        { id: "b", kind: "media", contentId: "m2", durationSeconds: 3600 },
+      ],
+    });
+
+  it("shows the 3-hour item until 12:00, then the 1-hour one until 13:00", () => {
+    expect(resolveSchedules([long()], new Date(at("2026-11-09", "11:59")))?.position.index).toBe(0);
+    expect(resolveSchedules([long()], new Date(at("2026-11-09", "12:00")))?.position.index).toBe(1);
+    expect(resolveSchedules([long()], new Date(at("2026-11-09", "13:00")))?.position.index).toBe(0); // repeats
+  });
+
+  it("goes off air after one pass when it plays once", () => {
+    const once = { ...long(), loop: false };
+    expect(resolveSchedules([once], new Date(at("2026-11-09", "12:30")))?.position.index).toBe(1);
+    expect(resolveSchedules([once], new Date(at("2026-11-09", "13:00")))).toBeNull();
+    expect(onAirMinutes(once)).toBe(4 * 60);
+    expect(weekSegments(once, "2026-11-09", 1)).toEqual([{ date: "2026-11-09", startMinute: 540, endMinute: 780 }]);
+  });
+
+  it("lays the queue out on the clock and flags what does not fit", () => {
+    const tl = queueTimeline({ startTime: "16:00", endTime: "18:00" }, long().items);
+    expect(tl[0]).toMatchObject({ startSecond: 16 * 3600, endSecond: 19 * 3600, fits: true, cutShort: true });
+    expect(tl[1]).toMatchObject({ fits: false });
   });
 });
 
