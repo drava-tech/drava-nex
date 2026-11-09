@@ -174,6 +174,34 @@ describe("scheduler tick", () => {
     expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", "img-2", { record: false });
   });
 
+  it("sends the screen to idle once a play-once queue has finished inside its slot", async () => {
+    // 10:00:05 Kolkata, 3605s into a 09:00 slot; the 30s queue finished long ago.
+    const once = { ...lobby, loop: false };
+    setup([once], [screen({ currentContentKind: "experience", currentExperienceId: "exp-1" })], [
+      state({ itemKey: "sch-lobby:2026-11-09:0:1", contentKind: "experience", contentId: "exp-1" }),
+    ]);
+    await runSchedulerTick();
+    expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", null, { record: false }); // idle
+    expect(db.setScreenExperience).not.toHaveBeenCalled(); // not handed back to "before"
+    expect(db.deleteScheduleScreenState).toHaveBeenCalledWith("tv-1");
+  });
+
+  it("hands back the previous content when a play-once slot ends before the queue does", async () => {
+    vi.setSystemTime(new Date("2026-11-09T13:00:00.000Z")); // 18:30 Kolkata, slot over
+    const once = { ...lobby, loop: false };
+    setup([once], [screen({ currentContentKind: "media", currentMediaAssetId: "img-1" })], [state()]);
+    await runSchedulerTick();
+    expect(db.setScreenExperience).toHaveBeenCalledWith("tv-1", "exp-before", { record: false });
+  });
+
+  it("leaves a manual push alone when a play-once queue finishes", async () => {
+    const once = { ...lobby, loop: false };
+    setup([once], [screen({ currentContentKind: "media", currentMediaAssetId: "manual" })], [state()]);
+    await runSchedulerTick();
+    expect(push.pushScreenContent).not.toHaveBeenCalled();
+    expect(db.deleteScheduleScreenState).toHaveBeenCalledWith("tv-1");
+  });
+
   it("wakes again just after the next change", async () => {
     setup([lobby], [screen()]);
     const delay = await runSchedulerTick();

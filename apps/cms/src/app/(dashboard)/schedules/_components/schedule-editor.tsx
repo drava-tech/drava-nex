@@ -141,6 +141,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const [startDate, setStartDate] = useState(base?.startDate ?? "");
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
+  const [loop, setLoop] = useState(base?.loop ?? true);
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
   // Only images and videos still in the library; anything else an older
@@ -190,9 +191,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
 
   // ─── The draft as the scheduler will see it ───
   const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
-  // The queue always repeats inside the slot: the slot's end time is what
-  // stops it, so a separate "play once" only ever left screens idle.
-  const repeats = true;
+  // Loop: repeat until the slot ends. Unticked: play once, then idle. All day
+  // always loops — "once" from midnight would leave the screens idle all day.
+  const repeats = allDay || loop;
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
@@ -481,13 +482,29 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 )}
               </div>
 
-              {/* The queue always repeats until the slot ends; the end time is
-                  what stops it. (To play it once, end the slot when it finishes.) */}
+              {!allDay && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3">
+                  <input
+                    type="checkbox"
+                    checked={loop}
+                    onChange={(e) => setLoop(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm">Loop</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {loop
+                        ? "The queue repeats until the time slot ends. Untick to play it only once."
+                        : "The queue plays once, then the screens go to idle."}
+                    </span>
+                  </span>
+                </label>
+              )}
               {items.length > 0 && (
                 <p className="rounded-2xl bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
                   {allDay
                     ? `The queue (${formatDuration(queueSeconds)}) repeats all day, from midnight to midnight.`
-                    : fitSummary({ queueSeconds, windowSeconds, unfit, startTime })}
+                    : fitSummary({ loop: repeats, queueSeconds, windowSeconds, unfit, startTime })}
                 </p>
               )}
 
@@ -581,16 +598,18 @@ function windowLengthSeconds(spec: { startTime: string | null; endTime: string |
 }
 
 /** One line on how the queue fits the time slot. */
-function fitSummary(x: { queueSeconds: number; windowSeconds: number; unfit: number; startTime: string }): string {
+function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: number; unfit: number; startTime: string }): string {
   const head = `The time slot is ${formatDuration(x.windowSeconds)}; the queue is ${formatDuration(x.queueSeconds)}. `;
   if (x.unfit > 0) {
     return head + `The last ${x.unfit === 1 ? "item doesn't" : `${x.unfit} items don't`} get a turn: shorten the images or make the slot longer.`;
   }
   if (x.queueSeconds >= x.windowSeconds) return head + "It fills the slot once.";
+  if (!x.loop) {
+    const [h, m] = x.startTime.split(":").map(Number) as [number, number];
+    return head + `It plays once, finishing at ${formatClock((h * 60 + m) * 60 + x.queueSeconds)}, then the screens go to idle.`;
+  }
   const times = Math.floor(x.windowSeconds / Math.max(1, x.queueSeconds));
-  const [h, m] = x.startTime.split(":").map(Number) as [number, number];
-  const onceEnds = formatClock((h * 60 + m) * 60 + Math.ceil(x.queueSeconds / 60) * 60);
-  return head + `It repeats about ${times} time${times === 1 ? "" : "s"}. To play it about once, end the slot at ${onceEnds}.`;
+  return head + `It repeats about ${times} time${times === 1 ? "" : "s"}.`;
 }
 
 // ─── Small parts ─────────────────────────────────────────────────────────────

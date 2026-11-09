@@ -13,6 +13,7 @@ import {
   type SchedulerScreenRow,
 } from "@platform/db";
 import {
+  activeWindow,
   nextWindowStart,
   resolveSchedules,
   type ScheduleContentKind,
@@ -76,7 +77,10 @@ async function assign(screenId: string, kind: string | null, id: string | null):
 async function applyToScreen(
   s: SchedulerScreenRow,
   res: ScheduleResolution | null,
-  state: ScheduleScreenStateRow | undefined
+  state: ScheduleScreenStateRow | undefined,
+  /** The schedule the screen's state came from, if it still exists. */
+  stateSpec?: ScheduleSpec,
+  now = new Date()
 ): Promise<boolean> {
   if (s.blanked || s.whiteboardActive) return false;
 
@@ -104,11 +108,16 @@ async function applyToScreen(
   }
 
   if (state) {
-    // The schedule is over. Hand the screen back, unless someone has since
-    // pushed something else to it by hand.
+    // The schedule is over. If it was a play-once queue that has finished
+    // inside its slot, the screen goes to idle; otherwise (the slot ended,
+    // the schedule was deleted) it gets back what it showed before. Either
+    // way, only if it still shows the schedule's content — a manual push
+    // since then is left alone.
+    const playedOnce = !!stateSpec && !stateSpec.loop && activeWindow(stateSpec, now) !== null;
     let pushed = false;
     if (isShowing(s, state.contentKind, state.contentId)) {
-      await assign(s.screenId, state.previousContentKind, state.previousContentId);
+      if (playedOnce) await assign(s.screenId, null, null);
+      else await assign(s.screenId, state.previousContentKind, state.previousContentId);
       pushed = true;
     }
     await deleteScheduleScreenState(s.screenId);
@@ -150,7 +159,8 @@ async function tick(): Promise<number> {
     const res = resolveSchedules(specsFor(snap, s), now);
     if (res) soonest = Math.min(soonest, res.changesInSeconds);
     try {
-      await applyToScreen(s, res, snap.states.get(s.screenId));
+      const state = snap.states.get(s.screenId);
+      await applyToScreen(s, res, state, state ? snap.specs.get(state.scheduleId) : undefined, now);
     } catch (err) {
       console.error(`[scheduler] couldn't update "${s.screenId}":`, err);
     }
