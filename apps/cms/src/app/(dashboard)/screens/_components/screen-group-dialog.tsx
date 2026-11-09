@@ -123,22 +123,44 @@ export function ScreenGroupDialog({ group, groups, screens, onClose, onSaved }: 
               <span className="text-xs text-muted-foreground">Screens in this group</span>
               <span className="text-xs text-muted-foreground">{selected.size} selected</span>
             </div>
-            {screens.length > 6 && (
-              <div className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Find a screen"
-                  aria-label="Find a screen"
-                  className="w-full rounded-full border border-input bg-background py-1.5 pl-8 pr-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
-                />
-              </div>
-            )}
+            <div className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  // Escape clears the search instead of closing nothing; Enter
+                  // must not submit the form while someone is still searching.
+                  if (e.key === "Escape" && query) {
+                    e.preventDefault();
+                    setQuery("");
+                  }
+                  if (e.key === "Enter") e.preventDefault();
+                }}
+                placeholder="Search screens"
+                aria-label="Search screens"
+                className="w-full rounded-full border border-input bg-background py-1.5 pl-8 pr-8 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-ring [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             <ul className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border">
               {screens.length === 0 && (
                 <li className="px-4 py-6 text-center text-xs text-muted-foreground">No screens yet.</li>
+              )}
+              {screens.length > 0 && visible.length === 0 && (
+                <li className="px-4 py-6 text-center text-xs text-muted-foreground">
+                  No screens match &ldquo;{query.trim()}&rdquo;.
+                </li>
               )}
               {visible.map((s) => {
                 const checked = selected.has(s.screenId);
