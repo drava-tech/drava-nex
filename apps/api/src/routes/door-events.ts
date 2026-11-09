@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { MQTTDeviceManager } from "@platform/iot";
 import { recordDoorEvent, listDoorEvents } from "@platform/db";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { broadcastToCms } from "../ws/gateway.js";
 import {
@@ -18,7 +18,8 @@ const toggleSchema = z.object({
 export function createDoorEventsRouter(mqtt: MQTTDeviceManager): Hono {
   const router = new Hono();
 
-  router.use("*", requireAdmin);
+  // Users run the room too, the door included.
+  router.use("*", requireGuestOrAdmin);
 
   // GET /api/door-events — recent history + running total, newest first
   router.get("/", async (c) => {

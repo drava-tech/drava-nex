@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
 
 export interface LightStateInput {
@@ -29,7 +29,7 @@ export interface LightSummary {
  * instead of a code change and a redeploy.
  */
 export async function listLights(): Promise<LightSummary[]> {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<Array<{
     id: string;
     deviceId: string;
@@ -53,7 +53,7 @@ export async function listLights(): Promise<LightSummary[]> {
 }
 
 export async function setLightState(deviceUuid: string, state: LightStateInput) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{ success: boolean }>(`/api/devices/lights/${deviceUuid}/state`, {
     method: "POST",
     body: JSON.stringify(state),
@@ -63,7 +63,7 @@ export async function setLightState(deviceUuid: string, state: LightStateInput) 
 }
 
 export async function identifyLight(deviceUuid: string) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{ identified: boolean }>(`/api/devices/lights/${deviceUuid}/identify`, {
     method: "POST",
   });
@@ -72,7 +72,7 @@ export async function identifyLight(deviceUuid: string) {
 }
 
 export async function getLightState(deviceUuid: string) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{
     id: string;
     deviceId: string;
@@ -90,7 +90,7 @@ export async function getLightState(deviceUuid: string) {
  * White/Colour balance, which no direct light command can set.
  */
 export async function recallCasambiScene(scene: number, level = 255) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{ recalled: number }>("/api/devices/lights/casambi-scene", {
     method: "POST",
     body: JSON.stringify({ scene, level }),

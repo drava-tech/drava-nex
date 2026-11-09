@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { updateAmbientMode } from "@platform/db";
-import { requireAdmin } from "../middleware/auth.js";
+import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { getAmbientMode, listAmbientModes, applyAmbientMode } from "../services/ambient-modes.js";
 
@@ -12,7 +12,7 @@ import { getAmbientMode, listAmbientModes, applyAmbientMode } from "../services/
  */
 export const ambientModesRouter = new Hono();
 
-ambientModesRouter.use("*", requireAdmin);
+// Anyone signed in can see and apply the modes; changing what a mode does is for admins.
 
 const updateSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Colour must look like #RRGGBB").optional(),
@@ -21,10 +21,10 @@ const updateSchema = z.object({
 });
 
 // GET /api/ambient-modes
-ambientModesRouter.get("/", async (c) => ok(c, await listAmbientModes()));
+ambientModesRouter.get("/", requireGuestOrAdmin, async (c) => ok(c, await listAmbientModes()));
 
 // PUT /api/ambient-modes/:key — change what a mode does (does not apply it)
-ambientModesRouter.put("/:key", async (c) => {
+ambientModesRouter.put("/:key", requireAdmin, async (c) => {
   let body: z.infer<typeof updateSchema>;
   try {
     body = updateSchema.parse(await c.req.json());
@@ -37,14 +37,14 @@ ambientModesRouter.put("/:key", async (c) => {
     ...(body.brightness !== undefined ? { brightness: body.brightness } : {}),
     ...(body.stripOn !== undefined ? { stripOn: body.stripOn } : {}),
   };
-  const updated = await updateAmbientMode(c.req.param("key"), patch);
+  const updated = await updateAmbientMode(c.req.param("key") ?? "", patch);
   if (!updated) return fail(c, "NOT_FOUND", "Unknown mode.", 404);
   return ok(c, updated);
 });
 
 // POST /api/ambient-modes/:key/apply — put the room into this mode
-ambientModesRouter.post("/:key/apply", async (c) => {
-  const mode = await getAmbientMode(c.req.param("key"));
+ambientModesRouter.post("/:key/apply", requireGuestOrAdmin, async (c) => {
+  const mode = await getAmbientMode(c.req.param("key") ?? "");
   if (!mode) return fail(c, "NOT_FOUND", "Unknown mode.", 404);
   try {
     const result = await applyAmbientMode(mode);

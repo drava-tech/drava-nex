@@ -10,6 +10,7 @@ const { updateAmbientMode, getAmbientMode, listAmbientModes, applyAmbientMode } 
 vi.mock("@platform/db", () => ({ updateAmbientMode }));
 vi.mock("../src/middleware/auth.js", () => ({
   requireAdmin: async (_c: unknown, next: () => Promise<void>) => next(),
+  requireGuestOrAdmin: async (_c: unknown, next: () => Promise<void>) => next(),
 }));
 vi.mock("../src/services/ambient-modes.js", () => ({ getAmbientMode, listAmbientModes, applyAmbientMode }));
 

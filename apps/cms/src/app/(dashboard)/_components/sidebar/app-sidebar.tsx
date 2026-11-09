@@ -71,7 +71,7 @@ const ALL_NAV = [
     title: "Environment",
     url: "/environment",
     icon: Cpu,
-    roles: ["ADMIN"] as string[],
+    roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
   // {

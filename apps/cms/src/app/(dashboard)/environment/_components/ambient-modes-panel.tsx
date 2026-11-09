@@ -10,6 +10,7 @@ import {
   applyAmbientMode,
   type AmbientModeSummary,
 } from "@/actions/ambient-mode-actions";
+import { useSession } from "@/lib/auth-client";
 
 /**
  * Whole-room lighting modes: tap one to put every light into it, or open its
@@ -38,6 +39,10 @@ export default function AmbientModesPanel({
   const [editing, setEditing] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<Omit<AmbientModeSummary, "key" | "label"> | null>(null);
   const [saving, setSaving] = React.useState(false);
+  // Anyone can apply a mode; only admins change what a mode does.
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const canEdit = role === "ADMIN" || role === "SUPERADMIN";
   const [notice, setNotice] = React.useState<{ text: string; error?: boolean } | null>(null);
 
   React.useEffect(() => {
@@ -135,6 +140,7 @@ export default function AmbientModesPanel({
                     {m.brightness}%{m.stripOn ? "" : " · strip off"}
                   </span>
                 </button>
+                {canEdit && (
                 <button
                   type="button"
                   title={`Edit ${m.label}`}
@@ -148,6 +154,7 @@ export default function AmbientModesPanel({
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
+                )}
               </div>
             );
           })}

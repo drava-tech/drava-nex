@@ -13,7 +13,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   SUPERADMIN: "Everything, including adding and removing people.",
   ADMIN: "Everything except managing who can sign in: settings, screens, media, schedules, environment.",
-  GUEST: "Uses Nex day to day: the dashboard, Our Story and screens — pushing content and controlling them. Can't change settings, add screens, or manage media, schedules or people.",
+  GUEST: "Uses Nex day to day: the dashboard, Our Story, screens (pushing content and controlling them) and the environment (lights, AC, sound, door, room modes). Can't change settings, add screens, edit room modes, or manage media, schedules or people.",
 };
 
 export function roleLabel(role: string | null | undefined): string {

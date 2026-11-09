@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
 import { listDevices, getDevice, upsertDevice, setDeviceState } from "@platform/db";
-import { requireAdmin } from "../middleware/auth.js";
+// Operating the room (lights, scenes, IR remotes) is for Users too; registering
+// devices and saving new scenes stays with admins.
+import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { applyLightState, getDeviceDriver, getIrDriver, getCasambiDriver } from "../services/devices.js";
 import { broadcastToCms } from "../ws/gateway.js";
@@ -63,12 +65,12 @@ const upsertSchema = z.object({
 // --- Reads ---
 
 // GET /api/devices — list registered devices
-devicesRouter.get("/", requireAdmin, async (c) => {
+devicesRouter.get("/", requireGuestOrAdmin, async (c) => {
   return ok(c, await listDevices());
 });
 
 // GET /api/devices/:id/status
-devicesRouter.get("/:id/status", requireAdmin, async (c) => {
+devicesRouter.get("/:id/status", requireGuestOrAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
   return ok(c, {
@@ -98,7 +100,7 @@ devicesRouter.post("/", requireAdmin, async (c) => {
 // --- Nested: actions ---
 
 // POST /api/devices/lights/:id/state — { on, brightness?, color? }
-devicesRouter.post("/lights/:id/state", requireAdmin, async (c) => {
+devicesRouter.post("/lights/:id/state", requireGuestOrAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -116,7 +118,7 @@ devicesRouter.post("/lights/:id/state", requireAdmin, async (c) => {
 // POST /api/devices/lights/casambi-scene — recall a scene defined in the
 // Casambi network. Needed because a scene is the only thing that can change a
 // fixture's White/Colour balance; no direct MQTT command does.
-devicesRouter.post("/lights/casambi-scene", requireAdmin, async (c) => {
+devicesRouter.post("/lights/casambi-scene", requireGuestOrAdmin, async (c) => {
   let body: { scene: number; level?: number };
   try {
     body = z
@@ -135,7 +137,7 @@ devicesRouter.post("/lights/casambi-scene", requireAdmin, async (c) => {
 
 // POST /api/devices/lights/:id/identify — briefly flash the light so it can be
 // visually identified (see DeviceDriver.identify, e.g. CasambiDeviceDriver).
-devicesRouter.post("/lights/:id/identify", requireAdmin, async (c) => {
+devicesRouter.post("/lights/:id/identify", requireGuestOrAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -180,7 +182,7 @@ devicesRouter.post("/scenes", requireAdmin, async (c) => {
 });
 
 // POST /api/devices/scenes/:id/trigger — apply every target's saved state.
-devicesRouter.post("/scenes/:id/trigger", requireAdmin, async (c) => {
+devicesRouter.post("/scenes/:id/trigger", requireGuestOrAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
@@ -201,7 +203,7 @@ devicesRouter.post("/scenes/:id/trigger", requireAdmin, async (c) => {
 // POST /api/devices/ir/:id/command — { command, params? }
 // Sends one IR command (AC verb or codebook key) to the CrabController bridge
 // over MQTT, persists the AC's derived state, and echoes to CMS.
-devicesRouter.post("/ir/:id/command", requireAdmin, async (c) => {
+devicesRouter.post("/ir/:id/command", requireGuestOrAdmin, async (c) => {
   const device = await getDevice(c.req.param("id") ?? "");
   if (!device) return fail(c, "NOT_FOUND", "Device not found", 404);
 
