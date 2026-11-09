@@ -64,7 +64,7 @@ export function ActivityFeed({ items }: { items: DashboardActivityItem[] }) {
         return (
           <li key={item.id} className="relative flex gap-3 pb-5 last:pb-0">
             {!last && (
-              <span className="absolute left-[15px] top-8 h-[calc(100%-1.5rem)] w-px bg-white/10" />
+              <span className="absolute left-[15px] top-8 h-[calc(100%-1.5rem)] w-px bg-muted/60" />
             )}
             <span
               className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${meta.className} ${meta.glow}`}
@@ -73,10 +73,10 @@ export function ActivityFeed({ items }: { items: DashboardActivityItem[] }) {
             </span>
             <div className="min-w-0 flex-1 text-sm leading-tight">
               <p className="truncate">
-                <span className="text-slate-400">{item.action}</span>{" "}
-                <span className="text-slate-200">{item.target}</span>
+                <span className="text-muted-foreground">{item.action}</span>{" "}
+                <span className="text-foreground/80">{item.target}</span>
               </p>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {now === null ? " " : relativeTime(item.at, now)}
               </p>
             </div>

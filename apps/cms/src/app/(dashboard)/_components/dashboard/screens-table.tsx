@@ -126,7 +126,7 @@ export function ScreensList({
         <SampleBadge title="No screens configured yet — these are examples" />
       </div>
     )}
-    <ul className={`flex flex-col divide-y divide-white/5 ${isSample ? "opacity-50" : ""}`}>
+    <ul className={`flex flex-col divide-y divide-border ${isSample ? "opacity-50" : ""}`}>
       {shown.map((screen) => {
         const Kind = kindMeta[screen.contentKind].icon;
         const isOnline = isSample ? screen.id !== "facade" : activeScreenIds.has(screen.id);
@@ -138,12 +138,12 @@ export function ScreensList({
           // this card sets to px-0) so the divide-y rules still run the full
           // width of the card instead of stopping short on both sides.
           <li key={screen.id} className="flex items-center gap-3 px-6 py-3 first:pt-0 last:pb-0">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/60 text-foreground/80">
               <Kind className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{screen.name}</p>
-              <p className="truncate text-xs text-slate-400">
+              <p className="truncate text-sm font-medium text-foreground">{screen.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
                 {screen.content} · {screen.id}
               </p>
             </div>
@@ -155,7 +155,7 @@ export function ScreensList({
                 />
                 {status.label}
               </Badge>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-muted-foreground">
                 {isOnline ? "Live now" : "Not connected"}
               </span>
             </div>

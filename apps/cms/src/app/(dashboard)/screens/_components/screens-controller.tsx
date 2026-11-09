@@ -428,9 +428,9 @@ export function ScreensController({
       )}
 
       <div className="flex-1 w-full h-full flex flex-col select-none min-h-0 overflow-y-auto pt-2 pb-8">
-        <div className="w-full max-w-full mx-auto px-10">
+        <div className="@container mx-auto w-full max-w-full px-4 sm:px-6 lg:px-10">
           {/* Drag & Publish + Add screen row */}
-          <div className="flex items-center justify-end gap-2 mb-6">
+          <div className="mb-6 flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" size="pill" onClick={() => router.push("/broadcast")}>
               <Send className="h-4 w-4" />
               Drag & Publish
@@ -501,7 +501,7 @@ export function ScreensController({
                       )}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
                       {groupScreens.map(renderCard)}
                     </div>
                   )}
@@ -518,7 +518,7 @@ export function ScreensController({
                       </span>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4">
                     {sections.ungrouped.map(renderCard)}
                   </div>
                 </section>

@@ -117,7 +117,10 @@ export default async function DashboardPage() {
         })),
       }}
     >
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      {/* @container: the columns follow the width this page actually has, not
+          the window. With the sidebar open a tablet reports a desktop-sized
+          window but leaves the page far less, which squeezed the side column. */}
+      <div className="@container flex flex-1 flex-col gap-4 p-4">
       {/* Page header */}
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
@@ -126,7 +129,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI row */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 @md:grid-cols-2 @4xl:grid-cols-4">
         <StatCard
           stat={{
             label: "Total Screens",
@@ -159,8 +162,8 @@ export default async function DashboardPage() {
 
       {/* Charts + operations: two independent columns so each card is its
           natural height and the one below flows straight on from it. */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 @6xl:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-4 @6xl:col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
@@ -195,7 +198,9 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-        <div className="flex flex-col gap-4">
+        {/* Side column on wide pages; below that the two cards sit side by
+            side under the chart, then stack on narrow ones. */}
+        <div className="grid min-w-0 grid-cols-1 gap-4 @2xl:grid-cols-2 @6xl:flex @6xl:flex-col">
           <Card>
             <CardHeader>
               <CardTitle>Media Ratio</CardTitle>
