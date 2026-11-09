@@ -181,6 +181,8 @@ export function PublishBoard({
   const activeScreenIds =
     storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds;
   const [targetIndex, setTargetIndex] = useState(restored.targetIndex);
+  /** What the filter's two rows are called on screen (the values stay internal). */
+  const FILTER_LABELS = { experiences: "Portfolio", media: "Media" } as const;
   const [filter, setFilter] = useState<"experiences" | "media">(
     restored.filter,
   );
@@ -1012,7 +1014,7 @@ export function PublishBoard({
                 type="button"
                 className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
               >
-                {filter}
+                {FILTER_LABELS[filter]}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -1038,7 +1040,7 @@ export function PublishBoard({
                     }
                   }}
                 >
-                  {key}
+                  {FILTER_LABELS[key]}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -1094,8 +1096,8 @@ export function PublishBoard({
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setExperienceSearch("");
                 }}
-                placeholder="Search experiences"
-                aria-label="Search experiences"
+                placeholder="Search portfolio"
+                aria-label="Search portfolio"
                 className="h-8 w-44 rounded-full border border-border bg-card pl-8 pr-8 text-xs text-foreground placeholder:text-muted-foreground outline-none transition-[width,border-color] focus:w-60 focus:border-ring sm:w-56 sm:focus:w-72 [&::-webkit-search-cancel-button]:hidden"
               />
               {experienceSearch && (
@@ -1243,7 +1245,7 @@ export function PublishBoard({
             <Layers className="h-8 w-8 text-zinc-400" />
             <p className="text-sm text-zinc-400">
               {filter === "experiences" && searchQuery
-                ? `No experiences match "${experienceSearch.trim()}".`
+                ? `Nothing in the portfolio matches "${experienceSearch.trim()}".`
                 : "No content to publish yet."}
             </p>
           </div>

@@ -174,7 +174,7 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label="Experience actions"
+                aria-label="Portfolio item actions"
                 onPointerDown={(e) => e.stopPropagation()}
                 className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-black/60 text-white/80 backdrop-blur-sm transition-colors hover:text-white hover:bg-black/80"
               >
@@ -429,18 +429,18 @@ export function ProjectsList({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this experience?")) return;
+    if (!confirm("Delete this from the portfolio? This can't be undone.")) return;
     try {
       const res = await deleteProject(id);
       if (res.success) {
         setItems((prev) => prev.filter((item) => item.id !== id));
         router.refresh();
       } else {
-        alert(res.error || "Failed to delete experience.");
+        alert(res.error || "Couldn't delete it from the portfolio.");
       }
     } catch (err) {
       console.error("Failed to delete project:", err);
-      alert("An error occurred while deleting the experience.");
+      alert("Something went wrong deleting it from the portfolio.");
     }
   };
 
@@ -455,7 +455,7 @@ export function ProjectsList({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-light tracking-tight">Experiences</h1>
+              <h1 className="text-xl font-light tracking-tight">Portfolio</h1>
               <p className="text-sm font-light text-muted-foreground">
                 Manage your signage experiences
               </p>
@@ -548,7 +548,7 @@ export function ProjectsList({
               </div>
             )}
             <div>
-              <p className="text-sm text-muted-foreground">No experiences yet</p>
+              <p className="text-sm text-muted-foreground">Nothing in the portfolio yet</p>
               {isAdmin && (
                 <p className="mt-0.5 text-xs text-muted-foreground/70">
                   Click to create your first experience
