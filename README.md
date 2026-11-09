@@ -171,3 +171,4 @@ Notes:
   ```powershell
   New-NetFirewallRule -DisplayName "CMS Platform Postgres" -Direction Inbound -Protocol TCP -LocalPort 5432 -Action Allow
   ```
+
