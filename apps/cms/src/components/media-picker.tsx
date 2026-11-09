@@ -51,6 +51,8 @@ export function MediaPicker({
   multi?: boolean;
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
+  /** For accept="visual": show both, or just images, or just videos. */
+  const [kind, setKind] = useState<"all" | "image" | "video">("all");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   /** Drives the "Uploading 2/5" label — null when idle. */
@@ -61,7 +63,10 @@ export function MediaPicker({
   /** In multi mode: how many times each item was picked since the picker opened. */
   const [picked, setPicked] = useState<Map<string, number>>(new Map());
   useEffect(() => {
-    if (open) setPicked(new Map());
+    if (open) {
+      setPicked(new Map());
+      setKind("all");
+    }
   }, [open]);
   const pickedTotal = [...picked.values()].reduce((a, b) => a + b, 0);
 
@@ -84,7 +89,7 @@ export function MediaPicker({
         // product-media-editor.tsx opens this picker with accept="all"
         // specifically to attach a brochure (PDF/docx/xlsx/pptx), so narrowing
         // it here made every document in the library unselectable.
-        if (accept === "visual") params.set("types", "image,video");
+        if (accept === "visual") params.set("types", kind === "all" ? "image,video" : kind);
         else if (accept !== "all") params.set("types", accept);
         if (cursor) params.set("cursor", cursor);
         const res = await fetch(`/api/media?${params.toString()}`);
@@ -99,7 +104,7 @@ export function MediaPicker({
         setLoadingMore(false);
       }
     },
-    [accept],
+    [accept, kind],
   );
 
   useEffect(() => {
@@ -191,7 +196,33 @@ export function MediaPicker({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-3 p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Select media</h2>
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-foreground">Select media</h2>
+            {accept === "visual" && (
+              <div role="tablist" aria-label="Show" className="flex items-center gap-1 rounded-full bg-muted p-0.5">
+                {(
+                  [
+                    ["all", "All"],
+                    ["image", "Images"],
+                    ["video", "Videos"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={kind === value}
+                    onClick={() => setKind(value)}
+                    className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                      kind === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="file"
