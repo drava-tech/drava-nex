@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { CornerDownLeft, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 export type StatAccent = "blue" | "violet" | "amber" | "emerald" | "rose" | "slate";
 
@@ -50,16 +50,9 @@ export function StatCard({ stat, icon: Icon, accent = "slate", href, highlight =
         <p className={`text-xs ${"text-muted-foreground"}`}>{stat.label}</p>
       </div>
       {stat.breakdown && (
-        <span className={`relative z-10 mt-auto pr-8 text-[11px] leading-tight ${"text-muted-foreground"}`}>
+        <span className={`relative z-10 mt-auto text-[11px] leading-tight ${"text-muted-foreground"}`}>
           {stat.breakdown}
         </span>
-      )}
-      {/* "Open": the card goes to its page. */}
-      {href && (
-        <CornerDownLeft
-          aria-hidden
-          className="absolute bottom-4 right-4 z-10 h-5 w-5 text-primary-ink transition-transform group-hover:-translate-x-0.5"
-        />
       )}
     </>
   );

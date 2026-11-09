@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CornerDownLeft, FileText, Film, Image as ImageIcon, type LucideIcon } from "lucide-react";
+import { FileText, Film, Image as ImageIcon, type LucideIcon } from "lucide-react";
 import {
   groupMediaStats,
   useDashboardMedia,
@@ -74,7 +74,7 @@ export function MediaTypeRatio() {
               key={category.group}
               href={category.href}
               aria-label={`${category.label}: ${count}. Open in Media`}
-              className="group relative flex min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 pr-9 transition-colors hover:border-primary/40 @sm:block @sm:p-3 @sm:pr-3"
+              className="group relative flex min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 transition-colors hover:border-primary/40 @sm:block @sm:p-3"
             >
               <div className="flex min-w-0 items-center gap-2 text-foreground/80">
                 <Icon className="h-4 w-4 shrink-0" style={{ color: category.color }} />
@@ -82,12 +82,8 @@ export function MediaTypeRatio() {
               </div>
               <div className="flex items-baseline gap-2 @sm:mt-2 @sm:items-end @sm:justify-between">
                 <span className="text-lg tabular-nums text-foreground @sm:text-xl">{count}</span>
-                <span className="text-xs tabular-nums text-muted-foreground @sm:mr-6">{percentage}%</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{percentage}%</span>
               </div>
-              <CornerDownLeft
-                aria-hidden
-                className="absolute bottom-2.5 right-2.5 h-4 w-4 text-primary-ink transition-transform group-hover:-translate-x-0.5"
-              />
             </Link>
           );
         })}
