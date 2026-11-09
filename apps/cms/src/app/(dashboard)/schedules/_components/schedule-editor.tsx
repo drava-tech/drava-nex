@@ -1,0 +1,689 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  CalendarClock,
+  Film,
+  Image as ImageIcon,
+  Monitor,
+  Plus,
+  Search,
+  SquareTerminal,
+  Trash2,
+  X,
+} from "lucide-react";
+import type { ScheduleInput, ScheduleRow } from "@platform/db";
+import {
+  ALL_DAYS,
+  compareSchedules,
+  DEFAULT_ITEM_SECONDS,
+  DEFAULT_SCHEDULE_TIMEZONE,
+  describeDays,
+  describeWindow,
+  formatDuration,
+  isValidTimezone,
+  MAX_ITEM_SECONDS,
+  MIN_ITEM_SECONDS,
+  nextWindowStart,
+  playlistSeconds,
+  SCHEDULE_DAY_LABELS,
+  schedulesOverlap,
+  WEEKDAYS,
+  WEEKEND,
+  localParts,
+  type ScheduleSpec,
+} from "@platform/types";
+import { MediaPicker, type MediaPickerItem } from "@/components/media-picker";
+import { PUSHABLE_MEDIA_TYPES } from "@/lib/media-tiles";
+import { createSchedule, updateSchedule } from "@/actions/schedule-actions";
+import { Switch } from "./schedules-view";
+import {
+  formatWhen,
+  SCHEDULE_COLORS,
+  targetScreenIds,
+  toScheduleSpecClient,
+  type ExperienceOption,
+  type GroupOption,
+  type ScreenOption,
+} from "./schedule-shared";
+
+export type EditorDraft =
+  | { mode: "new" }
+  | { mode: "edit"; schedule: ScheduleRow }
+  | { mode: "duplicate"; schedule: ScheduleRow };
+
+interface DraftItem {
+  key: string;
+  kind: "experience" | "media";
+  contentId: string;
+  title: string;
+  mediaType: string | null;
+  thumbnailUrl: string | null;
+  durationSeconds: number;
+  /** The content was deleted since it was queued; it will be dropped on save. */
+  missing: boolean;
+}
+
+const TIMEZONES = [
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Asia/Singapore",
+  "Europe/London",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Australia/Sydney",
+  "UTC",
+];
+
+let keySeq = 0;
+const newKey = () => `item-${++keySeq}`;
+
+function defaultSeconds(mediaType: string | null, kind: "experience" | "media"): number {
+  if (kind === "experience") return DEFAULT_ITEM_SECONDS.experience;
+  if (mediaType === "image") return DEFAULT_ITEM_SECONDS.image;
+  if (mediaType === "video") return DEFAULT_ITEM_SECONDS.video;
+  return DEFAULT_ITEM_SECONDS.other;
+}
+
+interface ScheduleEditorProps {
+  draft: EditorDraft;
+  schedules: ScheduleRow[];
+  screens: ScreenOption[];
+  groups: GroupOption[];
+  experiences: ExperienceOption[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+export function ScheduleEditor({ draft, schedules, screens, groups, experiences, onClose, onSaved }: ScheduleEditorProps) {
+  const base = draft.mode === "new" ? null : draft.schedule;
+  const browserTz = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch {
+      return DEFAULT_SCHEDULE_TIMEZONE;
+    }
+  }, []);
+
+  const [name, setName] = useState(base ? (draft.mode === "duplicate" ? `${base.name} (copy)` : base.name) : "");
+  const [color, setColor] = useState(base?.color ?? SCHEDULE_COLORS[schedules.length % SCHEDULE_COLORS.length]!);
+  const [enabled, setEnabled] = useState(base ? (draft.mode === "duplicate" ? false : base.enabled) : true);
+  const [priority, setPriority] = useState(base?.priority ?? 0);
+  const [allDay, setAllDay] = useState(base ? base.startTime === null : false);
+  const [startTime, setStartTime] = useState(base?.startTime ?? "09:00");
+  const [endTime, setEndTime] = useState(base?.endTime ?? "18:00");
+  const [days, setDays] = useState<number[]>(base?.daysOfWeek ?? ALL_DAYS);
+  const [startDate, setStartDate] = useState(base?.startDate ?? "");
+  const [endDate, setEndDate] = useState(base?.endDate ?? "");
+  const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
+  const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
+  const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
+  const [items, setItems] = useState<DraftItem[]>(
+    () =>
+      base?.items.map((i) => ({
+        key: newKey(),
+        kind: i.kind,
+        contentId: i.contentId,
+        title: i.title ?? "Deleted content",
+        mediaType: i.mediaType,
+        thumbnailUrl: i.thumbnailUrl,
+        durationSeconds: i.durationSeconds,
+        missing: i.title === null,
+      })) ?? []
+  );
+  const [pickingMedia, setPickingMedia] = useState(false);
+  const [pickingExperience, setPickingExperience] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const tzOptions = [...new Set([timezone, browserTz, ...TIMEZONES])].filter(isValidTimezone);
+
+  // ─── Derived: the draft as the scheduler will see it ───
+  const draftSpec: ScheduleSpec = {
+    id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
+    name: name || "This schedule",
+    enabled: true,
+    priority,
+    startDate: startDate || null,
+    endDate: endDate || null,
+    daysOfWeek: days,
+    startTime: allDay ? null : startTime,
+    endTime: allDay ? null : endTime,
+    timezone,
+    items: items
+      .filter((i) => !i.missing)
+      .map((i) => ({ id: i.key, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
+    createdAt: draft.mode === "edit" ? draft.schedule.createdAt : new Date().toISOString(),
+  };
+  const draftTargets = targetScreenIds({ screenIds: [...screenIds], groupIds: [...groupIds] }, screens);
+  const loopSeconds = playlistSeconds(draftSpec.items);
+  const nextStart = days.length ? nextWindowStart(draftSpec, new Date()) : null;
+
+  const conflicts = useMemo(() => {
+    const today = localParts(new Date(), timezone).date;
+    const mine = new Set(draftTargets);
+    return schedules
+      .filter((s) => s.enabled && (draft.mode !== "edit" || s.id !== draft.schedule.id))
+      .map((s) => {
+        const shared = targetScreenIds(s, screens).filter((id) => mine.has(id));
+        if (shared.length === 0) return null;
+        const other = toScheduleSpecClient(s);
+        if (!schedulesOverlap(draftSpec, other, today)) return null;
+        const thisWins = compareSchedules(draftSpec, other) < 0;
+        return { name: s.name, screens: shared.length, thisWins, samePriority: other.priority === priority };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedules, screens, draftTargets.join(), days.join(), startTime, endTime, allDay, startDate, endDate, timezone, priority]);
+
+  // ─── Playlist editing ───
+  const addMedia = (m: MediaPickerItem) => {
+    if (!(PUSHABLE_MEDIA_TYPES as readonly string[]).includes(m.type)) {
+      setError(`"${m.name}" is a ${m.type}, which can't be shown on a screen.`);
+      return;
+    }
+    setItems((prev) => [
+      ...prev,
+      {
+        key: newKey(),
+        kind: "media",
+        contentId: m.id,
+        title: m.name,
+        mediaType: m.type,
+        thumbnailUrl: m.type === "image" ? m.url : null,
+        durationSeconds: defaultSeconds(m.type, "media"),
+        missing: false,
+      },
+    ]);
+  };
+  const addExperience = (e: ExperienceOption) => {
+    setItems((prev) => [
+      ...prev,
+      {
+        key: newKey(),
+        kind: "experience",
+        contentId: e.id,
+        title: e.title,
+        mediaType: null,
+        thumbnailUrl: e.coverImage,
+        durationSeconds: defaultSeconds(null, "experience"),
+        missing: false,
+      },
+    ]);
+  };
+  const move = (index: number, by: -1 | 1) =>
+    setItems((prev) => {
+      const next = [...prev];
+      const to = index + by;
+      if (to < 0 || to >= next.length) return prev;
+      [next[index], next[to]] = [next[to]!, next[index]!];
+      return next;
+    });
+  const setDuration = (key: string, seconds: number) =>
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, durationSeconds: seconds } : i)));
+
+  const toggleIn = (set: Set<string>, id: string, update: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    update(next);
+  };
+
+  // ─── Save ───
+  const save = async () => {
+    setError(null);
+    if (!name.trim()) return setError("Give the schedule a name.");
+    if (days.length === 0) return setError("Pick at least one day.");
+    if (startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
+    const bad = items.find((i) => !i.missing && (i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS));
+    if (bad) return setError(`"${bad.title}" needs a duration between ${MIN_ITEM_SECONDS} seconds and 24 hours.`);
+
+    const input: ScheduleInput = {
+      name: name.trim(),
+      color,
+      enabled,
+      priority,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      daysOfWeek: [...days].sort(),
+      startTime: allDay ? null : startTime,
+      endTime: allDay ? null : endTime,
+      timezone,
+      screenIds: [...screenIds],
+      groupIds: [...groupIds],
+      items: items.filter((i) => !i.missing).map((i) => ({ kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
+    };
+    setSaving(true);
+    const res = draft.mode === "edit" ? await updateSchedule(draft.schedule.id, input) : await createSchedule(input);
+    setSaving(false);
+    if (!res.success) return setError(res.error);
+    onSaved();
+  };
+
+  const title = draft.mode === "edit" ? "Edit schedule" : draft.mode === "duplicate" ? "Duplicate schedule" : "New schedule";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:items-center sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-editor-title"
+        className="relative flex max-h-full w-full max-w-3xl flex-col overflow-hidden bg-popover text-popover-foreground shadow-xl sm:max-h-[92vh] sm:rounded-3xl sm:border sm:border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-primary-ink" />
+            <h2 id="schedule-editor-title" className="font-heading text-base">{title}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="@container min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-5">
+          {/* ─── Basics ─── */}
+          <Section title="Name and colour">
+            <div className="grid gap-3 @lg:grid-cols-[1fr_auto]">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Lobby, weekday mornings"
+                maxLength={80}
+                autoFocus
+                aria-label="Schedule name"
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-ring"
+              />
+              <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Colour">
+                {SCHEDULE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={color === c}
+                    aria-label={c}
+                    onClick={() => setColor(c)}
+                    className={`h-7 w-7 rounded-full border-2 transition-transform ${color === c ? "scale-110 border-foreground" : "border-transparent"}`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          {/* ─── Screens ─── */}
+          <Section
+            title="Screens"
+            hint={`${draftTargets.length} screen${draftTargets.length === 1 ? "" : "s"} · a group's screens are kept up to date as the group changes`}
+          >
+            <div className="grid gap-4 @lg:grid-cols-2">
+              <PickList
+                label="Groups"
+                empty="No groups yet. Create them on the Screens page."
+                options={groups.map((g) => ({
+                  id: g.id,
+                  label: g.name,
+                  sub: `${screens.filter((s) => s.groupId === g.id).length} screens`,
+                }))}
+                selected={groupIds}
+                onToggle={(id) => toggleIn(groupIds, id, setGroupIds)}
+              />
+              <PickList
+                label="Screens"
+                empty="No screens yet."
+                options={screens.map((s) => ({
+                  id: s.screenId,
+                  label: s.screenName,
+                  sub: s.groupId && groupIds.has(s.groupId) ? "via its group" : undefined,
+                }))}
+                selected={screenIds}
+                onToggle={(id) => toggleIn(screenIds, id, setScreenIds)}
+              />
+            </div>
+          </Section>
+
+          {/* ─── Playlist ─── */}
+          <Section
+            title="Queue"
+            hint={draftSpec.items.length ? `${draftSpec.items.length} items · loops every ${formatDuration(loopSeconds)}` : "Plays top to bottom, then loops"}
+          >
+            {items.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                Add experiences or media. Each one stays on screen for its time, then the next comes up.
+              </p>
+            ) : (
+              <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+                {items.map((item, index) => (
+                  <li key={item.key} className={`flex items-center gap-3 px-3 py-2.5 ${item.missing ? "opacity-50" : ""}`}>
+                    <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                    <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground">
+                      {item.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                      ) : item.kind === "experience" ? (
+                        <SquareTerminal className="h-4 w-4" />
+                      ) : item.mediaType === "video" ? (
+                        <Film className="h-4 w-4" />
+                      ) : (
+                        <ImageIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{item.title}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {item.missing ? "Deleted — removed when you save" : item.kind === "experience" ? "Experience" : item.mediaType ?? "Media"}
+                      </p>
+                    </div>
+                    {!item.missing && <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />}
+                    <div className="flex shrink-0 items-center">
+                      <IconButton label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
+                      <IconButton label="Move down" disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
+                      <IconButton label="Remove" onClick={() => setItems((prev) => prev.filter((i) => i.key !== item.key))}><Trash2 className="h-3.5 w-3.5" /></IconButton>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setPickingExperience(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
+                <Plus className="h-4 w-4" /> Experience
+              </button>
+              <button type="button" onClick={() => setPickingMedia(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
+                <Plus className="h-4 w-4" /> Media
+              </button>
+            </div>
+          </Section>
+
+          {/* ─── When ─── */}
+          <Section title="When" hint={`${describeDays(days)} · ${describeWindow({ startTime: allDay ? null : startTime, endTime: allDay ? null : endTime })}`}>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch checked={allDay} onChange={() => setAllDay((v) => !v)} label="All day" />
+                  All day
+                </label>
+                {!allDay && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} aria-label="Start time" className="rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
+                    <span className="text-muted-foreground">to</span>
+                    <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-label="End time" className="rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
+                    {endTime <= startTime && <span className="text-[11px] text-muted-foreground">ends the next day</span>}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {SCHEDULE_DAY_LABELS.map((label, d) => {
+                  const on = days.includes(d);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setDays((prev) => (on ? prev.filter((x) => x !== d) : [...prev, d].sort()))}
+                      className={`h-9 w-11 rounded-full text-xs transition-colors ${on ? "btn-active" : "btn-surface"}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+                <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+                {([["Every day", ALL_DAYS], ["Weekdays", WEEKDAYS], ["Weekends", WEEKEND]] as const).map(([label, set]) => (
+                  <button key={label} type="button" onClick={() => setDays([...set])} className="rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-3 @lg:grid-cols-3">
+                <Field label="From (optional)">
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
+                </Field>
+                <Field label="Until (optional)">
+                  <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
+                </Field>
+                <Field label="Timezone">
+                  <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring">
+                    {tzOptions.map((tz) => (
+                      <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            </div>
+          </Section>
+
+          {/* ─── Priority ─── */}
+          <Section title="Priority and status" hint="When two schedules cover the same screen at the same time, the higher priority plays">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Priority</span>
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  value={priority}
+                  onChange={(e) => setPriority(Math.max(-100, Math.min(100, Math.round(Number(e.target.value) || 0))))}
+                  className="w-20 rounded-xl border border-input bg-background px-3 py-2 text-sm tabular-nums outline-none focus:border-ring"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={enabled} onChange={() => setEnabled((v) => !v)} label="Schedule on" />
+                {enabled ? "On" : "Off (saved, but won't play)"}
+              </label>
+            </div>
+          </Section>
+
+          {/* ─── Checks ─── */}
+          <div className="space-y-2 rounded-2xl bg-muted/50 px-4 py-3 text-xs">
+            <p className="text-muted-foreground">
+              {draftSpec.items.length === 0
+                ? "Add something to the queue for this schedule to play."
+                : draftTargets.length === 0
+                  ? "Pick at least one screen or group for this schedule to play."
+                  : nextStart
+                    ? `Next starts ${formatWhen(nextStart.toISOString())} on ${draftTargets.length} screen${draftTargets.length === 1 ? "" : "s"}.`
+                    : "It won't start in the next two weeks with these dates and days."}
+            </p>
+            {conflicts.map((c) => (
+              <p key={c.name} className="flex items-start gap-1.5 text-warning">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Overlaps "{c.name}" on {c.screens} screen{c.screens === 1 ? "" : "s"}.{" "}
+                  {c.thisWins
+                    ? `This one plays there${c.samePriority ? " (same priority, and it's the newer one)" : ""}.`
+                    : `"${c.name}" plays there${c.samePriority ? " (same priority, and it's the newer one)" : ""}. Raise this one's priority to win.`}
+                </span>
+              </p>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border px-5 py-4">
+          {error && <p className="mr-auto text-xs text-destructive">{error}</p>}
+          <button type="button" onClick={onClose} className="btn-surface rounded-full px-5 py-2 text-sm">Cancel</button>
+          <button type="button" onClick={save} disabled={saving} className="btn-primary rounded-full px-5 py-2 text-sm disabled:opacity-50">
+            {saving ? "Saving…" : draft.mode === "edit" ? "Save changes" : "Create schedule"}
+          </button>
+        </div>
+      </div>
+
+      <MediaPicker open={pickingMedia} onClose={() => setPickingMedia(false)} onSelectItem={addMedia} accept="all" multi />
+      {pickingExperience && (
+        <ExperiencePicker experiences={experiences} onPick={addExperience} onClose={() => setPickingExperience(false)} />
+      )}
+    </div>
+  );
+}
+
+// ─── Small parts ─────────────────────────────────────────────────────────────
+
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="font-heading text-sm">{title}</h3>
+        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Minutes and seconds, stored as seconds. */
+function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  const cls = "w-12 rounded-lg border border-input bg-background px-1.5 py-1 text-center text-xs tabular-nums outline-none focus:border-ring";
+  return (
+    <div className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground" title="How long it stays on screen">
+      <input type="number" min={0} max={1440} value={m} aria-label="Minutes" onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value) || 0)) * 60 + s)} className={cls} />
+      m
+      <input type="number" min={0} max={59} value={s} aria-label="Seconds" onChange={(e) => onChange(m * 60 + Math.min(59, Math.max(0, Math.round(Number(e.target.value) || 0))))} className={cls} />
+      s
+    </div>
+  );
+}
+
+function PickList({
+  label,
+  empty,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  empty: string;
+  options: { id: string; label: string; sub?: string }[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const visible = query ? options.filter((o) => o.label.toLowerCase().includes(query)) : options;
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-muted-foreground">{label}</span>
+        <span className="text-[11px] text-muted-foreground">{[...selected].filter((id) => options.some((o) => o.id === id)).length} picked</span>
+      </div>
+      {options.length > 5 && (
+        <div className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${label.toLowerCase()}`} aria-label={`Search ${label.toLowerCase()}`} className="w-full rounded-full border border-input bg-background py-1.5 pl-8 pr-3 text-xs outline-none focus:border-ring" />
+        </div>
+      )}
+      <ul className="max-h-48 overflow-y-auto rounded-2xl border border-border">
+        {options.length === 0 && <li className="px-4 py-5 text-center text-xs text-muted-foreground">{empty}</li>}
+        {visible.map((o) => {
+          const on = selected.has(o.id);
+          return (
+            <li key={o.id} className="border-b border-border last:border-b-0">
+              <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted">
+                <input type="checkbox" checked={on} onChange={() => onToggle(o.id)} className="h-4 w-4 accent-[var(--primary)]" />
+                <Monitor className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-sm">{o.label}</span>
+                {o.sub && <span className="shrink-0 text-[11px] text-muted-foreground">{o.sub}</span>}
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ExperiencePicker({
+  experiences,
+  onPick,
+  onClose,
+}: {
+  experiences: ExperienceOption[];
+  onPick: (e: ExperienceOption) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [added, setAdded] = useState<string[]>([]);
+  const query = q.trim().toLowerCase();
+  const visible = query ? experiences.filter((e) => e.title.toLowerCase().includes(query)) : experiences;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative flex max-h-[80vh] w-full max-w-md flex-col gap-3 rounded-3xl border border-border bg-popover p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-heading text-sm">Add experiences</h3>
+          <button type="button" onClick={onClose} aria-label="Done" className="rounded-full px-3 py-1 text-xs btn-primary">Done</button>
+        </div>
+        <div className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+          <input type="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search experiences" aria-label="Search experiences" className="w-full rounded-full border border-input bg-background py-2 pl-8 pr-3 text-sm outline-none focus:border-ring" />
+        </div>
+        <ul className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border">
+          {visible.length === 0 && <li className="px-4 py-6 text-center text-xs text-muted-foreground">No experiences match.</li>}
+          {visible.map((e) => {
+            const count = added.filter((id) => id === e.id).length;
+            return (
+              <li key={e.id} className="border-b border-border last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPick(e);
+                    setAdded((prev) => [...prev, e.id]);
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted"
+                >
+                  <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground">
+                    {e.coverImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={e.coverImage} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <SquareTerminal className="h-4 w-4" />
+                    )}
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
+                  {count > 0 ? (
+                    <span className="shrink-0 text-[11px] text-primary-ink">Added{count > 1 ? ` ×${count}` : ""}</span>
+                  ) : (
+                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}

@@ -12,6 +12,7 @@ import {
   // ScanFace,
   // PenTool,
   Settings2,
+  CalendarClock,
   Send,
   // SquareTerminal,
   // Globe,
@@ -58,6 +59,12 @@ const ALL_NAV = [
     icon: Monitor,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
+  },
+  {
+    title: "Schedules",
+    url: "/schedules",
+    icon: CalendarClock,
+    roles: ["ADMIN"] as string[],
   },
   {
     title: "Environment",

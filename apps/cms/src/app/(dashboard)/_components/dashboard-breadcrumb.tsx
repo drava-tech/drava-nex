@@ -19,6 +19,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "media": "Media",
   "users": "Users",
   "settings": "Settings",
+  "schedules": "Schedules",
 };
 
 const toLabel = (segment: string) =>
