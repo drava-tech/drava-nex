@@ -1,4 +1,5 @@
 import {
+  pool,
   deleteScheduleScreenState,
   listScheduleScreenStates,
   listSchedules,
@@ -43,6 +44,61 @@ import { clearTakeoverFlag, getConnectedScreenIds } from "../ws/gateway.js";
  * Ticks are timed to the next change (at most every 5s, at least every 1s),
  * so items switch on time without polling the database every second.
  */
+
+/**
+ * Only ONE scheduler may drive the screens, and it should be the production
+ * API — the screens are connected to it, and dev machines share its database.
+ * Two schedulers on one database fight at every item change (their clocks
+ * differ by a moment, and their code versions may differ), which shows up as
+ * a flicker on the wall.
+ *
+ *   - It runs when NODE_ENV=production (the API's Docker image), or when
+ *     SCHEDULER_ENABLED=true; SCHEDULER_ENABLED=false turns it off anywhere.
+ *   - Even then, it only acts while it holds a Postgres advisory lock, so two
+ *     enabled APIs on one database still take turns rather than both pushing.
+ */
+export function schedulerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const flag = env["SCHEDULER_ENABLED"]?.trim().toLowerCase();
+  if (flag === "true" || flag === "1") return true;
+  if (flag === "false" || flag === "0") return false;
+  return env["NODE_ENV"] === "production";
+}
+
+/** Any fixed number; the same in every API so they contend for one lock. */
+const LEADER_LOCK_KEY = 0x4e455853; // "NEXS"
+const LEADER_RETRY_MS = 30_000;
+/** The bits of a pg pool client the lock needs (the pg types live in @platform/db). */
+type PoolClient = {
+  query: (text: string, values?: unknown[]) => Promise<{ rows: Array<{ ok?: boolean }> }>;
+  release: () => void;
+  on: (event: "error", listener: () => void) => unknown;
+};
+let leaderClient: PoolClient | null = null;
+
+/** Hold the scheduler lock on a dedicated connection; true while we have it. */
+async function holdLeadership(): Promise<boolean> {
+  if (leaderClient) return true;
+  let client: PoolClient | null = null;
+  try {
+    client = (await pool.connect()) as unknown as PoolClient;
+    const { rows } = await client.query("select pg_try_advisory_lock($1) as ok", [LEADER_LOCK_KEY]);
+    if (rows[0]?.ok) {
+      leaderClient = client;
+      // If this connection dies, the lock goes with it; try again next tick.
+      client.on("error", () => {
+        leaderClient = null;
+      });
+      console.info("[scheduler] driving the screens (holds the scheduler lock)");
+      return true;
+    }
+    client.release();
+    return false;
+  } catch (err) {
+    client?.release();
+    console.error("[scheduler] couldn't take the scheduler lock:", err);
+    return false;
+  }
+}
 
 const MAX_TICK_MS = 5_000;
 const MIN_TICK_MS = 1_000;
@@ -183,6 +239,12 @@ async function run(): Promise<void> {
   running = true;
   let delay = MAX_TICK_MS;
   try {
+    // Another API is driving the screens: stay out of its way, check back later.
+    if (!(await holdLeadership())) {
+      running = false;
+      schedule(LEADER_RETRY_MS);
+      return;
+    }
     delay = await tick();
   } catch (err) {
     console.error("[scheduler] tick failed:", err);
@@ -201,6 +263,13 @@ export const runSchedulerTick = tick;
 
 export function startScheduler(): void {
   if (started) return;
+  if (!schedulerEnabled()) {
+    console.info(
+      "[scheduler] off here (not production). Set SCHEDULER_ENABLED=true to run it; " +
+        "only one API should drive the screens."
+    );
+    return;
+  }
   started = true;
   // A short delay so the screens have reconnected after a restart; the state
   // table means nothing is re-pushed that is already right.

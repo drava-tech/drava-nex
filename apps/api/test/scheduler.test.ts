@@ -22,7 +22,7 @@ vi.mock("../src/ws/gateway.js", () => ({
   getConnectedScreenIds: vi.fn(() => []),
 }));
 
-import { runSchedulerTick } from "../src/services/scheduler.js";
+import { runSchedulerTick, schedulerEnabled } from "../src/services/scheduler.js";
 
 // Monday 2026-11-09, 10:00:05 in Kolkata (04:30:05 UTC).
 const NOW = new Date("2026-11-09T04:30:05.000Z");
@@ -216,5 +216,15 @@ describe("scheduler tick", () => {
     setup([lobby], [screen()]);
     const delay = await runSchedulerTick();
     expect(delay).toBe(5_000); // next item in 5s, capped at the 5s maximum
+  });
+});
+
+describe("which API runs the scheduler", () => {
+  it("runs in production, and only where switched on otherwise", () => {
+    expect(schedulerEnabled({ NODE_ENV: "production" })).toBe(true);
+    expect(schedulerEnabled({ NODE_ENV: "development" })).toBe(false); // dev machines share the database
+    expect(schedulerEnabled({})).toBe(false);
+    expect(schedulerEnabled({ SCHEDULER_ENABLED: "true" })).toBe(true);
+    expect(schedulerEnabled({ NODE_ENV: "production", SCHEDULER_ENABLED: "false" })).toBe(false);
   });
 });
