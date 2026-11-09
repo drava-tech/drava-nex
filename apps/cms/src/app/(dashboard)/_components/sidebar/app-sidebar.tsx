@@ -86,8 +86,8 @@ const ALL_NAV = [
   //   roles: ["ADMIN", "GUEST"] as string[],
   //   guestModeVisible: true,
   // },
-  // Hidden for now; restore together with <WhiteboardOverlay /> in
-  // dashboard-layout-client.tsx.
+  // Hidden for now; restore together with the "Draw" item in
+  // whiteboard/whiteboard-overlay.tsx.
   // {
   //   title: "Whiteboards",
   //   url: "/whiteboards",

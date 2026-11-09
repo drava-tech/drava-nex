@@ -200,22 +200,24 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
   }, []);
 
   const fabItems: FabMenuItem[] = [
-    {
-      id: "draw",
-      label: "Draw",
-      icon: <Pencil />,
-      onClick: () => {
-        // Only reset to a blank board when there's nothing worth keeping —
-        // otherwise re-clicking the pencil to check on (or resume) existing
-        // work would silently wipe it, saved or not.
-        syncActivePageIntoPages();
-        const isEmpty = pagesRef.current.every((p) => p.strokes.length === 0);
-        if (documentId === null && isEmpty) {
-          startFreshWhiteboard();
-        }
-        setShowPushDialog(true);
-      },
-    },
+    // "Draw" is hidden for now. To restore it, uncomment this item and
+    // startFreshWhiteboard below.
+    // {
+    //   id: "draw",
+    //   label: "Draw",
+    //   icon: <Pencil />,
+    //   onClick: () => {
+    //     // Only reset to a blank board when there's nothing worth keeping —
+    //     // otherwise re-clicking the pencil to check on (or resume) existing
+    //     // work would silently wipe it, saved or not.
+    //     syncActivePageIntoPages();
+    //     const isEmpty = pagesRef.current.every((p) => p.strokes.length === 0);
+    //     if (documentId === null && isEmpty) {
+    //       startFreshWhiteboard();
+    //     }
+    //     setShowPushDialog(true);
+    //   },
+    // },
     { id: "link", label: "Browse URL", icon: <LinkIcon />, onClick: () => router.push("/browser") },
   ];
 
@@ -259,14 +261,15 @@ export function WhiteboardOverlay({ variant = "overlay", initialDocumentId, init
     [redraw]
   );
 
-  const startFreshWhiteboard = () => {
-    pagesRef.current = [{ surface: "light", strokes: [] }];
-    setPageIndex(0);
-    setDocumentId(null);
-    setDocumentName("Untitled Whiteboard");
-    loadPageIntoActive(0);
-    dirtyRef.current = false;
-  };
+  // Only the hidden "Draw" item above uses this; restore the two together.
+  // const startFreshWhiteboard = () => {
+  //   pagesRef.current = [{ surface: "light", strokes: [] }];
+  //   setPageIndex(0);
+  //   setDocumentId(null);
+  //   setDocumentName("Untitled Whiteboard");
+  //   loadPageIntoActive(0);
+  //   dirtyRef.current = false;
+  // };
 
   // Whether the local drawing canvas + toolbar is the thing on screen right
   // now. "overlay" keeps its FAB-driven open/close toggle. "embedded" has no
