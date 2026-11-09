@@ -123,6 +123,13 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
   const [loop, setLoop] = useState(base?.loop ?? true);
+  /**
+   * "clock": each item has a From and a To time, back to back from the first
+   * item's From (stored as the slot's start + each item's length, played once).
+   * "duration": each item plays for a length, inside the slot set under When.
+   */
+  const [timing, setTiming] = useState<"clock" | "duration">(() => inferTiming(base));
+  const clock = timing === "clock";
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
   const [items, setItems] = useState<DraftItem[]>(
@@ -146,6 +153,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const tzOptions = [...new Set([timezone, browserTz, ...TIMEZONES])].filter(isValidTimezone);
 
   // ─── Derived: the draft as the scheduler will see it ───
+  const queueSeconds = items.filter((i) => !i.missing).reduce((sum, i) => sum + i.durationSeconds, 0);
+  const effStartTime = clock ? startTime : allDay ? null : startTime;
+  const effEndTime = clock ? addSecondsToClock(startTime, queueSeconds || 3600) : allDay ? null : endTime;
+  const effLoop = clock ? false : loop;
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
@@ -154,10 +165,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
     startDate: startDate || null,
     endDate: endDate || null,
     daysOfWeek: days,
-    startTime: allDay ? null : startTime,
-    endTime: allDay ? null : endTime,
+    startTime: effStartTime,
+    endTime: effEndTime,
     timezone,
-    loop,
+    loop: effLoop,
     items: items
       .filter((i) => !i.missing)
       .map((i) => ({ id: i.key, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -166,7 +177,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const draftTargets = targetScreenIds({ screenIds: [...screenIds], groupIds: [...groupIds] }, screens);
   const loopSeconds = playlistSeconds(draftSpec.items);
   // Where each item falls on the clock the first time through the queue.
-  const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
+  const windowSpec = { startTime: effStartTime, endTime: effEndTime };
   const timeline = queueTimeline(windowSpec, draftSpec.items);
   const timelineByKey = new Map(draftSpec.items.map((i, n) => [i.id, timeline[n]!]));
   const windowSeconds = windowLengthSeconds(windowSpec);
@@ -188,7 +199,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedules, screens, draftTargets.join(), days.join(), startTime, endTime, allDay, startDate, endDate, timezone, priority]);
+  }, [schedules, screens, draftTargets.join(), days.join(), effStartTime, effEndTime, effLoop, queueSeconds, startDate, endDate, timezone, priority]);
 
   // ─── Playlist editing ───
   const addMedia = (m: MediaPickerItem) => {
@@ -205,7 +216,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
         title: m.name,
         mediaType: m.type,
         thumbnailUrl: m.type === "image" ? m.url : null,
-        durationSeconds: defaultSeconds(m.type, "media"),
+        durationSeconds: clock ? 3600 : defaultSeconds(m.type, "media"),
         missing: false,
       },
     ]);
@@ -220,7 +231,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
         title: e.title,
         mediaType: null,
         thumbnailUrl: e.coverImage,
-        durationSeconds: defaultSeconds(null, "experience"),
+        durationSeconds: clock ? 3600 : defaultSeconds(null, "experience"),
         missing: false,
       },
     ]);
@@ -235,6 +246,31 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
     });
   const setDuration = (key: string, seconds: number) =>
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, durationSeconds: seconds } : i)));
+
+  const switchTiming = (next: "clock" | "duration") => {
+    if (next === timing) return;
+    if (next === "clock") {
+      // Whole minutes, at least one, so every item has a clock time.
+      setItems((prev) => prev.map((i) => ({ ...i, durationSeconds: Math.max(60, Math.round(i.durationSeconds / 60) * 60) })));
+      if (allDay) setStartTime("00:00");
+    } else {
+      // Keep the same slot the clock times covered, played once.
+      setAllDay(false);
+      setEndTime(effEndTime ?? endTime);
+      setLoop(false);
+    }
+    setTiming(next);
+  };
+
+  /** Set item `key`'s To time; its length follows, the items after it move along. */
+  const setItemEnd = (key: string, fromSecond: number, to: string) => {
+    const toMin = toMinutes(to);
+    if (toMin === null) return;
+    const fromMin = Math.floor(fromSecond / 60) % 1440;
+    let len = toMin - fromMin;
+    if (len <= 0) len += 1440;
+    setDuration(key, len * 60);
+  };
 
   const toggleIn = (set: Set<string>, id: string, update: (s: Set<string>) => void) => {
     const next = new Set(set);
@@ -251,6 +287,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
     if (startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
     const bad = items.find((i) => !i.missing && (i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS));
     if (bad) return setError(`"${bad.title}" needs a duration between ${MIN_ITEM_SECONDS} seconds and 24 hours.`);
+    if (clock && queueSeconds > 86400) {
+      return setError("The items' times add up to more than 24 hours. Shorten some so the queue fits in a day.");
+    }
+    if (clock && queueSeconds === 0) return setError("Add at least one item, with its From and To times.");
 
     const input: ScheduleInput = {
       name: name.trim(),
@@ -260,10 +300,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
       startDate: startDate || null,
       endDate: endDate || null,
       daysOfWeek: [...days].sort(),
-      startTime: allDay ? null : startTime,
-      endTime: allDay ? null : endTime,
+      startTime: effStartTime,
+      endTime: effEndTime,
       timezone,
-      loop,
+      loop: effLoop,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
       items: items.filter((i) => !i.missing).map((i) => ({ kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -365,13 +405,38 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
             title="Queue"
             hint={
               draftSpec.items.length
-                ? `${draftSpec.items.length} items · ${formatDuration(loopSeconds)} in total${loop ? ", then repeats" : ", played once"}`
+                ? clock
+                  ? `${draftSpec.items.length} items · ${effStartTime}–${effEndTime}`
+                  : `${draftSpec.items.length} items · ${formatDuration(loopSeconds)} in total${loop ? ", then repeats" : ", played once"}`
                 : "Plays top to bottom"
             }
           >
+            <div role="radiogroup" aria-label="How each item is timed" className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Each item plays</span>
+              {(
+                [
+                  ["clock", "From – To", "Give each item a start and end time, e.g. 09:00–12:00"],
+                  ["duration", "For a set time", "Give each item a length, e.g. 15 seconds, and repeat the queue"],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={timing === value}
+                  onClick={() => switchTiming(value)}
+                  title={hint}
+                  className={`rounded-full px-4 py-1.5 text-sm ${timing === value ? "btn-active" : "btn-surface"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             {items.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-                Add experiences or media. Each one stays on screen for its time, then the next comes up.
+                {clock
+                  ? "Add experiences or media, then set when each one starts and ends, e.g. 09:00 to 12:00."
+                  : "Add experiences or media. Each one stays on screen for its time, then the next comes up."}
               </p>
             ) : (
               <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
@@ -398,12 +463,22 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                         ) : (
                           <>
                             {item.kind === "experience" ? "Experience" : item.mediaType ?? "Media"}
-                            <ItemTime slot={timelineByKey.get(item.key)} />
+                            {!clock && <ItemTime slot={timelineByKey.get(item.key)} />}
                           </>
                         )}
                       </p>
                     </div>
-                    {!item.missing && <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />}
+                    {!item.missing &&
+                      (clock ? (
+                        <ClockRange
+                          slot={timelineByKey.get(item.key)}
+                          isFirst={items.findIndex((i) => !i.missing) === index}
+                          onFrom={setStartTime}
+                          onTo={(fromSecond, to) => setItemEnd(item.key, fromSecond, to)}
+                        />
+                      ) : (
+                        <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />
+                      ))}
                     <div className="flex shrink-0 items-center">
                       <IconButton label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
                       <IconButton label="Move down" disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
@@ -421,6 +496,15 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                 <Plus className="h-4 w-4" /> Media
               </button>
             </div>
+            {clock && draftSpec.items.length > 0 && (
+              <p className="mt-4 rounded-2xl border border-border p-3 text-[11px] text-muted-foreground">
+                Runs {effStartTime} to {effEndTime}
+                {toMinutes(effEndTime ?? "") !== null && (toMinutes(effEndTime ?? "")! <= toMinutes(effStartTime ?? "")! ) ? " (the next day)" : ""}. Each
+                item starts when the one before it ends. Afterwards the screens go back to what they showed before,
+                until the same time on the next scheduled day.
+              </p>
+            )}
+            {!clock && (
             <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-border p-3">
               <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
               <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
@@ -449,11 +533,17 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                 </p>
               )}
             </div>
+            )}
           </Section>
 
           {/* ─── When ─── */}
-          <Section title="When" hint={`${describeDays(days)} · ${describeWindow({ startTime: allDay ? null : startTime, endTime: allDay ? null : endTime })}`}>
+          <Section title="When" hint={`${describeDays(days)} · ${describeWindow({ startTime: effStartTime, endTime: effEndTime })}`}>
             <div className="space-y-4">
+              {clock ? (
+                <p className="text-[11px] text-muted-foreground">
+                  The times come from the queue above. Pick the days, and dates if it's only for a while.
+                </p>
+              ) : (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <label className="flex items-center gap-2 text-sm">
                   <Switch checked={allDay} onChange={() => setAllDay((v) => !v)} label="All day" />
@@ -468,6 +558,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                   </div>
                 )}
               </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {SCHEDULE_DAY_LABELS.map((label, d) => {
@@ -609,6 +700,65 @@ function IconButton({ label, disabled, onClick, children }: { label: string; dis
     >
       {children}
     </button>
+  );
+}
+
+/** "HH:MM" → minutes after midnight, or null. */
+function toMinutes(t: string): number | null {
+  const m = /^(\d{2}):(\d{2})$/.exec(t);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** "HH:MM" plus some seconds, as "HH:MM" (wrapping past midnight). */
+function addSecondsToClock(start: string, seconds: number): string {
+  const startMin = toMinutes(start) ?? 0;
+  const total = (startMin * 60 + seconds) % 86400;
+  return formatClock(Math.floor(total / 60) * 60);
+}
+
+/**
+ * Whether a saved schedule reads best as From–To times: played once, in a slot
+ * exactly as long as its queue, every item a whole number of minutes. New
+ * schedules start that way too.
+ */
+function inferTiming(base: ScheduleRow | null): "clock" | "duration" {
+  if (!base) return "clock";
+  if (base.loop || !base.startTime || !base.endTime) return "duration";
+  const playable = base.items.filter((i) => i.title !== null);
+  if (playable.length === 0 || !playable.every((i) => i.durationSeconds % 60 === 0)) return "duration";
+  const total = playable.reduce((sum, i) => sum + i.durationSeconds, 0);
+  return total === windowLengthSeconds(base) ? "clock" : "duration";
+}
+
+/** From and To clock times for one item; From is editable on the first item only. */
+function ClockRange({
+  slot,
+  isFirst,
+  onFrom,
+  onTo,
+}: {
+  slot?: { startSecond: number; endSecond: number };
+  isFirst: boolean;
+  onFrom: (t: string) => void;
+  onTo: (fromSecond: number, to: string) => void;
+}) {
+  if (!slot) return null;
+  const from = formatClock(Math.floor(slot.startSecond / 60) * 60);
+  const to = formatClock(Math.floor(slot.endSecond / 60) * 60);
+  const cls = "rounded-lg border border-input bg-background px-2 py-1 text-xs tabular-nums outline-none focus:border-ring";
+  return (
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+      {isFirst ? (
+        <input type="time" value={from} onChange={(e) => e.target.value && onFrom(e.target.value)} aria-label="From" className={cls} />
+      ) : (
+        <span className="w-[4.5rem] text-center tabular-nums text-foreground/80" title="Starts when the item before it ends">
+          {from}
+        </span>
+      )}
+      <span>to</span>
+      <input type="time" value={to} onChange={(e) => e.target.value && onTo(slot.startSecond, e.target.value)} aria-label="To" className={cls} />
+      <span className="w-12 text-right tabular-nums">{formatDuration(slot.endSecond - slot.startSecond)}</span>
+    </div>
   );
 }
 
