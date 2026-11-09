@@ -22,6 +22,8 @@ import { startScreenUptimeSampler } from './services/screen-uptime.js';
 import { screensRouter } from './routes/screens.js';
 import { screenGroupsRouter } from './routes/screen-groups.js';
 import { schedulesRouter } from './routes/schedules.js';
+import { motionTriggersRouter } from './routes/motion-triggers.js';
+import { startMotionTriggers } from './services/motion-triggers.js';
 import { startScheduler } from './services/scheduler.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
@@ -75,6 +77,8 @@ setMqttManager(mqttManager);
 setIrManager(mqttManager);
 void startCasambiIngest(mqttManager);
 void startIrIngest(mqttManager);
+// Motion triggers listen to the same Home Assistant connection.
+startMotionTriggers();
 startHomeAssistantIngest();
 void startGmailIngest();
 
@@ -125,6 +129,7 @@ app.route('/api/portfolio', portfolioRouter);
 app.route('/api/companies', companiesRouter);
 app.route('/api/projects', projectsRouter);
 app.route('/api/schedules', schedulesRouter);
+app.route('/api/motion-triggers', motionTriggersRouter);
 app.route('/api/screen-groups', screenGroupsRouter);
 app.route('/api/screens', screensRouter);
 app.route('/api/upload', uploadRouter);

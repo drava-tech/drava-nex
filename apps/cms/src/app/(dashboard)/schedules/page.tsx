@@ -3,6 +3,7 @@ import { getScreens } from "@/actions/screen-actions";
 import { getScreenGroups } from "@/actions/screen-group-actions";
 import { getExperiences } from "@/actions/project-actions";
 import { getSchedules, getScheduleStatus } from "@/actions/schedule-actions";
+import { getMotionOverview } from "@/actions/motion-trigger-actions";
 import { SchedulesView } from "./_components/schedules-view";
 
 /**
@@ -21,6 +22,8 @@ export default async function SchedulesPage() {
   ]);
   const role = (user as { role?: string }).role;
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+  // Motion triggers are an admin tool; never let them stop the page loading.
+  const motion = isAdmin ? await getMotionOverview().catch(() => null) : null;
 
   return (
     <SchedulesView
@@ -29,6 +32,7 @@ export default async function SchedulesPage() {
       groups={groups}
       experiences={experiences.map((e) => ({ id: e.id, title: e.title, coverImage: e.coverImage }))}
       initialStatus={status}
+      motion={motion}
       isAdmin={isAdmin}
     />
   );

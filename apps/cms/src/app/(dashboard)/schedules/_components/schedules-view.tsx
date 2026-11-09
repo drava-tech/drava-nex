@@ -12,6 +12,7 @@ import {
   Pause,
   Pencil,
   Plus,
+  Radar,
   Radio,
   Trash2,
 } from "lucide-react";
@@ -38,6 +39,8 @@ import {
 import { ScheduleEditor, type EditorDraft } from "./schedule-editor";
 import { MediaThumb } from "@/components/media-thumb";
 import { WeekView } from "./week-view";
+import { MotionTriggers } from "./motion-triggers";
+import type { MotionOverview } from "@/actions/motion-trigger-actions";
 import {
   formatWhen,
   playableItems,
@@ -48,7 +51,7 @@ import {
   type ScreenOption,
 } from "./schedule-shared";
 
-type Tab = "now" | "schedules" | "week";
+type Tab = "now" | "schedules" | "week" | "motion";
 
 interface SchedulesViewProps {
   schedules: ScheduleRow[];
@@ -56,13 +59,15 @@ interface SchedulesViewProps {
   groups: GroupOption[];
   experiences: ExperienceOption[];
   initialStatus: { now: string; screens: ScreenScheduleStatus[] } | null;
+  /** Motion triggers (admins only; null = not loaded). */
+  motion: MotionOverview | null;
   isAdmin: boolean;
 }
 
 /** How often "On air" re-asks the API; countdowns tick locally in between. */
 const STATUS_POLL_MS = 15_000;
 
-export function SchedulesView({ schedules, screens, groups, experiences, initialStatus, isAdmin }: SchedulesViewProps) {
+export function SchedulesView({ schedules, screens, groups, experiences, initialStatus, motion, isAdmin }: SchedulesViewProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(schedules.length === 0 ? "schedules" : "now");
   const [status, setStatus] = useState(initialStatus);
@@ -155,6 +160,7 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
             { key: "now", label: "On air", icon: Radio, badge: onAirCount || null },
             { key: "schedules", label: "Schedules", icon: ListVideo, badge: schedules.length || null },
             { key: "week", label: "Week", icon: CalendarDays, badge: null },
+            ...(isAdmin ? [{ key: "motion" as const, label: "Motion", icon: Radar, badge: motion?.triggers.length || null }] : []),
           ] as const
         ).map(({ key, label, icon: Icon, badge }) => (
           <button
@@ -202,6 +208,8 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
       )}
 
       {tab === "week" && <WeekView schedules={schedules} screens={screens} groups={groups} />}
+
+      {tab === "motion" && isAdmin && <MotionTriggers overview={motion} screens={screens} groups={groups} isAdmin={isAdmin} />}
     </div>
   );
 }

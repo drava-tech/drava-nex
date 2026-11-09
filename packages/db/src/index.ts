@@ -13,6 +13,7 @@ export * from "./schema/index.js";
 export * from "./queries/screens.js";
 export * from "./queries/screen-groups.js";
 export * from "./queries/schedules.js";
+export * from "./queries/motion-triggers.js";
 export * from "./queries/screen-content-history.js";
 export * from "./queries/screen-uptime.js";
 export * from "./queries/dashboard-activity.js";

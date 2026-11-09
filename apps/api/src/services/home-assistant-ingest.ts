@@ -21,6 +21,25 @@ const RECONNECT_MS = 5_000;
 /** HA lock domain states worth forwarding; anything else (e.g. `unavailable`) is passed through as-is. */
 const SUBSCRIBE_ID = 1;
 
+/** One Home Assistant state change, as forwarded to listeners. */
+export interface HaStateChange {
+  entityId: string;
+  state: string | null;
+  previousState: string | null;
+  attributes: Record<string, unknown>;
+}
+
+const listeners = new Set<(change: HaStateChange) => void>();
+
+/**
+ * Hear every Home Assistant state change (e.g. a motion sensor turning on);
+ * returns an unsubscribe. The lock forwarding below is one such use.
+ */
+export function onHomeAssistantStateChange(listener: (change: HaStateChange) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 function wsUrlFrom(httpUrl: string): string {
   return httpUrl.replace(/\/+$/, "").replace(/^http/, "ws") + "/api/websocket";
 }
@@ -28,9 +47,10 @@ function wsUrlFrom(httpUrl: string): string {
 export function startHomeAssistantIngest(): void {
   const url = process.env["HA_URL"];
   const token = process.env["HA_TOKEN"];
+  // The lock entity is optional now: motion triggers need only HA_URL/HA_TOKEN.
   const entityId = process.env["HA_ENTITY_ID"];
-  if (!url || !token || !entityId) {
-    console.warn("[ha-ingest] disabled — HA_URL/HA_TOKEN/HA_ENTITY_ID not set");
+  if (!url || !token) {
+    console.warn("[ha-ingest] disabled — HA_URL/HA_TOKEN not set");
     return;
   }
 
@@ -52,7 +72,13 @@ export function startHomeAssistantIngest(): void {
         id?: number;
         success?: boolean;
         ha_version?: string;
-        event?: { data?: { entity_id?: string; new_state?: { state?: string; attributes?: Record<string, unknown>; last_changed?: string } } };
+        event?: {
+          data?: {
+            entity_id?: string;
+            old_state?: { state?: string } | null;
+            new_state?: { state?: string; attributes?: Record<string, unknown>; last_changed?: string } | null;
+          };
+        };
       };
       try {
         msg = JSON.parse(raw.toString());
@@ -78,13 +104,29 @@ export function startHomeAssistantIngest(): void {
       }
       if (msg.type === "result" && msg.id === SUBSCRIBE_ID) {
         if (!msg.success) retry("subscribe_events was rejected");
-        else console.info(`[ha-ingest] watching ${entityId} for state changes`);
+        else console.info(`[ha-ingest] watching state changes${entityId ? ` (lock: ${entityId})` : ""}`);
         return;
       }
 
       if (msg.type !== "event") return;
       const data = msg.event?.data;
-      if (!data || data.entity_id !== entityId || !data.new_state) return;
+      if (!data?.entity_id || !data.new_state) return;
+
+      const change: HaStateChange = {
+        entityId: data.entity_id,
+        state: data.new_state.state ?? null,
+        previousState: data.old_state?.state ?? null,
+        attributes: data.new_state.attributes ?? {},
+      };
+      for (const listener of listeners) {
+        try {
+          listener(change);
+        } catch (err) {
+          console.error("[ha-ingest] a state-change listener failed:", err);
+        }
+      }
+
+      if (!entityId || data.entity_id !== entityId) return;
 
       const next = data.new_state;
       broadcastToCms({

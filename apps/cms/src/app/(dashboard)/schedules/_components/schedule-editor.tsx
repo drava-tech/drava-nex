@@ -668,7 +668,7 @@ function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: num
 
 // ─── Small parts ─────────────────────────────────────────────────────────────
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+export function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -680,7 +680,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-[11px] text-muted-foreground">{label}</span>
@@ -717,7 +717,7 @@ const DURATION_PRESETS: [string, number][] = [
 ];
 
 /** Hours, minutes and seconds, stored as seconds, with quick picks. */
-function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
+export function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
@@ -748,7 +748,7 @@ function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: n
   );
 }
 
-function PickList({
+export function PickList({
   label,
   empty,
   options,

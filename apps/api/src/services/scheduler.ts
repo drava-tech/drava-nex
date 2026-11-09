@@ -22,6 +22,13 @@ import {
   type ScheduleSpec,
 } from "@platform/types";
 import { pushScreenContent } from "../routes/screens.js";
+import {
+  anyMotionPlaying,
+  currentMotionTriggers,
+  motionResolutionFor,
+  setMotionFiredHandler,
+} from "./motion-triggers.js";
+import type { MotionTriggerRow } from "@platform/db";
 import { clearTakeoverFlag, getConnectedScreenIds } from "../ws/gateway.js";
 
 /**
@@ -208,12 +215,32 @@ function specsFor(snap: Snapshot, s: SchedulerScreenRow): ScheduleSpec[] {
   return snap.rows.filter((r) => scheduleTargetsScreen(r, s)).map((r) => snap.specs.get(r.id)!);
 }
 
+/** Loaded only while a motion trigger is playing somewhere. */
+async function motionRowsNow(now: Date): Promise<MotionTriggerRow[]> {
+  return anyMotionPlaying(now.getTime()) ? currentMotionTriggers() : [];
+}
+
+/**
+ * What a screen should show: a motion trigger playing on it wins (it's a
+ * moment's takeover), otherwise its schedules decide.
+ */
+function resolveScreen(snap: Snapshot, s: SchedulerScreenRow, motionRows: MotionTriggerRow[], now: Date): ScheduleResolution | null {
+  const scheduled = resolveSchedules(specsFor(snap, s), now);
+  const motion = motionRows.length
+    ? motionResolutionFor((row) => scheduleTargetsScreen(row, s), motionRows, now.getTime())
+    : null;
+  if (!motion) return scheduled;
+  if (scheduled) motion.overridden = [scheduled.schedule];
+  return motion;
+}
+
 async function tick(): Promise<number> {
   const now = new Date();
   const snap = await snapshot();
+  const motionRows = await motionRowsNow(now);
   let soonest = MAX_TICK_MS / 1000;
   for (const s of snap.screens) {
-    const res = resolveSchedules(specsFor(snap, s), now);
+    const res = resolveScreen(snap, s, motionRows, now);
     if (res) soonest = Math.min(soonest, res.changesInSeconds);
     try {
       const state = snap.states.get(s.screenId);
@@ -271,6 +298,8 @@ export function startScheduler(): void {
     return;
   }
   started = true;
+  // A motion trigger firing should reach the screens at once, not next tick.
+  setMotionFiredHandler(runSchedulerSoon);
   // A short delay so the screens have reconnected after a restart; the state
   // table means nothing is re-pushed that is already right.
   schedule(3_000);
@@ -314,11 +343,12 @@ export interface ScreenScheduleStatus {
 
 export async function scheduleStatus(now = new Date()): Promise<ScreenScheduleStatus[]> {
   const snap = await snapshot();
+  const motionRows = await motionRowsNow(now);
   const online = new Set(getConnectedScreenIds());
   const t = now.getTime();
   return snap.screens.map((s) => {
     const specs = specsFor(snap, s);
-    const res = resolveSchedules(specs, now);
+    const res = resolveScreen(snap, s, motionRows, now);
     const state = snap.states.get(s.screenId);
     let next: ScreenScheduleStatus["next"] = null;
     for (const spec of specs) {
