@@ -141,7 +141,6 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const [startDate, setStartDate] = useState(base?.startDate ?? "");
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
-  const [loop, setLoop] = useState(base?.loop ?? true);
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
   // Only images and videos still in the library; anything else an older
@@ -191,9 +190,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
 
   // ─── The draft as the scheduler will see it ───
   const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
-  // An all-day slot starts at midnight, so "play once" would play there and
-  // leave the screens idle all day: all day always repeats.
-  const repeats = allDay || loop;
+  // The queue always repeats inside the slot: the slot's end time is what
+  // stops it, so a separate "play once" only ever left screens idle.
+  const repeats = true;
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
@@ -212,7 +211,6 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const queueSeconds = playlistSeconds(draftSpec.items);
   const windowSeconds = windowLengthSeconds(windowSpec);
   const timeline = queueTimeline(windowSpec, draftSpec.items);
-  const lastEnd = timeline.at(-1)?.endSecond ?? 0;
   const unfit = timeline.filter((t) => !t.fits).length;
   const videos = items.filter((i) => i.type === "video").length;
   const images = items.length - videos;
@@ -483,41 +481,14 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 )}
               </div>
 
-              {allDay ? (
-                items.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    The queue ({formatDuration(queueSeconds)}) repeats all day, from midnight to midnight.
-                  </p>
-                )
-              ) : (
-              <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
-                <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
-                <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      [true, "Repeat", "Start again from the top until the time slot ends"],
-                      [false, "Play once", "Then the screens go back to what they showed before"],
-                    ] as const
-                  ).map(([value, label, hint]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      role="radio"
-                      aria-checked={loop === value}
-                      onClick={() => setLoop(value)}
-                      title={hint}
-                      className={`rounded-full px-4 py-1.5 text-sm ${loop === value ? "btn-active" : "btn-surface"}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {items.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    {fitSummary({ loop, queueSeconds, windowSeconds, unfit, lastEnd })}
-                  </p>
-                )}
-              </div>
+              {/* The queue always repeats until the slot ends; the end time is
+                  what stops it. (To play it once, end the slot when it finishes.) */}
+              {items.length > 0 && (
+                <p className="rounded-2xl bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
+                  {allDay
+                    ? `The queue (${formatDuration(queueSeconds)}) repeats all day, from midnight to midnight.`
+                    : fitSummary({ queueSeconds, windowSeconds, unfit, startTime })}
+                </p>
               )}
 
               <div className="flex flex-wrap items-center gap-1.5">
@@ -610,18 +581,16 @@ function windowLengthSeconds(spec: { startTime: string | null; endTime: string |
 }
 
 /** One line on how the queue fits the time slot. */
-function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: number; unfit: number; lastEnd: number }): string {
+function fitSummary(x: { queueSeconds: number; windowSeconds: number; unfit: number; startTime: string }): string {
   const head = `The time slot is ${formatDuration(x.windowSeconds)}; the queue is ${formatDuration(x.queueSeconds)}. `;
   if (x.unfit > 0) {
     return head + `The last ${x.unfit === 1 ? "item doesn't" : `${x.unfit} items don't`} get a turn: shorten the images or make the slot longer.`;
   }
-  if (!x.loop) {
-    return x.queueSeconds < x.windowSeconds
-      ? head + `It finishes at ${formatClock(x.lastEnd)}, then the screens go back to what they showed before.`
-      : head + "It fills the slot.";
-  }
+  if (x.queueSeconds >= x.windowSeconds) return head + "It fills the slot once.";
   const times = Math.floor(x.windowSeconds / Math.max(1, x.queueSeconds));
-  return x.queueSeconds < x.windowSeconds ? head + `It plays through about ${times} time${times === 1 ? "" : "s"}.` : head + "It fills the slot once.";
+  const [h, m] = x.startTime.split(":").map(Number) as [number, number];
+  const onceEnds = formatClock((h * 60 + m) * 60 + Math.ceil(x.queueSeconds / 60) * 60);
+  return head + `It repeats about ${times} time${times === 1 ? "" : "s"}. To play it about once, end the slot at ${onceEnds}.`;
 }
 
 // ─── Small parts ─────────────────────────────────────────────────────────────

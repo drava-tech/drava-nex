@@ -421,8 +421,7 @@ function ScheduleList({
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>
-                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))}
-                {row.loop ? ", repeating" : ", played once"}
+                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
               </span>
               <span>
                 {targets.length} screen{targets.length === 1 ? "" : "s"}
