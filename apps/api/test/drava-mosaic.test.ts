@@ -1,0 +1,185 @@
+import { Hono } from "hono";
+import { describe, it, expect, afterEach, vi } from "vitest";
+
+import { dravaMosaicRouter, isStudioVideoName } from "../src/routes/drava-mosaic.js";
+import { CLOCK_LOCATION_IDS, resolveClockLocation } from "../src/services/drava-mosaic-locations.js";
+// The studio's own city list, which this API's allowlist must mirror.
+import { LOCATIONS, MAX_PLACES } from "../../../packages/drava-mosaic/world-clock/locations.js";
+
+// The Drava Mosaic's data routes replace its standalone Vercel functions.
+// They keep those functions' bare-JSON contract (the ported pages parse it
+// unchanged) and the same allowlists, so no proxy becomes an open relay.
+
+const app = new Hono().route("/api/drava-mosaic", dravaMosaicRouter);
+const get = (path: string) => app.request(`/api/drava-mosaic${path}`);
+
+const ORIGINAL_ENV = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+  vi.restoreAllMocks();
+});
+
+function mockFetchJson(body: unknown, status = 200) {
+  return vi
+    .spyOn(globalThis, "fetch")
+    // A fresh Response per call: a body can only be read once.
+    .mockImplementation(async () => new Response(JSON.stringify(body), { status }));
+}
+
+describe("World Clock location allowlist", () => {
+  it("mirrors the studio's own city list exactly", () => {
+    expect([...CLOCK_LOCATION_IDS].sort()).toEqual(
+      (LOCATIONS as { id: string }[]).map((l) => l.id).sort()
+    );
+    expect(MAX_PLACES).toBe(5);
+  });
+
+  it("refuses ids that are not on the list, including prototype keys", () => {
+    expect(resolveClockLocation("london")).toBe("London, United Kingdom");
+    expect(resolveClockLocation("atlantis")).toBeNull();
+    expect(resolveClockLocation("constructor")).toBeNull();
+  });
+});
+
+describe("GET /wind", () => {
+  it("returns the studio's bare { kph, tempC, condition } shape", async () => {
+    process.env["WEATHERAPI_KEY"] = "k";
+    mockFetchJson({ current: { wind_kph: 12.5, temp_c: 27, condition: { text: "Sunny" } } });
+
+    const res = await get("/wind?location=oslo");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ kph: 12.5, tempC: 27, condition: "Sunny" });
+  });
+
+  it("refuses an unknown location without calling upstream", async () => {
+    process.env["WEATHERAPI_KEY"] = "k";
+    const fetchSpy = mockFetchJson({});
+    const res = await get("/wind?location=atlantis");
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing key as an { error }", async () => {
+    delete process.env["WEATHERAPI_KEY"];
+    const res = await get("/wind");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toHaveProperty("error");
+  });
+});
+
+describe("GET /weather", () => {
+  it("returns one reading per id", async () => {
+    process.env["WEATHERAPI_KEY"] = "k";
+    mockFetchJson({
+      location: { tz_id: "Europe/London" },
+      current: { wind_kph: 8, temp_c: 14, condition: { text: "Cloudy" } },
+    });
+
+    const res = await get("/weather?ids=london,tokyo");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; tzId: string }[];
+    expect(body.map((r) => r.id)).toEqual(["london", "tokyo"]);
+    expect(body[0]).toEqual({
+      id: "london",
+      tempC: 14,
+      windKph: 8,
+      condition: "Cloudy",
+      tzId: "Europe/London",
+    });
+  });
+
+  it("refuses too many places and unknown ids", async () => {
+    process.env["WEATHERAPI_KEY"] = "k";
+    const fetchSpy = mockFetchJson({});
+    expect((await get("/weather?ids=")).status).toBe(400);
+    expect((await get("/weather?ids=london,tokyo,oslo,dubai,cairo,lima")).status).toBe(400);
+    expect((await get("/weather?ids=london,atlantis")).status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /attendance", () => {
+  it("passes the full summary through, renaming totalMembers", async () => {
+    process.env["TRAVA_ATTENDANCE_API_URL"] = "https://example.test/summary";
+    process.env["TRAVA_ATTENDANCE_WORKSPACE_ID"] = "ws";
+    mockFetchJson({
+      success: true,
+      data: { date: "2026-10-16", totalMembers: 20, present: 12, late: 3, absent: 4, halfDay: 0, onLeave: 1 },
+    });
+
+    const res = await get("/attendance");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      date: "2026-10-16",
+      total: 20,
+      present: 12,
+      late: 3,
+      absent: 4,
+      halfDay: 0,
+      onLeave: 1,
+    });
+  });
+});
+
+describe("GET /video", () => {
+  it("only accepts allowlisted object names", async () => {
+    expect(isStudioVideoName("art_1_grayscale.mp4")).toBe(true);
+    expect(isStudioVideoName("particle_fabric.mp4")).toBe(true);
+    expect(isStudioVideoName("../secrets.csv")).toBe(false);
+    expect(isStudioVideoName("constructor")).toBe(false);
+    expect((await get("/video?name=secrets.csv")).status).toBe(404);
+  });
+
+  it("streams from the public base same-origin, passing Range through", async () => {
+    delete process.env["DRAVA_MOSAIC_R2_BUCKET"];
+    process.env["DRAVA_MOSAIC_VIDEO_BASE_URL"] = "https://videos.example.test/";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response("ab", {
+          status: 206,
+          headers: {
+            "content-type": "video/mp4",
+            "content-range": "bytes 0-1/100",
+            "x-amz-secret-ish": "dropped",
+          },
+        })
+    );
+
+    const res = await app.request("/api/drava-mosaic/video?name=art_2_velocity.mp4", {
+      headers: { Range: "bytes=0-1" },
+    });
+    expect(res.status).toBe(206);
+    expect(await res.text()).toBe("ab");
+    expect(res.headers.get("content-range")).toBe("bytes 0-1/100");
+    expect(res.headers.get("x-amz-secret-ish")).toBeNull();
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe("https://videos.example.test/art_2_velocity.mp4");
+    expect((init?.headers as Record<string, string>)["Range"]).toBe("bytes=0-1");
+  });
+
+  it("presigns into DRAVA_MOSAIC_R2_BUCKET under the prefix when that is set", async () => {
+    Object.assign(process.env, {
+      FLIGHT_R2_ACCESS_KEY_ID: "id",
+      FLIGHT_R2_SECRET_ACCESS_KEY: "secret",
+      FLIGHT_R2_BUCKET: "flight-bucket",
+      FLIGHT_R2_ENDPOINT: "https://account.r2.cloudflarestorage.com/flight-bucket",
+      DRAVA_MOSAIC_R2_BUCKET: "data-art",
+      DRAVA_MOSAIC_R2_PREFIX: "studio/",
+    });
+    const res = await get("/video?name=art_1_grayscale.mp4");
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get("location")!);
+    expect(location.host).toBe("account.r2.cloudflarestorage.com");
+    expect(location.pathname).toBe("/data-art/studio/art_1_grayscale.mp4");
+    expect(location.searchParams.has("X-Amz-Signature")).toBe(true);
+  });
+
+  it("answers 503 when a bucket is named but no R2 credentials are set", async () => {
+    process.env["DRAVA_MOSAIC_R2_BUCKET"] = "data-art";
+    for (const k of ["FLIGHT_R2_ACCESS_KEY_ID", "FLIGHT_R2_SECRET_ACCESS_KEY", "FLIGHT_R2_BUCKET", "FLIGHT_R2_ENDPOINT"]) {
+      delete process.env[k];
+    }
+    expect((await get("/video?name=art_1_grayscale.mp4")).status).toBe(503);
+  });
+});

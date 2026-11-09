@@ -30,7 +30,7 @@ const CONTENT_READERS: Record<
   "flight-simulation": readFlightSimulationContent,
   gallery: readGalleryContent,
   // Nothing is authored — the studio is shown exactly as the standalone app.
-  "data-art-studio": () => null,
+  "drava-mosaic": () => null,
 };
 
 interface EditPageProps {

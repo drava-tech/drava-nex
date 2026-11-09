@@ -25,9 +25,9 @@ export function middleware(request: NextRequest) {
     // Next serves the same files from public/, so it must match — otherwise
     // assets 307 to /login and templates render empty.
     pathname.startsWith("/media/") ||
-    // The Data Art Studio template's pages (public/data-art-studio, copied from
-    // packages/data-art-studio) — iframed by unauthenticated displays.
-    pathname.startsWith("/data-art-studio/") ||
+    // The Drava Mosaic template's pages (public/drava-mosaic, copied from
+    // packages/drava-mosaic) — iframed by unauthenticated displays.
+    pathname.startsWith("/drava-mosaic/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     // Logo shown on the unauthenticated /display kiosk idle screen — must be

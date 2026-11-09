@@ -28,7 +28,7 @@ export const TEMPLATE_KEYS = [
   "object-recognition",
   "flight-simulation",
   "gallery",
-  "data-art-studio",
+  "drava-mosaic",
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {

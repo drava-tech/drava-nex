@@ -14,8 +14,8 @@ import { FlightSimulationLayout } from "./flight-simulation/flight-simulation-la
 import { FlightSimulationEditorWorkspace } from "./flight-simulation/editor-workspace";
 import { GalleryLayout } from "./gallery/gallery-layout";
 import { GalleryEditorWorkspace } from "./gallery/editor-workspace";
-import { DataArtStudioLayout } from "./data-art-studio/data-art-studio-layout";
-import { DataArtStudioEditorWorkspace } from "./data-art-studio/editor-workspace";
+import { DravaMosaicLayout } from "./drava-mosaic/drava-mosaic-layout";
+import { DravaMosaicEditorWorkspace } from "./drava-mosaic/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
@@ -96,12 +96,12 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     defaultContent: DEFAULT_GALLERY_CONTENT,
     Workspace: GalleryEditorWorkspace,
   },
-  "data-art-studio": {
-    key: "data-art-studio",
-    label: TEMPLATE_LABELS["data-art-studio"],
-    Layout: DataArtStudioLayout,
+  "drava-mosaic": {
+    key: "drava-mosaic",
+    label: TEMPLATE_LABELS["drava-mosaic"],
+    Layout: DravaMosaicLayout,
     // No settings: "Edit" just opens the studio full-screen.
-    Workspace: DataArtStudioEditorWorkspace,
+    Workspace: DravaMosaicEditorWorkspace,
   },
 };
 

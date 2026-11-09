@@ -5,7 +5,7 @@ import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
 import { cn, dispatchReplayableEvent } from "@platform/ui";
 import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates/portfolio";
-import { DATA_ART_VIEW_COMMAND, DATA_ART_VIEW_EVENT } from "@platform/ui/templates/data-art-studio";
+import { DATA_ART_VIEW_COMMAND, DATA_ART_VIEW_EVENT } from "@platform/ui/templates/drava-mosaic";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";

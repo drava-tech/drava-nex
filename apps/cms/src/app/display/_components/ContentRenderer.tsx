@@ -9,7 +9,7 @@ import {
   readFlightSimulationContent,
 } from "@platform/ui/templates/flight-simulation";
 import { GalleryRenderer, readGalleryContent } from "@platform/ui/templates/gallery";
-import { DataArtStudioRenderer } from "@platform/ui/templates/data-art-studio";
+import { DravaMosaicRenderer } from "@platform/ui/templates/drava-mosaic";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -135,10 +135,10 @@ export function ContentRenderer({
         const gallery = readGalleryContent(content.templateContent);
         return <GalleryRenderer content={gallery ?? undefined} />;
       }
-      if (content.templateKey === "data-art-studio") {
+      if (content.templateKey === "drava-mosaic") {
         // Full-bleed like Flight Simulation: the studio's pages size their own
         // WebGL canvases to the viewport, so no ScreenStage rescaling.
-        return <DataArtStudioRenderer />;
+        return <DravaMosaicRenderer />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }
