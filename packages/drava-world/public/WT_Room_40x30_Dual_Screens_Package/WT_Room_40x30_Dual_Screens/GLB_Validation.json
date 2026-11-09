@@ -1,0 +1,1580 @@
+{
+  "WT_Room_40x30_Dual_Screens.glb": {
+    "uri": "WT_Room_40x30_Dual_Screens.glb",
+    "mimeType": "model/gltf-binary",
+    "validatorVersion": "2.0.0-dev.3.10",
+    "validatedAt": "2026-10-11T14:11:14.956Z",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 38,
+      "numHints": 0,
+      "messages": [
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/meshes/15/primitives/0/attributes/TEXCOORD_0"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/meshes/17/primitives/0/attributes/TEXCOORD_0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 643x844.",
+          "severity": 2,
+          "pointer": "/images/2"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 643x844.",
+          "severity": 2,
+          "pointer": "/images/3"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 429x572.",
+          "severity": 2,
+          "pointer": "/images/4"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 429x572.",
+          "severity": 2,
+          "pointer": "/images/5"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/6"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/7"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/8"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/9"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/10"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/11"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/12"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/13"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 264x263.",
+          "severity": 2,
+          "pointer": "/images/14"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 264x263.",
+          "severity": 2,
+          "pointer": "/images/15"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 423x559.",
+          "severity": 2,
+          "pointer": "/images/16"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 423x559.",
+          "severity": 2,
+          "pointer": "/images/17"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 442x660.",
+          "severity": 2,
+          "pointer": "/images/18"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 442x660.",
+          "severity": 2,
+          "pointer": "/images/19"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 538x1014.",
+          "severity": 2,
+          "pointer": "/images/20"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 538x1014.",
+          "severity": 2,
+          "pointer": "/images/21"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 522x538.",
+          "severity": 2,
+          "pointer": "/images/22"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 522x538.",
+          "severity": 2,
+          "pointer": "/images/23"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 65x634.",
+          "severity": 2,
+          "pointer": "/images/24"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 65x634.",
+          "severity": 2,
+          "pointer": "/images/25"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/26"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/27"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/28"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/29"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/30"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/31"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/32"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/33"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 318x321.",
+          "severity": 2,
+          "pointer": "/images/34"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 318x321.",
+          "severity": 2,
+          "pointer": "/images/35"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 350x350.",
+          "severity": 2,
+          "pointer": "/images/36"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 350x350.",
+          "severity": 2,
+          "pointer": "/images/37"
+        }
+      ],
+      "truncated": false
+    },
+    "info": {
+      "version": "2.0",
+      "generator": "White Tusker 40ft room with two separate 16:9 front screens",
+      "extensionsUsed": [
+        "KHR_materials_clearcoat",
+        "KHR_materials_emissive_strength"
+      ],
+      "resources": [
+        {
+          "pointer": "/buffers/0",
+          "mimeType": "application/gltf-buffer",
+          "storage": "glb",
+          "byteLength": 2051224
+        },
+        {
+          "pointer": "/images/0",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 512,
+            "height": 512,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/1",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 512,
+            "height": 512,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/2",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 643,
+            "height": 844,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/3",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 643,
+            "height": 844,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/4",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 429,
+            "height": 572,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/5",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 429,
+            "height": 572,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/6",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/7",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/8",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/9",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/10",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/11",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/12",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/13",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/14",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 264,
+            "height": 263,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/15",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 264,
+            "height": 263,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/16",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 423,
+            "height": 559,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/17",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 423,
+            "height": 559,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/18",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 442,
+            "height": 660,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/19",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 442,
+            "height": 660,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/20",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 538,
+            "height": 1014,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/21",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 538,
+            "height": 1014,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/22",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 522,
+            "height": 538,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/23",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 522,
+            "height": 538,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/24",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 65,
+            "height": 634,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/25",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 65,
+            "height": 634,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/26",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/27",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/28",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/29",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/30",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/31",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/32",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/33",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/34",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 318,
+            "height": 321,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/35",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 318,
+            "height": 321,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/36",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 350,
+            "height": 350,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/37",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 350,
+            "height": 350,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        }
+      ],
+      "animationCount": 0,
+      "materialCount": 22,
+      "hasMorphTargets": false,
+      "hasSkins": false,
+      "hasTextures": true,
+      "hasDefaultScene": true,
+      "drawCallCount": 22,
+      "totalVertexCount": 22956,
+      "totalTriangleCount": 7652,
+      "maxUVs": 2,
+      "maxInfluences": 0,
+      "maxAttributes": 5
+    }
+  },
+  "WT_Room_40x30_Dual_Screens_Cutaway.glb": {
+    "uri": "WT_Room_40x30_Dual_Screens_Cutaway.glb",
+    "mimeType": "model/gltf-binary",
+    "validatorVersion": "2.0.0-dev.3.10",
+    "validatedAt": "2026-10-11T14:11:15.054Z",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 46,
+      "numHints": 0,
+      "messages": [
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/meshes/15/primitives/0/attributes/TEXCOORD_0"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/meshes/17/primitives/0/attributes/TEXCOORD_0"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/4"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/5"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/6"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/7"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/8"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/18"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/19"
+        },
+        {
+          "code": "UNUSED_OBJECT",
+          "message": "This object may be unused.",
+          "severity": 2,
+          "pointer": "/nodes/20"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 643x844.",
+          "severity": 2,
+          "pointer": "/images/2"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 643x844.",
+          "severity": 2,
+          "pointer": "/images/3"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 429x572.",
+          "severity": 2,
+          "pointer": "/images/4"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 429x572.",
+          "severity": 2,
+          "pointer": "/images/5"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/6"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/7"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/8"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 463x548.",
+          "severity": 2,
+          "pointer": "/images/9"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/10"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/11"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/12"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 446x330.",
+          "severity": 2,
+          "pointer": "/images/13"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 264x263.",
+          "severity": 2,
+          "pointer": "/images/14"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 264x263.",
+          "severity": 2,
+          "pointer": "/images/15"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 423x559.",
+          "severity": 2,
+          "pointer": "/images/16"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 423x559.",
+          "severity": 2,
+          "pointer": "/images/17"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 442x660.",
+          "severity": 2,
+          "pointer": "/images/18"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 442x660.",
+          "severity": 2,
+          "pointer": "/images/19"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 538x1014.",
+          "severity": 2,
+          "pointer": "/images/20"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 538x1014.",
+          "severity": 2,
+          "pointer": "/images/21"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 522x538.",
+          "severity": 2,
+          "pointer": "/images/22"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 522x538.",
+          "severity": 2,
+          "pointer": "/images/23"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 65x634.",
+          "severity": 2,
+          "pointer": "/images/24"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 65x634.",
+          "severity": 2,
+          "pointer": "/images/25"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/26"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/27"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/28"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 70x549.",
+          "severity": 2,
+          "pointer": "/images/29"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/30"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/31"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/32"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 289x297.",
+          "severity": 2,
+          "pointer": "/images/33"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 318x321.",
+          "severity": 2,
+          "pointer": "/images/34"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 318x321.",
+          "severity": 2,
+          "pointer": "/images/35"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 350x350.",
+          "severity": 2,
+          "pointer": "/images/36"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 350x350.",
+          "severity": 2,
+          "pointer": "/images/37"
+        }
+      ],
+      "truncated": false
+    },
+    "info": {
+      "version": "2.0",
+      "generator": "White Tusker 40ft room with two separate 16:9 front screens",
+      "extensionsUsed": [
+        "KHR_materials_clearcoat",
+        "KHR_materials_emissive_strength"
+      ],
+      "resources": [
+        {
+          "pointer": "/buffers/0",
+          "mimeType": "application/gltf-buffer",
+          "storage": "glb",
+          "byteLength": 2051224
+        },
+        {
+          "pointer": "/images/0",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 512,
+            "height": 512,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/1",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 512,
+            "height": 512,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/2",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 643,
+            "height": 844,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/3",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 643,
+            "height": 844,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/4",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 429,
+            "height": 572,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/5",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 429,
+            "height": 572,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/6",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/7",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/8",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/9",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 463,
+            "height": 548,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/10",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/11",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/12",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/13",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 446,
+            "height": 330,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/14",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 264,
+            "height": 263,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/15",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 264,
+            "height": 263,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/16",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 423,
+            "height": 559,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/17",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 423,
+            "height": 559,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/18",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 442,
+            "height": 660,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/19",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 442,
+            "height": 660,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/20",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 538,
+            "height": 1014,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/21",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 538,
+            "height": 1014,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/22",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 522,
+            "height": 538,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/23",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 522,
+            "height": 538,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/24",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 65,
+            "height": 634,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/25",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 65,
+            "height": 634,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/26",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/27",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/28",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/29",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 70,
+            "height": 549,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/30",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/31",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/32",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/33",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 289,
+            "height": 297,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/34",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 318,
+            "height": 321,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/35",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 318,
+            "height": 321,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/36",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 350,
+            "height": 350,
+            "format": "rgb",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        },
+        {
+          "pointer": "/images/37",
+          "mimeType": "image/png",
+          "storage": "buffer-view",
+          "image": {
+            "width": 350,
+            "height": 350,
+            "format": "luminance",
+            "primaries": "srgb",
+            "transfer": "srgb",
+            "bits": 8
+          }
+        }
+      ],
+      "animationCount": 0,
+      "materialCount": 22,
+      "hasMorphTargets": false,
+      "hasSkins": false,
+      "hasTextures": true,
+      "hasDefaultScene": true,
+      "drawCallCount": 22,
+      "totalVertexCount": 22956,
+      "totalTriangleCount": 7652,
+      "maxUVs": 2,
+      "maxInfluences": 0,
+      "maxAttributes": 5
+    }
+  }
+}

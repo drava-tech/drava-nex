@@ -1,0 +1,13 @@
+SHOE GEOMETRY
+Materials Variants Shoe, © 2021 Shopify.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe
+
+Adaptations: geometry extracted, scaled to 450 mm display-study length, original textures replaced by six custom concept colorways, raised Nike-style swoosh meshes added, and arranged in gold display niches. The shoes are branded concept models, not exact Nike retail SKUs or an official Nike product release. Nike marks identify the requested showcase concept.
+
+ROOM AND INTERFACES
+Custom White Tusker room geometry, architectural materials, interface graphics and lighting, created for this concept.
+
+WEB VIEWER
+Three.js and its addons: MIT License. See the viewer's assets/THREE-LICENSE.txt.

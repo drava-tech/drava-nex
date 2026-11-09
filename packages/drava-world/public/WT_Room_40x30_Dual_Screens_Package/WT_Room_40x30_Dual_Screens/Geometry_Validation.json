@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "measured_room_ft": [
+    40.0,
+    30.0,
+    13.999999999999998
+  ],
+  "display_count": 2,
+  "each_active_screen_ft": [
+    16,
+    9
+  ],
+  "aspect_ratio": "16:9",
+  "central_gap_ft": 2.9999999999999987,
+  "outer_margins_ft": 2.5000000000000013,
+  "screen_lower_edge_ft": 2,
+  "screen_upper_edge_ft": 11,
+  "same_architectural_materials": true,
+  "unit_normals": true
+}

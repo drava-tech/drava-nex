@@ -1,0 +1,29 @@
+{
+  "Kiosk_Screen_55in_50deg": {
+    "diagonal_inches": 55.0,
+    "aspect_ratio": 1.7777776155469087,
+    "tilt_from_horizontal_degrees": 50.00000000000001
+  },
+  "Wall_Screen_85in_16x9": {
+    "diagonal_inches": 85.0,
+    "aspect_ratio": 1.7777778197669476,
+    "tilt_from_horizontal_degrees": 90.0
+  },
+  "Tangible_Table_75in_Touch_Surface": {
+    "diagonal_inches": 75.0,
+    "aspect_ratio": 1.777777706396193,
+    "tilt_from_horizontal_degrees": 0.0
+  },
+  "shoe_products": 6,
+  "width_from_inner_wall_faces_ft": 50.0,
+  "Kiosk_Neck_minimum_glass_clearance_m": 0.1050000000000001,
+  "Kiosk_Pedestal_Shell_minimum_glass_clearance_m": 0.0817558957751703,
+  "Kiosk_Pedestal_Front_minimum_glass_clearance_m": 0.07140567426139652,
+  "checks": "All checks passed: finite unit normals, six shoe products within niches, measured diagonals and screen ratios, kiosk angle and support clearance.",
+  "final_glb_measured_diagonals_inches": {
+    "Kiosk_Screen_55in_50deg": 55.0,
+    "Wall_Screen_85in_16x9": 85.0,
+    "Tangible_Table_75in_Touch_Surface": 75.0
+  },
+  "final_glb_bytes": 7110792
+}

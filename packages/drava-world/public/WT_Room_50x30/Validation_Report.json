@@ -1,0 +1,112 @@
+{
+  "result": "passed",
+  "geometry_measurements_from_exported_glb": {
+    "clear_room_dimensions_m": [
+      15.239999771118164,
+      9.144000053405762,
+      4.267199993133545
+    ],
+    "clear_room_dimensions_ft": [
+      49.99999924907534,
+      30.000000175215753,
+      13.99999997747226
+    ],
+    "wall_screens": [
+      {
+        "name": "Screen_Front_Left",
+        "active_width_m": 4.8768,
+        "active_height_m": 2.7432,
+        "aspect_ratio": 1.777777777777778,
+        "normal": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "name": "Screen_Front_Right",
+        "active_width_m": 4.8768,
+        "active_height_m": 2.7432,
+        "aspect_ratio": 1.777777777777778,
+        "normal": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "name": "Screen_Left",
+        "active_width_m": 4.8768,
+        "active_height_m": 2.7432,
+        "aspect_ratio": 1.777777777777778,
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "Screen_Right",
+        "active_width_m": 4.8768,
+        "active_height_m": 2.7432,
+        "aspect_ratio": 1.777777777777778,
+        "normal": [
+          -1.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "name": "Kiosk_Screen_55in_45deg",
+        "active_width_m": 1.217591,
+        "active_height_m": 0.684895,
+        "aspect_ratio": 1.7777776155469087,
+        "normal": [
+          0.0,
+          0.7071067811865475,
+          0.7071067811865475
+        ],
+        "diagonal_inches": 55.0,
+        "tilt_degrees_from_horizontal": 45.00000000000001,
+        "maximum_support_projection_above_screen_m": -0.002499966661203991
+      }
+    ],
+    "kiosk_plan_center_m": [
+      0,
+      0
+    ]
+  },
+  "mesh_count": 34,
+  "triangle_count": 9922,
+  "embedded_image_count": 56,
+  "self_contained": true,
+  "files": {
+    "WT_Room_50x30_Four_Screens.glb": {
+      "bytes": 2696240,
+      "sha256": "f9fe11174fad3f6ec81c631083b62d22d827779a7190a90a04ac5311c161ee79"
+    },
+    "WT_Room_50x30_Cutaway.glb": {
+      "bytes": 2696252,
+      "sha256": "f90f4642d8dac0acbcdf7587109b75da3a942ae988f09509130298b63901bb76"
+    }
+  },
+  "gltf_validator": {
+    "WT_Room_50x30_Four_Screens.glb": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 59,
+      "numHints": 0
+    },
+    "WT_Room_50x30_Cutaway.glb": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 67,
+      "numHints": 0
+    }
+  },
+  "visual_review": {
+    "interior": "Passed: four-screen room, ceiling diffuser, warm cove, metallic colour treatment and central kiosk.",
+    "overview": "Passed: left display, two front displays, right display and central kiosk are all visible.",
+    "kiosk": "Passed: rounded light housing, dark pedestal and 45-degree display; no support intersection through the screen."
+  }
+}

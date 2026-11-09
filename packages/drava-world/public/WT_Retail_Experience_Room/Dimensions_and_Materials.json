@@ -1,0 +1,119 @@
+{
+  "project": "White Tusker product showcase and tangible experience room",
+  "units": "meters",
+  "clear_room_dimensions_ft": [
+    50,
+    30,
+    14
+  ],
+  "clear_room_dimensions_m": [
+    15.24,
+    9.144,
+    4.2672
+  ],
+  "experiences": {
+    "left": {
+      "name": "Nike product showcase",
+      "center_x_m": -3.8,
+      "niche_layout": "3 columns x 2 rows",
+      "shoe_count": 6,
+      "niche_diameter_m": 0.92,
+      "shoes": [
+        {
+          "index": 1,
+          "center_m": [
+            -5.1,
+            2.55,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "white"
+        },
+        {
+          "index": 2,
+          "center_m": [
+            -3.8,
+            2.55,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "black"
+        },
+        {
+          "index": 3,
+          "center_m": [
+            -2.5,
+            2.55,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "red"
+        },
+        {
+          "index": 4,
+          "center_m": [
+            -5.1,
+            1.35,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "blue"
+        },
+        {
+          "index": 5,
+          "center_m": [
+            -3.8,
+            1.35,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "olive"
+        },
+        {
+          "index": 6,
+          "center_m": [
+            -2.5,
+            1.35,
+            -4.17
+          ],
+          "display_length_m": 0.45,
+          "colorway": "sand"
+        }
+      ]
+    },
+    "right": {
+      "name": "Tangible multi-touch table",
+      "center_x_m": 3.8,
+      "wall_screen_diagonal_in": 85,
+      "wall_screen_aspect": "16:9",
+      "wall_screen_active_size_m": [
+        1.8817315846519018,
+        1.0584740163666946
+      ],
+      "table_diagonal_in": 75,
+      "table_active_size_m": [
+        1.6603513982222664,
+        0.9339476615000248
+      ],
+      "table_surface_height_m": 0.94,
+      "tangible_pucks": 3
+    }
+  },
+  "kiosk": {
+    "diagonal_inches": 55,
+    "active_size_m": [
+      1.2175910253629953,
+      0.6848949517666849
+    ],
+    "tilt_degrees_from_horizontal": 50,
+    "plan_center_m": [
+      -3.8,
+      -1.85
+    ]
+  },
+  "materials": "Original metallic red, glossy graphite, warm cove and circular diffuser retained; warm gold added only to reference-inspired product niches.",
+  "model_notes": "Nike-branded concept display colorways, not exact Nike retail SKUs. Each sneaker is an enlarged 450 mm study model to improve showcase legibility. Tangible interface graphics are illustrative; hardware does not operate inside a static GLB.",
+  "shoe_geometry_credit": "Adapted from Materials Variants Shoe, \u00a9 2021 Shopify, CC BY 4.0, distributed by KhronosGroup/glTF-Sample-Assets. Original textures replaced with custom colorways and raised Nike-style swoosh marks.",
+  "shoe_geometry_source": "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe",
+  "license": "https://creativecommons.org/licenses/by/4.0/"
+}

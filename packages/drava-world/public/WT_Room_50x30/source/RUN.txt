@@ -1,0 +1,9 @@
+Python 3.11 or later.
+Install: python -m pip install -r source/requirements.txt
+Build: python source/build_room.py
+Bake/export: python source/bake_export.py
+Render: python source/render_room.py Interior
+Render: python source/render_room.py Overview
+Render: python source/render_room.py Kiosk
+
+Run from the extracted package folder. Outputs replace the corresponding files in that folder. Intermediate data is stored in _cache/. Embree requires a supported CPU/platform. No original 3ds Max scene is required. The small logo mesh is reused from the supplied previous GLB.

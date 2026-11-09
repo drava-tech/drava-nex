@@ -1,0 +1,61 @@
+{
+  "project": "White Tusker 40 x 30 dual-screen room",
+  "units": "meters",
+  "clear_room_dimensions_ft": [
+    40,
+    30,
+    14
+  ],
+  "clear_room_dimensions_m": [
+    12.192,
+    9.144,
+    4.2672
+  ],
+  "wall_thickness_m": 0.15,
+  "wall_screens": [
+    {
+      "name": "Screen_Front_Left",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        -2.8956,
+        1.9812000000000003,
+        -4.422
+      ],
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Screen_Front_Right",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        2.8956,
+        1.9812000000000003,
+        -4.422
+      ],
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  ],
+  "wall_display_count": 2,
+  "screen_gap_ft": 3,
+  "screen_end_margins_ft": 2.5,
+  "screen_bottom_ft": 2,
+  "screen_top_ft": 11,
+  "rear_entry_clear_width_ft": 8,
+  "rear_entry_clear_height_ft": 9,
+  "ceiling_disc_diameter_ft": 20,
+  "layout_notes": "Two separate 16:9 screens on the 40-foot front wall. Red front and left wall panels, metallic graphite shell and floor, rounded warm cove and circular ceiling diffuser retained from the approved room family. Clear room height is measured to the structural ceiling; the decorative inset and lighting sit below it.",
+  "finish": "Same material values and architectural micro-normal/roughness textures as the preceding rooms."
+}

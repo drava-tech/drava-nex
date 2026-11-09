@@ -1,0 +1,7 @@
+numpy
+scipy
+Pillow
+trimesh==5.1.1
+xatlas==0.0.11
+embreex==4.4.0
+mapbox-earcut
