@@ -80,7 +80,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
             {/* Volume Level Bar — same black → red as the Climate arc */}
             <div className="w-full max-w-sm h-2.5 rounded-full overflow-hidden p-0.5 bg-[#262626] shadow-[var(--pill-shadow)]">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-black via-[#761A2A] to-[#E21D3E] transition-all duration-150"
+                className="h-full rounded-full bg-gradient-to-r from-[#26331f] via-[#5ea83a] to-[#92ff5f] transition-all duration-150"
                 style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }}
               />
             </div>

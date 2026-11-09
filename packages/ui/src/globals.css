@@ -6,179 +6,170 @@
 @source "../../../apps/cms/src/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
-:root {
-  --background: #000000;
-  --foreground: #FFFFFF;
-  --card: #191919;
-  --card-foreground: #FFFFFF;
-  --popover: #191919;
-  --popover-foreground: #FFFFFF;
-  --primary: #E21D3E;
-  --primary-foreground: #FFFFFF;
-  --secondary: #222222;
-  --secondary-foreground: #FFFFFF;
-  --muted: #222222;
-  --muted-foreground: #A1A1AA;
-  --accent: #262626;
-  --accent-foreground: #FFFFFF;
-  --destructive: #E21D3E;
-  --destructive-foreground: #FFFFFF;
-  --border: #262626;
-  --input: #262626;
-  --ring: #E21D3E;
-  --chart-1: #E21D3E;
-  --chart-2: #4DDD00;
-  --chart-3: #FF2400;
-  --chart-4: #888888;
-  --chart-5: #333333;
-  --sidebar: #191919;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #E21D3E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #262626;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #262626;
-  --sidebar-ring: #E21D3E;
-  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
-  --sidebar-active-border: transparent;
-  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
-  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
-  --pill-bg: linear-gradient(180deg, #9a9a9a 0%, #777777 100%);
-  --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
-  --btn-bg: var(--sidebar);
-  --btn-bg-hover: #262626;
-  --btn-fg: #FFFFFF;
-  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
-  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
-  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
-  --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-stroke: linear-gradient(to bottom right, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.22) 45%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.8) 100%);
-  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
-  --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
-  --shine-hi: rgba(255, 255, 255, 0.95);
-  --font-sans: Geist, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Geist Mono, monospace;
-  --radius: 0.5rem;
-  --shadow-x: 0px;
-  --shadow-y: 1px;
-  --shadow-blur: 2px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.18;
-  --shadow-color: hsl(0 0% 0%);
-  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
-  --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
-  --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
-  --shadow: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
-  --shadow-md: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 2px 4px -1px hsl(0 0% 0% / 0.18);
-  --shadow-lg: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 4px 6px -1px hsl(0 0% 0% / 0.18);
-  --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
-  --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
-  --tracking-normal: 0.04em;
+/* drava palette from the DRAVA Brand Book 2026 — the same tokens as Drava Core
+   (web: apps/web/src/app/globals.css, app: apps/mobile/src/theme/tokens.ts).
+   One accent, Lime #92FF5F, used with intent on calm charcoal / Frost surfaces
+   with hairline borders. `primary` is a FILL colour; lime as text or a border
+   goes through `primary-ink`, which is lime in dark mode and a deep leaf green
+   in light, where lime text on white would be unreadable.
+
+   :root and .light are the light theme, .dark the dark one (next-themes puts
+   the class on <html>; the CMS defaults to dark). The nex-only tokens below
+   the brand ones (--sidebar-active-*, --btn-*, --pill-*, --glass-*, ...) keep
+   their names so every component using them picks up the drava look. */
+:root,
+.light {
+  --background: #eef2f3;
+  --foreground: #17181a;
+  --card: #ffffff;
+  --card-foreground: #17181a;
+  --popover: #ffffff;
+  --popover-foreground: #17181a;
+  --primary: #92ff5f;
+  --primary-foreground: #0e1a07;
+  --primary-ink: #2c7a0e;
+  --secondary: #e4eaec;
+  --secondary-foreground: #17181a;
+  --muted: #e4eaec;
+  --muted-foreground: #62666b;
+  --accent: #e2fad6;
+  --accent-foreground: #17181a;
+  --destructive: #c2412f;
+  --destructive-foreground: #ffffff;
+  --border: #d8e2e5;
+  --input: #c9d3d6;
+  --ring: #2c7a0e;
+  --success: #2c7a0e;
+  --warning: #a65a20;
+  --info: #255e9e;
+  --surface-solid: #ffffff;
+  --hero: #393b3d;
+  --hero-foreground: #f1f4f5;
+  --chart-1: #2c7a0e;
+  --chart-2: #255e9e;
+  --chart-3: #0a7a72;
+  --chart-4: #a65a20;
+  --chart-5: #c2412f;
+  --sidebar: #f6f8f9;
+  --sidebar-foreground: #17181a;
+  --sidebar-primary: #92ff5f;
+  --sidebar-primary-foreground: #0e1a07;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #17181a;
+  --sidebar-border: #d8e2e5;
+  --sidebar-ring: #2c7a0e;
+
+  /* Active sidebar item: a drava card (surface + hairline + faint shadow)
+     with the icon in primary-ink, as in Drava Core. */
+  --sidebar-active-gradient: #ffffff;
+  --sidebar-active-border: #d8e2e5;
+  --sidebar-active-shadow: 0 1px 3px 0 hsl(220 6% 10% / 0.06);
+  --sidebar-active-fg: #17181a;
+  --card-shadow: 0 1px 6px 0 hsl(220 6% 10% / 0.04);
+  /* btn-primary / Button "default" + "pill": the lime fill. */
+  --pill-bg: linear-gradient(#92ff5f, #92ff5f);
+  --pill-bg-hover: linear-gradient(#84f04f, #84f04f);
+  --pill-fg: #0e1a07;
+  --pill-shadow: none;
+  /* btn-surface / Button "outline" + "secondary": a quiet control. */
+  --btn-bg: #ffffff;
+  --btn-bg-hover: #e4eaec;
+  --btn-fg: #17181a;
+  --btn-border: #d8e2e5;
+  /* Button "glass": the same quiet control, kept as its own token set. */
+  --glass-bg: linear-gradient(#ffffff, #ffffff);
+  --glass-bg-hover: linear-gradient(#e4eaec, #e4eaec);
+  --glass-fg: #17181a;
+  --glass-border: #d8e2e5;
+  --glass-stroke: none;
+  --shine-stroke: none;
+  --glow-shadow: 0 1px 6px 0 hsl(220 6% 10% / 0.04);
+  --shine-hi: transparent;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-archivo-expanded), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Card 20, control 14, chip 12, as in the app. */
+  --radius: 1.25rem;
+  /* Depth comes from surface steps and hairlines; shadows stay faint. */
+  --shadow-color: 220 6% 10%;
+  --shadow-2xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.03);
+  --shadow-xs: 0 1px 3px 0 hsl(var(--shadow-color) / 0.04);
+  --shadow-sm: 0 1px 6px 0 hsl(var(--shadow-color) / 0.04);
+  --shadow: 0 2px 10px -2px hsl(var(--shadow-color) / 0.06);
+  --shadow-md: 0 6px 16px -6px hsl(var(--shadow-color) / 0.08);
+  --shadow-lg: 0 12px 28px -12px hsl(var(--shadow-color) / 0.12);
+  --shadow-xl: 0 20px 44px -16px hsl(var(--shadow-color) / 0.16);
+  --shadow-2xl: 0 28px 64px -20px hsl(var(--shadow-color) / 0.2);
+  --tracking-normal: 0em;
   --spacing: 0.25rem;
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #FFFFFF;
-  --card: #191919;
-  --card-foreground: #FFFFFF;
-  --popover: #191919;
-  --popover-foreground: #FFFFFF;
-  --primary: #E21D3E;
-  --primary-foreground: #FFFFFF;
-  --secondary: #222222;
-  --secondary-foreground: #FFFFFF;
-  --muted: #222222;
-  --muted-foreground: #A1A1AA;
-  --accent: #262626;
-  --accent-foreground: #FFFFFF;
-  --destructive: #E21D3E;
-  --destructive-foreground: #FFFFFF;
-  --border: #262626;
-  --input: #262626;
-  --ring: #E21D3E;
-  --chart-1: #E21D3E;
-  --chart-2: #4DDD00;
-  --chart-3: #FF2400;
-  --chart-4: #888888;
-  --chart-5: #333333;
-  --sidebar: #191919;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #E21D3E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #262626;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #262626;
-  --sidebar-ring: #E21D3E;
-  --sidebar-active-gradient: linear-gradient(135deg, #4A1520 0%, #761A2A 50%, #A51C34 100%);
-  --sidebar-active-border: transparent;
-  --sidebar-active-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.8), 0 2px 5px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.4);
-  --card-shadow: 0 6px 28px 2px rgba(0, 0, 0, 0.8), 0 0 10px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 14px 0 rgba(0, 0, 0, 0.3);
-  --pill-bg: linear-gradient(180deg, #8e8e8e 0%, #777777 100%);
-  --pill-bg-hover: linear-gradient(180deg, #9a9a9a 0%, #838383 100%);
-  --btn-bg: var(--sidebar);
-  --btn-bg-hover: #262626;
-  --btn-fg: #FFFFFF;
-  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.08);
-  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
-  --glass-bg-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
-  --glass-border: rgba(255, 255, 255, 0.4);
-  --glass-stroke: linear-gradient(to bottom right, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.22) 45%, rgba(255, 255, 255, 0.22) 55%, rgba(255, 255, 255, 0.8) 100%);
-  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
-  --glow-shadow: 0 8px 28px -6px rgba(255, 255, 255, 0.22), 0 2px 8px -2px rgba(255, 255, 255, 0.12);
-  --shine-hi: rgba(255, 255, 255, 0.95);
-  --font-sans: Geist, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Geist Mono, monospace;
-  --radius: 0.5rem;
-}
+  --background: #131416;
+  --foreground: #f1f4f5;
+  --card: #1d1e21;
+  --card-foreground: #f1f4f5;
+  --popover: #1d1e21;
+  --popover-foreground: #f1f4f5;
+  --primary: #92ff5f;
+  --primary-foreground: #0e1a07;
+  --primary-ink: #92ff5f;
+  --secondary: #26282b;
+  --secondary-foreground: #f1f4f5;
+  --muted: #26282b;
+  --muted-foreground: #8c8f95;
+  --accent: #26331f;
+  --accent-foreground: #f1f4f5;
+  --destructive: #ff7d6e;
+  --destructive-foreground: #1a0b08;
+  --border: #2a2c2f;
+  --input: #33363a;
+  --ring: #92ff5f;
+  --success: #92ff5f;
+  --warning: #e29860;
+  --info: #9ac8fc;
+  --surface-solid: #1d1e21;
+  --hero: #393b3d;
+  --hero-foreground: #f1f4f5;
+  --chart-1: #92ff5f;
+  --chart-2: #9ac8fc;
+  --chart-3: #66fff4;
+  --chart-4: #e29860;
+  --chart-5: #ff7d6e;
+  --sidebar: #17181a;
+  --sidebar-foreground: #f1f4f5;
+  --sidebar-primary: #92ff5f;
+  --sidebar-primary-foreground: #0e1a07;
+  --sidebar-accent: #26282b;
+  --sidebar-accent-foreground: #f1f4f5;
+  --sidebar-border: #2a2c2f;
+  --sidebar-ring: #92ff5f;
 
-.light {
-  --background: #FFFFFF;
-  --foreground: #000000;
-  --card: #FFFFFF;
-  --card-foreground: #000000;
-  --popover: #FFFFFF;
-  --popover-foreground: #000000;
-  --primary: #E21D3E;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F4F4F5;
-  --secondary-foreground: #18181B;
-  --muted: #F4F4F5;
-  --muted-foreground: #71717A;
-  --accent: #F4F4F5;
-  --accent-foreground: #18181B;
-  --destructive: #E21D3E;
-  --destructive-foreground: #FFFFFF;
-  --border: #E4E4E7;
-  --input: #E4E4E7;
-  --ring: #E21D3E;
-  --sidebar: #FAFAFA;
-  --sidebar-foreground: #18181B;
-  --sidebar-primary: #E21D3E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F4F4F5;
-  --sidebar-accent-foreground: #18181B;
-  --sidebar-border: #E4E4E7;
-  --sidebar-ring: #E21D3E;
-  --sidebar-active-gradient: linear-gradient(135deg, #E21D3E 0%, #C41432 100%);
-  --sidebar-active-border: transparent;
-  --sidebar-active-shadow: 0 6px 12px -4px rgba(226, 29, 62, 0.45), 0 2px 5px -1px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
-  --card-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -3px 8px 0 rgba(0, 0, 0, 0.05);
-  --pill-bg: linear-gradient(180deg, #8a8a8f 0%, #6b6b70 100%);
-  --pill-bg-hover: linear-gradient(180deg, #96969b 0%, #76767b 100%);
-  --btn-bg: #191919;
-  --btn-bg-hover: #262626;
-  --btn-fg: #FFFFFF;
-  --pill-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.35), inset 0 -2px 5px 0 rgba(0, 0, 0, 0.06);
-  --glass-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.03) 100%);
-  --glass-bg-hover: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.06) 100%);
-  --glass-border: rgba(0, 0, 0, 0.25);
-  --glass-stroke: linear-gradient(to bottom right, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 45%, rgba(0, 0, 0, 0.2) 55%, rgba(0, 0, 0, 0.7) 100%);
-  --shine-stroke: radial-gradient(ellipse 38% 100% at 0% 0%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%), radial-gradient(ellipse 38% 100% at 100% 100%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%);
-  --glow-shadow: 0 8px 28px -6px rgba(0, 0, 0, 0.2), 0 2px 8px -2px rgba(0, 0, 0, 0.1);
-  --shine-hi: rgba(0, 0, 0, 0.55);
+  --sidebar-active-gradient: #26282b;
+  --sidebar-active-border: #33363a;
+  --sidebar-active-shadow: 0 1px 3px 0 hsl(0 0% 0% / 0.3);
+  --sidebar-active-fg: #f1f4f5;
+  --card-shadow: 0 1px 6px 0 hsl(0 0% 0% / 0.25);
+  --pill-bg: linear-gradient(#92ff5f, #92ff5f);
+  --pill-bg-hover: linear-gradient(#a6ff7d, #a6ff7d);
+  --pill-fg: #0e1a07;
+  --pill-shadow: none;
+  --btn-bg: #26282b;
+  --btn-bg-hover: #33363a;
+  --btn-fg: #f1f4f5;
+  --btn-border: #33363a;
+  --glass-bg: linear-gradient(#26282b, #26282b);
+  --glass-bg-hover: linear-gradient(#33363a, #33363a);
+  --glass-fg: #f1f4f5;
+  --glass-border: #33363a;
+  --glass-stroke: none;
+  --shine-stroke: none;
+  --glow-shadow: 0 1px 6px 0 hsl(0 0% 0% / 0.25);
+  --shine-hi: transparent;
+
+  --shadow-color: 0 0% 0%;
 }
 
 @theme inline {
@@ -190,6 +181,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-ink: var(--primary-ink);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -201,6 +193,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-surface-solid: var(--surface-solid);
+  --color-hero: var(--hero);
+  --color-hero-foreground: var(--hero-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -215,16 +213,19 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --color-status-online: #4DDD00;
-  --color-status-offline: #E21D3E;
-  --color-status-alert: #FF2400;
+  /* Screen status: lime for live, the brand's destructive for offline. */
+  --color-status-online: var(--success);
+  --color-status-offline: var(--destructive);
+  --color-status-alert: var(--warning);
 
   --font-sans: var(--font-sans);
+  --font-heading: var(--font-heading);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
 
   /* App-wide weights: only light (300) and normal (400). Heavier utilities
-     (font-medium/semibold/bold/...) all resolve to normal. */
+     (font-medium/semibold/bold/...) all resolve to normal. Kept from before
+     drava because the TV templates are laid out against it. */
   --font-weight-thin: 300;
   --font-weight-extralight: 300;
   --font-weight-light: 300;
@@ -237,10 +238,12 @@
   --tracking-tighter: 0em;
   --tracking-tight: 0em;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 6px);
+  --radius-lg: calc(var(--radius) - 2px);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) + 4px);
+  --radius-3xl: calc(var(--radius) + 8px);
 
   --shadow-2xs: var(--shadow-2xs);
   --shadow-xs: var(--shadow-xs);
@@ -278,8 +281,17 @@
     overflow-x: hidden;
   }
 
+  /* drava type: headings in Archivo Expanded, everything you read in Inter. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "rlig" 1, "calt" 1;
     letter-spacing: 0.04em;
     /* Safety net: nothing on the page should ever be scrollable sideways
@@ -415,7 +427,7 @@
   display: none;
 }
 
-/* App-wide scrollbars: very thin, solid brand red. Done through
+/* App-wide scrollbars: very thin hairline, as in Drava Core. Done through
    ::-webkit-scrollbar for the exact 4px width; setting the standard
    scrollbar-width/scrollbar-color on an element makes Chrome ignore these
    rules for it, so those are left to Firefox alone below.
@@ -431,14 +443,18 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--primary);
+  background: var(--border);
   border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }
 
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--primary) transparent;
+    scrollbar-color: var(--border) transparent;
   }
 }
 
@@ -459,18 +475,19 @@
   background: var(--sidebar-active-gradient) !important;
   background-origin: border-box !important;
   background-clip: border-box !important;
-  color: #FFFFFF !important;
+  color: var(--sidebar-active-fg) !important;
   border-color: var(--sidebar-active-border) !important;
   box-shadow: var(--sidebar-active-shadow) !important;
-  border-radius: 0.625rem !important;
+  border-radius: 0.875rem !important;
   font-weight: 400 !important;
 }
 
+/* The one touch of lime on the active item: its icon, in primary-ink. */
 [data-sidebar="menu-button"][data-active="true"] svg,
 [data-sidebar="menu-sub-button"][data-active="true"] svg,
 [data-sidebar="menu-button"][aria-current="page"] svg,
 [data-sidebar="menu-sub-button"][aria-current="page"] svg {
-  color: #FFFFFF !important;
+  color: var(--primary-ink) !important;
 }
 
 /* Reusable white drop-shadow for cards: add `card-glow` to any element.
@@ -520,6 +537,8 @@
 @utility glass-shine {
   position: relative;
   background-image: var(--glass-bg);
+  color: var(--glass-fg);
+  border: 1px solid var(--glass-border);
 
   &:hover {
     background-image: var(--glass-bg-hover);
@@ -553,14 +572,15 @@
   }
 }
 
-/* ── App-wide button language ─────────────────────────────────────────────
-   btn-surface : every regular button (#191919, white text).
-   btn-primary : the one main action per view (grey "Add Screen" pill).
-   btn-active  : selected / on state (red→black, same as the sidebar).
-   Tune via the --btn-* tokens above. */
+/* ── App-wide button language (drava) ─────────────────────────────────────
+   btn-surface : every regular button — a quiet surface with a hairline.
+   btn-primary : the one main action per view — the lime fill, dark ink.
+   btn-active  : selected / on state — also lime, so "on" reads at a glance.
+   Tune via the --btn-* / --pill-* tokens above. */
 @utility btn-surface {
   background-color: var(--btn-bg);
   color: var(--btn-fg);
+  box-shadow: inset 0 0 0 1px var(--btn-border);
   &:hover:not(:disabled) {
     background-color: var(--btn-bg-hover);
   }
@@ -569,14 +589,14 @@
 @utility btn-primary {
   background-image: var(--pill-bg);
   box-shadow: var(--pill-shadow);
-  color: #FFFFFF;
+  color: var(--pill-fg);
   &:hover:not(:disabled) {
     background-image: var(--pill-bg-hover);
   }
 }
 
 @utility btn-active {
-  background: var(--sidebar-active-gradient);
-  box-shadow: var(--sidebar-active-shadow);
-  color: #FFFFFF;
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--primary-foreground);
 }

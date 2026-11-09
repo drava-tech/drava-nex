@@ -78,9 +78,9 @@ export default function ClimateContent({ isExpanded, state, actions }: any) {
                 <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full" aria-hidden>
                   <defs>
                     <linearGradient id="climate-arc" gradientUnits="userSpaceOnUse" x1="40" y1="165" x2="40" y2="70">
-                      <stop offset="0%" stopColor="#000000" />
-                      <stop offset="55%" stopColor="#761A2A" />
-                      <stop offset="100%" stopColor="#E21D3E" />
+                      <stop offset="0%" stopColor="#26331f" />
+                      <stop offset="55%" stopColor="#5ea83a" />
+                      <stop offset="100%" stopColor="#92ff5f" />
                     </linearGradient>
                   </defs>
                   <path d={ARC} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={4} strokeLinecap="round" />

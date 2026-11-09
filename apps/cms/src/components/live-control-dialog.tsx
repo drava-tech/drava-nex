@@ -157,7 +157,7 @@ export function LiveControlDialog({
             <p className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground tracking-[0.25em] uppercase mb-1.5">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  activeScreen?.isOnline ? "bg-[#4DDD00] shadow-[0_0_6px_#4DDD00] animate-pulse" : "bg-muted-foreground/40"
+                  activeScreen?.isOnline ? "bg-[#92ff5f] shadow-[0_0_6px_#92ff5f] animate-pulse" : "bg-muted-foreground/40"
                 }`}
               />
               {activeScreen?.isOnline ? "Live" : "Offline"} · {experienceName}
@@ -182,7 +182,7 @@ export function LiveControlDialog({
                     onSelect={() => setActiveScreenId(s.screenId)}
                   >
                     <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.isOnline ? "bg-[#4DDD00]" : "bg-muted-foreground/40"}`}
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.isOnline ? "bg-[#92ff5f]" : "bg-muted-foreground/40"}`}
                     />
                     <span className="truncate">{s.screenName}</span>
                   </DropdownMenuItem>

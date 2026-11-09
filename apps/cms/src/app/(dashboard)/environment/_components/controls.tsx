@@ -126,7 +126,7 @@ export function ClimateControlIcon({ type, active }: { type: "swing" | "timer" |
 export function DragSlider(props: React.ComponentProps<typeof BaseDragSlider>) {
   return (
     <BaseDragSlider
-      fillClassName="bg-gradient-to-r from-black via-[#761A2A] to-[#E21D3E]"
+      fillClassName="bg-gradient-to-r from-[#26331f] via-[#5ea83a] to-[#92ff5f]"
       {...props}
     />
   );

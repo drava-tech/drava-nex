@@ -391,7 +391,7 @@ export function PushToScreenModal({
                           <span className="flex min-w-0 flex-1 items-center gap-2">
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                isOnline ? "bg-[#4DDD00] shadow-[0_0_6px_#4DDD00]" : "bg-muted-foreground/40"
+                                isOnline ? "bg-[#92ff5f] shadow-[0_0_6px_#92ff5f]" : "bg-muted-foreground/40"
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">

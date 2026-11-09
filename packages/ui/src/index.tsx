@@ -24,10 +24,10 @@ export const buttonVariants = cva(
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline: "btn-surface rounded-full border-0 font-normal",
         secondary: "btn-surface rounded-full border-0 font-normal",
-        glass: "glass-shine rounded-full font-normal text-white",
+        glass: "glass-shine rounded-full font-normal",
         active: "btn-active rounded-full border-0 font-normal",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-blue-600 dark:text-blue-400 underline-offset-4 hover:underline",
+        link: "text-primary-ink underline-offset-4 hover:underline",
         pill: "btn-primary rounded-full border-0 font-normal",
       },
       size: {
@@ -177,9 +177,9 @@ CardFooter.displayName = "CardFooter";
 // ==========================================
 export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
   const colors = {
-    online: "bg-[#4DDD00]/10 text-[#4DDD00] border-[#4DDD00]/30",
-    offline: "bg-[#E21D3E]/10 text-[#E21D3E] border-[#E21D3E]/30",
-    maintenance: "bg-[#FF3000]/10 text-[#FF3000] border-[#FF3000]/30",
+    online: "bg-status-online/10 text-status-online border-status-online/30",
+    offline: "bg-status-offline/10 text-status-offline border-status-offline/30",
+    maintenance: "bg-status-alert/10 text-status-alert border-status-alert/30",
   };
 
   const statusLabel = {
@@ -199,10 +199,10 @@ export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
         className={cn(
           "h-1.5 w-1.5 rounded-full",
           status === "online"
-            ? "bg-[#4DDD00]"
+            ? "bg-status-online"
             : status === "offline"
-            ? "bg-[#E21D3E]"
-            : "bg-[#FF2400]"
+            ? "bg-status-offline"
+            : "bg-status-alert"
         )}
       />
       {statusLabel[status]}

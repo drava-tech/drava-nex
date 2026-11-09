@@ -35,8 +35,8 @@ const kindMeta: Record<ContentKind, { icon: typeof Layers; label: string }> = {
 };
 
 const statusMeta: Record<ScreenStatus, { label: string; color: string }> = {
-  online: { label: "Online", color: "#4DDD00" },
-  offline: { label: "Offline", color: "#E21D3E" },
+  online: { label: "Online", color: "var(--success)" },
+  offline: { label: "Offline", color: "var(--destructive)" },
 };
 
 function toScreenDetail(row: ScreenRow): ScreenDetail {

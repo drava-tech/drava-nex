@@ -40,7 +40,7 @@ export default function SecurityContent({ isExpanded, state, actions }: any) {
               <div className="flex items-start justify-center mt-3 sm:mt-5 mb-1 sm:mb-2 shrink-0">
                 <span className="text-3xl sm:text-5xl lg:text-6xl font-black text-white">{state.locked ? "Locked" : "Unlocked"}</span>
               </div>
-              <p className={`text-center text-[10px] sm:text-xs font-bold tracking-widest uppercase opacity-80 mt-1 sm:mt-2 shrink-0 ${state.locked ? "text-[#E21D3E]" : "text-white/60"}`}>
+              <p className={`text-center text-[10px] sm:text-xs font-bold tracking-widest uppercase opacity-80 mt-1 sm:mt-2 shrink-0 ${state.locked ? "text-primary-ink" : "text-white/60"}`}>
                 {state.locked ? "System is fully locked and secured" : "System is unlocked"}
               </p>
             </div>
