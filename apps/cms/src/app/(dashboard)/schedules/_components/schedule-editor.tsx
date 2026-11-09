@@ -191,6 +191,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
 
   // ─── The draft as the scheduler will see it ───
   const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
+  // An all-day slot starts at midnight, so "play once" would play there and
+  // leave the screens idle all day: all day always repeats.
+  const repeats = allDay || loop;
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
@@ -201,7 +204,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     daysOfWeek: days,
     ...windowSpec,
     timezone,
-    loop,
+    loop: repeats,
     items: items.map((i) => ({ id: i.key, kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
     createdAt: draft.mode === "edit" ? draft.schedule.createdAt : new Date().toISOString(),
   };
@@ -232,7 +235,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedules, screens, draftTargets.join(), days.join(), startTime, endTime, allDay, startDate, endDate, timezone, loop, queueSeconds]);
+  }, [schedules, screens, draftTargets.join(), days.join(), startTime, endTime, allDay, startDate, endDate, timezone, repeats, queueSeconds]);
 
   // ─── Queue editing ───
   const addMedia = (m: MediaPickerItem) => {
@@ -300,7 +303,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       startTime: windowSpec.startTime,
       endTime: windowSpec.endTime,
       timezone,
-      loop,
+      loop: repeats,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
       items: items.map((i) => ({ kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -480,6 +483,13 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 )}
               </div>
 
+              {allDay ? (
+                items.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    The queue ({formatDuration(queueSeconds)}) repeats all day, from midnight to midnight.
+                  </p>
+                )
+              ) : (
               <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
                 <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
                 <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
@@ -508,6 +518,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                   </p>
                 )}
               </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {SCHEDULE_DAY_LABELS.map((label, d) => {
