@@ -7,8 +7,26 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { experience } from "./projects.js";
 import { mediaAsset } from "./media.js";
+
+// A named set of screens ("Lobby", "Showroom") so the CMS can list them
+// together. A screen sits in at most one group (screen.groupId); deleting a
+// group leaves its screens ungrouped.
+export const screenGroup = pgTable("screen_group", {
+  id: text("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()::text`),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type ScreenGroup = typeof screenGroup.$inferSelect;
+export type NewScreenGroup = typeof screenGroup.$inferInsert;
 
 export const screen = pgTable(
   "screen",
@@ -48,6 +66,10 @@ export const screen = pgTable(
       { onDelete: "set null" }
     ),
     position: integer("position").notNull().default(0),
+    // The screen_group this screen is listed under; null = ungrouped.
+    groupId: text("group_id").references(() => screenGroup.id, {
+      onDelete: "set null",
+    }),
     // Overlays whatever content is assigned above — set while a CMS operator
     // is live-pushing a whiteboard to this screen, so a display-page refresh
     // can resume it instead of falling back to the assigned content. Cleared
@@ -75,6 +97,7 @@ export const screen = pgTable(
     index("screen_current_media_asset_idx").on(table.currentMediaAssetId),
     index("screen_default_media_asset_idx").on(table.defaultMediaAssetId),
     index("screen_deleted_at_idx").on(table.deletedAt),
+    index("screen_group_id_idx").on(table.groupId),
   ]
 );
 

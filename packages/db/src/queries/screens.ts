@@ -36,6 +36,8 @@ export interface ScreenRow {
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
   blanked: boolean;
+  /** The screen_group it is listed under; null = ungrouped. */
+  groupId: string | null;
 }
 
 export async function listScreens(): Promise<ScreenRow[]> {
@@ -54,6 +56,7 @@ export async function listScreens(): Promise<ScreenRow[]> {
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
       blanked: screen.blanked,
+      groupId: screen.groupId,
     })
     .from(screen)
     .leftJoin(
