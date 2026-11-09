@@ -142,6 +142,16 @@ export default function MediaPage() {
   // Empty set = "All Media" (no filter applied). Multiple categories checked
   // at once is an OR — an item matching ANY selected category is shown.
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  // Opened from the dashboard's media tiles as /media?category=videos (or a
+  // comma list): start with that filter. Read once, on mount; window.location
+  // rather than useSearchParams, which would need a Suspense boundary here.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("category");
+    if (!wanted) return;
+    const known = new Set(CATEGORIES.map((c) => c.id));
+    const picked = wanted.split(",").map((s) => s.trim()).filter((id) => known.has(id));
+    if (picked.length) setSelectedCategories(new Set(picked));
+  }, []);
   // Same OR-within-the-filter, AND-across-filters shape as selectedCategories.
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState("");

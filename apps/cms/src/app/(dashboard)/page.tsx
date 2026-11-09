@@ -26,7 +26,6 @@ import { getActiveScreens } from "@/actions/screen-actions";
 import { StatCard } from "@/app/(dashboard)/_components/dashboard/stat-card";
 import { UptimeAreaChart } from "@/app/(dashboard)/_components/dashboard/uptime-area-chart";
 import { MediaTypeRatio } from "@/app/(dashboard)/_components/dashboard/media-type-ratio";
-import { ScreensTable } from "@/app/(dashboard)/_components/dashboard/screens-table";
 import { ActivityFeed } from "@/app/(dashboard)/_components/dashboard/activity-feed";
 import { DashboardMediaProvider } from "@/app/(dashboard)/_components/dashboard/media-live-data";
 import { MediaAssetsStatCard } from "@/app/(dashboard)/_components/dashboard/media-assets-stat-card";
@@ -80,7 +79,7 @@ export default async function DashboardPage() {
     .join(" · ");
 
   const roleBreakdown = userStats.byRole
-    .map((r) => `${r.count} ${roleLabel(r.role).toLowerCase()}`)
+    .map((r) => `${r.count} ${roleLabel(r.role).toLowerCase()}${r.count === 1 ? "" : "s"}`)
     .join(" · ");
 
   // Hours per day the window covers, times samples per hour.
@@ -146,7 +145,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           stat={{
-            label: "Experiences",
+            label: "Portfolio",
             value: String(experienceStats.total),
             breakdown: topTemplates || undefined,
           }}
@@ -156,12 +155,14 @@ export default async function DashboardPage() {
         <MediaAssetsStatCard />
         <StatCard
           stat={{
-            label: "Active Users",
-            value: String(userStats.activeNow),
-            breakdown: `${userStats.total} total · ${roleBreakdown}`,
+            label: "Users",
+            value: String(userStats.total),
+            breakdown: roleBreakdown,
           }}
           icon={Users}
           highlight
+          // Only the super admin manages people, so only they get the way in.
+          href={viewer.role === "SUPERADMIN" ? "/settings#users" : undefined}
         />
       </div>
 
@@ -187,18 +188,6 @@ export default async function DashboardPage() {
                 series={uptimeSeries}
                 expectedSamplesPerDay={expectedSamplesPerDay}
                 isSample={uptimeIsSample}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Screens</CardTitle>
-              <CardDescription>Live status across your network</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0">
-              <ScreensTable
-                initialScreens={screenRows}
-                initialActiveScreenIds={activeScreenIds}
               />
             </CardContent>
           </Card>
