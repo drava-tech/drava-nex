@@ -37,6 +37,7 @@ import {
   type ScreenScheduleStatus,
 } from "@/actions/schedule-actions";
 import { ScheduleEditor, type EditorDraft } from "./schedule-editor";
+import { MediaThumb } from "@/components/media-thumb";
 import { WeekView } from "./week-view";
 import {
   formatWhen,
@@ -447,17 +448,13 @@ function ScheduleList({
             {items.length > 0 && (
               <div className="flex gap-1.5 overflow-hidden">
                 {items.slice(0, 8).map((i) => (
-                  <div
-                    key={i.id}
-                    title={`${i.title} · ${formatDuration(i.durationSeconds)}`}
-                    className="flex h-9 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-[10px] text-muted-foreground"
-                  >
-                    {i.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={i.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="truncate px-1">{i.kind === "experience" ? "Exp." : i.mediaType ?? "Media"}</span>
-                    )}
+                  <div key={i.id} className="h-9 w-14 shrink-0 overflow-hidden rounded-md border border-border">
+                    <MediaThumb
+                      compact
+                      type={i.kind === "experience" ? "experience" : i.mediaType ?? "image"}
+                      src={i.thumbnailUrl}
+                      name={`${i.title} · ${formatDuration(i.durationSeconds)}`}
+                    />
                   </div>
                 ))}
                 {items.length > 8 && (
@@ -479,10 +476,10 @@ function ScheduleList({
             )}
 
             {isAdmin && (
-              <label className="flex cursor-pointer items-center justify-between gap-2 border-t border-border pt-3 text-sm">
+              <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-sm">
                 <span className="text-muted-foreground">{row.enabled ? "On" : "Off"}</span>
                 <Switch checked={row.enabled} disabled={busyId === row.id} onChange={() => onToggle(row)} label={`Turn ${row.name} ${row.enabled ? "off" : "on"}`} />
-              </label>
+              </div>
             )}
           </div>
         );
@@ -515,10 +512,10 @@ export function Switch({
       aria-label={label}
       disabled={disabled}
       onClick={onChange}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${checked ? "bg-primary" : "bg-input"}`}
+      className={`relative inline-block h-6 w-11 shrink-0 rounded-full p-0 transition-colors disabled:opacity-50 ${checked ? "bg-primary" : "bg-input"}`}
     >
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`}
+        className={`absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-[22px]" : "translate-x-0.5"}`}
       />
     </button>
   );

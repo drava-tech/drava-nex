@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { X, Upload, Loader2, ImageIcon } from "lucide-react";
-import { mediaThumbnailSrc } from "@/lib/media-tiles";
+import { X, Upload, Loader2, ImageIcon, Check } from "lucide-react";
+import { MediaThumb } from "@/components/media-thumb";
 
 interface MediaItem {
   id: string;
@@ -57,6 +57,12 @@ export function MediaPicker({
   /** Per-file failures from the last batch; the successful ones still land. */
   const [failed, setFailed] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** In multi mode: how many times each item was picked since the picker opened. */
+  const [picked, setPicked] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (open) setPicked(new Map());
+  }, [open]);
+  const pickedTotal = [...picked.values()].reduce((a, b) => a + b, 0);
 
   /** Keyset cursor for the next page, or null once the list is exhausted. */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -205,7 +211,7 @@ export function MediaPicker({
                 onClick={onClose}
                 className="px-3 py-1.5 rounded-full btn-surface text-xs font-normal transition-colors"
               >
-                Done
+                {pickedTotal > 0 ? `Done · ${pickedTotal} added` : "Done"}
               </button>
             ) : null}
             <button
@@ -244,28 +250,42 @@ export function MediaPicker({
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {visible.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    onSelect?.(m.url);
-                    onSelectItem?.(m);
-                    if (!multi) onClose();
-                  }}
-                  className="group relative aspect-video rounded-xl overflow-hidden border border-border hover:border-primary hover:ring-2 hover:ring-primary/20 transition-all"
-                  title={m.name}
-                >
-                  {m.type === "video" ? (
-                    <video src={m.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={mediaThumbnailSrc(m)} alt={m.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                  )}
-                  <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[10px] text-white bg-black/50 truncate text-left">
-                    {m.name}
-                  </span>
-                </button>
-              ))}
+              {visible.map((m) => {
+                const count = picked.get(m.id) ?? 0;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect?.(m.url);
+                      onSelectItem?.(m);
+                      if (!multi) onClose();
+                      else setPicked((prev) => new Map(prev).set(m.id, (prev.get(m.id) ?? 0) + 1));
+                    }}
+                    aria-pressed={multi ? count > 0 : undefined}
+                    aria-label={count > 0 ? `${m.name}, added${count > 1 ? ` ${count} times` : ""}` : m.name}
+                    title={m.name}
+                    className={`group relative aspect-video overflow-hidden rounded-xl border transition-all ${
+                      count > 0
+                        ? "border-primary ring-2 ring-primary/50"
+                        : "border-border hover:border-primary/60 hover:ring-2 hover:ring-primary/20"
+                    }`}
+                  >
+                    {/* The thumbnail for images and videos (never the video file itself); an icon otherwise. */}
+                    <MediaThumb
+                      type={m.type}
+                      src={m.type === "image" ? (m.thumbnailUrl || m.url) : (m.thumbnailUrl ?? null)}
+                      name={m.name}
+                    />
+                    {count > 0 && (
+                      <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground shadow">
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        {count > 1 && <span className="tabular-nums">×{count}</span>}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
           {/* Sentinel: the next page loads when this scrolls into view. */}

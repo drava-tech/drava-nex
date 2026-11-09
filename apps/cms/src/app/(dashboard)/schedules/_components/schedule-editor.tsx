@@ -6,12 +6,9 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarClock,
-  Film,
-  Image as ImageIcon,
   Monitor,
   Plus,
   Search,
-  SquareTerminal,
   Trash2,
   X,
 } from "lucide-react";
@@ -39,6 +36,7 @@ import {
   type ScheduleSpec,
 } from "@platform/types";
 import { MediaPicker, type MediaPickerItem } from "@/components/media-picker";
+import { MediaThumb } from "@/components/media-thumb";
 import { PUSHABLE_MEDIA_TYPES } from "@/lib/media-tiles";
 import { createSchedule, updateSchedule } from "@/actions/schedule-actions";
 import { Switch } from "./schedules-view";
@@ -441,21 +439,12 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
             ) : (
               <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
                 {items.map((item, index) => (
-                  <li key={item.key} className={`flex items-center gap-3 px-3 py-2.5 ${item.missing ? "opacity-50" : ""}`}>
+                  <li key={item.key} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 ${item.missing ? "opacity-50" : ""}`}>
                     <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-                    <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground">
-                      {item.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                      ) : item.kind === "experience" ? (
-                        <SquareTerminal className="h-4 w-4" />
-                      ) : item.mediaType === "video" ? (
-                        <Film className="h-4 w-4" />
-                      ) : (
-                        <ImageIcon className="h-4 w-4" />
-                      )}
+                    <div className="h-10 w-14 shrink-0 overflow-hidden rounded-md border border-border">
+                      <MediaThumb compact type={item.kind === "experience" ? "experience" : item.mediaType ?? "image"} src={item.thumbnailUrl} name={item.title} />
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-[8rem] flex-1">
                       <p className="truncate text-sm">{item.title}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {item.missing ? (
@@ -545,10 +534,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                 </p>
               ) : (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                <label className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2.5 text-sm">
                   <Switch checked={allDay} onChange={() => setAllDay((v) => !v)} label="All day" />
-                  All day
-                </label>
+                  <span>All day</span>
+                </div>
                 {!allDay && (
                   <div className="flex items-center gap-2 text-sm">
                     <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} aria-label="Start time" className="rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
@@ -602,23 +591,34 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
           </Section>
 
           {/* ─── Priority ─── */}
-          <Section title="Priority and status" hint="When two schedules cover the same screen at the same time, the higher priority plays">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Priority</span>
+          <Section title="Priority and status">
+            <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm">Priority</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    If two schedules cover the same screen at the same time, the higher number plays. Leave at 0 if they don't overlap.
+                  </p>
+                </div>
                 <input
                   type="number"
                   min={-100}
                   max={100}
                   value={priority}
+                  aria-label="Priority"
                   onChange={(e) => setPriority(Math.max(-100, Math.min(100, Math.round(Number(e.target.value) || 0))))}
-                  className="w-20 rounded-xl border border-input bg-background px-3 py-2 text-sm tabular-nums outline-none focus:border-ring"
+                  className="w-20 shrink-0 rounded-xl border border-input bg-background px-3 py-2 text-center text-sm tabular-nums outline-none focus:border-ring"
                 />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
+              </div>
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm">{enabled ? "On" : "Off"}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {enabled ? "Plays at the times above." : "Saved, but won't play until you turn it on."}
+                  </p>
+                </div>
                 <Switch checked={enabled} onChange={() => setEnabled((v) => !v)} label="Schedule on" />
-                {enabled ? "On" : "Off (saved, but won't play)"}
-              </label>
+              </div>
             </div>
           </Section>
 
@@ -745,19 +745,22 @@ function ClockRange({
   if (!slot) return null;
   const from = formatClock(Math.floor(slot.startSecond / 60) * 60);
   const to = formatClock(Math.floor(slot.endSecond / 60) * 60);
-  const cls = "rounded-lg border border-input bg-background px-2 py-1 text-xs tabular-nums outline-none focus:border-ring";
+  const cls = "h-[30px] w-[6.25rem] rounded-lg border border-input bg-background px-2 text-xs tabular-nums outline-none focus:border-ring";
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+    <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
       {isFirst ? (
         <input type="time" value={from} onChange={(e) => e.target.value && onFrom(e.target.value)} aria-label="From" className={cls} />
       ) : (
-        <span className="w-[4.5rem] text-center tabular-nums text-foreground/80" title="Starts when the item before it ends">
+        <span
+          className="inline-flex h-[30px] w-[6.25rem] items-center rounded-lg border border-dashed border-input px-2 text-xs tabular-nums text-muted-foreground"
+          title="Starts when the item before it ends"
+        >
           {from}
         </span>
       )}
       <span>to</span>
       <input type="time" value={to} onChange={(e) => e.target.value && onTo(slot.startSecond, e.target.value)} aria-label="To" className={cls} />
-      <span className="w-12 text-right tabular-nums">{formatDuration(slot.endSecond - slot.startSecond)}</span>
+      <span className="w-12 text-right tabular-nums text-foreground/80">{formatDuration(slot.endSecond - slot.startSecond)}</span>
     </div>
   );
 }
@@ -935,13 +938,8 @@ function ExperiencePicker({
                   }}
                   className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted"
                 >
-                  <div className="flex h-9 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground">
-                    {e.coverImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={e.coverImage} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <SquareTerminal className="h-4 w-4" />
-                    )}
+                  <div className="h-9 w-12 shrink-0 overflow-hidden rounded-md border border-border">
+                    <MediaThumb compact type="experience" src={e.coverImage} name={e.title} />
                   </div>
                   <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
                   {count > 0 ? (
