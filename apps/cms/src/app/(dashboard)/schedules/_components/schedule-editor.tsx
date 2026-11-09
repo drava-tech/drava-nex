@@ -56,8 +56,8 @@ interface DraftItem {
   thumbnailUrl: string | null;
   durationSeconds: number;
   /**
-   * Videos only — "reading": finding the length; "known": it came from the
-   * file; "unknown": the file couldn't be read, so the length is typed in.
+   * Videos only — "reading": finding the length; "known": read from the file;
+   * "unknown": not readable from here, so the server reads it on save.
    */
   length: "reading" | "known" | "unknown" | null;
 }
@@ -77,10 +77,22 @@ const TIMEZONES = [
 let keySeq = 0;
 const newKey = () => `item-${++keySeq}`;
 
+/** A video's length as the server reads it from the file (see GET /api/media/:id/length). */
+async function serverVideoLength(mediaId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/length`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { seconds?: number | null };
+    return typeof data.seconds === "number" && data.seconds > 0 ? data.seconds : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A video's length in whole seconds, plus one so its last frame is seen
- * before the next item (the screen takes a moment to start it). null when
- * the file can't be read (e.g. it isn't reachable from this computer).
+ * before the next item (the screen takes a moment to start it), as the
+ * browser reads it. null when the file can't be loaded from here.
  */
 function readVideoLength(url: string): Promise<number | null> {
   return new Promise((resolve) => {
@@ -154,26 +166,23 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  /** Read a video's length; a file that can't be read keeps its time, editable. */
-  const measure = (key: string, url: string | null) => {
-    if (!url) {
-      setItems((prev) => prev.map((i) => (i.key === key ? { ...i, length: "unknown" } : i)));
-      return;
-    }
-    void readVideoLength(url).then((seconds) =>
+  /** Find a video's length: the server reads the file; failing that, the browser. */
+  const measure = (key: string, mediaId: string, url: string | null) => {
+    const find = async () => (await serverVideoLength(mediaId)) ?? (url ? await readVideoLength(url) : null);
+    void find().then((seconds) =>
       setItems((prev) =>
         prev.map((i) =>
           i.key === key
             ? seconds
               ? { ...i, durationSeconds: Math.min(MAX_ITEM_SECONDS, seconds), length: "known" }
-              : { ...i, length: "unknown" }
+              : { ...i, durationSeconds: 0, length: "unknown" }
             : i
         )
       )
     );
   };
   useEffect(() => {
-    for (const i of items) if (i.length === "reading") measure(i.key, i.url);
+    for (const i of items) if (i.length === "reading") measure(i.key, i.contentId, i.url);
     // Once, for the videos the schedule opened with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -245,7 +254,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
         length: m.type === "video" ? "reading" : null,
       },
     ]);
-    if (m.type === "video") measure(key, m.url);
+    if (m.type === "video") measure(key, m.id, m.url);
   };
   const move = (index: number, by: -1 | 1) =>
     setItems((prev) => {
@@ -272,7 +281,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     if (stillReading) return setError("Still reading the videos' lengths — one moment.");
     if (days.length === 0) return setError("Pick at least one day.");
     if (startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
-    const bad = items.find((i) => i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS);
+    // Only images have a time to check; a video's length comes from its file.
+    const bad = items.find(
+      (i) => i.type === "image" && (i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS)
+    );
     if (bad) return setError(`"${bad.title}" needs a time between ${MIN_ITEM_SECONDS} seconds and 24 hours.`);
 
     const input: ScheduleInput = {
@@ -414,10 +426,12 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                           {formatDuration(item.durationSeconds)} · full video
                         </span>
                       ) : (
-                        <div className="flex flex-col items-end gap-1">
-                          <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />
-                          <span className="text-[10px] text-warning">Couldn&apos;t read its length here; set it</span>
-                        </div>
+                        <span
+                          className="rounded-lg border border-dashed border-input px-2.5 py-1 text-xs text-muted-foreground"
+                          title="This computer can't open the file; the server reads its length when you save"
+                        >
+                          Full video · length read on save
+                        </span>
                       )}
                       <IconButton label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
                       <IconButton label="Move down" disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>

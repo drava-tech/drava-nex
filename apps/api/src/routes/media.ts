@@ -9,6 +9,7 @@ import { classifyLink, listMediaQuerySchema } from "@platform/types";
 import { requireGuestOrAdmin, type SessionUser as AuthUser } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
 import { generateThumbnail } from "../services/thumbnails.js";
+import { videoLengthSeconds } from "../services/video-length.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
@@ -282,6 +283,32 @@ mediaRouter.post("/:id/save", requireGuestOrAdmin, async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to save media" }, 500);
   }
+});
+
+// --- Video length ---
+
+/**
+ * How long a library video plays, in whole seconds plus one (so its last
+ * frame is seen before the next item), read from the file's header. null for
+ * anything that isn't a video file this server holds.
+ */
+export async function libraryVideoSeconds(asset: Pick<MediaAsset, "type" | "url">): Promise<number | null> {
+  if (asset.type !== "video" || !asset.url.startsWith("/media/")) return null;
+  const rel = asset.url.slice("/media/".length).split("?")[0] ?? "";
+  // Stay inside the media folders: no "..", no absolute paths.
+  if (!rel || rel.split("/").some((part) => part === ".." || part === "")) return null;
+  for (const dir of [UPLOAD_DIR, SEED_MEDIA_DIR]) {
+    const seconds = await videoLengthSeconds(path.join(dir, ...rel.split("/")));
+    if (seconds) return Math.ceil(seconds) + 1;
+  }
+  return null;
+}
+
+// GET /api/media/:id/length — { seconds } for a video, null if it can't be read
+mediaRouter.get("/:id/length", requireGuestOrAdmin, async (c) => {
+  const asset = await getMediaAsset(c.req.param("id") ?? "");
+  if (!asset || hiddenFrom(c, asset)) return c.json({ error: "Media item not found" }, 404);
+  return c.json({ seconds: await libraryVideoSeconds(asset) });
 });
 
 // --- Delete ---

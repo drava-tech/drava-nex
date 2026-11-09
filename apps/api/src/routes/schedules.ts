@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import {
+  getMediaAsset,
   createSchedule,
   deleteSchedule,
   listSchedules,
@@ -13,6 +14,7 @@ import { isValidTimezone, MAX_ITEM_SECONDS, MIN_ITEM_SECONDS, parseTimeOfDay } f
 import { requireAdmin, requireGuestOrAdmin, type SessionUser } from "../middleware/auth.js";
 import { ok, fail } from "../lib/response.js";
 import { runSchedulerSoon, scheduleStatus } from "../services/scheduler.js";
+import { libraryVideoSeconds } from "./media.js";
 
 // Everything under /api/schedules. Anyone signed in can see schedules and
 // what's on air; only admins create, edit, switch off or delete them. Every
@@ -48,7 +50,8 @@ const scheduleSchema = z
         z.object({
           kind: z.enum(["experience", "media"]),
           contentId: z.string().min(1),
-          durationSeconds: z.number().int().min(MIN_ITEM_SECONDS).max(MAX_ITEM_SECONDS),
+          // 0 is allowed for a video: the server reads its length below.
+          durationSeconds: z.number().int().min(0).max(MAX_ITEM_SECONDS),
         })
       )
       .max(200),
@@ -75,6 +78,29 @@ async function parseSchedule(c: Parameters<typeof ok>[0]): Promise<ScheduleInput
     return fail(c, "VALIDATION", first?.message ?? "Invalid schedule", 400, result.error.issues);
   }
   const s = result.data;
+
+  // A video plays for its own length: read it from the file and use that,
+  // whatever the browser sent. An image keeps the time it was given.
+  for (const item of s.items) {
+    if (item.kind !== "media") continue;
+    const asset = await getMediaAsset(item.contentId);
+    if (!asset) return fail(c, "VALIDATION", "Some content in the queue no longer exists.", 400);
+    if (asset.type === "video") {
+      const seconds = await libraryVideoSeconds(asset);
+      if (seconds) item.durationSeconds = Math.min(MAX_ITEM_SECONDS, seconds);
+      else if (item.durationSeconds < MIN_ITEM_SECONDS) {
+        return fail(
+          c,
+          "VALIDATION",
+          `Couldn't read how long "${asset.name}" is, so it can't be scheduled. Check the file is in this server's media library.`,
+          400
+        );
+      }
+    }
+  }
+  const tooShort = s.items.find((i) => i.durationSeconds < MIN_ITEM_SECONDS);
+  if (tooShort) return fail(c, "VALIDATION", `Each image needs at least ${MIN_ITEM_SECONDS} seconds on screen.`, 400);
+
   return {
     ...s,
     daysOfWeek: [...new Set(s.daysOfWeek)].sort(),
