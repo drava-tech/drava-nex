@@ -23,6 +23,8 @@ export interface ScheduleItemRow {
   mediaType: string | null;
   /** A small preview for media items, when there is one. */
   thumbnailUrl: string | null;
+  /** The media file itself (e.g. to read a video's length); null for experiences. */
+  mediaUrl: string | null;
 }
 
 export interface ScheduleRow {
@@ -100,6 +102,7 @@ export async function listSchedules(): Promise<ScheduleRow[]> {
       title: kind === "experience" ? i.experienceName : i.mediaName,
       mediaType: kind === "media" ? i.mediaType : null,
       thumbnailUrl: kind === "media" ? (i.mediaThumb ?? (i.mediaType === "image" ? i.mediaUrl : null)) : null,
+      mediaUrl: kind === "media" ? i.mediaUrl : null,
     };
     const list = bySchedule.get(i.scheduleId) ?? [];
     list.push(row);

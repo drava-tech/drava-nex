@@ -46,7 +46,8 @@ export function MediaPicker({
   onClose: () => void;
   onSelect?: (url: string) => void;
   onSelectItem?: (item: MediaPickerItem) => void;
-  accept?: "image" | "video" | "all";
+  /** "visual" = images and videos only (e.g. a screen schedule's queue). */
+  accept?: "image" | "video" | "visual" | "all";
   multi?: boolean;
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -83,7 +84,8 @@ export function MediaPicker({
         // product-media-editor.tsx opens this picker with accept="all"
         // specifically to attach a brochure (PDF/docx/xlsx/pptx), so narrowing
         // it here made every document in the library unselectable.
-        if (accept !== "all") params.set("types", accept);
+        if (accept === "visual") params.set("types", "image,video");
+        else if (accept !== "all") params.set("types", accept);
         if (cursor) params.set("cursor", cursor);
         const res = await fetch(`/api/media?${params.toString()}`);
         const data = res.ok ? await res.json() : null;
@@ -121,6 +123,8 @@ export function MediaPicker({
   const uploadAccept =
     accept === "video"
       ? "video/*"
+      : accept === "visual"
+        ? "image/*,video/*"
       : accept === "all"
         ? "image/*,video/*,application/pdf,.xlsx,.csv,.pptx,.docx"
         : "image/*";

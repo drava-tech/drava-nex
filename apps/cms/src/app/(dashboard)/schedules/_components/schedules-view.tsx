@@ -33,7 +33,6 @@ import {
 import {
   deleteSchedule,
   getScheduleStatus,
-  setScheduleEnabled,
   type ScreenScheduleStatus,
 } from "@/actions/schedule-actions";
 import { ScheduleEditor, type EditorDraft } from "./schedule-editor";
@@ -111,14 +110,6 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
     router.refresh();
   };
 
-  const toggle = async (row: ScheduleRow) => {
-    setBusyId(row.id);
-    const res = await setScheduleEnabled(row.id, !row.enabled);
-    setBusyId(null);
-    if (!res.success) alert(res.error);
-    router.refresh();
-  };
-
   const remove = async (row: ScheduleRow) => {
     if (!confirm(`Delete "${row.name}"? Screens it is running go back to what they showed before.`)) return;
     setBusyId(row.id);
@@ -136,7 +127,6 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
           schedules={schedules}
           screens={screens}
           groups={groups}
-          experiences={experiences}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
         />
@@ -207,7 +197,6 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
           onNew={() => setEditing({ mode: "new" })}
           onEdit={(row) => setEditing({ mode: "edit", schedule: row })}
           onDuplicate={(row) => setEditing({ mode: "duplicate", schedule: row })}
-          onToggle={toggle}
           onDelete={remove}
         />
       )}
@@ -307,7 +296,7 @@ function OnAir({
                     )}
                     {s.current.overriddenNames.length > 0 && (
                       <span className="text-muted-foreground">
-                        Also on air, lower priority: {s.current.overriddenNames.join(", ")}
+                        Also scheduled here now (the newer schedule plays): {s.current.overriddenNames.join(", ")}
                       </span>
                     )}
                   </div>
@@ -340,7 +329,6 @@ function ScheduleList({
   onNew,
   onEdit,
   onDuplicate,
-  onToggle,
   onDelete,
 }: {
   schedules: ScheduleRow[];
@@ -352,7 +340,6 @@ function ScheduleList({
   onNew: () => void;
   onEdit: (row: ScheduleRow) => void;
   onDuplicate: (row: ScheduleRow) => void;
-  onToggle: (row: ScheduleRow) => void;
   onDelete: (row: ScheduleRow) => void;
 }) {
   if (schedules.length === 0) {
@@ -384,7 +371,7 @@ function ScheduleList({
         return (
           <div
             key={row.id}
-            className={`relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 ${row.enabled ? "" : "opacity-60"}`}
+            className={`relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 transition-opacity ${busyId === row.id ? "opacity-50" : ""}`}
           >
             <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: row.color }} />
             <div className="flex items-start justify-between gap-2">
@@ -441,7 +428,6 @@ function ScheduleList({
                 {targets.length} screen{targets.length === 1 ? "" : "s"}
                 {targetLabel && <>: {targetLabel}</>}
               </span>
-              {row.priority !== 0 && <span>Priority {row.priority}</span>}
             </div>
 
             {/* Thumbnails of the queue */}
@@ -475,12 +461,6 @@ function ScheduleList({
               </p>
             )}
 
-            {isAdmin && (
-              <div className="flex items-center justify-between gap-2 border-t border-border pt-3 text-sm">
-                <span className="text-muted-foreground">{row.enabled ? "On" : "Off"}</span>
-                <Switch checked={row.enabled} disabled={busyId === row.id} onChange={() => onToggle(row)} label={`Turn ${row.name} ${row.enabled ? "off" : "on"}`} />
-              </div>
-            )}
           </div>
         );
       })}

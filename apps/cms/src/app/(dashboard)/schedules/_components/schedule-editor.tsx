@@ -1,17 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  CalendarClock,
-  Monitor,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Loader2, Monitor, Plus, Search, Trash2, X } from "lucide-react";
 import type { ScheduleInput, ScheduleRow } from "@platform/db";
 import {
   ALL_DAYS,
@@ -23,6 +13,7 @@ import {
   formatClock,
   formatDuration,
   isValidTimezone,
+  localParts,
   MAX_ITEM_SECONDS,
   MIN_ITEM_SECONDS,
   nextWindowStart,
@@ -32,12 +23,10 @@ import {
   schedulesOverlap,
   WEEKDAYS,
   WEEKEND,
-  localParts,
   type ScheduleSpec,
 } from "@platform/types";
 import { MediaPicker, type MediaPickerItem } from "@/components/media-picker";
 import { MediaThumb } from "@/components/media-thumb";
-import { PUSHABLE_MEDIA_TYPES } from "@/lib/media-tiles";
 import { createSchedule, updateSchedule } from "@/actions/schedule-actions";
 import { Switch } from "./schedules-view";
 import {
@@ -45,7 +34,6 @@ import {
   SCHEDULE_COLORS,
   targetScreenIds,
   toScheduleSpecClient,
-  type ExperienceOption,
   type GroupOption,
   type ScreenOption,
 } from "./schedule-shared";
@@ -55,16 +43,23 @@ export type EditorDraft =
   | { mode: "edit"; schedule: ScheduleRow }
   | { mode: "duplicate"; schedule: ScheduleRow };
 
+/**
+ * One entry of the queue. A queue holds images and videos only: a video plays
+ * for its own length (read from the file), an image for the time set here.
+ */
 interface DraftItem {
   key: string;
-  kind: "experience" | "media";
   contentId: string;
   title: string;
-  mediaType: string | null;
+  type: "image" | "video";
+  url: string | null;
   thumbnailUrl: string | null;
   durationSeconds: number;
-  /** The content was deleted since it was queued; it will be dropped on save. */
-  missing: boolean;
+  /**
+   * Videos only — "reading": finding the length; "known": it came from the
+   * file; "unknown": the file couldn't be read, so the length is typed in.
+   */
+  length: "reading" | "known" | "unknown" | null;
 }
 
 const TIMEZONES = [
@@ -82,11 +77,28 @@ const TIMEZONES = [
 let keySeq = 0;
 const newKey = () => `item-${++keySeq}`;
 
-function defaultSeconds(mediaType: string | null, kind: "experience" | "media"): number {
-  if (kind === "experience") return DEFAULT_ITEM_SECONDS.experience;
-  if (mediaType === "image") return DEFAULT_ITEM_SECONDS.image;
-  if (mediaType === "video") return DEFAULT_ITEM_SECONDS.video;
-  return DEFAULT_ITEM_SECONDS.other;
+/**
+ * A video's length in whole seconds, plus one so its last frame is seen
+ * before the next item (the screen takes a moment to start it). null when
+ * the file can't be read (e.g. it isn't reachable from this computer).
+ */
+function readVideoLength(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const done = (value: number | null) => {
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
+      resolve(value);
+    };
+    const timer = setTimeout(() => done(null), 10_000);
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () =>
+      done(Number.isFinite(video.duration) && video.duration > 0 ? Math.ceil(video.duration) + 1 : null);
+    video.onerror = () => done(null);
+    video.src = url;
+  });
 }
 
 interface ScheduleEditorProps {
@@ -94,12 +106,11 @@ interface ScheduleEditorProps {
   schedules: ScheduleRow[];
   screens: ScreenOption[];
   groups: GroupOption[];
-  experiences: ExperienceOption[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function ScheduleEditor({ draft, schedules, screens, groups, experiences, onClose, onSaved }: ScheduleEditorProps) {
+export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onSaved }: ScheduleEditorProps) {
   const base = draft.mode === "new" ? null : draft.schedule;
   const browserTz = useMemo(() => {
     try {
@@ -111,8 +122,6 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
 
   const [name, setName] = useState(base ? (draft.mode === "duplicate" ? `${base.name} (copy)` : base.name) : "");
   const [color, setColor] = useState(base?.color ?? SCHEDULE_COLORS[schedules.length % SCHEDULE_COLORS.length]!);
-  const [enabled, setEnabled] = useState(base ? (draft.mode === "duplicate" ? false : base.enabled) : true);
-  const [priority, setPriority] = useState(base?.priority ?? 0);
   const [allDay, setAllDay] = useState(base ? base.startTime === null : false);
   const [startTime, setStartTime] = useState(base?.startTime ?? "09:00");
   const [endTime, setEndTime] = useState(base?.endTime ?? "18:00");
@@ -121,67 +130,85 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
   const [loop, setLoop] = useState(base?.loop ?? true);
-  /**
-   * "clock": each item has a From and a To time, back to back from the first
-   * item's From (stored as the slot's start + each item's length, played once).
-   * "duration": each item plays for a length, inside the slot set under When.
-   */
-  const [timing, setTiming] = useState<"clock" | "duration">(() => inferTiming(base));
-  const clock = timing === "clock";
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
+  // Only images and videos still in the library; anything else an older
+  // schedule held (an experience, deleted media) is dropped, and said so.
   const [items, setItems] = useState<DraftItem[]>(
     () =>
-      base?.items.map((i) => ({
-        key: newKey(),
-        kind: i.kind,
-        contentId: i.contentId,
-        title: i.title ?? "Deleted content",
-        mediaType: i.mediaType,
-        thumbnailUrl: i.thumbnailUrl,
-        durationSeconds: i.durationSeconds,
-        missing: i.title === null,
-      })) ?? []
+      base?.items
+        .filter((i) => i.kind === "media" && i.title !== null && (i.mediaType === "image" || i.mediaType === "video"))
+        .map((i) => ({
+          key: newKey(),
+          contentId: i.contentId,
+          title: i.title ?? "",
+          type: i.mediaType as "image" | "video",
+          url: i.mediaUrl,
+          thumbnailUrl: i.thumbnailUrl,
+          durationSeconds: i.durationSeconds,
+          length: i.mediaType === "video" ? ("reading" as const) : null,
+        })) ?? []
   );
-  const [pickingMedia, setPickingMedia] = useState(false);
-  const [pickingExperience, setPickingExperience] = useState(false);
+  const droppedCount = base ? base.items.length - items.length : 0;
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /** Read a video's length; a file that can't be read keeps its time, editable. */
+  const measure = (key: string, url: string | null) => {
+    if (!url) {
+      setItems((prev) => prev.map((i) => (i.key === key ? { ...i, length: "unknown" } : i)));
+      return;
+    }
+    void readVideoLength(url).then((seconds) =>
+      setItems((prev) =>
+        prev.map((i) =>
+          i.key === key
+            ? seconds
+              ? { ...i, durationSeconds: Math.min(MAX_ITEM_SECONDS, seconds), length: "known" }
+              : { ...i, length: "unknown" }
+            : i
+        )
+      )
+    );
+  };
+  useEffect(() => {
+    for (const i of items) if (i.length === "reading") measure(i.key, i.url);
+    // Once, for the videos the schedule opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const tzOptions = [...new Set([timezone, browserTz, ...TIMEZONES])].filter(isValidTimezone);
 
-  // ─── Derived: the draft as the scheduler will see it ───
-  const queueSeconds = items.filter((i) => !i.missing).reduce((sum, i) => sum + i.durationSeconds, 0);
-  const effStartTime = clock ? startTime : allDay ? null : startTime;
-  const effEndTime = clock ? addSecondsToClock(startTime, queueSeconds || 3600) : allDay ? null : endTime;
-  const effLoop = clock ? false : loop;
+  // ─── The draft as the scheduler will see it ───
+  const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
     enabled: true,
-    priority,
+    priority: 0,
     startDate: startDate || null,
     endDate: endDate || null,
     daysOfWeek: days,
-    startTime: effStartTime,
-    endTime: effEndTime,
+    ...windowSpec,
     timezone,
-    loop: effLoop,
-    items: items
-      .filter((i) => !i.missing)
-      .map((i) => ({ id: i.key, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
+    loop,
+    items: items.map((i) => ({ id: i.key, kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
     createdAt: draft.mode === "edit" ? draft.schedule.createdAt : new Date().toISOString(),
   };
   const draftTargets = targetScreenIds({ screenIds: [...screenIds], groupIds: [...groupIds] }, screens);
-  const loopSeconds = playlistSeconds(draftSpec.items);
-  // Where each item falls on the clock the first time through the queue.
-  const windowSpec = { startTime: effStartTime, endTime: effEndTime };
-  const timeline = queueTimeline(windowSpec, draftSpec.items);
-  const timelineByKey = new Map(draftSpec.items.map((i, n) => [i.id, timeline[n]!]));
+  const queueSeconds = playlistSeconds(draftSpec.items);
   const windowSeconds = windowLengthSeconds(windowSpec);
-  const unfitCount = timeline.filter((t) => !t.fits).length;
+  const timeline = queueTimeline(windowSpec, draftSpec.items);
+  const lastEnd = timeline.at(-1)?.endSecond ?? 0;
+  const unfit = timeline.filter((t) => !t.fits).length;
+  const videos = items.filter((i) => i.type === "video").length;
+  const images = items.length - videos;
+  const stillReading = items.some((i) => i.length === "reading");
   const nextStart = days.length ? nextWindowStart(draftSpec, new Date()) : null;
 
+  // Other schedules that would be on the same screens at the same time. With
+  // no priorities, the newer schedule plays.
   const conflicts = useMemo(() => {
     const today = localParts(new Date(), timezone).date;
     const mine = new Set(draftTargets);
@@ -192,47 +219,33 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
         if (shared.length === 0) return null;
         const other = toScheduleSpecClient(s);
         if (!schedulesOverlap(draftSpec, other, today)) return null;
-        const thisWins = compareSchedules(draftSpec, other) < 0;
-        return { name: s.name, screens: shared.length, thisWins, samePriority: other.priority === priority };
+        return { name: s.name, screens: shared.length, thisWins: compareSchedules(draftSpec, other) < 0 };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedules, screens, draftTargets.join(), days.join(), effStartTime, effEndTime, effLoop, queueSeconds, startDate, endDate, timezone, priority]);
+  }, [schedules, screens, draftTargets.join(), days.join(), startTime, endTime, allDay, startDate, endDate, timezone, loop, queueSeconds]);
 
-  // ─── Playlist editing ───
+  // ─── Queue editing ───
   const addMedia = (m: MediaPickerItem) => {
-    if (!(PUSHABLE_MEDIA_TYPES as readonly string[]).includes(m.type)) {
-      setError(`"${m.name}" is a ${m.type}, which can't be shown on a screen.`);
+    if (m.type !== "image" && m.type !== "video") {
+      setError(`"${m.name}" isn't an image or a video. A queue holds only those.`);
       return;
     }
+    const key = newKey();
     setItems((prev) => [
       ...prev,
       {
-        key: newKey(),
-        kind: "media",
+        key,
         contentId: m.id,
         title: m.name,
-        mediaType: m.type,
+        type: m.type as "image" | "video",
+        url: m.url,
         thumbnailUrl: m.type === "image" ? m.url : null,
-        durationSeconds: clock ? 3600 : defaultSeconds(m.type, "media"),
-        missing: false,
+        durationSeconds: m.type === "image" ? DEFAULT_ITEM_SECONDS.image : DEFAULT_ITEM_SECONDS.video,
+        length: m.type === "video" ? "reading" : null,
       },
     ]);
-  };
-  const addExperience = (e: ExperienceOption) => {
-    setItems((prev) => [
-      ...prev,
-      {
-        key: newKey(),
-        kind: "experience",
-        contentId: e.id,
-        title: e.title,
-        mediaType: null,
-        thumbnailUrl: e.coverImage,
-        durationSeconds: clock ? 3600 : defaultSeconds(null, "experience"),
-        missing: false,
-      },
-    ]);
+    if (m.type === "video") measure(key, m.url);
   };
   const move = (index: number, by: -1 | 1) =>
     setItems((prev) => {
@@ -244,32 +257,6 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
     });
   const setDuration = (key: string, seconds: number) =>
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, durationSeconds: seconds } : i)));
-
-  const switchTiming = (next: "clock" | "duration") => {
-    if (next === timing) return;
-    if (next === "clock") {
-      // Whole minutes, at least one, so every item has a clock time.
-      setItems((prev) => prev.map((i) => ({ ...i, durationSeconds: Math.max(60, Math.round(i.durationSeconds / 60) * 60) })));
-      if (allDay) setStartTime("00:00");
-    } else {
-      // Keep the same slot the clock times covered, played once.
-      setAllDay(false);
-      setEndTime(effEndTime ?? endTime);
-      setLoop(false);
-    }
-    setTiming(next);
-  };
-
-  /** Set item `key`'s To time; its length follows, the items after it move along. */
-  const setItemEnd = (key: string, fromSecond: number, to: string) => {
-    const toMin = toMinutes(to);
-    if (toMin === null) return;
-    const fromMin = Math.floor(fromSecond / 60) % 1440;
-    let len = toMin - fromMin;
-    if (len <= 0) len += 1440;
-    setDuration(key, len * 60);
-  };
-
   const toggleIn = (set: Set<string>, id: string, update: (s: Set<string>) => void) => {
     const next = new Set(set);
     if (next.has(id)) next.delete(id);
@@ -281,30 +268,30 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
   const save = async () => {
     setError(null);
     if (!name.trim()) return setError("Give the schedule a name.");
+    if (items.length === 0) return setError("Add at least one image or video to the queue.");
+    if (stillReading) return setError("Still reading the videos' lengths — one moment.");
     if (days.length === 0) return setError("Pick at least one day.");
     if (startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
-    const bad = items.find((i) => !i.missing && (i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS));
-    if (bad) return setError(`"${bad.title}" needs a duration between ${MIN_ITEM_SECONDS} seconds and 24 hours.`);
-    if (clock && queueSeconds > 86400) {
-      return setError("The items' times add up to more than 24 hours. Shorten some so the queue fits in a day.");
-    }
-    if (clock && queueSeconds === 0) return setError("Add at least one item, with its From and To times.");
+    const bad = items.find((i) => i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS);
+    if (bad) return setError(`"${bad.title}" needs a time between ${MIN_ITEM_SECONDS} seconds and 24 hours.`);
 
     const input: ScheduleInput = {
       name: name.trim(),
       color,
-      enabled,
-      priority,
+      // No on/off or priority any more: a schedule plays while it exists, and
+      // where two overlap the newer one plays.
+      enabled: true,
+      priority: 0,
       startDate: startDate || null,
       endDate: endDate || null,
       daysOfWeek: [...days].sort(),
-      startTime: effStartTime,
-      endTime: effEndTime,
+      startTime: windowSpec.startTime,
+      endTime: windowSpec.endTime,
       timezone,
-      loop: effLoop,
+      loop,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
-      items: items.filter((i) => !i.missing).map((i) => ({ kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
+      items: items.map((i) => ({ kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
     };
     setSaving(true);
     const res = draft.mode === "edit" ? await updateSchedule(draft.schedule.id, input) : await createSchedule(input);
@@ -337,7 +324,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
         </div>
 
         <div className="@container min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-5">
-          {/* ─── Basics ─── */}
+          {/* ─── Name ─── */}
           <Section title="Name and colour">
             <div className="grid gap-3 @lg:grid-cols-[1fr_auto]">
               <input
@@ -376,11 +363,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
               <PickList
                 label="Groups"
                 empty="No groups yet. Create them on the Screens page."
-                options={groups.map((g) => ({
-                  id: g.id,
-                  label: g.name,
-                  sub: `${screens.filter((s) => s.groupId === g.id).length} screens`,
-                }))}
+                options={groups.map((g) => ({ id: g.id, label: g.name, sub: `${screens.filter((s) => s.groupId === g.id).length} screens` }))}
                 selected={groupIds}
                 onToggle={(id) => toggleIn(groupIds, id, setGroupIds)}
               />
@@ -398,77 +381,44 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
             </div>
           </Section>
 
-          {/* ─── Playlist ─── */}
-          <Section
-            title="Queue"
-            hint={
-              draftSpec.items.length
-                ? clock
-                  ? `${draftSpec.items.length} items · ${effStartTime}–${effEndTime}`
-                  : `${draftSpec.items.length} items · ${formatDuration(loopSeconds)} in total${loop ? ", then repeats" : ", played once"}`
-                : "Plays top to bottom"
-            }
-          >
-            <div role="radiogroup" aria-label="How each item is timed" className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-muted-foreground">Each item plays</span>
-              {(
-                [
-                  ["clock", "From – To", "Give each item a start and end time, e.g. 09:00–12:00"],
-                  ["duration", "For a set time", "Give each item a length, e.g. 15 seconds, and repeat the queue"],
-                ] as const
-              ).map(([value, label, hint]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={timing === value}
-                  onClick={() => switchTiming(value)}
-                  title={hint}
-                  className={`rounded-full px-4 py-1.5 text-sm ${timing === value ? "btn-active" : "btn-surface"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          {/* ─── Queue ─── */}
+          <Section title="Queue" hint="Images and videos, top to bottom">
             {items.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-                {clock
-                  ? "Add experiences or media, then set when each one starts and ends, e.g. 09:00 to 12:00."
-                  : "Add experiences or media. Each one stays on screen for its time, then the next comes up."}
+                Add images and videos. A video plays for its own length; you choose how long each image stays up.
               </p>
             ) : (
               <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
                 {items.map((item, index) => (
-                  <li key={item.key} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 ${item.missing ? "opacity-50" : ""}`}>
+                  <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                     <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
                     <div className="h-10 w-14 shrink-0 overflow-hidden rounded-md border border-border">
-                      <MediaThumb compact type={item.kind === "experience" ? "experience" : item.mediaType ?? "image"} src={item.thumbnailUrl} name={item.title} />
+                      <MediaThumb compact type={item.type} src={item.thumbnailUrl} name={item.title} />
                     </div>
                     <div className="min-w-[8rem] flex-1">
                       <p className="truncate text-sm">{item.title}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {item.missing ? (
-                          "Deleted — removed when you save"
-                        ) : (
-                          <>
-                            {item.kind === "experience" ? "Experience" : item.mediaType ?? "Media"}
-                            {!clock && <ItemTime slot={timelineByKey.get(item.key)} />}
-                          </>
-                        )}
-                      </p>
+                      <p className="text-[11px] text-muted-foreground">{item.type === "video" ? "Video" : "Image"}</p>
                     </div>
-                    {!item.missing &&
-                      (clock ? (
-                        <ClockRange
-                          slot={timelineByKey.get(item.key)}
-                          isFirst={items.findIndex((i) => !i.missing) === index}
-                          onFrom={setStartTime}
-                          onTo={(fromSecond, to) => setItemEnd(item.key, fromSecond, to)}
-                        />
-                      ) : (
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                      {item.type === "image" ? (
                         <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />
-                      ))}
-                    <div className="flex shrink-0 items-center">
+                      ) : item.length === "reading" ? (
+                        <span className="flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Reading length…
+                        </span>
+                      ) : item.length === "known" ? (
+                        <span
+                          className="rounded-lg border border-dashed border-input px-2.5 py-1 text-xs tabular-nums text-foreground/80"
+                          title="Plays for the video's full length"
+                        >
+                          {formatDuration(item.durationSeconds)} · full video
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-end gap-1">
+                          <DurationInput seconds={item.durationSeconds} onChange={(s) => setDuration(item.key, s)} />
+                          <span className="text-[10px] text-warning">Couldn&apos;t read its length here; set it</span>
+                        </div>
+                      )}
                       <IconButton label="Move up" disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
                       <IconButton label="Move down" disabled={index === items.length - 1} onClick={() => move(index, 1)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
                       <IconButton label="Remove" onClick={() => setItems((prev) => prev.filter((i) => i.key !== item.key))}><Trash2 className="h-3.5 w-3.5" /></IconButton>
@@ -477,62 +427,30 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                 ))}
               </ol>
             )}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => setPickingExperience(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
-                <Plus className="h-4 w-4" /> Experience
-              </button>
-              <button type="button" onClick={() => setPickingMedia(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
-                <Plus className="h-4 w-4" /> Media
-              </button>
-            </div>
-            {clock && draftSpec.items.length > 0 && (
-              <p className="mt-4 rounded-2xl border border-border p-3 text-[11px] text-muted-foreground">
-                Runs {effStartTime} to {effEndTime}
-                {toMinutes(effEndTime ?? "") !== null && (toMinutes(effEndTime ?? "")! <= toMinutes(effStartTime ?? "")! ) ? " (the next day)" : ""}. Each
-                item starts when the one before it ends. Afterwards the screens go back to what they showed before,
-                until the same time on the next scheduled day.
+            {droppedCount > 0 && (
+              <p className="mt-2 text-[11px] text-warning">
+                {droppedCount} item{droppedCount === 1 ? " was" : "s were"} removed: {droppedCount === 1 ? "it isn't" : "they aren't"} an image or video in the library any more.
               </p>
             )}
-            {!clock && (
-            <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-border p-3">
-              <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
-              <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
-                {(
-                  [
-                    [true, "Repeat", "Start again from the top until the time slot ends"],
-                    [false, "Play once", "Then the screen goes back to what it showed before"],
-                  ] as const
-                ).map(([value, label, hint]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    role="radio"
-                    aria-checked={loop === value}
-                    onClick={() => setLoop(value)}
-                    title={hint}
-                    className={`rounded-full px-4 py-1.5 text-sm ${loop === value ? "btn-active" : "btn-surface"}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {draftSpec.items.length > 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  {fitSummary({ loop, loopSeconds, windowSeconds, unfitCount, lastEnd: timeline.at(-1)?.endSecond ?? 0 })}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <button type="button" onClick={() => setPicking(true)} className="btn-surface flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm">
+                <Plus className="h-4 w-4" /> Add images or videos
+              </button>
+              {items.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Whole queue: <span className="tabular-nums text-foreground">{formatDuration(queueSeconds)}</span>
+                  {" · "}
+                  {videos > 0 && `${videos} video${videos === 1 ? "" : "s"}`}
+                  {videos > 0 && images > 0 && ", "}
+                  {images > 0 && `${images} image${images === 1 ? "" : "s"}`}
                 </p>
               )}
             </div>
-            )}
           </Section>
 
           {/* ─── When ─── */}
-          <Section title="When" hint={`${describeDays(days)} · ${describeWindow({ startTime: effStartTime, endTime: effEndTime })}`}>
+          <Section title="When" hint={`${describeDays(days)} · ${describeWindow(windowSpec)}`}>
             <div className="space-y-4">
-              {clock ? (
-                <p className="text-[11px] text-muted-foreground">
-                  The times come from the queue above. Pick the days, and dates if it's only for a while.
-                </p>
-              ) : (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div className="flex items-center gap-2.5 text-sm">
                   <Switch checked={allDay} onChange={() => setAllDay((v) => !v)} label="All day" />
@@ -547,7 +465,35 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
                   </div>
                 )}
               </div>
-              )}
+
+              <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">When the queue reaches the end</p>
+                <div role="radiogroup" aria-label="When the queue reaches the end" className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      [true, "Repeat", "Start again from the top until the time slot ends"],
+                      [false, "Play once", "Then the screens go back to what they showed before"],
+                    ] as const
+                  ).map(([value, label, hint]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      role="radio"
+                      aria-checked={loop === value}
+                      onClick={() => setLoop(value)}
+                      title={hint}
+                      className={`rounded-full px-4 py-1.5 text-sm ${loop === value ? "btn-active" : "btn-surface"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {items.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {fitSummary({ loop, queueSeconds, windowSeconds, unfit, lastEnd })}
+                  </p>
+                )}
+              </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {SCHEDULE_DAY_LABELS.map((label, d) => {
@@ -590,43 +536,11 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
             </div>
           </Section>
 
-          {/* ─── Priority ─── */}
-          <Section title="Priority and status">
-            <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
-              <div className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm">Priority</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    If two schedules cover the same screen at the same time, the higher number plays. Leave at 0 if they don't overlap.
-                  </p>
-                </div>
-                <input
-                  type="number"
-                  min={-100}
-                  max={100}
-                  value={priority}
-                  aria-label="Priority"
-                  onChange={(e) => setPriority(Math.max(-100, Math.min(100, Math.round(Number(e.target.value) || 0))))}
-                  className="w-20 shrink-0 rounded-xl border border-input bg-background px-3 py-2 text-center text-sm tabular-nums outline-none focus:border-ring"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm">{enabled ? "On" : "Off"}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {enabled ? "Plays at the times above." : "Saved, but won't play until you turn it on."}
-                  </p>
-                </div>
-                <Switch checked={enabled} onChange={() => setEnabled((v) => !v)} label="Schedule on" />
-              </div>
-            </div>
-          </Section>
-
           {/* ─── Checks ─── */}
           <div className="space-y-2 rounded-2xl bg-muted/50 px-4 py-3 text-xs">
             <p className="text-muted-foreground">
-              {draftSpec.items.length === 0
-                ? "Add something to the queue for this schedule to play."
+              {items.length === 0
+                ? "Add images or videos to the queue for this schedule to play."
                 : draftTargets.length === 0
                   ? "Pick at least one screen or group for this schedule to play."
                   : nextStart
@@ -637,10 +551,8 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
               <p key={c.name} className="flex items-start gap-1.5 text-warning">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  Overlaps "{c.name}" on {c.screens} screen{c.screens === 1 ? "" : "s"}.{" "}
-                  {c.thisWins
-                    ? `This one plays there${c.samePriority ? " (same priority, and it's the newer one)" : ""}.`
-                    : `"${c.name}" plays there${c.samePriority ? " (same priority, and it's the newer one)" : ""}. Raise this one's priority to win.`}
+                  Overlaps &quot;{c.name}&quot; on {c.screens} screen{c.screens === 1 ? "" : "s"}.{" "}
+                  {c.thisWins ? "This one plays there, as the newer schedule." : `"${c.name}" plays there, as the newer schedule.`}
                 </span>
               </p>
             ))}
@@ -657,12 +569,34 @@ export function ScheduleEditor({ draft, schedules, screens, groups, experiences,
         </div>
       </div>
 
-      <MediaPicker open={pickingMedia} onClose={() => setPickingMedia(false)} onSelectItem={addMedia} accept="all" multi />
-      {pickingExperience && (
-        <ExperiencePicker experiences={experiences} onPick={addExperience} onClose={() => setPickingExperience(false)} />
-      )}
+      <MediaPicker open={picking} onClose={() => setPicking(false)} onSelectItem={addMedia} accept="visual" multi />
     </div>
   );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Length of the daily time slot, in seconds (all day = 24h). */
+function windowLengthSeconds(spec: { startTime: string | null; endTime: string | null }): number {
+  if (!spec.startTime || !spec.endTime) return 86400;
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const len = toMin(spec.endTime) - toMin(spec.startTime);
+  return (len > 0 ? len : len + 1440) * 60;
+}
+
+/** One line on how the queue fits the time slot. */
+function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: number; unfit: number; lastEnd: number }): string {
+  const head = `The time slot is ${formatDuration(x.windowSeconds)}; the queue is ${formatDuration(x.queueSeconds)}. `;
+  if (x.unfit > 0) {
+    return head + `The last ${x.unfit === 1 ? "item doesn't" : `${x.unfit} items don't`} get a turn: shorten the images or make the slot longer.`;
+  }
+  if (!x.loop) {
+    return x.queueSeconds < x.windowSeconds
+      ? head + `It finishes at ${formatClock(x.lastEnd)}, then the screens go back to what they showed before.`
+      : head + "It fills the slot.";
+  }
+  const times = Math.floor(x.windowSeconds / Math.max(1, x.queueSeconds));
+  return x.queueSeconds < x.windowSeconds ? head + `It plays through about ${times} time${times === 1 ? "" : "s"}.` : head + "It fills the slot once.";
 }
 
 // ─── Small parts ─────────────────────────────────────────────────────────────
@@ -703,107 +637,9 @@ function IconButton({ label, disabled, onClick, children }: { label: string; dis
   );
 }
 
-/** "HH:MM" → minutes after midnight, or null. */
-function toMinutes(t: string): number | null {
-  const m = /^(\d{2}):(\d{2})$/.exec(t);
-  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-}
-
-/** "HH:MM" plus some seconds, as "HH:MM" (wrapping past midnight). */
-function addSecondsToClock(start: string, seconds: number): string {
-  const startMin = toMinutes(start) ?? 0;
-  const total = (startMin * 60 + seconds) % 86400;
-  return formatClock(Math.floor(total / 60) * 60);
-}
-
-/**
- * Whether a saved schedule reads best as From–To times: played once, in a slot
- * exactly as long as its queue, every item a whole number of minutes. New
- * schedules start that way too.
- */
-function inferTiming(base: ScheduleRow | null): "clock" | "duration" {
-  if (!base) return "clock";
-  if (base.loop || !base.startTime || !base.endTime) return "duration";
-  const playable = base.items.filter((i) => i.title !== null);
-  if (playable.length === 0 || !playable.every((i) => i.durationSeconds % 60 === 0)) return "duration";
-  const total = playable.reduce((sum, i) => sum + i.durationSeconds, 0);
-  return total === windowLengthSeconds(base) ? "clock" : "duration";
-}
-
-/** From and To clock times for one item; From is editable on the first item only. */
-function ClockRange({
-  slot,
-  isFirst,
-  onFrom,
-  onTo,
-}: {
-  slot?: { startSecond: number; endSecond: number };
-  isFirst: boolean;
-  onFrom: (t: string) => void;
-  onTo: (fromSecond: number, to: string) => void;
-}) {
-  if (!slot) return null;
-  const from = formatClock(Math.floor(slot.startSecond / 60) * 60);
-  const to = formatClock(Math.floor(slot.endSecond / 60) * 60);
-  const cls = "h-[30px] w-[6.25rem] rounded-lg border border-input bg-background px-2 text-xs tabular-nums outline-none focus:border-ring";
-  return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-      {isFirst ? (
-        <input type="time" value={from} onChange={(e) => e.target.value && onFrom(e.target.value)} aria-label="From" className={cls} />
-      ) : (
-        <span
-          className="inline-flex h-[30px] w-[6.25rem] items-center rounded-lg border border-dashed border-input px-2 text-xs tabular-nums text-muted-foreground"
-          title="Starts when the item before it ends"
-        >
-          {from}
-        </span>
-      )}
-      <span>to</span>
-      <input type="time" value={to} onChange={(e) => e.target.value && onTo(slot.startSecond, e.target.value)} aria-label="To" className={cls} />
-      <span className="w-12 text-right tabular-nums text-foreground/80">{formatDuration(slot.endSecond - slot.startSecond)}</span>
-    </div>
-  );
-}
-
-/** Length of the daily time slot, in seconds (all day = 24h). */
-function windowLengthSeconds(spec: { startTime: string | null; endTime: string | null }): number {
-  if (!spec.startTime || !spec.endTime) return 86400;
-  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-  const len = toMin(spec.endTime) - toMin(spec.startTime);
-  return (len > 0 ? len : len + 1440) * 60;
-}
-
-/** One line on how the queue fits the time slot. */
-function fitSummary(x: { loop: boolean; loopSeconds: number; windowSeconds: number; unfitCount: number; lastEnd: number }): string {
-  const head = `The time slot is ${formatDuration(x.windowSeconds)} and the queue is ${formatDuration(x.loopSeconds)}. `;
-  if (x.unfitCount > 0) {
-    return head + `${x.unfitCount} item${x.unfitCount === 1 ? "" : "s"} won't get a turn: shorten the ones above or make the slot longer.`;
-  }
-  if (!x.loop) {
-    return x.loopSeconds < x.windowSeconds
-      ? head + `It finishes at ${formatClock(x.lastEnd)}; then the screen goes back to what it showed before, until the next slot.`
-      : head + "It fills the slot.";
-  }
-  const times = Math.floor(x.windowSeconds / Math.max(1, x.loopSeconds));
-  return x.loopSeconds < x.windowSeconds
-    ? head + `It plays through about ${times} time${times === 1 ? "" : "s"}.`
-    : head + "It fills the slot once.";
-}
-
-/** "· 09:00–12:00", or a warning when the item doesn't fit the slot. */
-function ItemTime({ slot }: { slot?: { startSecond: number; endSecond: number; fits: boolean; cutShort: boolean } }) {
-  if (!slot) return null;
-  if (!slot.fits) return <span className="text-warning"> · won't play: the time slot ends first</span>;
-  return (
-    <span className={slot.cutShort ? "text-warning" : "text-foreground/80"}>
-      {" · "}
-      {formatClock(slot.startSecond)}–{formatClock(slot.endSecond)}
-      {slot.cutShort && " (cut short when the slot ends)"}
-    </span>
-  );
-}
-
 const DURATION_PRESETS: [string, number][] = [
+  ["5s", 5],
+  ["10s", 10],
   ["15s", 15],
   ["30s", 30],
   ["1m", 60],
@@ -811,8 +647,6 @@ const DURATION_PRESETS: [string, number][] = [
   ["15m", 900],
   ["30m", 1800],
   ["1h", 3600],
-  ["2h", 7200],
-  ["3h", 10800],
 ];
 
 /** Hours, minutes and seconds, stored as seconds, with quick picks. */
@@ -820,11 +654,9 @@ function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: n
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  const set = (nh: number, nm: number, ns: number) =>
-    onChange(Math.min(MAX_ITEM_SECONDS, nh * 3600 + nm * 60 + ns));
+  const set = (nh: number, nm: number, ns: number) => onChange(Math.min(MAX_ITEM_SECONDS, nh * 3600 + nm * 60 + ns));
   const num = (v: string, max: number) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
-  const cls =
-    "w-11 rounded-lg border border-input bg-background px-1 py-1 text-center text-xs tabular-nums outline-none focus:border-ring";
+  const cls = "w-11 rounded-lg border border-input bg-background px-1 py-1 text-center text-xs tabular-nums outline-none focus:border-ring";
   const preset = DURATION_PRESETS.find(([, v]) => v === seconds)?.[1];
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-[11px] text-muted-foreground" title="How long it stays on screen">
@@ -842,9 +674,7 @@ function DurationInput({ seconds, onChange }: { seconds: number; onChange: (s: n
       >
         <option value="">Quick…</option>
         {DURATION_PRESETS.map(([label, v]) => (
-          <option key={v} value={v}>
-            {label}
-          </option>
+          <option key={v} value={v}>{label}</option>
         ))}
       </select>
     </div>
@@ -895,64 +725,6 @@ function PickList({
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-function ExperiencePicker({
-  experiences,
-  onPick,
-  onClose,
-}: {
-  experiences: ExperienceOption[];
-  onPick: (e: ExperienceOption) => void;
-  onClose: () => void;
-}) {
-  const [q, setQ] = useState("");
-  const [added, setAdded] = useState<string[]>([]);
-  const query = q.trim().toLowerCase();
-  const visible = query ? experiences.filter((e) => e.title.toLowerCase().includes(query)) : experiences;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative flex max-h-[80vh] w-full max-w-md flex-col gap-3 rounded-3xl border border-border bg-popover p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-heading text-sm">Add experiences</h3>
-          <button type="button" onClick={onClose} aria-label="Done" className="rounded-full px-3 py-1 text-xs btn-primary">Done</button>
-        </div>
-        <div className="relative flex items-center">
-          <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
-          <input type="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search experiences" aria-label="Search experiences" className="w-full rounded-full border border-input bg-background py-2 pl-8 pr-3 text-sm outline-none focus:border-ring" />
-        </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border">
-          {visible.length === 0 && <li className="px-4 py-6 text-center text-xs text-muted-foreground">No experiences match.</li>}
-          {visible.map((e) => {
-            const count = added.filter((id) => id === e.id).length;
-            return (
-              <li key={e.id} className="border-b border-border last:border-b-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPick(e);
-                    setAdded((prev) => [...prev, e.id]);
-                  }}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted"
-                >
-                  <div className="h-9 w-12 shrink-0 overflow-hidden rounded-md border border-border">
-                    <MediaThumb compact type="experience" src={e.coverImage} name={e.title} />
-                  </div>
-                  <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
-                  {count > 0 ? (
-                    <span className="shrink-0 text-[11px] text-primary-ink">Added{count > 1 ? ` ×${count}` : ""}</span>
-                  ) : (
-                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
     </div>
   );
 }
