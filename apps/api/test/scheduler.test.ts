@@ -40,6 +40,7 @@ const lobby: ScheduleRow = {
   endTime: "18:00",
   timezone: "Asia/Kolkata",
   loop: true,
+  afterMedia: null,
   screenIds: [],
   groupIds: ["grp-lobby"],
   items: [
@@ -184,6 +185,15 @@ describe("scheduler tick", () => {
     expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", null, { record: false }); // idle
     expect(db.setScreenExperience).not.toHaveBeenCalled(); // not handed back to "before"
     expect(db.deleteScheduleScreenState).toHaveBeenCalledWith("tv-1");
+  });
+
+  it("shows the chosen media after a play-once queue, instead of idle", async () => {
+    const once = { ...lobby, loop: false, afterMedia: { id: "after-1", name: "Thanks", type: "image", url: "/media/t.png", thumbnailUrl: null } };
+    setup([once], [screen({ currentContentKind: "experience", currentExperienceId: "exp-1" })], [
+      state({ itemKey: "sch-lobby:2026-11-09:0:1", contentKind: "experience", contentId: "exp-1" }),
+    ]);
+    await runSchedulerTick();
+    expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", "after-1", { record: false });
   });
 
   it("hands back the previous content when a play-once slot ends before the queue does", async () => {

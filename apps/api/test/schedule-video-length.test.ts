@@ -34,6 +34,7 @@ const base = {
   endTime: "18:00",
   timezone: "Asia/Kolkata",
   loop: true,
+  afterMediaId: null,
   screenIds: ["tv-1"],
   groupIds: [],
 };

@@ -142,6 +142,11 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
   const [loop, setLoop] = useState(base?.loop ?? true);
+  /** Play once: what the screens show after the queue; null = their idle screen. */
+  const [afterMedia, setAfterMedia] = useState<{ id: string; name: string; type: string; url: string; thumbnailUrl: string | null } | null>(
+    base?.afterMedia ?? null
+  );
+  const [pickingAfter, setPickingAfter] = useState(false);
   const [screenIds, setScreenIds] = useState<Set<string>>(new Set(base?.screenIds ?? []));
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set(base?.groupIds ?? []));
   // Only images and videos still in the library; anything else an older
@@ -205,6 +210,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     ...windowSpec,
     timezone,
     loop: repeats,
+    afterMediaId: repeats ? null : afterMedia?.id ?? null,
     items: items.map((i) => ({ id: i.key, kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
     createdAt: draft.mode === "edit" ? draft.schedule.createdAt : new Date().toISOString(),
   };
@@ -303,6 +309,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       endTime: windowSpec.endTime,
       timezone,
       loop: repeats,
+      afterMediaId: repeats ? null : afterMedia?.id ?? null,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
       items: items.map((i) => ({ kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -483,28 +490,66 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
               </div>
 
               {!allDay && (
-                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3">
-                  <input
-                    type="checkbox"
-                    checked={loop}
-                    onChange={(e) => setLoop(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm">Loop</span>
-                    <span className="block text-[11px] text-muted-foreground">
-                      {loop
-                        ? "The queue repeats until the time slot ends. Untick to play it only once."
-                        : "The queue plays once, then the screens go to idle."}
-                    </span>
-                  </span>
-                </label>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border p-3">
+                  <div role="radiogroup" aria-label="How the queue plays" className="grid gap-2 @md:grid-cols-2">
+                    {(
+                      [
+                        [true, "Loop", "Repeats until the time slot ends."],
+                        [false, "Play once", "Plays through one time, then shows what you choose below."],
+                      ] as const
+                    ).map(([value, label, hint]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        role="radio"
+                        aria-checked={loop === value}
+                        onClick={() => setLoop(value)}
+                        className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                          loop === value ? "border-primary bg-primary/10" : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        <span className="block text-sm">{label}</span>
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {!loop && (
+                    <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
+                      <span className="text-[11px] text-muted-foreground">Afterwards, show</span>
+                      {afterMedia ? (
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <div className="h-9 w-12 shrink-0 overflow-hidden rounded-md border border-border">
+                            <MediaThumb
+                              compact
+                              type={afterMedia.type}
+                              src={afterMedia.type === "image" ? (afterMedia.thumbnailUrl || afterMedia.url) : afterMedia.thumbnailUrl}
+                              name={afterMedia.name}
+                            />
+                          </div>
+                          <span className="min-w-0 truncate text-sm">{afterMedia.name}</span>
+                        </div>
+                      ) : (
+                        <span className="flex-1 text-sm text-foreground/80">The screens&apos; idle screen</span>
+                      )}
+                      <div className="flex shrink-0 gap-2">
+                        <button type="button" onClick={() => setPickingAfter(true)} className="btn-surface rounded-full px-3 py-1 text-xs">
+                          {afterMedia ? "Change" : "Choose image or video"}
+                        </button>
+                        {afterMedia && (
+                          <button type="button" onClick={() => setAfterMedia(null)} className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+                            Use idle screen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
               {items.length > 0 && (
                 <p className="rounded-2xl bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
                   {allDay
                     ? `The queue (${formatDuration(queueSeconds)}) repeats all day, from midnight to midnight.`
-                    : fitSummary({ loop: repeats, queueSeconds, windowSeconds, unfit, startTime })}
+                    : fitSummary({ loop: repeats, queueSeconds, windowSeconds, unfit, startTime, afterName: afterMedia?.name ?? null })}
                 </p>
               )}
 
@@ -583,6 +628,15 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       </div>
 
       <MediaPicker open={picking} onClose={() => setPicking(false)} onSelectItem={addMedia} accept="visual" multi />
+      <MediaPicker
+        open={pickingAfter}
+        onClose={() => setPickingAfter(false)}
+        onSelectItem={(m) => {
+          if (m.type !== "image" && m.type !== "video") return setError(`"${m.name}" isn't an image or a video.`);
+          setAfterMedia({ id: m.id, name: m.name, type: m.type, url: m.url, thumbnailUrl: m.type === "image" ? m.url : null });
+        }}
+        accept="visual"
+      />
     </div>
   );
 }
@@ -598,7 +652,7 @@ function windowLengthSeconds(spec: { startTime: string | null; endTime: string |
 }
 
 /** One line on how the queue fits the time slot. */
-function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: number; unfit: number; startTime: string }): string {
+function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: number; unfit: number; startTime: string; afterName?: string | null }): string {
   const head = `The time slot is ${formatDuration(x.windowSeconds)}; the queue is ${formatDuration(x.queueSeconds)}. `;
   if (x.unfit > 0) {
     return head + `The last ${x.unfit === 1 ? "item doesn't" : `${x.unfit} items don't`} get a turn: shorten the images or make the slot longer.`;
@@ -606,7 +660,7 @@ function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: num
   if (x.queueSeconds >= x.windowSeconds) return head + "It fills the slot once.";
   if (!x.loop) {
     const [h, m] = x.startTime.split(":").map(Number) as [number, number];
-    return head + `It plays once, finishing at ${formatClock((h * 60 + m) * 60 + x.queueSeconds)}, then the screens go to idle.`;
+    return head + `It plays once, finishing at ${formatClock((h * 60 + m) * 60 + x.queueSeconds)}${x.afterName ? `, then the screens show ${x.afterName}.` : ", then the screens go to their idle screen."}`;
   }
   const times = Math.floor(x.windowSeconds / Math.max(1, x.queueSeconds));
   return head + `It repeats about ${times} time${times === 1 ? "" : "s"}.`;

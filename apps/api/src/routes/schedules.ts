@@ -43,6 +43,8 @@ const scheduleSchema = z
     timezone: z.string().refine(isValidTimezone, "Unknown timezone."),
     // Optional for callers that predate it: a schedule repeats unless told otherwise.
     loop: z.boolean().default(true),
+    // Play once only: the image or video shown afterwards; null = idle screen.
+    afterMediaId: z.string().min(1).nullable().default(null),
     screenIds: z.array(z.string().min(1)).max(500),
     groupIds: z.array(z.string().min(1)).max(500),
     items: z
@@ -96,6 +98,14 @@ async function parseSchedule(c: Parameters<typeof ok>[0]): Promise<ScheduleInput
           400
         );
       }
+    }
+  }
+  // What plays after a play-once queue must be an image or video in the library.
+  if (s.loop) s.afterMediaId = null;
+  if (s.afterMediaId) {
+    const after = await getMediaAsset(s.afterMediaId);
+    if (!after || (after.type !== "image" && after.type !== "video")) {
+      return fail(c, "VALIDATION", "What shows after the queue must be an image or a video in the library.", 400);
     }
   }
   const tooShort = s.items.find((i) => i.durationSeconds < MIN_ITEM_SECONDS);

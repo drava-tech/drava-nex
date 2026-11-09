@@ -31,6 +31,8 @@ export const schedule = pgTable("schedule", {
   timezone: text("timezone").notNull().default("Asia/Kolkata"),
   /** true: the queue repeats until the window ends; false: it plays once. */
   loop: boolean("loop").notNull().default(true),
+  /** Play once only: what the screens show after the queue; null = their idle screen. */
+  afterMediaAssetId: text("after_media_asset_id").references(() => mediaAsset.id, { onDelete: "set null" }),
   /** Screens targeted directly, and groups whose screens are targeted (resolved live). */
   screenIds: jsonb("screen_ids").$type<string[]>().notNull().default([]),
   groupIds: jsonb("group_ids").$type<string[]>().notNull().default([]),

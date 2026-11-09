@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { ScheduleContentKind, ScheduleSpec } from "@platform/types";
 import { db } from "../client.js";
 import { schedule, scheduleItem, scheduleScreenState } from "../schema/schedules.js";
@@ -40,6 +40,8 @@ export interface ScheduleRow {
   endTime: string | null;
   timezone: string;
   loop: boolean;
+  /** Play once only: the media shown afterwards (null = the screens' idle screen, or it was deleted). */
+  afterMedia: { id: string; name: string; type: string; url: string; thumbnailUrl: string | null } | null;
   screenIds: string[];
   groupIds: string[];
   items: ScheduleItemRow[];
@@ -59,6 +61,7 @@ export interface ScheduleInput {
   endTime: string | null;
   timezone: string;
   loop: boolean;
+  afterMediaId: string | null;
   screenIds: string[];
   groupIds: string[];
   items: { kind: ScheduleContentKind; contentId: string; durationSeconds: number }[];
@@ -91,6 +94,16 @@ export async function listSchedules(): Promise<ScheduleRow[]> {
       .orderBy(asc(scheduleItem.scheduleId), asc(scheduleItem.position)),
   ]);
 
+  // The "afterwards" media of play-once schedules, still in the library.
+  const afterIds = [...new Set(schedules.map((s) => s.afterMediaAssetId).filter((id): id is string => !!id))];
+  const afterRows = afterIds.length
+    ? await db
+        .select({ id: mediaAsset.id, name: mediaAsset.name, type: mediaAsset.type, url: mediaAsset.url, thumbnailUrl: mediaAsset.thumbnailUrl })
+        .from(mediaAsset)
+        .where(and(inArray(mediaAsset.id, afterIds), isNull(mediaAsset.deletedAt)))
+    : [];
+  const afterById = new Map(afterRows.map((m) => [m.id, m]));
+
   const bySchedule = new Map<string, ScheduleItemRow[]>();
   for (const i of items) {
     const kind = i.kind === "experience" ? "experience" : "media";
@@ -122,6 +135,7 @@ export async function listSchedules(): Promise<ScheduleRow[]> {
     endTime: s.endTime,
     timezone: s.timezone,
     loop: s.loop,
+    afterMedia: (s.afterMediaAssetId && afterById.get(s.afterMediaAssetId)) || null,
     screenIds: s.screenIds,
     groupIds: s.groupIds,
     items: bySchedule.get(s.id) ?? [],
@@ -144,6 +158,7 @@ export function toScheduleSpec(row: ScheduleRow): ScheduleSpec {
     endTime: row.endTime,
     timezone: row.timezone,
     loop: row.loop,
+    afterMediaId: row.afterMedia?.id ?? null,
     items: row.items
       .filter((i) => i.title !== null && i.contentId)
       .map((i) => ({ id: i.id, kind: i.kind, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -169,6 +184,7 @@ function scheduleValues(input: ScheduleInput) {
     endTime: input.endTime,
     timezone: input.timezone,
     loop: input.loop,
+    afterMediaAssetId: input.loop ? null : input.afterMediaId,
     screenIds: input.screenIds,
     groupIds: input.groupIds,
   };

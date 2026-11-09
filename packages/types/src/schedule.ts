@@ -46,6 +46,11 @@ export interface ScheduleSpec {
    * the schedule is off air for the rest of the window.
    */
   loop: boolean;
+  /**
+   * For a queue that plays once: the image or video the screens show after
+   * it finishes. null = their normal idle screen.
+   */
+  afterMediaId: string | null;
   /** ISO timestamp; breaks priority ties (the newer schedule wins). */
   createdAt: string;
 }

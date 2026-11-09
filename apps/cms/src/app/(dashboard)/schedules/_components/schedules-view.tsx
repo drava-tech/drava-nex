@@ -421,7 +421,8 @@ function ScheduleList({
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>
-                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue{row.loop || !row.startTime ? "" : ", plays once"}
+                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
+                {row.loop || !row.startTime ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
               </span>
               <span>
                 {targets.length} screen{targets.length === 1 ? "" : "s"}

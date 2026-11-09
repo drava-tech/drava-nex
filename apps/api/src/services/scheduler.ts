@@ -116,7 +116,8 @@ async function applyToScreen(
     const playedOnce = !!stateSpec && !stateSpec.loop && activeWindow(stateSpec, now) !== null;
     let pushed = false;
     if (isShowing(s, state.contentKind, state.contentId)) {
-      if (playedOnce) await assign(s.screenId, null, null);
+      // After a play-once queue: the media chosen for afterwards, or idle.
+      if (playedOnce) await assign(s.screenId, stateSpec?.afterMediaId ? "media" : null, stateSpec?.afterMediaId ?? null);
       else await assign(s.screenId, state.previousContentKind, state.previousContentId);
       pushed = true;
     }

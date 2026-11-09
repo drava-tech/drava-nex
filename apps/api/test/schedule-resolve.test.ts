@@ -36,6 +36,7 @@ function spec(over: Partial<ScheduleSpec> = {}): ScheduleSpec {
     endTime: "18:00",
     timezone: TZ,
     loop: true,
+    afterMediaId: null,
     items: [
       { id: "a", kind: "media", contentId: "m1", durationSeconds: 10 },
       { id: "b", kind: "experience", contentId: "e1", durationSeconds: 20 },
