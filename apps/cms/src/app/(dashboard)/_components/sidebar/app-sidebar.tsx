@@ -18,6 +18,7 @@ import {
   // Globe,
 } from "lucide-react";
 import { DravaLogo } from "@/components/drava-logo";
+import { roleLabel } from "@/lib/roles";
 import {
   Sidebar,
   SidebarContent,
@@ -174,7 +175,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} isGuestMode={isGuestMode} onToggleGuestMode={toggleGuestMode} />
+        <NavUser
+          user={user}
+          isGuestMode={isGuestMode}
+          onToggleGuestMode={effectiveRole === "ADMIN" ? toggleGuestMode : undefined}
+          roleLabel={sessionData?.user ? roleLabel(role) : undefined}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -42,6 +42,17 @@ export async function requireAdmin(c: Context, next: Next): Promise<Response | v
   return next();
 }
 
+/** Only the super admin — e.g. for managing who can sign in. */
+export async function requireSuperAdmin(c: Context, next: Next): Promise<Response | void> {
+  const currentUser = await resolveUser(c);
+  if (!currentUser) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);
+  if (currentUser.role !== "SUPERADMIN") {
+    return fail(c, "FORBIDDEN", "Only the super admin can do this.", 403);
+  }
+  c.set("user", currentUser);
+  return next();
+}
+
 export async function requireGuestOrAdmin(c: Context, next: Next): Promise<Response | void> {
   const currentUser = await resolveUser(c);
   if (!currentUser) return fail(c, "UNAUTHORIZED", "Unauthorized", 401);

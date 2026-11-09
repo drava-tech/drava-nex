@@ -31,6 +31,7 @@ import { DashboardMediaProvider } from "@/app/(dashboard)/_components/dashboard/
 import { MediaAssetsStatCard } from "@/app/(dashboard)/_components/dashboard/media-assets-stat-card";
 import { sampleUptimeSeries } from "@/app/(dashboard)/_components/dashboard/sample-data";
 import { SampleBadge } from "@/app/(dashboard)/_components/dashboard/sample-badge";
+import { roleLabel } from "@/lib/roles";
 
 /** Sampling interval of apps/api/src/services/screen-uptime.ts, in minutes —
  * used only to tell a fully-recorded day from a partial one on the chart. */
@@ -75,7 +76,7 @@ export default async function DashboardPage() {
     .join(" · ");
 
   const roleBreakdown = userStats.byRole
-    .map((r) => `${r.count} ${r.role.toLowerCase()}`)
+    .map((r) => `${r.count} ${roleLabel(r.role).toLowerCase()}`)
     .join(" · ");
 
   // Hours per day the window covers, times samples per hour.

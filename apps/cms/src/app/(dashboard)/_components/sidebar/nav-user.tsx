@@ -25,6 +25,7 @@ export function NavUser({
   user,
   isGuestMode,
   onToggleGuestMode,
+  roleLabel,
 }: {
   user: {
     name: string;
@@ -32,7 +33,10 @@ export function NavUser({
     avatar: string;
   };
   isGuestMode: boolean;
-  onToggleGuestMode: () => void;
+  /** Admins only: the demo "guest mode". Not offered to Users, who already see the simple menu. */
+  onToggleGuestMode?: () => void;
+  /** "Super admin" / "Admin" / "User", shown in the account menu. */
+  roleLabel?: string;
 }) {
   const { isMobile } = useSidebar();
   const router = useRouter();
@@ -87,6 +91,7 @@ export function NavUser({
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="truncate text-xs">{user.email}</span>
+                  {roleLabel && <span className="truncate text-[11px] text-primary-ink">{roleLabel}</span>}
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -99,10 +104,12 @@ export function NavUser({
                 <BookOpen />
                 Docs
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
-                <UserCog />
-                {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
-              </DropdownMenuItem>
+              {onToggleGuestMode && (
+                <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
+                  <UserCog />
+                  {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => setTheme(theme === "light" ? "dark" : "light")}
                 className="cursor-pointer"
