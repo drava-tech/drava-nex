@@ -16,6 +16,8 @@ import { GalleryLayout } from "./gallery/gallery-layout";
 import { GalleryEditorWorkspace } from "./gallery/editor-workspace";
 import { DravaMosaicLayout } from "./drava-mosaic/drava-mosaic-layout";
 import { DravaMosaicEditorWorkspace } from "./drava-mosaic/editor-workspace";
+import { DravaWorldLayout } from "./drava-world/drava-world-layout";
+import { DravaWorldEditorWorkspace } from "./drava-world/editor-workspace";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
@@ -102,6 +104,13 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: DravaMosaicLayout,
     // No settings: "Edit" just opens the studio full-screen.
     Workspace: DravaMosaicEditorWorkspace,
+  },
+  "drava-world": {
+    key: "drava-world",
+    label: TEMPLATE_LABELS["drava-world"],
+    Layout: DravaWorldLayout,
+    // No settings: "Edit" just opens Drava World full-screen.
+    Workspace: DravaWorldEditorWorkspace,
   },
 };
 

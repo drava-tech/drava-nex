@@ -1,0 +1,15 @@
+#!/bin/sh
+# drava-world's pre-push hook, kept here in drava-nex. Pushes drava-nex's
+# sufiyan branch along with this push, so the commits the post-commit hook made
+# there go out too. A failure here never blocks the drava-world push.
+
+nex=$(cd "$(dirname "$0")/../../.." && pwd)
+[ -d "$nex/.git" ] || exit 0
+branch=$(git -C "$nex" rev-parse --abbrev-ref HEAD)
+[ "$branch" = "sufiyan" ] || exit 0
+if [ -n "$(git -C "$nex" log --oneline origin/sufiyan..sufiyan 2>/dev/null)" ]; then
+  echo "[drava-world] pushing drava-nex (sufiyan)..." >&2
+  git -C "$nex" push origin sufiyan </dev/null || \
+    echo "[drava-world] drava-nex push failed; push it yourself from $nex." >&2
+fi
+exit 0

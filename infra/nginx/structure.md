@@ -32,7 +32,7 @@ infra/nginx/
 └── nginx.conf               → old local-dev config (not used by docker-compose.local.yml)
 ```
 
-- **:80** — plain http for TVs/kiosks: `/display`, `/media`, `/drava-mosaic/`, `/ws` stay on http;
+- **:80** — plain http for TVs/kiosks: `/display`, `/media`, `/drava-mosaic/`, `/drava-world`, `/ws` stay on http;
   `/api/auth/*` and the dashboard 301 to https (better-auth's Secure cookies need it).
 - **:443** — everything, plus the sign-up block (`/api/auth/sign-up/*` → 403).
 - **Unknown Host** → `444` on both ports. Known names: `ec-cms`, `192.168.1.250`, and on :443

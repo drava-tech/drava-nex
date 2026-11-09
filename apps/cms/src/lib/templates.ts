@@ -16,4 +16,5 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   "flight-simulation": "Data Art",
   gallery: "Gallery",
   "drava-mosaic": "Drava Mosaic",
+  "drava-world": "Drava World",
 };

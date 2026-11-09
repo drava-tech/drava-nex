@@ -1,0 +1,19 @@
+#!/bin/sh
+# drava-world's post-commit hook, kept here in drava-nex so drava-world itself
+# needs no changes. It copies each drava-world commit into drava-nex
+# (packages/drava-world, the CMS's "Drava World" template) and commits it
+# there, so a change is made once.
+#
+# Turned on per drava-world clone with:
+#   git config core.hooksPath <drava-nex>/tools/githooks/drava-world
+# This folder is <drava-nex>/tools/githooks/drava-world, so drava-nex is three up.
+
+nex=$(cd "$(dirname "$0")/../../.." && pwd)
+script="$nex/tools/sync-drava-world.mjs"
+if [ ! -f "$script" ]; then
+  echo "[drava-world] drava-nex not found at $nex; not synced." >&2
+  exit 0
+fi
+node "$script" "$(pwd)" --ref HEAD --commit || \
+  echo "[drava-world] drava-nex was NOT updated (see above). Your drava-world commit is fine." >&2
+exit 0

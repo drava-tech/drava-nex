@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "sync:drava-mosaic": "node tools/sync-drava-mosaic.mjs",
+    "sync:drava-world": "node tools/sync-drava-world.mjs",
     "db:generate": "pnpm --filter @platform/db db:generate",
     "db:migrate": "pnpm --filter @platform/db db:migrate",
     "db:push": "pnpm --filter @platform/db db:push",

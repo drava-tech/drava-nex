@@ -28,6 +28,11 @@ export function middleware(request: NextRequest) {
     // The Drava Mosaic template's pages (public/drava-mosaic, copied from
     // packages/drava-mosaic) — iframed by unauthenticated displays.
     pathname.startsWith("/drava-mosaic/") ||
+    // The Drava World template's pages (public/drava-world, copied from
+    // packages/drava-world) — iframed by unauthenticated displays. Also the
+    // bare /drava-world, the address its Welcome Zone settles on.
+    pathname === "/drava-world" ||
+    pathname.startsWith("/drava-world/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     // Logo shown on the unauthenticated /display kiosk idle screen — must be
