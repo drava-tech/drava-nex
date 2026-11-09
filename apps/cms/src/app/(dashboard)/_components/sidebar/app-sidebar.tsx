@@ -10,8 +10,8 @@ import {
   Film,
   Cpu,
   // ScanFace,
-  PenTool,
-  // Settings2,
+  // PenTool,
+  Settings2,
   Send,
   // SquareTerminal,
   // Globe,
@@ -39,10 +39,31 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
-    title: "Broadcast",
+    title: "Our Story",
     url: "/broadcast",
     icon: Send,
     roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Media",
+    url: "/media",
+    icon: Film,
+    roles: ["ADMIN"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Screens",
+    url: "/screens",
+    icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Environment",
+    url: "/environment",
+    icon: Cpu,
+    roles: ["ADMIN"] as string[],
     guestModeVisible: true,
   },
   // {
@@ -58,20 +79,6 @@ const ALL_NAV = [
   //   icon: Package,
   //   roles: ["ADMIN"] as string[],
   // },
-  {
-    title: "Environment",
-    url: "/environment",
-    icon: Cpu,
-    roles: ["ADMIN"] as string[],
-    guestModeVisible: true,
-  },
-  {
-    title: "Screens",
-    url: "/screens",
-    icon: Monitor,
-    roles: ["ADMIN", "GUEST"] as string[],
-    guestModeVisible: true,
-  },
   // {
   //   title: "Browser",
   //   url: "/browser",
@@ -79,12 +86,14 @@ const ALL_NAV = [
   //   roles: ["ADMIN", "GUEST"] as string[],
   //   guestModeVisible: true,
   // },
-  {
-    title: "Whiteboards",
-    url: "/whiteboards",
-    icon: PenTool,
-    roles: ["ADMIN", "GUEST"] as string[],
-  },
+  // Hidden for now; restore together with <WhiteboardOverlay /> in
+  // dashboard-layout-client.tsx.
+  // {
+  //   title: "Whiteboards",
+  //   url: "/whiteboards",
+  //   icon: PenTool,
+  //   roles: ["ADMIN", "GUEST"] as string[],
+  // },
   // {
   //   title: "Users",
   //   url: "/users",
@@ -98,18 +107,11 @@ const ALL_NAV = [
   //   roles: ["ADMIN"] as string[],
   // },
   {
-    title: "Media",
-    url: "/media",
-    icon: Film,
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
     roles: ["ADMIN"] as string[],
-    guestModeVisible: true,
   },
-  // {
-  //   title: "Settings",
-  //   url: "/settings",
-  //   icon: Settings2,
-  //   roles: ["ADMIN"] as string[],
-  // },
 ];
 
 const GUEST_NAV_ITEMS = ALL_NAV.filter((item) => item.guestModeVisible);

@@ -14,6 +14,7 @@ import {
 
 const ROUTE_LABELS: Record<string, string> = {
   "projects": "Experiences",
+  "broadcast": "Our Story",
   "screens": "Screens",
   "media": "Media",
   "users": "Users",

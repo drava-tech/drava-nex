@@ -9,7 +9,10 @@ import {
 } from "@platform/ui";
 import { AppSidebar } from '@/app/(dashboard)/_components/sidebar/app-sidebar';
 import { DashboardBreadcrumb } from '@/app/(dashboard)/_components/dashboard-breadcrumb';
-import dynamic from 'next/dynamic';
+// Whiteboard overlay ("Draw") is hidden for now. To restore it, uncomment this
+// import, the WhiteboardOverlay const below, <WhiteboardOverlay /> at the
+// bottom, and the Whiteboards entry in sidebar/app-sidebar.tsx.
+// import dynamic from 'next/dynamic';
 
 // Lazy on purpose. This overlay is a floating widget most visits never open,
 // but it is mounted on EVERY dashboard page — and it statically imports
@@ -18,13 +21,13 @@ import dynamic from 'next/dynamic';
 // ssr:false because it is purely an interactive client widget with no
 // server-rendered content worth paying for. Same pattern the environment panel
 // already uses for its content panes (environment-view.tsx).
-const WhiteboardOverlay = dynamic(
-  () =>
-    import('@/app/(dashboard)/_components/whiteboard/whiteboard-overlay').then(
-      (m) => m.WhiteboardOverlay
-    ),
-  { ssr: false }
-);
+// const WhiteboardOverlay = dynamic(
+//   () =>
+//     import('@/app/(dashboard)/_components/whiteboard/whiteboard-overlay').then(
+//       (m) => m.WhiteboardOverlay
+//     ),
+//   { ssr: false }
+// );
 // Restore together with the commented-out toggle in the header below.
 // import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
 import { StoreProvider } from '@/store/store-provider';
@@ -83,8 +86,8 @@ export function DashboardLayoutClient({
             globals.css), not the nesting itself. */}
           <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
         </SidebarInset>
-        {/* Floating whiteboard — available on every dashboard page */}
-        <WhiteboardOverlay />
+        {/* Floating whiteboard ("Draw") — hidden for now, see the note at the top */}
+        {/* <WhiteboardOverlay /> */}
       </SidebarProvider>
     </StoreProvider>
   );

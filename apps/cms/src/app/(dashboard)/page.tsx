@@ -122,9 +122,6 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Overview of your signage network
-          </p>
         </div>
       </div>
 
