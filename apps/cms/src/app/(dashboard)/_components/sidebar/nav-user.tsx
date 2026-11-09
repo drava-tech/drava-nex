@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@platform/ui";
-import { BookOpen, ChevronsUpDown, LogOut, Moon, Sun, UserCog } from "lucide-react";
+import { ChevronsUpDown, CircleHelp, LogOut, Moon, Sun, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { signOut } from "@/lib/auth-client";
@@ -101,8 +101,8 @@ export function NavUser({
                 onClick={() => window.open("/docs", "_blank", "noopener,noreferrer")}
                 className="cursor-pointer"
               >
-                <BookOpen />
-                Docs
+                <CircleHelp />
+                Help
               </DropdownMenuItem>
               {onToggleGuestMode && (
                 <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
