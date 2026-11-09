@@ -30,7 +30,9 @@ import {
   Mail,
   Presentation,
   RefreshCw,
+  Search,
   Video,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -184,6 +186,8 @@ export function PublishBoard({
   );
   /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
   const [tagFilter, setTagFilter] = useState<string | null>(restored.tagFilter);
+  /** Only meaningful (and shown) while filter === "experiences" — title or tag name. */
+  const [experienceSearch, setExperienceSearch] = useState(restored.experienceSearch);
   /** Only meaningful (and shown) while filter === "media" — narrows to one media type. */
   const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaCardType | null>(
     restored.mediaTypeFilter,
@@ -442,6 +446,7 @@ export function PublishBoard({
     saveBoardSnapshot({
       filter,
       tagFilter,
+      experienceSearch,
       mediaTypeFilter,
       emailOnly,
       mediaDateFrom,
@@ -451,6 +456,7 @@ export function PublishBoard({
   }, [
     filter,
     tagFilter,
+    experienceSearch,
     mediaTypeFilter,
     emailOnly,
     mediaDateFrom,
@@ -477,9 +483,18 @@ export function PublishBoard({
     [presentMediaTypes],
   );
 
+  const searchQuery = experienceSearch.trim().toLowerCase();
+
   const cards = useMemo<ContentCard[]>(() => {
+    const tagNames = new Map(experienceTypes.map((t) => [t.id, t.name.toLowerCase()]));
     const experienceCards: ContentCard[] = experiences
       .filter((e) => !tagFilter || e.typeIds.includes(tagFilter))
+      .filter(
+        (e) =>
+          !searchQuery ||
+          e.title.toLowerCase().includes(searchQuery) ||
+          e.typeIds.some((id) => tagNames.get(id)?.includes(searchQuery))
+      )
       .map((e) => ({
         id: e.id,
         type: "experience",
@@ -498,7 +513,7 @@ export function PublishBoard({
       thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
-  }, [experiences, mediaItems, filter, tagFilter]);
+  }, [experiences, experienceTypes, mediaItems, filter, tagFilter, searchQuery]);
 
   // Falls back to the first screen rather than null: targetIndex can be
   // restored from a previous mount, and the screens list is re-fetched by the
@@ -692,6 +707,7 @@ export function PublishBoard({
   }, [
     filter,
     tagFilter,
+    searchQuery,
     mediaTypeFilter,
     emailOnly,
     mediaDateFrom,
@@ -937,7 +953,7 @@ export function PublishBoard({
           }
           disabled={screens.length < 2}
           aria-label="Previous screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface text-white transition-colors disabled:opacity-30"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface transition-colors disabled:opacity-30"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -960,7 +976,7 @@ export function PublishBoard({
           }
           disabled={screens.length < 2}
           aria-label="Next screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface text-white transition-colors disabled:opacity-30"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface transition-colors disabled:opacity-30"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -994,7 +1010,7 @@ export function PublishBoard({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors"
+                className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
               >
                 {filter}
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -1010,7 +1026,10 @@ export function PublishBoard({
                   className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
                   onSelect={() => {
                     setFilter(key);
-                    if (key !== "experiences") setTagFilter(null);
+                    if (key !== "experiences") {
+                      setTagFilter(null);
+                      setExperienceSearch("");
+                    }
                     if (key !== "media") {
                       setMediaTypeFilter(null);
                       setEmailOnly(false);
@@ -1032,7 +1051,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors"
+                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
                 >
                   {tagFilter
                     ? (availableTags.find((t) => t.id === tagFilter)?.name ??
@@ -1064,6 +1083,34 @@ export function PublishBoard({
             </DropdownMenu>
           )}
 
+          {/* Search — narrows experiences by title or tag name. */}
+          {filter === "experiences" && (
+            <div className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="search"
+                value={experienceSearch}
+                onChange={(e) => setExperienceSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setExperienceSearch("");
+                }}
+                placeholder="Search experiences"
+                aria-label="Search experiences"
+                className="h-8 w-44 rounded-full border border-border bg-card pl-8 pr-8 text-xs text-foreground placeholder:text-muted-foreground outline-none transition-[width,border-color] focus:w-60 focus:border-ring sm:w-56 sm:focus:w-72 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {experienceSearch && (
+                <button
+                  type="button"
+                  onClick={() => setExperienceSearch("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Second-level filter — only once "Media" is picked, and only
             offering types that are actually present (Video, Image, PDF, ...). */}
           {filter === "media" && availableMediaTypes.length > 0 && (
@@ -1071,7 +1118,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors"
+                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
                 >
                   {mediaTypeFilter
                     ? MEDIA_TYPE_LABELS[mediaTypeFilter]
@@ -1175,7 +1222,7 @@ export function PublishBoard({
             onClick={handleLoadFromEmail}
             disabled={loadingInbox}
             title="Load last 2 days from email"
-            className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`}
@@ -1194,7 +1241,11 @@ export function PublishBoard({
         ) : cards.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
             <Layers className="h-8 w-8 text-zinc-400" />
-            <p className="text-sm text-zinc-400">No content to publish yet.</p>
+            <p className="text-sm text-zinc-400">
+              {filter === "experiences" && searchQuery
+                ? `No experiences match "${experienceSearch.trim()}".`
+                : "No content to publish yet."}
+            </p>
           </div>
         ) : (
           <>
@@ -1251,7 +1302,7 @@ export function PublishBoard({
                 type="button"
                 onClick={() => scrollToAdjacentCard(-1)}
                 aria-label="Previous card"
-                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface text-white transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface transition-colors"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -1259,7 +1310,7 @@ export function PublishBoard({
                 type="button"
                 onClick={() => scrollToAdjacentCard(1)}
                 aria-label="Next card"
-                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface text-white transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface transition-colors"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>

@@ -27,6 +27,8 @@ import type { MediaCardType, MediaItem } from "./publish-board";
 export interface PublishBoardSnapshot {
   filter: "experiences" | "media";
   tagFilter: string | null;
+  /** Experience search text; matches the title or a tag name. "" = no search. */
+  experienceSearch: string;
   mediaTypeFilter: MediaCardType | null;
   emailOnly: boolean;
   /** "" | "YYYY-MM-DD", open-ended if either is empty. */
@@ -54,6 +56,7 @@ export interface PublishBoardSnapshot {
 const DEFAULTS: PublishBoardSnapshot = {
   filter: "experiences",
   tagFilter: null,
+  experienceSearch: "",
   mediaTypeFilter: null,
   emailOnly: false,
   mediaDateFrom: "",
