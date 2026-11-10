@@ -30,6 +30,7 @@ import {
   Mail,
   Presentation,
   RefreshCw,
+  List as ListIcon,
   Search,
   Video,
   X,
@@ -162,11 +163,11 @@ interface PublishBoardProps {
   /** Screen groups, for the group dropdown beside the screen bar. */
   screenGroups?: { id: string; name: string }[];
   /**
-   * The Media page's view: media only (no Portfolio switch), opened on this
-   * item, with a way back to the list. Keeps none of Our Story's remembered
-   * state, and doesn't disturb it.
+   * The Media page's view: media only (no Portfolio switch), opened on `id`
+   * (or the newest when there's none), with a way to the file list. Keeps
+   * none of Our Story's remembered state, and doesn't disturb it.
    */
-  focusMedia?: { id: string; onBack: () => void };
+  focusMedia?: { id: string | null; onBack: () => void };
 }
 
 /**
@@ -785,9 +786,10 @@ export function PublishBoard({
   const focusDoneRef = useRef(false);
   const focusPagesRef = useRef(0);
   useIsomorphicLayoutEffect(() => {
-    if (!focusMedia || focusDoneRef.current || loadingMedia || cards.length === 0) return;
+    const focusId = focusMedia?.id;
+    if (!focusId || focusDoneRef.current || loadingMedia || cards.length === 0) return;
     const el = slideRefs.current.get(
-      [...slideRefs.current.keys()].find((k) => k.endsWith(`:${focusMedia.id}`)) ?? "",
+      [...slideRefs.current.keys()].find((k) => k.endsWith(`:${focusId}`)) ?? "",
     );
     if (el) {
       focusDoneRef.current = true;
@@ -837,6 +839,7 @@ export function PublishBoard({
   // a mouse has no native way to drag-scroll a div, so it's wired up by hand
   // here — gated to pointerType "mouse" only so touch/pen keep using the
   // native path instead of being double-driven by both at once.
+  const hasCards = cards.length > 0;
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
@@ -917,7 +920,9 @@ export function PublishBoard({
       window.removeEventListener("pointerup", stopDragging);
       window.removeEventListener("pointercancel", stopDragging);
     };
-  }, []);
+    // Re-run once the cards (and so the scroller) exist: the Media page loads
+    // its cards after mounting, so on the first pass there was nothing to wire.
+  }, [hasCards]);
 
   // Explicit prev/next controls — a guaranteed way to move between cards
   // regardless of input device (mouse with no trackpad, no touch, etc.),
@@ -1157,8 +1162,8 @@ export function PublishBoard({
               onClick={focusMedia.onBack}
               className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              All media
+              <ListIcon className="h-3.5 w-3.5" />
+              File list
             </button>
           ) : (
             <span className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider">
