@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   motion,
@@ -18,6 +19,8 @@ import {
 } from "framer-motion";
 import {
   CalendarRange,
+  MonitorPlay,
+  CalendarClock,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -31,6 +34,7 @@ import {
   Play,
   Presentation,
   RefreshCw,
+  List as ListIcon,
   Search,
   Video,
   Volume2,
@@ -108,6 +112,8 @@ interface ExperienceOption {
   title: string;
   coverImage: string | null;
   typeIds: string[];
+  /** Template display name, for the details card. */
+  template?: string | null;
 }
 
 interface ExperienceTag {
@@ -124,7 +130,16 @@ export interface MediaItem {
   createdAt: string | null;
   /** Small derived tile; null for videos and pre-backfill images. */
   thumbnailUrl?: string | null;
+  /** Display-ready from /api/media: "6.8 MB" ("—" for links), "Nov 09, 2026". */
+  size?: string;
+  date?: string;
+  /** Email-ingested media only. */
+  emailFrom?: string | null;
+  emailSubject?: string | null;
 }
+
+/** Where a media item came from, as the card's details line says it. */
+const SOURCE_LABELS: Record<string, string> = { upload: "Upload", email: "Email", link: "Link" };
 
 /** Every non-experience card carries the media asset's own classified type
  * (see apps/api/src/routes/media.ts's ALLOWED map) — "image"/"video" render a
@@ -154,6 +169,18 @@ interface ContentCard {
   typeIds?: string[];
   /** Videos: the file, for a frame when there's no poster yet. */
   videoUrl?: string;
+  /** Portfolio only: the template's display name. */
+  template?: string | null;
+  /** Media only: shown in the details card under the carousel while this card is centred. */
+  details?: {
+    size?: string;
+    date?: string;
+    source?: string | null;
+    emailFrom?: string | null;
+    emailSubject?: string | null;
+    /** The file itself, for a video's length and resolution. */
+    url?: string;
+  };
 }
 
 interface PublishBoardProps {
@@ -165,11 +192,11 @@ interface PublishBoardProps {
   /** Screen groups, for the group dropdown beside the screen bar. */
   screenGroups?: { id: string; name: string }[];
   /**
-   * The Media page's view: media only (no Portfolio switch), opened on this
-   * item, with a way back to the list. Keeps none of Our Story's remembered
-   * state, and doesn't disturb it.
+   * The Media page's view: media only (no Portfolio switch), opened on `id`
+   * (or the newest when there's none), with a way to the file list. Keeps
+   * none of Our Story's remembered state, and doesn't disturb it.
    */
-  focusMedia?: { id: string; onBack: () => void };
+  focusMedia?: { id: string | null; onBack: () => void };
 }
 
 /**
@@ -548,6 +575,7 @@ export function PublishBoard({
         title: e.title,
         thumbnail: e.coverImage,
         typeIds: e.typeIds,
+        template: e.template ?? null,
       }));
     // No client-side type/source/date filtering here any more — mediaItems is
     // already the filtered result set, page by page, from the server.
@@ -559,6 +587,14 @@ export function PublishBoard({
       // to prevent Android WebView from mounting native <video> decoders across carousel slides.
       thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
       videoUrl: m.type === "video" ? m.url : undefined,
+      details: {
+        size: m.size === "—" ? undefined : m.size,
+        date: m.date,
+        source: m.source,
+        emailFrom: m.emailFrom,
+        emailSubject: m.emailSubject,
+        url: m.url,
+      },
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, experienceTypes, mediaItems, filter, tagFilter, searchQuery]);
@@ -609,6 +645,10 @@ export function PublishBoard({
   const centredKeyRef = useRef<string | null>(null);
   /** The one video card playing its preview; a single <video> is mounted at a time. */
   const [previewKey, setPreviewKey] = useState<string | null>(null);
+  /** The same, as state: the details card under the carousel shows this one. */
+  const [centredKey, setCentredKey] = useState<string | null>(null);
+  const centredCard = cards.find((c) => `${c.type}:${c.id}` === centredKey) ?? null;
+  const tagNameById = useMemo(() => new Map(experienceTypes.map((t) => [t.id, t.name])), [experienceTypes]);
 
   /** Caches static layout centers (offsetLeft + offsetWidth / 2) so scroll frames do not force DOM layout reads per card. */
   const cachedCentersRef = useRef<Map<string, number>>(new Map());
@@ -691,6 +731,7 @@ export function PublishBoard({
       // Moving on to another card ends the preview of the one left behind.
       const centred = nearestKey;
       setPreviewKey((k) => (k && k !== centred ? null : k));
+      setCentredKey(nearestKey);
     }
     if (nearestKey) saveSnapshot({ centredCardKey: nearestKey });
   }, [saveSnapshot]);
@@ -793,9 +834,10 @@ export function PublishBoard({
   const focusDoneRef = useRef(false);
   const focusPagesRef = useRef(0);
   useIsomorphicLayoutEffect(() => {
-    if (!focusMedia || focusDoneRef.current || loadingMedia || cards.length === 0) return;
+    const focusId = focusMedia?.id;
+    if (!focusId || focusDoneRef.current || loadingMedia || cards.length === 0) return;
     const el = slideRefs.current.get(
-      [...slideRefs.current.keys()].find((k) => k.endsWith(`:${focusMedia.id}`)) ?? "",
+      [...slideRefs.current.keys()].find((k) => k.endsWith(`:${focusId}`)) ?? "",
     );
     if (el) {
       focusDoneRef.current = true;
@@ -845,6 +887,7 @@ export function PublishBoard({
   // a mouse has no native way to drag-scroll a div, so it's wired up by hand
   // here — gated to pointerType "mouse" only so touch/pen keep using the
   // native path instead of being double-driven by both at once.
+  const hasCards = cards.length > 0;
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
@@ -925,7 +968,9 @@ export function PublishBoard({
       window.removeEventListener("pointerup", stopDragging);
       window.removeEventListener("pointercancel", stopDragging);
     };
-  }, []);
+    // Re-run once the cards (and so the scroller) exist: the Media page loads
+    // its cards after mounting, so on the first pass there was nothing to wire.
+  }, [hasCards]);
 
   // Explicit prev/next controls — a guaranteed way to move between cards
   // regardless of input device (mouse with no trackpad, no touch, etc.),
@@ -1165,8 +1210,8 @@ export function PublishBoard({
               onClick={focusMedia.onBack}
               className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              All media
+              <ListIcon className="h-3.5 w-3.5" />
+              File list
             </button>
           ) : (
             <span className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider">
@@ -1381,6 +1426,8 @@ export function PublishBoard({
           </div>
         ) : (
           <>
+            {/* The carousel, with its arrows over its left and right sides. */}
+            <div className="relative flex min-h-0 flex-1">
             <div
               ref={scrollerRef}
               // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
@@ -1395,7 +1442,7 @@ export function PublishBoard({
               // want it ask for it themselves — scrollToAdjacentCard passes
               // behavior:"smooth", and the position restore passes
               // behavior:"instant" precisely to opt out of this class.
-              className="no-scrollbar relative flex min-h-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
+              className="no-scrollbar relative flex min-h-0 min-w-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
               style={{
                 paddingLeft: "calc(50% - 12rem)",
                 paddingRight: "calc(50% - 12rem)",
@@ -1432,12 +1479,12 @@ export function PublishBoard({
               )}
             </div>
 
-            <div className="flex shrink-0 items-center justify-center gap-4">
+              {/* z-10: above the cards (the centred one's inline z-index tops out at 5). */}
               <button
                 type="button"
                 onClick={() => scrollToAdjacentCard(-1)}
                 aria-label="Previous card"
-                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface transition-colors"
+                className="absolute left-4 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full btn-surface shadow-md transition-colors"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -1445,11 +1492,30 @@ export function PublishBoard({
                 type="button"
                 onClick={() => scrollToAdjacentCard(1)}
                 aria-label="Next card"
-                className="flex h-10 w-10 items-center justify-center rounded-full btn-surface transition-colors"
+                className="absolute right-4 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full btn-surface shadow-md transition-colors"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
+
+            {centredCard && (
+              <MediaDetailsCard
+                card={centredCard}
+                tagNames={(centredCard.typeIds ?? []).map((id) => tagNameById.get(id)).filter((n): n is string => !!n)}
+                playingOn={screens
+                  .filter((s) =>
+                    centredCard.type === "experience"
+                      ? s.currentContentKind === "experience" && s.currentExperienceId === centredCard.id
+                      : s.currentContentKind === "media" && s.currentMediaAssetId === centredCard.id,
+                  )
+                  .map((s) => ({ id: s.screenId, name: s.screenName, online: activeScreenIds.includes(s.screenId) }))}
+                schedules={(scheduleInfo.byContent.get(centredCard.id) ?? []).map((sc) => ({
+                  name: sc.name,
+                  afterQueue: sc.role === "after",
+                  onAir: scheduleInfo.status?.some((st) => st.current?.scheduleId === sc.id) ?? false,
+                }))}
+              />
+            )}
           </>
         )}
       </div>
@@ -1724,6 +1790,181 @@ const FILE_TYPE_ICONS: Record<
   presentation: Presentation,
 };
 
+/** "0:27", "4:05", "1:02:10". */
+function formatLength(seconds: number): string {
+  const t = Math.round(seconds);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+/**
+ * A video's length and resolution, read from its header only (preload
+ * "metadata", no frames decoded) and only for the one card in the details.
+ */
+function useVideoInfo(url: string | undefined): { length: string; resolution: string | null } | null {
+  const [info, setInfo] = useState<{ length: string; resolution: string | null } | null>(null);
+  useEffect(() => {
+    setInfo(null);
+    if (!url) return;
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    const done = () => {
+      if (Number.isFinite(video.duration)) {
+        setInfo({
+          length: formatLength(video.duration),
+          resolution: video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : null,
+        });
+      }
+    };
+    video.addEventListener("loadedmetadata", done);
+    video.src = url;
+    return () => {
+      video.removeEventListener("loadedmetadata", done);
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [url]);
+  return info;
+}
+
+/**
+ * What the centred card is and where it's in use: on which screens now, in
+ * which schedules, and the file itself (media) or its template and tags
+ * (portfolio). One card the width of the board, under the carousel,
+ * following it as it moves — on Our Story and on Media.
+ */
+function MediaDetailsCard({
+  card,
+  tagNames,
+  playingOn,
+  schedules,
+}: {
+  card: ContentCard;
+  /** Portfolio only: the item's tags, by name. */
+  tagNames: string[];
+  /** Each opens that screen's control page. */
+  playingOn: { id: string; name: string; online: boolean }[];
+  schedules: { name: string; onAir: boolean; afterQueue: boolean }[];
+}) {
+  const d = card.details ?? {};
+  const video = useVideoInfo(card.type === "video" ? d.url : undefined);
+  const typeLabel = card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type];
+  const fileFacts = [d.size, video?.length, video?.resolution].filter(Boolean).join(" · ");
+  return (
+    <section
+      aria-label="Details"
+      className="shrink-0 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-[var(--card-shadow)]"
+    >
+      <header className="flex items-center gap-3 border-b border-border px-5 py-3">
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold" title={card.title}>
+          {card.title}
+        </h2>
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {typeLabel}
+        </span>
+        {d.date && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">Added {d.date}</span>}
+      </header>
+
+      <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+        <DetailBlock icon={MonitorPlay} label="Playing now">
+          {playingOn.length === 0 ? (
+            <span className="text-muted-foreground">Not on any screen</span>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {playingOn.map((sc) => (
+                <li key={sc.id}>
+                  <Link
+                    href={`/screens/${encodeURIComponent(sc.id)}`}
+                    title={`Open ${sc.name}'s control`}
+                    className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-ink transition-colors hover:border-primary hover:bg-primary/20"
+                  >
+                    <span
+                      aria-hidden
+                      className={`h-1.5 w-1.5 rounded-full ${sc.online ? "bg-emerald-400" : "bg-amber-400"}`}
+                    />
+                    {sc.name}
+                    {!sc.online && <span className="font-normal text-muted-foreground">offline</span>}
+                    <ChevronRight aria-hidden className="h-3 w-3 opacity-60" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DetailBlock>
+
+        <DetailBlock icon={CalendarClock} label="Schedules">
+          {schedules.length === 0 ? (
+            <span className="text-muted-foreground">Not scheduled</span>
+          ) : (
+            <ul className="space-y-1">
+              {schedules.map((sc) => (
+                <li key={sc.name} className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{sc.name}</span>
+                  {sc.afterQueue && <span className="shrink-0 text-xs text-muted-foreground">after the queue</span>}
+                  {sc.onAir && (
+                    <span className="shrink-0 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-ink">
+                      On air
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DetailBlock>
+
+        {card.type === "experience" ? (
+          <DetailBlock icon={Layers} label="Portfolio">
+            <p>{card.template ?? "No template"}</p>
+            {tagNames.length > 0 && (
+              <ul className="mt-1.5 flex flex-wrap gap-1">
+                {tagNames.map((t) => (
+                  <li key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DetailBlock>
+        ) : (
+        <DetailBlock icon={card.type === "video" ? Video : FileText} label="File">
+          <p className="tabular-nums">{fileFacts || "—"}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={d.emailSubject ?? undefined}>
+            {d.source === "email"
+              ? `Email${d.emailFrom ? ` from ${d.emailFrom}` : ""}${d.emailSubject ? ` · “${d.emailSubject}”` : ""}`
+              : d.source
+                ? SOURCE_LABELS[d.source] === "Upload" ? "Uploaded" : SOURCE_LABELS[d.source] ?? d.source
+                : null}
+          </p>
+        </DetailBlock>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DetailBlock({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof Video;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 px-5 py-3.5">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
 function CardVisual({
   card,
   pushing,
@@ -1754,15 +1995,22 @@ function CardVisual({
   const picture = card.thumbnail ?? frame;
   const canPreview = card.type === "video" && !!card.videoUrl && !!onPreview;
   const tap = useTap();
+  // A picture that won't load shows the type icon instead. (Its alt text would
+  // otherwise print the name over the preview: a third copy of it, with the
+  // caption below and the details card.)
+  const [failedPicture, setFailedPicture] = useState<string | null>(null);
+  const showPicture = !!picture && picture !== failedPicture;
   return (
     // The centred card (the one a swipe up publishes) stands out in lime.
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm transition-[box-shadow,border-color] duration-300 group-data-[centred=true]/slide:border-primary group-data-[centred=true]/slide:shadow-[0_0_0_1px_var(--primary),0_12px_48px_-4px_color-mix(in_srgb,var(--primary)_55%,transparent)] dark:bg-[#111]">
       <div ref={frameRef} className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
-        {picture &&
+        {showPicture &&
         (card.type === "image" || card.type === "experience" || card.type === "video") ? (
           <img
             src={picture}
-            alt={card.title}
+            // Decorative: the caption under the preview names it.
+            alt=""
+            onError={() => setFailedPicture(picture)}
             className="h-full w-full object-cover"
             loading="lazy"
             decoding="async"
@@ -1781,7 +2029,7 @@ function CardVisual({
         {canPreview && previewing && !pushing && (
           <VideoPreview
             url={card.videoUrl!}
-            poster={picture}
+            poster={showPicture ? picture : null}
             title={card.title}
             onClose={() => onPreview!(false)}
           />

@@ -107,6 +107,9 @@
 }
 
 .dark {
+  /* Tells the browser to draw its own parts dark too: a <select>'s open list,
+     date/time pickers, scrollbars. Without it they stay light on a dark page. */
+  color-scheme: dark;
   --background: #131416;
   --foreground: #f1f4f5;
   --card: #1d1e21;

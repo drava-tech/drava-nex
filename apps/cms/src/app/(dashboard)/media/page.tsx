@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Mail,
   CalendarRange,
+  GalleryHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -171,27 +172,36 @@ export default function MediaPage() {
    * one item works. window.location for the same reason as ?category below.
    */
   const [boardId, setBoardId] = useState<string | null>(null);
+  /** The file list (?list) — uploading, selecting, deleting. Otherwise the board, like Our Story. */
+  const [showList, setShowList] = useState(false);
   /** Opened from the list here, so "All media" can just go back in history. */
   const openedHereRef = useRef(false);
   useEffect(() => {
-    const read = () => setBoardId(new URLSearchParams(window.location.search).get("view"));
+    const read = () => {
+      const q = new URLSearchParams(window.location.search);
+      setShowList(q.has("list"));
+      setBoardId(q.get("view"));
+    };
     read();
     window.addEventListener("popstate", read);
     return () => window.removeEventListener("popstate", read);
   }, []);
   const openBoard = (id: string) => {
     openedHereRef.current = true;
+    setShowList(false);
     window.history.pushState(null, "", `/media?view=${encodeURIComponent(id)}`);
     setBoardId(id);
   };
   const closeBoard = () => {
     if (openedHereRef.current) {
+      // Came from the list: Back returns to it (popstate re-reads ?list).
       openedHereRef.current = false;
       window.history.back();
     } else {
-      window.history.replaceState(null, "", "/media");
+      window.history.pushState(null, "", "/media?list");
+      setShowList(true);
+      setBoardId(null);
     }
-    setBoardId(null);
   };
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -446,7 +456,8 @@ export default function MediaPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  if (boardId) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
+  // Like Our Story: the media as cards, on the item asked for (?view=<id>) or the newest.
+  if (!showList) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
@@ -611,6 +622,19 @@ export default function MediaPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Back to the cards, the page's main view. */}
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState(null, "", "/media");
+                setShowList(false);
+                setBoardId(null);
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface"
+            >
+              <GalleryHorizontal className="h-3.5 w-3.5" />
+              Cards
+            </button>
             <button
               type="button"
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}

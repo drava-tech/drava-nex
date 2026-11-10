@@ -1,6 +1,7 @@
 "use server";
 
 import { db, experience, experienceToType, mediaAsset, isNull } from "@platform/db";
+import { TEMPLATE_LABELS, isTemplateKey } from "@/lib/templates";
 import { asc, desc } from "drizzle-orm";
 import { revalidatePath, unstable_cache } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
@@ -45,7 +46,14 @@ export async function reorderExperiences(
  * plus each experience's tag (experience_type) ids for tag-based filtering —
  * same bulk-join pattern as apps/cms/src/app/(dashboard)/experiences/page.tsx.
  */
-type ExperienceCard = { id: string; title: string; coverImage: string | null; typeIds: string[] };
+type ExperienceCard = {
+  id: string;
+  title: string;
+  coverImage: string | null;
+  typeIds: string[];
+  /** The template's display name ("Drava World"), for Our Story's details card; null if untemplated. */
+  template: string | null;
+};
 
 /**
  * The expensive half, cached in RAM for 20s.
@@ -103,6 +111,7 @@ const getExperienceCards = unstable_cache(
         title: r.name,
         coverImage,
         typeIds: typeIdsByExperience.get(r.id) ?? [],
+        template: r.templateKey && isTemplateKey(r.templateKey) ? TEMPLATE_LABELS[r.templateKey] : null,
       };
     });
   },
