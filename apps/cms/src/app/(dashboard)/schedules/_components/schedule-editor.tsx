@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Loader2, Monitor, Plus, Repeat, Repeat1, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarClock, Loader2, Monitor, Plus, Search, Trash2, X } from "lucide-react";
 import type { ScheduleInput, ScheduleRow } from "@platform/db";
 import {
   ALL_DAYS,
@@ -29,7 +29,7 @@ import {
 import { MediaPicker, type MediaPickerItem } from "@/components/media-picker";
 import { MediaThumb } from "@/components/media-thumb";
 import { createSchedule, updateSchedule } from "@/actions/schedule-actions";
-import { Switch } from "./schedules-view";
+import { PlayModeIcon, Switch } from "./schedules-view";
 import {
   formatWhen,
   SCHEDULE_COLORS,
@@ -515,10 +515,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                   <div role="radiogroup" aria-label="How the queue plays" className="grid gap-2 @md:grid-cols-2">
                     {(
                       [
-                        [true, "Loop", "Repeats until the time slot ends.", Repeat],
-                        [false, "Play once", "Plays through one time, then shows what you choose below.", Repeat1],
+                        [true, "Loop", "Repeats until the time slot ends."],
+                        [false, "Play once", "Plays through one time, then shows what you choose below."],
                       ] as const
-                    ).map(([value, label, hint, Icon]) => (
+                    ).map(([value, label, hint]) => (
                       <button
                         key={label}
                         type="button"
@@ -529,7 +529,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                           loop === value ? "border-primary bg-primary/10" : "border-border hover:bg-muted"
                         }`}
                       >
-                        <Icon aria-hidden className={`mt-0.5 h-4 w-4 shrink-0 ${loop === value ? "text-primary-ink" : "text-muted-foreground"}`} />
+                        <span className={`mt-0.5 ${loop === value ? "text-primary-ink" : "text-muted-foreground"}`}>
+                          <PlayModeIcon once={!value} className="h-4 w-4" />
+                        </span>
                         <span className="min-w-0">
                           <span className="block text-sm">{label}</span>
                           <span className="mt-0.5 block text-[11px] text-muted-foreground">{hint}</span>

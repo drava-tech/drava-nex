@@ -15,8 +15,6 @@ import {
   Plus,
   Radar,
   Radio,
-  Repeat,
-  Repeat1,
   Trash2,
 } from "lucide-react";
 import {
@@ -397,6 +395,40 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
   );
 }
 
+// ─── Loop / play once ────────────────────────────────────────────────────────
+
+/**
+ * The music-player pair: repeat arrows for loop, the same arrows with a "1"
+ * inside for play once. Drawn here rather than with Lucide's Repeat1, whose
+ * "1" is a single thin stroke too small to read at these sizes; this one is a
+ * bold numeral filling the space between the arrows. Arrow paths are Lucide's
+ * Repeat, so loop and play once match the rest of the icon set.
+ */
+export function PlayModeIcon({ once, className = "h-6 w-6" }: { once: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      {once && (
+        <text x="12" y="15.4" textAnchor="middle" fontSize="10" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui, sans-serif">
+          1
+        </text>
+      )}
+    </svg>
+  );
+}
+
 // ─── What put it on the screen ───────────────────────────────────────────────
 
 const TRIGGERS = {
@@ -599,6 +631,8 @@ function ScheduleList({
         const targets = targetScreenIds(row, screens);
         const items = playableItems(row);
         const missing = row.items.length - items.length;
+        // All-day schedules always loop.
+        const loops = row.loop || !row.startTime;
         const targetNames = [
           ...row.groupIds.map((g) => groupNames.get(g)),
           ...row.screenIds.map((s) => screenNames.get(s)),
@@ -623,9 +657,10 @@ function ScheduleList({
                     <span
                       // A group and a screen can share a name.
                       key={`${i}-${name}`}
-                      className="flex min-w-0 items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground"
+                      // Lime-tinted so where it plays stands out from the grey trigger badge.
+                      className="flex min-w-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary-ink"
                     >
-                      <Monitor className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <Monitor className="h-3 w-3 shrink-0" />
                       <span className="truncate">{name}</span>
                     </span>
                   ))}
@@ -678,17 +713,9 @@ function ScheduleList({
             </div>
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex min-w-0 items-center gap-1.5">
-                {/* The music-player pair: repeat = loops, repeat-1 = plays once. All-day always loops. */}
-                {row.loop || !row.startTime ? (
-                  <Repeat role="img" aria-label="Loops" className="h-3.5 w-3.5 shrink-0 text-foreground" />
-                ) : (
-                  <Repeat1 role="img" aria-label="Plays once" className="h-3.5 w-3.5 shrink-0 text-foreground" />
-                )}
-                <span className="min-w-0">
-                  {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
-                  {row.loop || !row.startTime ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
-                </span>
+              <span className="min-w-0">
+                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
+                {loops ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
               </span>
               {/* Only when a group is picked: the chips up top name the group, not how many screens are in it. */}
               {row.groupIds.length > 0 && (
@@ -700,7 +727,7 @@ function ScheduleList({
 
             {/* Thumbnails of the queue */}
             {items.length > 0 && (
-              <div className="flex gap-1.5 overflow-hidden">
+              <div className="flex gap-1.5 overflow-hidden pr-12">
                 {items.slice(0, 8).map((i) => (
                   <div key={i.id} className="h-9 w-14 shrink-0 overflow-hidden rounded-md border border-border">
                     <MediaThumb
@@ -721,7 +748,7 @@ function ScheduleList({
             )}
 
             {(missing > 0 || items.length === 0 || targets.length === 0) && (
-              <p className="text-[11px] text-warning">
+              <p className="pr-12 text-[11px] text-warning">
                 {items.length === 0
                   ? "Nothing in the queue yet, so it won't play."
                   : targets.length === 0
@@ -730,6 +757,15 @@ function ScheduleList({
               </p>
             )}
 
+            {/* The music-player pair, bottom right: repeat = loops, repeat-1 = plays once. */}
+            <span
+              role="img"
+              aria-label={loops ? "Loops" : "Plays once"}
+              title={loops ? "Loops until the time slot ends" : "Plays once"}
+              className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground"
+            >
+              <PlayModeIcon once={!loops} />
+            </span>
           </div>
         );
       })}
