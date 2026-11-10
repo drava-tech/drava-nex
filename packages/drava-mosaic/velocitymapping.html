@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * {
       box-sizing: border-box;
@@ -17,9 +17,9 @@
 
     html,
     body {
-      background: #fafbfc;
+      background: #0a0d12;
       font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      color: #0a0d12;
+      color: #f2f4f7;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
@@ -28,8 +28,8 @@
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(ellipse at 50% 40%, rgba(223, 33, 65, 0.08) 0%, transparent 55%),
-        linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+        radial-gradient(ellipse at 50% 40%, rgba(34, 164, 71, 0.08) 0%, transparent 55%),
+        linear-gradient(180deg, #161b21 0%, #0f1318 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -72,7 +72,7 @@
       margin-top: 48px;
       width: min(320px, 70vw);
       height: 2px;
-      background: #e9ebef;
+      background: #1d232a;
       border-radius: 2px;
       overflow: hidden;
       position: relative;
@@ -84,7 +84,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent, #DF2141, transparent);
+      background: linear-gradient(90deg, transparent, #22a447, transparent);
       animation: splashSweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) 1.1s infinite;
     }
 
@@ -103,7 +103,7 @@
       font-size: 0.72rem;
       letter-spacing: 5px;
       text-transform: uppercase;
-      color: #8a93a3;
+      color: #9aa3af;
       font-weight: 600;
       opacity: 0;
       animation: fadeUp 0.6s 1.2s ease forwards;
@@ -115,7 +115,7 @@
       }
     }
 
-    /* LOGO — inline SVG (from provided XML), aspect 1920:535 */
+    /* LOGO — Drava Mosaic PNG, aspect 416:92 */
     .wt-logo {
       display: block;
       height: 46px;
@@ -127,13 +127,14 @@
     }
 
     .wt-logo.splash {
-      height: 130px;
+      height: auto;
+      width: min(416px, 80vw);
     }
 
     .brand-corner {
       position: absolute;
       top: 24px;
-      left: 28px;
+      right: 28px;
       z-index: 5;
       display: flex;
       align-items: center;
@@ -159,30 +160,37 @@
     }
 
     /* ============================================================
-       PAGE 1 — LANDING ("Compose your piece")
+       PAGE 1 — LANDING ("Compose Your Piece")
        Soft, raised white surfaces: pick Data, pick Art, preview,
        then Generate.
     ============================================================ */
     #page1 {
-      --lp-bg: #ffffff;
-      --lp-surface: #f7f7f7;
-      --lp-card: #fbfbfb;
-      --lp-ink: #111111;
-      --lp-muted: #8a8a8a;
-      --lp-line: #e6e6e6;
+      --lp-bg: #0a0d12;
+      --lp-surface: #12161b;
+      --lp-card: #161b21;
+      --lp-ink: #f2f4f7;
+      --lp-muted: #8b94a1;
+      --lp-line: #2a3038;
       --lp-raise: 0 10px 22px -8px rgba(0, 0, 0, 0.22), 0 2px 4px rgba(0, 0, 0, 0.06);
-      --lp-raise-soft: 0 18px 40px -18px rgba(0, 0, 0, 0.22), inset 0 1px 0 #ffffff;
+      --lp-raise-soft: 0 18px 40px -18px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.05);
       /* One unit drives every landing size so the layout scales as a whole:
          1px on a 1440x900 viewport, limited by whichever side is tighter. */
-      --u: clamp(0.55px, min(100vw / 1440, 100vh / 900), 3px);
-      --u: clamp(0.55px, min(100vw / 1440, 100dvh / 900), 3px);
+      --u: clamp(0.55px, min(100vw / 1440, 100vh / 940), 3px);
+      --u: clamp(0.55px, min(100vw / 1440, 100dvh / 940), 3px);
       padding: 0;
       background: var(--lp-bg);
-      font-family: 'Manrope', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       color: var(--lp-ink);
     }
 
 
+
+    /* Desktop: the landing is scaled (--u) to fit the window, so it never scrolls. */
+    @media (min-width: 1081px) {
+      #page1 {
+        overflow: hidden;
+      }
+    }
 
     .landing {
       position: relative;
@@ -202,20 +210,22 @@
     }
 
     .landing-kicker {
+      font-family: 'Aktiv Ex', 'Inter', system-ui, sans-serif;
       margin: 0;
       font-size: calc(48 * var(--u));
       font-weight: 700;
       letter-spacing: -0.01em;
-      line-height: 1.05;
+      color: #f2f4f7;
       text-transform: uppercase;
     }
 
     .landing-kicker span {
-      color: #8c8c8c;
+      color: #7cf04b;
       font-weight: 600;
     }
 
     .landing-title {
+      font-family: 'Aktiv Ex', 'Inter', system-ui, sans-serif;
       margin: calc(2 * var(--u)) 0 0;
       line-height: 1.15;
       font-size: calc(24 * var(--u));
@@ -226,7 +236,7 @@
     .landing-sub {
       margin: calc(16 * var(--u)) 0 0;
       font-size: calc(17 * var(--u));
-      color: #a6a6a6;
+      color: #9aa3af;
     }
 
     .lp-shell {
@@ -237,17 +247,17 @@
       align-items: start;
       gap: calc(32 * var(--u));
       padding: calc(48 * var(--u)) calc(36 * var(--u)) calc(40 * var(--u));
-      background: linear-gradient(180deg, rgba(251, 251, 251, 0.42) 0%, rgba(244, 244, 244, 0.55) 100%);
+      background: linear-gradient(180deg, rgba(22, 27, 33, 0.42) 0%, rgba(22, 27, 33, 0.55) 100%);
       -webkit-backdrop-filter: blur(12px) saturate(1.15);
       backdrop-filter: blur(12px) saturate(1.15);
-      border: 1px solid rgba(237, 237, 237, 0.9);
+      border: 1px solid #2a3038;
       border-radius: calc(32 * var(--u));
       box-shadow: var(--lp-raise-soft);
     }
 
     .lp-panel {
-      background: linear-gradient(180deg, #fdfdfd 0%, #f5f5f5 100%);
-      border: 1px solid #ececec;
+      background: linear-gradient(180deg, #0f1318 0%, #1d232a 100%);
+      border: 1px solid #2a3038;
       border-radius: calc(30 * var(--u));
       box-shadow: var(--lp-raise-soft);
       overflow: hidden;
@@ -286,7 +296,7 @@
       gap: calc(14 * var(--u));
       height: calc(50 * var(--u));
       padding: 0 calc(16 * var(--u));
-      background: #ffffff;
+      background: #161b21;
       border-radius: calc(14 * var(--u));
       box-shadow: var(--lp-raise);
       cursor: pointer;
@@ -301,7 +311,7 @@
     .data-item:focus-visible,
     .art-card:focus-visible,
     .lp-generate:focus-visible {
-      outline: calc(2 * var(--u)) solid #111;
+      outline: calc(2 * var(--u)) solid #22a447;
       outline-offset: calc(3 * var(--u));
     }
 
@@ -326,9 +336,9 @@
     }
 
     .data-item.selected {
-      background: #111111;
-      color: #ffffff;
-      box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
+      background: #7cf04b;
+      color: #0a0d12;
+      box-shadow: 0 12px 22px -8px rgba(34, 164, 71, 0.55);
     }
 
     /* ---- Preview ---- */
@@ -360,7 +370,7 @@
       align-items: center;
       gap: calc(9 * var(--u));
       padding: calc(8 * var(--u)) calc(14 * var(--u));
-      background: #ffffff;
+      background: #161b21;
       border-radius: calc(14 * var(--u));
       box-shadow: var(--lp-raise);
       font-size: calc(16 * var(--u));
@@ -373,7 +383,7 @@
       width: calc(8 * var(--u));
       height: calc(8 * var(--u));
       border-radius: 50%;
-      background: #111;
+      background: #7cf04b;
     }
 
     .lp-preview-title {
@@ -393,7 +403,7 @@
     .lp-video-frame {
       position: relative;
       aspect-ratio: 16 / 9;
-      background: #f3f3f3;
+      background: #1d232a;
     }
 
     .lp-video-frame {
@@ -423,11 +433,6 @@
       display: none;
     }
 
-    /* A code-made art plays live, so it has no timeline to scrub. */
-    .lp-video-frame.is-live .lp-timeline {
-      visibility: hidden;
-    }
-
     .lp-loading {
       position: absolute;
       inset: 0;
@@ -446,8 +451,8 @@
       width: calc(16 * var(--u));
       height: calc(16 * var(--u));
       border-radius: 50%;
-      border: calc(2 * var(--u)) solid #d6d6d6;
-      border-top-color: #111;
+      border: calc(2 * var(--u)) solid #2a3038;
+      border-top-color: #22a447;
       animation: lp-spin 0.8s linear infinite;
     }
 
@@ -464,7 +469,7 @@
     .lp-video-frame.has-error .lp-loading {
       padding: 0 calc(24 * var(--u));
       text-align: center;
-      color: #b91c1c;
+      color: #f2f4f7;
     }
 
     .lp-video-frame.has-error .lp-loading::before {
@@ -497,7 +502,7 @@
       column-gap: calc(10 * var(--u));
       row-gap: calc(10 * var(--u));
       padding: calc(28 * var(--u)) calc(28 * var(--u)) calc(22 * var(--u));
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.7) 100%);
+      background: linear-gradient(180deg, rgba(22, 27, 33, 0) 0%, rgba(22, 27, 33, 0.7) 100%);
     }
 
     .lp-play-btn {
@@ -507,7 +512,7 @@
       padding: 0;
       align-items: center;
       justify-content: center;
-      color: #111;
+      color: #f2f4f7;
       background: none;
       border: 0;
       cursor: pointer;
@@ -534,7 +539,7 @@
     .lp-time {
       font-size: calc(14 * var(--u));
       font-variant-numeric: tabular-nums;
-      color: #111;
+      color: #f2f4f7;
     }
 
     .lp-timeline {
@@ -561,12 +566,12 @@
       position: relative;
       height: calc(3 * var(--u));
       width: 0%;
-      background: #111;
+      background: #7cf04b;
     }
 
     .lp-play-btn:focus-visible,
     .lp-timeline:focus-visible {
-      outline: calc(2 * var(--u)) solid #111;
+      outline: calc(2 * var(--u)) solid #f2f4f7;
       outline-offset: calc(2 * var(--u));
     }
 
@@ -579,8 +584,8 @@
       font-weight: 500;
       letter-spacing: 0.02em;
       text-transform: uppercase;
-      color: var(--lp-ink);
-      background: #ffffff;
+      color: #0a0d12;
+      background: #7cf04b;
       border: 0;
       border-radius: calc(14 * var(--u));
       box-shadow: var(--lp-raise);
@@ -589,8 +594,8 @@
     }
 
     .lp-generate:hover {
-      background: #111111;
-      color: #ffffff;
+      background: #f2f4f7;
+      color: #0a0d12;
       transform: translateY(-1px);
     }
 
@@ -598,8 +603,8 @@
       opacity: 0.5;
       cursor: default;
       transform: none;
-      background: #ffffff;
-      color: var(--lp-ink);
+      background: #1d232a;
+      color: #6b7280;
     }
 
     /* ---- Art options ---- */
@@ -621,7 +626,7 @@
       flex: none;
       height: calc(62 * var(--u));
       padding: 0 calc(18 * var(--u)) 0 calc(24 * var(--u));
-      background: #ffffff;
+      background: #161b21;
       border-radius: calc(14 * var(--u));
       box-shadow: var(--lp-raise);
       cursor: pointer;
@@ -638,9 +643,9 @@
       height: calc(32 * var(--u));
       flex: none;
       overflow: hidden;
-      border: calc(2 * var(--u)) solid #d9d9d9;
+      border: calc(2 * var(--u)) solid #2a3038;
       border-radius: calc(3 * var(--u));
-      background: #eee;
+      background: #1d232a;
     }
 
     .art-thumb img {
@@ -659,13 +664,13 @@
     }
 
     .art-card.selected {
-      background: #000000;
-      color: #ffffff;
-      box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
+      background: #7cf04b;
+      color: #0a0d12;
+      box-shadow: 0 12px 22px -8px rgba(34, 164, 71, 0.55);
     }
 
     .art-card.selected .art-thumb {
-      border-color: #ffffff;
+      border-color: #f2f4f7;
     }
 
     /* Tablet: Data and Art side by side, preview + Generate below. */
@@ -757,9 +762,9 @@
     }
 
     .back-btn {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
-      color: #0a0d12;
+      background: #161b21;
+      border: 1px solid #2a3038;
+      color: #f2f4f7;
       padding: 9px 18px;
       border-radius: 50px;
       font-size: 0.8rem;
@@ -774,9 +779,9 @@
     }
 
     .back-btn:hover {
-      background: #DF2141;
+      background: #22a447;
       color: #ffffff;
-      border-color: #DF2141;
+      border-color: #22a447;
       transform: translateX(-2px);
     }
 
@@ -795,14 +800,14 @@
       font-weight: 700;
       margin-bottom: 6px;
       letter-spacing: -0.4px;
-      background: linear-gradient(135deg, #0a0d12 0%, #374151 60%, #0a0d12 100%);
+      background: linear-gradient(135deg, #7cf04b 0%, #7cf04b 60%, #7cf04b 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
     }
 
     .sub {
-      color: #6b7280;
+      color: #9aa3af;
       font-size: 0.82rem;
       margin-bottom: 22px;
     }
@@ -815,8 +820,8 @@
     }
 
     .panel {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 16px;
       padding: 16px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02), 0 4px 14px rgba(0, 0, 0, 0.03);
@@ -825,7 +830,7 @@
     .panel h2 {
       font-size: 0.75rem;
       font-weight: 600;
-      color: #6b7280;
+      color: #9aa3af;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 12px;
@@ -836,45 +841,45 @@
 
     .badge {
       font-size: 0.62rem;
-      background: #f2f4f7;
+      background: #1d232a;
       padding: 3px 10px;
       border-radius: 20px;
-      color: #4b5563;
+      color: #b4bcc7;
       text-transform: none;
       letter-spacing: 0;
       font-weight: 600;
-      border: 1px solid #e9ebef;
+      border: 1px solid #2a3038;
     }
 
     .badge.mask {
-      color: #dc2626;
-      background: #fef2f2;
-      border-color: #fee2e2;
+      color: #f2f4f7;
+      background: #1d232a;
+      border-color: #2a3038;
     }
 
     .badge.fps {
-      color: #059669;
-      background: #ecfdf5;
-      border-color: #d1fae5;
+      color: #7cf04b;
+      background: #1d232a;
+      border-color: #2a3038;
     }
 
     .badge.hq {
-      color: #d97706;
-      background: #fffbeb;
-      border-color: #fef3c7;
+      color: #b4bcc7;
+      background: #1d232a;
+      border-color: #2a3038;
     }
 
     .badge.gpu {
-      color: #0891b2;
-      background: #ecfeff;
-      border-color: #cffafe;
+      color: #9aa3af;
+      background: #1d232a;
+      border-color: #2a3038;
     }
 
     video,
     canvas.preview {
       width: 100%;
       aspect-ratio: 16/9;
-      background: #0a0d12;
+      background: #000000;
       border-radius: 12px;
       display: block;
       object-fit: contain;
@@ -892,8 +897,8 @@
     }
 
     .output-panel {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 16px;
       padding: 16px;
       margin-bottom: 20px;
@@ -902,7 +907,7 @@
 
     .output-header {
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #9aa3af;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 12px;
@@ -916,7 +921,7 @@
     canvas#output {
       width: 100%;
       aspect-ratio: 16/9;
-      background: #0a0d12;
+      background: #000000;
       border-radius: 12px;
       display: block;
     }
@@ -932,9 +937,9 @@
     }
 
     .fs-btn {
-      background: #f2f4f7;
-      border: 1px solid #e9ebef;
-      color: #0a0d12;
+      background: #1d232a;
+      border: 1px solid #2a3038;
+      color: #f2f4f7;
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 0.65rem;
@@ -952,9 +957,9 @@
     }
 
     .fs-btn:hover {
-      background: #DF2141;
+      background: #22a447;
       color: #ffffff;
-      border-color: #DF2141;
+      border-color: #22a447;
       transform: none;
       box-shadow: none;
     }
@@ -973,13 +978,13 @@
       width: 100%;
       margin-top: 12px;
       font-size: 0.75rem;
-      color: #6b7280;
+      color: #9aa3af;
     }
 
     input[type="file"]::file-selector-button {
-      background: #f2f4f7;
-      border: 1px solid #e9ebef;
-      color: #0a0d12;
+      background: #1d232a;
+      border: 1px solid #2a3038;
+      color: #f2f4f7;
       border-radius: 10px;
       padding: 7px 14px;
       margin-right: 10px;
@@ -991,9 +996,9 @@
     }
 
     input[type="file"]::file-selector-button:hover {
-      background: #DF2141;
+      background: #22a447;
       color: #ffffff;
-      border-color: #DF2141;
+      border-color: #22a447;
     }
 
     .controls {
@@ -1005,8 +1010,8 @@
 
     .color-box,
     .slider-box {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 50px;
       padding: 8px 18px;
       display: flex;
@@ -1024,7 +1029,7 @@
     .color-box span,
     .slider-box span {
       font-size: 0.76rem;
-      color: #4b5563;
+      color: #b4bcc7;
       font-weight: 500;
     }
 
@@ -1039,56 +1044,56 @@
     }
 
     input[type="color"]::-webkit-color-swatch {
-      border: 2px solid #ffffff;
+      border: 2px solid #2a3038;
       border-radius: 50%;
       box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
     }
 
     input[type="range"] {
       width: 150px;
-      accent-color: #DF2141;
+      accent-color: #22a447;
       cursor: pointer;
     }
 
     .slider-box.present input[type="range"] {
-      accent-color: #DF2141;
+      accent-color: #22a447;
     }
 
     .slider-box.late input[type="range"] {
-      accent-color: #2563eb;
+      accent-color: #6b7280;
     }
 
     .slider-box.absent input[type="range"] {
-      accent-color: #dc2626;
+      accent-color: #0a0d12;
     }
 
     .slider-box.sat input[type="range"] {
-      accent-color: #ea580c;
+      accent-color: #4b5563;
     }
 
     .slider-box.hl input[type="range"] {
-      accent-color: #d97706;
+      accent-color: #4b5563;
     }
 
     .slider-box.sh input[type="range"] {
-      accent-color: #7c3aed;
+      accent-color: #374151;
     }
 
     .slider-box.br input[type="range"] {
-      accent-color: #ea580c;
+      accent-color: #4b5563;
     }
 
     .slider-box.ct input[type="range"] {
-      accent-color: #0891b2;
+      accent-color: #6b7280;
     }
 
     .slider-box.fd input[type="range"] {
-      accent-color: #db2777;
+      accent-color: #1f2937;
     }
 
     .val {
       font-size: 0.75rem;
-      color: #0a0d12;
+      color: #f2f4f7;
       min-width: 52px;
       text-align: right;
       font-variant-numeric: tabular-nums;
@@ -1111,29 +1116,29 @@
     }
 
     .blend-tag.present {
-      background: rgba(223, 33, 65, 0.10);
-      color: #DF2141;
+      background: rgba(34, 164, 71, 0.10);
+      color: #7cf04b;
     }
 
     .blend-tag.late {
-      background: #eff6ff;
-      color: #2563eb;
+      background: #1d232a;
+      color: #9aa3af;
     }
 
     .blend-tag.absent {
-      background: #fef2f2;
-      color: #dc2626;
+      background: #1d232a;
+      color: #f2f4f7;
     }
 
     .blend-tag.zero {
-      background: #f3f4f6;
-      color: #6b7280;
+      background: #1d232a;
+      color: #9aa3af;
     }
 
     button {
-      background: #0a0d12;
-      border: 1px solid #0a0d12;
-      color: #ffffff;
+      background: #7cf04b;
+      border: 1px solid #7cf04b;
+      color: #0a0d12;
       padding: 10px 22px;
       border-radius: 50px;
       font-size: 0.84rem;
@@ -1145,8 +1150,8 @@
     }
 
     button:hover {
-      background: #1f2937;
-      border-color: #1f2937;
+      background: #7cf04b;
+      border-color: #f2f4f7;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
     }
@@ -1156,14 +1161,14 @@
     }
 
     button.primary {
-      background: linear-gradient(135deg, #DF2141 0%, #a01830 100%);
+      background: linear-gradient(135deg, #22a447 0%, #15803d 100%);
       border: none;
       color: #ffffff;
     }
 
     button.primary:hover {
-      background: linear-gradient(135deg, #c91d3a 0%, #8a1428 100%);
-      box-shadow: 0 6px 20px rgba(223, 33, 65, 0.30);
+      background: linear-gradient(135deg, #1c8f3e 0%, #106a30 100%);
+      box-shadow: 0 6px 20px rgba(34, 164, 71, 0.30);
     }
 
     button.tiny {
@@ -1173,106 +1178,106 @@
 
     .note {
       font-size: 0.72rem;
-      color: #9ca3af;
+      color: #9aa3af;
       text-align: center;
       margin-top: 24px;
       padding-top: 20px;
-      border-top: 1px solid #e9ebef;
+      border-top: 1px solid #2a3038;
       line-height: 1.7;
     }
 
     .mask-hint {
-      color: #dc2626;
+      color: #f2f4f7;
       font-weight: 600;
     }
 
     .range-hint {
-      color: #059669;
+      color: #7cf04b;
       font-weight: 600;
     }
 
     .fps-hint {
-      color: #059669;
+      color: #7cf04b;
       font-weight: 700;
     }
 
     .hq-hint {
-      color: #d97706;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .present-hint {
-      color: #DF2141;
+      color: #7cf04b;
       font-weight: 600;
     }
 
     .late-hint {
-      color: #2563eb;
+      color: #9aa3af;
       font-weight: 600;
     }
 
     .absent-hint {
-      color: #dc2626;
+      color: #f2f4f7;
       font-weight: 600;
     }
 
     .force-hint {
-      color: #d97706;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .vivid-hint {
-      color: #ea580c;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .zero-hint {
-      color: #6b7280;
+      color: #9aa3af;
       font-weight: 600;
     }
 
     .corr-hint {
-      color: #ea580c;
+      color: #b4bcc7;
       font-weight: 700;
     }
 
     .sat-hint {
-      color: #ea580c;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .hl-hint {
-      color: #d97706;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .sh-hint {
-      color: #7c3aed;
+      color: #f2f4f7;
       font-weight: 600;
     }
 
     .br-hint {
-      color: #ea580c;
+      color: #b4bcc7;
       font-weight: 600;
     }
 
     .ct-hint {
-      color: #0891b2;
+      color: #9aa3af;
       font-weight: 600;
     }
 
     .mood-hint {
-      color: #db2777;
+      color: #f2f4f7;
       font-weight: 600;
     }
 
     .loop-hint {
-      color: #db2777;
+      color: #f2f4f7;
       font-weight: 600;
     }
 
     .gpu-hint {
-      color: #0891b2;
+      color: #9aa3af;
       font-weight: 600;
     }
 
@@ -1289,8 +1294,8 @@
       --wx-text: #141a21;
       --wx-muted: rgba(20, 26, 33, 0.86);
       --wx-faint: rgba(20, 26, 33, 0.66);
-      --wx-cyan: #0b7594;
-      --wx-amber: #a3620f;
+      --wx-cyan: #6b7280;
+      --wx-amber: #4b5563;
       --wx-blur: blur(26px) saturate(150%) brightness(1.05);
       --wx-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85), 0 2px 10px -2px rgba(0, 0, 0, 0.6);
       --wx-mono: "SF Mono", "JetBrains Mono", ui-monospace, "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
@@ -1410,7 +1415,7 @@
       height: 7px;
       flex: none;
       border-radius: 50%;
-      background: #16a34a;
+      background: #22a447;
       box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
       animation: wx-pulse 2s ease-in-out infinite;
     }
@@ -1489,15 +1494,15 @@
     }
 
     .weather-source-status.live {
-      color: #047857;
+      color: #15803d;
     }
 
     .weather-source-status.manual {
-      color: #c2410c;
+      color: #4b5563;
     }
 
     .weather-source-status.error {
-      color: #b91c1c;
+      color: #0a0d12;
     }
 
     .wx-stats {
@@ -1616,9 +1621,9 @@
     /* Tusker's attendance palette (emerald / amber / rose-600). The art is
        coloured with the same values via the editor's colour inputs. */
     .weather-page {
-      --att-present: #059669;
-      --att-late: #d97706;
-      --att-absent: #e11d48;
+      --att-present: #22a447;
+      --att-late: #4b5563;
+      --att-absent: #0a0d12;
     }
 
     .wx-stats.wx-stats-3 {
@@ -1943,8 +1948,8 @@
     }
 
     .range-panel {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 16px;
       padding: 16px;
       margin-bottom: 20px;
@@ -1954,7 +1959,7 @@
     .range-panel h2 {
       font-size: 0.75rem;
       font-weight: 600;
-      color: #6b7280;
+      color: #9aa3af;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 12px;
@@ -1969,8 +1974,8 @@
       border-radius: 10px;
       overflow: hidden;
       margin-bottom: 10px;
-      border: 1px solid #e9ebef;
-      background: #f7f8fa;
+      border: 1px solid #2a3038;
+      background: #0f1318;
     }
 
     .range-bar .seg {
@@ -1986,22 +1991,22 @@
     }
 
     .range-bar .seg.absent {
-      background: linear-gradient(135deg, #ef4444, #dc2626);
+      background: linear-gradient(135deg, #7cf04b, #7cf04b);
     }
 
     .range-bar .seg.late {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      background: linear-gradient(135deg, #6b7280, #6b7280);
     }
 
     .range-bar .seg.present {
-      background: linear-gradient(135deg, #DF2141, #a01830);
+      background: linear-gradient(135deg, #22a447, #15803d);
     }
 
     .range-labels {
       display: flex;
       justify-content: space-between;
       font-size: 0.72rem;
-      color: #9ca3af;
+      color: #9aa3af;
     }
 
     #blendBanner {
@@ -2015,7 +2020,7 @@
       letter-spacing: 0.3px;
       position: relative;
       overflow: hidden;
-      border: 1px solid #e9ebef;
+      border: 1px solid #2a3038;
     }
 
     #blendBanner.active {
@@ -2038,8 +2043,8 @@
     }
 
     .correction-panel {
-      background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
-      border: 1px solid #e9ebef;
+      background: linear-gradient(180deg, #161b21 0%, #0f1318 100%);
+      border: 1px solid #2a3038;
       border-radius: 16px;
       padding: 16px 18px;
       margin-top: 14px;
@@ -2050,7 +2055,7 @@
     .correction-header {
       font-size: 0.74rem;
       font-weight: 700;
-      color: #ea580c;
+      color: #b4bcc7;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 14px;
@@ -2063,13 +2068,13 @@
     .correction-header .scope-pill {
       font-size: 0.6rem;
       font-weight: 700;
-      background: #fff7ed;
-      color: #ea580c;
+      background: #1d232a;
+      color: #b4bcc7;
       padding: 3px 9px;
       border-radius: 10px;
       letter-spacing: 0.3px;
       text-transform: none;
-      border: 1px solid #fed7aa;
+      border: 1px solid #2a3038;
     }
 
     .correction-row {
@@ -2090,9 +2095,9 @@
     }
 
     .preset-btn {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
-      color: #4b5563;
+      background: #161b21;
+      border: 1px solid #2a3038;
+      color: #b4bcc7;
       padding: 6px 14px;
       border-radius: 20px;
       font-size: 0.7rem;
@@ -2104,16 +2109,16 @@
     }
 
     .preset-btn:hover {
-      background: #DF2141;
+      background: #22a447;
       color: #ffffff;
-      border-color: #DF2141;
+      border-color: #22a447;
       transform: none;
       box-shadow: none;
     }
 
     .mood-panel {
-      background: linear-gradient(180deg, #ffffff 0%, #fdf4f9 100%);
-      border: 1px solid #f3e8ef;
+      background: linear-gradient(180deg, #161b21 0%, #0f1318 100%);
+      border: 1px solid #2a3038;
       border-radius: 16px;
       padding: 16px 18px;
       margin-top: 14px;
@@ -2124,7 +2129,7 @@
     .mood-header {
       font-size: 0.74rem;
       font-weight: 700;
-      color: #db2777;
+      color: #f2f4f7;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 14px;
@@ -2142,8 +2147,8 @@
     }
 
     .select-box {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 50px;
       padding: 8px 18px;
       display: flex;
@@ -2154,14 +2159,14 @@
 
     .select-box span {
       font-size: 0.76rem;
-      color: #4b5563;
+      color: #b4bcc7;
       font-weight: 500;
     }
 
     select {
-      background: #f7f8fa;
-      color: #0a0d12;
-      border: 1px solid #e9ebef;
+      background: #0f1318;
+      color: #f2f4f7;
+      border: 1px solid #2a3038;
       border-radius: 20px;
       padding: 6px 12px;
       font-size: 0.78rem;
@@ -2173,17 +2178,17 @@
     }
 
     select:hover {
-      border-color: #d5d9e0;
-      background: #ffffff;
+      border-color: #2a3038;
+      background: #161b21;
     }
 
     select:focus {
-      border-color: #DF2141;
+      border-color: #22a447;
     }
 
     .toggle-box {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
+      background: #161b21;
+      border: 1px solid #2a3038;
       border-radius: 50px;
       padding: 8px 18px;
       display: flex;
@@ -2194,7 +2199,7 @@
 
     .toggle-box label {
       font-size: 0.76rem;
-      color: #4b5563;
+      color: #b4bcc7;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -2206,7 +2211,7 @@
     .toggle-box input[type="checkbox"] {
       width: 18px;
       height: 18px;
-      accent-color: #DF2141;
+      accent-color: #22a447;
       cursor: pointer;
     }
 
@@ -2216,8 +2221,8 @@
     }
 
     .url-panel {
-      background: linear-gradient(180deg, #ffffff 0%, #fff5f7 100%);
-      border: 1px solid rgba(223, 33, 65, 0.12);
+      background: linear-gradient(180deg, #161b21 0%, #0f1318 100%);
+      border: 1px solid rgba(34, 164, 71, 0.12);
       border-radius: 16px;
       padding: 18px 20px;
       margin-bottom: 20px;
@@ -2227,7 +2232,7 @@
     .url-header {
       font-size: 0.74rem;
       font-weight: 700;
-      color: #DF2141;
+      color: #7cf04b;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: 14px;
@@ -2240,13 +2245,13 @@
     .url-header .scope-pill {
       font-size: 0.6rem;
       font-weight: 700;
-      background: rgba(223, 33, 65, 0.08);
-      color: #DF2141;
+      background: rgba(34, 164, 71, 0.08);
+      color: #7cf04b;
       padding: 3px 9px;
       border-radius: 10px;
       letter-spacing: 0.3px;
       text-transform: none;
-      border: 1px solid rgba(223, 33, 65, 0.18);
+      border: 1px solid rgba(34, 164, 71, 0.18);
       font-family: 'SF Mono', Monaco, monospace;
     }
 
@@ -2261,16 +2266,16 @@
     .url-row .label {
       font-size: 0.75rem;
       font-weight: 600;
-      color: #4b5563;
+      color: #b4bcc7;
       min-width: 110px;
     }
 
     .url-row input[type="text"] {
       flex: 1;
       min-width: 240px;
-      background: #ffffff;
-      border: 1px solid #e9ebef;
-      color: #0a0d12;
+      background: #161b21;
+      border: 1px solid #2a3038;
+      color: #f2f4f7;
       padding: 9px 14px;
       border-radius: 10px;
       font-size: 0.78rem;
@@ -2280,8 +2285,8 @@
     }
 
     .url-row input[type="text"]:focus {
-      border-color: #DF2141;
-      box-shadow: 0 0 0 3px rgba(223, 33, 65, 0.08);
+      border-color: #22a447;
+      box-shadow: 0 0 0 3px rgba(34, 164, 71, 0.08);
     }
 
     .status-badge {
@@ -2294,32 +2299,32 @@
     }
 
     .status-badge.idle {
-      background: #f3f4f6;
-      color: #6b7280;
+      background: #1d232a;
+      color: #9aa3af;
     }
 
     .status-badge.loading {
-      background: #fef3c7;
-      color: #d97706;
+      background: #1d232a;
+      color: #b4bcc7;
     }
 
     .status-badge.ok {
-      background: #ecfdf5;
-      color: #059669;
+      background: #1d232a;
+      color: #7cf04b;
     }
 
     .status-badge.err {
-      background: #fef2f2;
-      color: #dc2626;
+      background: #1d232a;
+      color: #f2f4f7;
     }
 
     #loadingOverlay {
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(ellipse at 30% 20%, rgba(223, 33, 65, 0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 70% 80%, rgba(223, 33, 65, 0.05) 0%, transparent 50%),
-        linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+        radial-gradient(ellipse at 30% 20%, rgba(34, 164, 71, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(34, 164, 71, 0.05) 0%, transparent 50%),
+        linear-gradient(180deg, #161b21 0%, #0f1318 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -2345,7 +2350,7 @@
       font-size: 2.4rem;
       font-weight: 800;
       letter-spacing: -1px;
-      background: linear-gradient(135deg, #0a0d12 0%, #374151 50%, #0a0d12 100%);
+      background: linear-gradient(135deg, #7cf04b 0%, #7cf04b 50%, #7cf04b 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -2368,7 +2373,7 @@
 
     .loading-sub {
       font-size: 0.72rem;
-      color: #9ca3af;
+      color: #9aa3af;
       letter-spacing: 5px;
       text-transform: uppercase;
       margin-bottom: 56px;
@@ -2382,7 +2387,7 @@
 
     .loading-bar-track {
       height: 3px;
-      background: #e9ebef;
+      background: #1d232a;
       border-radius: 3px;
       overflow: hidden;
       position: relative;
@@ -2391,7 +2396,7 @@
     .loading-bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #a01830, #DF2141, #ff4d6a);
+      background: linear-gradient(90deg, #15803d, #22a447, #5ed67a);
       border-radius: 3px;
       transition: width 0.3s ease;
       position: relative;
@@ -2401,7 +2406,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.9) 50%, transparent 100%);
+      background: linear-gradient(90deg, transparent 0%, rgba(22, 27, 33, 0.9) 50%, transparent 100%);
       animation: shine 1.4s linear infinite;
     }
 
@@ -2421,20 +2426,20 @@
       justify-content: space-between;
       align-items: center;
       font-size: 0.78rem;
-      color: #6b7280;
+      color: #9aa3af;
       font-variant-numeric: tabular-nums;
       font-weight: 600;
     }
 
     .loading-status .pct {
-      color: #DF2141;
+      color: #7cf04b;
       font-weight: 800;
     }
 
     .loading-hint {
       margin-top: 44px;
       font-size: 0.85rem;
-      color: #9ca3af;
+      color: #9aa3af;
       text-align: center;
       max-width: 500px;
       line-height: 1.7;
@@ -2451,16 +2456,16 @@
     }
 
     .loading-error-msg {
-      color: #dc2626;
+      color: #f2f4f7;
       font-size: 0.82rem;
       margin-bottom: 14px;
       font-weight: 600;
     }
 
     .loading-continue {
-      background: #ffffff;
-      border: 1px solid #e9ebef;
-      color: #0a0d12;
+      background: #161b21;
+      border: 1px solid #2a3038;
+      color: #f2f4f7;
       padding: 9px 22px;
       border-radius: 50px;
       font-size: 0.8rem;
@@ -2471,9 +2476,9 @@
     }
 
     .loading-continue:hover {
-      background: #DF2141;
+      background: #22a447;
       color: #ffffff;
-      border-color: #DF2141;
+      border-color: #22a447;
     }
 
     .loading-dots {
@@ -2488,7 +2493,7 @@
       width: 4px;
       height: 4px;
       border-radius: 50%;
-      background: #DF2141;
+      background: #22a447;
       opacity: 0.15;
       animation: float 8s ease-in-out infinite;
     }
@@ -2514,7 +2519,7 @@
 
       .brand-corner {
         top: 16px;
-        left: 16px;
+        right: 16px;
       }
     }
 
@@ -2551,6 +2556,87 @@
       border: 0;
       background: #05070a;
     }
+
+    
+    /* Brand type scale (website column): Aktiv Ex for headings, Inter for the rest.
+       H1 48 · H3 24 · Body 17 · Label 15 · Caption 13 · Overline 14. */
+    .landing-kicker {
+      font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
+      font-size: calc(48 * var(--u));
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+    }
+    
+    .landing-kicker span {
+      font-weight: 500;
+    }
+    
+    .landing-title {
+      font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
+      font-size: calc(24 * var(--u));
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    
+    .landing-sub {
+      font-size: calc(17 * var(--u));
+      font-weight: 400;
+      line-height: 1.55;
+    }
+    
+    .lp-panel-title,
+    .lp-group > .lp-arts-label {
+      font-size: calc(14 * var(--u));
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0.14em;
+    }
+    
+    .data-name,
+    .art-name,
+    .band-name,
+    .country-name,
+    .lp-generate,
+    .lp-badge,
+    .lp-preview-title {
+      font-size: calc(15 * var(--u));
+      font-weight: 600;
+      line-height: 1.4;
+      letter-spacing: 0.02em;
+    }
+    
+    .lp-art-option {
+      font-size: calc(13 * var(--u));
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    
+    .lp-preview-blurb,
+    .country-city,
+    .lp-hint,
+    .lp-clear,
+    .lp-loading,
+    .lp-time,
+    .lp-empty {
+      font-size: calc(13 * var(--u));
+      font-weight: 400;
+      line-height: 1.4;
+    }
+
+    .landing-title {
+      margin-top: calc(10 * var(--u));
+    }
+
+    .landing-sub {
+      margin-top: calc(10 * var(--u));
+    }
+    .landing-logo img {
+      display: block;
+      height: calc(78 * var(--u));
+      width: auto;
+      margin: 0 auto;
+    }
   </style>
 </head>
 
@@ -2559,15 +2645,7 @@
   <!-- ====== SPLASH ====== -->
   <div id="splash">
     <div class="splash-logo-wrap">
-      <svg class="wt-logo splash" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 535"
-        aria-label="White Tusker Private Limited">
-        <path
-          d="M680.78 67.74C685.59 95.9 690.41 124.05 695.23 152.21C702.2 124.05 709.17 95.9 716.15 67.74C735.62 67.74 755.09 67.74 774.55 67.74C781.47 96.17 788.38 124.61 795.3 153.04C800.19 124.61 805.09 96.18 809.99 67.75C831.62 67.75 853.25 67.75 874.87 67.75C862.23 126.42 849.58 185.1 836.93 243.77C812.57 243.77 788.2 243.77 763.84 243.77C757.36 215.55 750.88 187.33 744.4 159.11C737.62 187.33 730.83 215.56 724.05 243.78C699.99 243.78 675.93 243.78 651.87 243.78C649.26 238.86 648.78 232.64 647.62 227.2C645.01 215.02 642.46 202.83 639.81 190.66C634.05 164.28 628.24 137.94 622.65 111.53C620.71 102.34 618.78 93.16 616.8 83.99C615.64 78.67 613.78 73.16 613.87 67.74C636.17 67.74 658.47 67.74 680.78 67.74ZM893.94 67.73C920.04 67.73 946.14 67.73 972.24 67.73C972.24 88.29 972.24 108.84 972.24 129.39C983.41 129.39 994.59 129.39 1005.77 129.39C1005.77 108.84 1005.77 88.29 1005.77 67.74C1031.93 67.74 1058.08 67.74 1084.24 67.74C1084.24 126.41 1084.24 185.09 1084.24 243.77C1058.08 243.77 1031.93 243.77 1005.78 243.77C1005.78 222.1 1005.78 200.43 1005.78 178.76C994.6 178.76 983.42 178.76 972.24 178.76C972.24 200.18 972.24 221.6 972.24 243.02C963.38 245.29 952.55 243.78 943.34 243.78C927 243.78 910.23 244.84 893.94 243.53C893.94 184.93 893.94 126.33 893.94 67.73ZM1185.1 67.74C1185.1 126.42 1185.1 185.09 1185.1 243.77C1158.98 243.77 1132.87 243.77 1106.75 243.77C1106.75 185.09 1106.75 126.42 1106.75 67.74C1132.87 67.74 1158.98 67.74 1185.1 67.74ZM1405.5 67.73C1405.5 83.74 1405.5 99.75 1405.5 115.76C1400.53 116.54 1395.3 116.13 1390.27 116.13C1381.32 116.13 1372.38 116.13 1363.43 116.13C1357.49 116.13 1350.32 115.06 1344.93 117.26C1343.58 146.36 1344.84 175.82 1344.84 204.95C1344.84 214.38 1346.4 235.88 1344 243.78C1318.4 243.78 1292.8 243.78 1267.2 243.78C1264.89 234.93 1266.48 217.56 1266.48 207.73C1266.48 187.99 1266.48 168.25 1266.48 148.51C1266.48 138.08 1267.28 127.27 1266.27 116.9C1261.59 115.6 1256.39 116.13 1251.47 116.13C1241.6 116.13 1231.73 116.13 1221.86 116.13C1216.65 116.13 1210.98 116.76 1205.91 115.67C1205.91 99.69 1205.91 83.71 1205.91 67.73C1272.44 67.73 1338.97 67.73 1405.5 67.73ZM1596.18 67.73C1596.18 83.19 1596.18 98.65 1596.18 114.11C1566.43 114.11 1536.68 114.11 1506.94 114.11C1506.94 120.74 1506.94 127.36 1506.94 133.99C1528.9 133.99 1550.86 133.99 1572.83 133.99C1572.83 148.29 1572.83 162.6 1572.83 176.91C1550.85 176.91 1528.88 176.91 1506.9 176.91C1506.9 184.3 1506.9 191.7 1506.9 199.09C1536.66 199.09 1566.42 199.09 1596.19 199.09C1596.19 213.98 1596.19 228.88 1596.19 243.78C1540.42 243.78 1484.66 243.78 1428.9 243.78C1428.9 185.1 1428.9 126.41 1428.9 67.73C1484.66 67.73 1540.42 67.73 1596.18 67.73ZM1099.72 302.67C1081.52 302.67 1063.33 302.67 1045.13 302.67C1041.6 294.23 1037.78 287.68 1027.55 287.43C1020.52 287.26 1008.54 292.55 1014.96 301.29C1020.27 308.51 1033.19 310.18 1041.23 312.14C1067.29 318.47 1105.96 326.53 1102.97 361.33C1102.53 366.44 1100.81 371.57 1098.14 375.95C1090.22 388.96 1075.33 395.7 1061.11 399.17C1054.83 400.7 1048.55 401.48 1042.12 402.09C1009.35 405.24 962.5 398.31 954.71 359.48C960.79 357.68 968.38 358.73 974.8 358.73C986.24 358.73 998.7 357.39 1009.97 359.17C1013.77 367.92 1017.98 373.88 1028.47 373.94C1035.37 373.98 1048.22 369.17 1042.38 359.91C1037.91 352.8 1022.33 350.36 1014.73 348.59C987.65 342.27 950.8 333.96 954.04 298.41C954.52 293.11 956.33 287.74 959.17 283.23C975.7 257.07 1020.05 255.31 1047.12 259.68C1054.4 260.85 1061.48 262.62 1068.28 265.52C1081.01 270.96 1100.01 287.69 1099.72 302.67ZM615.51 261.96C626.64 259.93 640.4 261.41 651.87 261.41C675.32 261.41 698.76 261.41 722.2 261.41C732.99 261.41 743.79 261.41 754.58 261.41C760.3 261.41 766.81 260.55 772.16 262.32C772.16 273.43 772.16 284.53 772.16 295.63C767.22 297.04 761.63 296.42 756.43 296.42C745.69 296.42 734.75 295.83 724.04 296.56C721.59 304.68 723.2 319.91 723.2 328.94C723.2 352.27 723.82 375.69 723.12 399C703.48 399 683.85 399 664.21 399C664.21 364.81 664.21 330.62 664.21 296.42C647.97 296.42 631.74 296.42 615.51 296.42C615.51 284.94 615.51 273.45 615.51 261.96ZM789.74 261.43C809.18 261.43 828.61 261.43 848.04 261.43C848.69 270.61 848.24 279.95 848.24 289.16C848.24 305.5 848.24 321.85 848.24 338.2C848.24 350.06 847.93 363.52 863.77 363.36C879.9 363.19 878.83 349.15 878.83 337.27C878.83 320.62 878.83 303.96 878.83 287.31C878.83 279.01 877.57 269.43 879.5 261.42C898.62 261.42 917.74 261.42 936.87 261.42C937.49 268.75 937.1 276.24 937.1 283.6C937.1 296.56 937.1 309.51 937.1 322.47C937.1 341.39 938.52 361.57 927.04 377.85C918.97 389.28 905.98 395.88 892.69 399.15C862.66 406.52 815.82 404.58 797.32 375.48C789.46 363.13 789.21 348.62 789.21 334.5C789.21 322.47 789.21 310.44 789.21 298.41C789.21 287.5 787.77 271.69 789.74 261.43ZM1119.9 261.42C1139.3 261.42 1158.7 261.42 1178.1 261.42C1178.1 279.99 1178.1 298.56 1178.1 317.13C1190.53 298.79 1202.96 280.44 1215.38 262.09C1220.41 260.87 1225.91 261.41 1231.11 261.41C1240.06 261.41 1249 261.41 1257.95 261.41C1263.49 261.41 1270.88 260.22 1275.83 262.32C1262.71 281.45 1249.59 300.57 1236.47 319.69C1249.98 346.13 1263.5 372.57 1277.02 399.01C1255.55 399.01 1234.08 399.01 1212.61 399.01C1206.13 383.94 1199.65 368.87 1193.18 353.8C1188.79 356.7 1185.27 362.17 1181.78 366.16C1180.64 367.48 1178.65 369.03 1178.16 370.74C1177.45 373.22 1178.11 376.36 1178.15 378.91C1178.28 385.6 1178.16 392.31 1178.16 399C1158.74 399 1139.32 399 1119.9 399C1119.9 353.14 1119.9 307.28 1119.9 261.42ZM1292.75 261.41C1336.05 261.41 1379.35 261.41 1422.65 261.41C1424.45 267.2 1424.43 288.91 1422.65 294.72C1406.65 295.28 1390.55 294.79 1374.53 294.79C1367.25 294.79 1358.38 293.48 1351.5 295.63C1351.5 302.02 1351.5 308.4 1351.5 314.78C1369.25 314.78 1387 314.78 1404.75 314.78C1404.75 324.99 1404.75 335.2 1404.75 345.41C1387.23 345.41 1369.71 345.41 1352.19 345.41C1350.72 351.73 1350.4 361.47 1352.33 367.66C1376.05 367.66 1399.76 367.66 1423.48 367.66C1423.48 378.11 1423.48 388.56 1423.48 399.02C1379.9 399.02 1336.33 399.02 1292.75 399.02C1292.75 353.15 1292.75 307.28 1292.75 261.41ZM1566.17 334.5C1573.05 336.75 1579.84 338.23 1584.69 344.06C1590.13 350.61 1589.56 358.92 1589.81 366.88C1590.15 377.83 1591.47 388.22 1593.19 398.99C1573.41 398.99 1553.63 398.99 1533.85 398.99C1531.56 388.52 1531.21 377.58 1531.21 366.88C1531.21 361.75 1531.93 355.1 1527.32 351.52C1522.99 348.15 1506.65 349.3 1501.15 350.16C1501.15 366.44 1501.15 382.72 1501.15 399C1481.48 399 1461.82 399 1442.15 399C1442.15 353.44 1442.15 307.88 1442.15 262.32C1449.25 259.94 1470.38 261.41 1479.09 261.41C1495.75 261.41 1512.4 261.41 1529.06 261.41C1542.88 261.41 1557.43 261.12 1570.31 266.92C1590.52 276.02 1598.46 300.66 1585.9 319.58C1580.87 327.16 1573.46 329.84 1566.17 334.5ZM1501.17 293.77C1501.17 303.03 1501.17 312.3 1501.17 321.56C1507.87 322.36 1521.08 323.34 1527.04 319.97C1535.43 315.23 1536.13 300.65 1527.92 295.38C1522.3 291.77 1507.53 292.44 1501.17 293.77ZM1125.2 433.92C1125.2 437.26 1125.2 440.61 1125.2 443.95C1123.95 444 1121.57 444.57 1120.45 443.7C1119.18 442.72 1119.9 438.64 1119.9 437.2C1119.9 430.75 1119.63 424.22 1120.02 417.77C1124.85 416.55 1133.85 415.66 1138.36 418.44C1143.2 421.44 1143.09 429.7 1137.96 432.43C1134.21 434.43 1129.28 433.68 1125.2 433.92ZM1176.55 430.73C1178.91 434.68 1179.01 439.17 1179.3 443.7C1171.45 444.83 1173.86 439.95 1172.82 434.13C1169.65 432.44 1166.26 432.74 1162.83 433.5C1162.83 436.9 1162.83 440.29 1162.83 443.68C1161.4 443.88 1158.78 444.8 1157.62 443.44C1156.41 442.02 1157.15 438.03 1157.15 436.28C1157.15 430.12 1156.91 423.91 1157.35 417.77C1164.42 415.78 1181.98 414.91 1178.89 426.99C1178.51 428.44 1177.44 429.57 1176.55 430.73ZM1200.14 417.19C1200.14 426.12 1200.14 435.06 1200.14 443.99C1198.84 444.03 1196.59 444.55 1195.44 443.64C1194.42 442.82 1194.92 440.18 1194.92 439.06C1194.91 434.74 1194.92 430.42 1194.92 426.1C1194.92 424.36 1194 418.87 1195.38 417.64C1196.54 416.6 1198.78 417.15 1200.14 417.19ZM1215.38 417.62C1217.05 417.28 1219.01 416.49 1220.65 417.54C1222.1 418.47 1222.57 421.84 1223.11 423.36C1224.72 427.95 1225.81 433.23 1228.34 437.38C1230.4 432.61 1232 427.57 1233.72 422.66C1234.2 421.3 1234.69 418.31 1235.98 417.49C1237.17 416.72 1239.03 417.09 1240.37 417.11C1240.46 422.95 1233.81 438.14 1231.11 444.02C1229.26 444.02 1227.41 444.02 1225.56 444.02C1222.17 435.22 1218.78 426.42 1215.38 417.62ZM1257.95 417.15C1259.8 417.15 1261.65 417.15 1263.5 417.15C1266.89 426.06 1270.28 434.98 1273.68 443.9C1267.15 444.36 1268.23 443.12 1265.91 437.9C1262.54 437.9 1259.16 437.9 1255.79 437.9C1253.57 442.66 1254.68 444.13 1248.69 444.04C1251.78 435.07 1254.86 426.11 1257.95 417.15ZM1306.23 418.7C1305.26 422.82 1300.95 421.25 1297.24 421.62C1297.24 429.03 1297.24 436.44 1297.24 443.86C1296.03 443.94 1293.59 444.61 1292.46 443.82C1291.14 442.88 1291.75 439.53 1291.75 438.13C1291.75 432.68 1292.26 426.93 1291.26 421.61C1287.77 421.19 1283.69 422.64 1282.78 418.7C1285.11 415.81 1295.47 417.06 1299.59 417.06C1301.21 417.06 1303.55 416.64 1305.08 417.28C1306.07 417.71 1305.68 418.02 1306.23 418.7ZM1321.53 417.61C1324.49 417.07 1337.88 415.94 1340.18 417.34C1342.1 418.5 1339.49 417.21 1341.15 418.7C1340.76 419.67 1341.2 420.32 1340.2 421.06C1338.73 422.14 1329.56 421.35 1327.11 421.57C1327.11 423.65 1327.11 425.72 1327.11 427.8C1329.52 428.03 1335.44 426.9 1337.25 428.5C1337.98 429.13 1337.63 429.93 1337.84 430.73C1335.47 433.05 1330.57 432.08 1327.09 432.25C1327.09 434.7 1327.09 437.16 1327.09 439.61C1329.54 439.73 1338.46 438.94 1340.11 439.88C1341.09 440.45 1340.69 440.97 1341.15 441.83C1340.72 442.73 1341.15 443.29 1340.15 443.91C1338.97 444.65 1336.1 444.1 1334.75 444.1C1330.32 444.1 1325.9 444.28 1321.53 443.68C1321.53 434.99 1321.53 426.3 1321.53 417.61ZM1384.11 417.41C1384.11 424.81 1384.11 432.21 1384.11 439.6C1386.33 439.6 1395.98 438.86 1397.42 439.83C1398.25 440.39 1397.89 441.03 1398.21 441.83C1397.9 442.65 1398.27 443.29 1397.43 443.87C1396.3 444.64 1393.42 444.1 1392.12 444.1C1387.79 444.1 1383.45 444.25 1379.16 443.82C1377.94 437.62 1378.75 430.6 1378.75 424.25C1378.75 422.65 1378.02 418.59 1379.42 417.47C1380.6 416.51 1382.82 417.27 1384.11 417.41ZM1413.85 417.21C1415.34 417.15 1418.07 416.46 1419.04 418.03C1419.77 419.21 1419.25 421.98 1419.25 423.33C1419.25 427.95 1419.25 432.58 1419.25 437.2C1419.25 438.72 1419.87 442.06 1418.99 443.36C1418.09 444.69 1415.14 444.01 1413.85 443.97C1413.85 435.05 1413.85 426.13 1413.85 417.21ZM1435.6 417.25C1438.07 417.25 1440.54 417.25 1443.01 417.25C1444.86 423.38 1446.71 429.51 1448.56 435.63C1450.46 429.48 1452.37 423.33 1454.27 417.18C1456.83 417.18 1459.39 417.18 1461.96 417.18C1461.96 426.15 1461.96 435.12 1461.96 444.09C1460.74 444.09 1458.31 444.57 1457.41 443.47C1456.46 442.29 1457.17 439.51 1457.21 438.13C1457.31 434.18 1457.36 430.16 1456.89 426.25C1454.79 430.14 1453.8 434.7 1452.56 438.94C1452.19 440.2 1451.97 442.76 1450.85 443.58C1449.71 444.4 1448.03 444.09 1446.71 444.1C1444.55 437.98 1442.39 431.86 1440.23 425.74C1439.77 429.83 1439.97 434.01 1439.97 438.13C1439.97 439.46 1440.5 442.35 1439.62 443.47C1438.89 444.4 1437.55 444.03 1436.53 444.1C1434.65 442.01 1435.19 439.24 1435.19 436.28C1435.19 430.04 1434.56 423.38 1435.6 417.25ZM1482.8 417.23C1484.21 421.95 1484.34 439.34 1482.8 443.96C1481.5 444 1479.75 444.47 1478.64 443.56C1477.62 442.73 1478.12 440.18 1478.11 439.06C1478.11 434.74 1478.11 430.42 1478.11 426.1C1478.11 424.37 1477.19 419.03 1478.56 417.77C1479.74 416.7 1481.39 417.18 1482.8 417.23ZM1522.51 418.7C1520.7 423.1 1517.42 420.72 1513.33 421.99C1512.92 427.02 1513.15 432.15 1513.15 437.2C1513.15 438.73 1513.79 442.21 1512.77 443.47C1511.86 444.59 1509.28 444.09 1508.06 444.1C1508.06 436.67 1508.06 429.24 1508.06 421.81C1503.81 420.97 1500.31 423.09 1498.83 418.7C1500.15 417.36 1498.08 418.38 1499.63 417.35C1500.86 416.53 1503.59 417.06 1505 417.06C1508.13 417.06 1519.31 416.02 1521.53 417.37C1523.44 418.52 1520.85 417.23 1522.51 418.7ZM1537.83 417.22C1541.1 417.06 1554.35 415.94 1556.65 417.41C1558.31 418.47 1556.08 417.35 1557.53 418.7C1557.18 419.62 1557.59 420.28 1556.67 420.99C1555.2 422.11 1545.73 421.37 1543.34 421.47C1543.34 423.63 1543.34 425.79 1543.34 427.95C1545.61 428 1551.13 426.98 1552.95 428.41C1553.85 429.12 1553.47 429.82 1553.8 430.73C1551.03 432.94 1546.74 431.91 1543.13 432.58C1543.13 434.74 1543.13 436.9 1543.13 439.06C1546.3 439.91 1554.46 438.68 1556.56 439.93C1557.44 440.46 1557.12 441.03 1557.53 441.83C1557.14 442.68 1557.51 443.26 1556.61 443.85C1555.43 444.63 1552.62 444.1 1551.27 444.1C1546.81 444.1 1542.2 444.45 1537.83 443.68C1537.83 434.86 1537.83 426.04 1537.83 417.22ZM1573.04 417.08C1578.39 417.04 1584.92 415.98 1589.81 418.56C1598.13 422.95 1598.53 436.83 1590.7 441.91C1585.66 445.17 1578.75 444.11 1573.04 444.09C1573.04 435.08 1573.04 426.08 1573.04 417.08ZM1136.14 423.33C1133.17 420.62 1129.16 421.17 1125.35 421.66C1125.35 424.13 1125.35 426.6 1125.35 429.07C1131.08 429.58 1136.78 430.9 1136.14 423.33ZM1173.83 423.33C1171.04 420.48 1166.8 421.32 1163.07 421.47C1163.07 423.91 1163.07 426.34 1163.07 428.78C1168.39 428.78 1174.04 430.35 1173.83 423.33ZM1578.57 439.06C1590.52 441.81 1594.58 429.04 1587.99 423.18C1585.44 420.91 1581.68 421.27 1578.57 421.71C1578.57 427.49 1578.57 433.27 1578.57 439.06ZM1260.72 423.68C1259.58 427.04 1258.43 430.4 1257.28 433.77C1259.66 433.77 1262.04 433.77 1264.42 433.77C1263.19 430.4 1261.96 427.04 1260.72 423.68Z"
-          fill="#21242a" fill-rule="evenodd" stroke="#21242a" stroke-width="0.25" stroke-linejoin="round" />
-        <path
-          d="M557.84 68.21C557.84 134.84 557.84 201.46 557.84 268.09C570.66 268.09 583.48 268.09 596.29 268.09C583.52 275.73 570.75 283.37 557.98 291.01C557.98 342.04 557.98 393.07 557.98 444.1C530.91 444.1 503.83 444.1 476.76 444.1C476.76 417.01 476.76 389.91 476.76 362.82C491.11 362.82 505.47 362.82 519.82 362.82C519.82 370.89 519.82 378.96 519.82 387.03C513.51 387.03 507.19 387.03 500.88 387.03C500.88 397.97 500.88 408.91 500.88 419.85C511.74 419.85 522.61 419.85 533.47 419.85C533.47 316.76 533.47 213.67 533.47 110.57C478.36 142.96 423.24 175.34 368.13 207.73C368.13 278.44 368.13 349.14 368.13 419.85C378.99 419.85 389.85 419.85 400.71 419.85C400.71 408.9 400.71 397.95 400.71 387C394.42 387 388.14 387 381.86 387C381.86 378.94 381.86 370.88 381.86 362.82C396.24 362.82 410.62 362.82 425 362.82C425 389.91 425 417 425 444.09C397.95 444.09 370.9 444.09 343.85 444.09C343.85 360.68 343.85 277.27 343.85 193.85C415.18 151.97 486.51 110.09 557.84 68.21ZM519.85 136.53C519.85 182.16 519.85 227.79 519.85 273.42C474.1 273.42 428.36 273.42 382.61 273.42C380.74 266.61 381.85 258.34 381.85 251.22C381.85 241.42 380.25 223.88 382.61 215.1C390.44 210.76 398.27 206.42 406.11 202.08C406.11 217.85 406.11 233.62 406.11 249.4C435.59 249.4 465.08 249.4 494.57 249.4C496.49 245.14 495.49 239.22 495.49 234.56C495.49 223.84 494.84 212.87 495.63 202.18C498.15 201.43 501.39 201.83 503.09 200.33C500.56 198.79 498.03 197.24 495.5 195.7C495.5 180.59 495.5 165.47 495.5 150.36C503.62 145.75 511.73 141.14 519.85 136.53ZM481.86 158.66C481.86 184.24 481.86 209.83 481.86 235.41C473.86 235.41 465.86 235.41 457.85 235.41C457.85 214.16 457.85 192.9 457.85 171.64C465.86 167.31 473.86 162.99 481.86 158.66ZM444.05 180.2C444.05 198.61 444.05 217.02 444.05 235.43C435.99 235.43 427.93 235.43 419.87 235.43C419.87 221.57 419.87 207.71 419.87 193.85C427.93 189.3 435.99 184.75 444.05 180.2ZM519.82 287.05C519.82 295.05 519.82 303.05 519.82 311.06C473.84 311.06 427.85 311.06 381.87 311.06C381.87 303.05 381.87 295.05 381.87 287.05C427.85 287.05 473.84 287.05 519.82 287.05ZM519.82 324.84C519.82 332.91 519.82 340.98 519.82 349.05C500.89 349.05 481.97 349.05 463.04 349.05C463.04 380.72 463.04 412.39 463.04 444.06C454.94 444.06 446.84 444.06 438.74 444.06C438.74 412.39 438.74 380.72 438.74 349.04C419.78 349.04 400.82 349.04 381.85 349.04C381.85 340.98 381.85 332.91 381.85 324.84C427.84 324.84 473.83 324.84 519.82 324.84Z"
-          fill="#e21e3f" fill-rule="evenodd" stroke="#e21e3f" stroke-width="0.25" stroke-linejoin="round" />
-      </svg>
+      <img class="wt-logo splash" src="assets/drava-mosaic-logo.png" alt="Drava Mosaic" width="416" height="92" />
     </div>
     <div class="splash-bar"></div>
     <div class="splash-text">Entering Studio</div>
@@ -2578,9 +2656,9 @@
 
     <div class="landing">
       <header class="landing-header">
-        <h1 class="landing-kicker">Data <span>Art</span></h1>
+        <h1 class="landing-kicker landing-logo"><img src="assets/drava-mosaic-logo.png" alt="Drava Mosaic" width="416" height="92" /></h1>
         <p class="landing-title">Compose Your Piece</p>
-        <p class="landing-sub">Pick the data to map, and the art to map it onto.</p>
+        <p class="landing-sub">Turn live data into moving art. Choose the data and an artwork to start.</p>
       </header>
 
       <div class="lp-shell">
@@ -2597,7 +2675,7 @@
               <span class="data-name">Flight</span>
             </div>
 
-            <div class="data-item" id="dataCard2" data-title="Weather" data-arts="artCard1,artCard2,artCard3,artCard4,tideCard"
+            <div class="data-item" id="dataCard2" data-title="Weather" data-arts="artCard1,artCard2,artCard3,artCard4"
               role="radio" tabindex="0" aria-checked="false">
               <span class="data-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -2607,7 +2685,7 @@
             </div>
 
             <div class="data-item" id="dataCard3" data-title="Attendance"
-              data-arts="artCard1,artCard2,artCard3,artCard4,tideCard" role="radio" tabindex="0" aria-checked="false">
+              data-arts="artCard1,artCard2,artCard3,artCard4" role="radio" tabindex="0" aria-checked="false">
               <span class="data-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V9h16v12z" />
@@ -2704,14 +2782,6 @@
               <span class="art-name">ART 4</span>
             </div>
 
-            <!-- Made in code (studio/tideArt.js) rather than played from a video. -->
-            <div class="art-card" id="tideCard" data-title="Tide" data-code-art="tide"
-              data-blurb="Made in code: currents of pigment swirling through water in the box" data-hl="0.4"
-              data-sh="0.2" role="radio" tabindex="0" aria-checked="false">
-              <span class="art-thumb"><img src="assets/tide_thumb.jpg" alt=""></span>
-              <span class="art-name">Tide</span>
-            </div>
-
             <div class="art-card" id="clockMapCard" data-title="World Map" data-clock-art="map"
               data-blurb="Each city's local time and weather over the world map" role="radio" tabindex="0"
               aria-checked="false">
@@ -2756,15 +2826,7 @@
           Back
         </button>
         <div style="display:flex; align-items:center; gap:14px; flex:1;">
-          <svg class="wt-logo small" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 535"
-            aria-label="White Tusker">
-            <path
-              d="M680.78 67.74C685.59 95.9 690.41 124.05 695.23 152.21C702.2 124.05 709.17 95.9 716.15 67.74C735.62 67.74 755.09 67.74 774.55 67.74C781.47 96.17 788.38 124.61 795.3 153.04C800.19 124.61 805.09 96.18 809.99 67.75C831.62 67.75 853.25 67.75 874.87 67.75C862.23 126.42 849.58 185.1 836.93 243.77C812.57 243.77 788.2 243.77 763.84 243.77C757.36 215.55 750.88 187.33 744.4 159.11C737.62 187.33 730.83 215.56 724.05 243.78C699.99 243.78 675.93 243.78 651.87 243.78C649.26 238.86 648.78 232.64 647.62 227.2C645.01 215.02 642.46 202.83 639.81 190.66C634.05 164.28 628.24 137.94 622.65 111.53C620.71 102.34 618.78 93.16 616.8 83.99C615.64 78.67 613.78 73.16 613.87 67.74C636.17 67.74 658.47 67.74 680.78 67.74ZM893.94 67.73C920.04 67.73 946.14 67.73 972.24 67.73C972.24 88.29 972.24 108.84 972.24 129.39C983.41 129.39 994.59 129.39 1005.77 129.39C1005.77 108.84 1005.77 88.29 1005.77 67.74C1031.93 67.74 1058.08 67.74 1084.24 67.74C1084.24 126.41 1084.24 185.09 1084.24 243.77C1058.08 243.77 1031.93 243.77 1005.78 243.77C1005.78 222.1 1005.78 200.43 1005.78 178.76C994.6 178.76 983.42 178.76 972.24 178.76C972.24 200.18 972.24 221.6 972.24 243.02C963.38 245.29 952.55 243.78 943.34 243.78C927 243.78 910.23 244.84 893.94 243.53C893.94 184.93 893.94 126.33 893.94 67.73ZM1185.1 67.74C1185.1 126.42 1185.1 185.09 1185.1 243.77C1158.98 243.77 1132.87 243.77 1106.75 243.77C1106.75 185.09 1106.75 126.42 1106.75 67.74C1132.87 67.74 1158.98 67.74 1185.1 67.74ZM1405.5 67.73C1405.5 83.74 1405.5 99.75 1405.5 115.76C1400.53 116.54 1395.3 116.13 1390.27 116.13C1381.32 116.13 1372.38 116.13 1363.43 116.13C1357.49 116.13 1350.32 115.06 1344.93 117.26C1343.58 146.36 1344.84 175.82 1344.84 204.95C1344.84 214.38 1346.4 235.88 1344 243.78C1318.4 243.78 1292.8 243.78 1267.2 243.78C1264.89 234.93 1266.48 217.56 1266.48 207.73C1266.48 187.99 1266.48 168.25 1266.48 148.51C1266.48 138.08 1267.28 127.27 1266.27 116.9C1261.59 115.6 1256.39 116.13 1251.47 116.13C1241.6 116.13 1231.73 116.13 1221.86 116.13C1216.65 116.13 1210.98 116.76 1205.91 115.67C1205.91 99.69 1205.91 83.71 1205.91 67.73C1272.44 67.73 1338.97 67.73 1405.5 67.73ZM1596.18 67.73C1596.18 83.19 1596.18 98.65 1596.18 114.11C1566.43 114.11 1536.68 114.11 1506.94 114.11C1506.94 120.74 1506.94 127.36 1506.94 133.99C1528.9 133.99 1550.86 133.99 1572.83 133.99C1572.83 148.29 1572.83 162.6 1572.83 176.91C1550.85 176.91 1528.88 176.91 1506.9 176.91C1506.9 184.3 1506.9 191.7 1506.9 199.09C1536.66 199.09 1566.42 199.09 1596.19 199.09C1596.19 213.98 1596.19 228.88 1596.19 243.78C1540.42 243.78 1484.66 243.78 1428.9 243.78C1428.9 185.1 1428.9 126.41 1428.9 67.73C1484.66 67.73 1540.42 67.73 1596.18 67.73ZM1099.72 302.67C1081.52 302.67 1063.33 302.67 1045.13 302.67C1041.6 294.23 1037.78 287.68 1027.55 287.43C1020.52 287.26 1008.54 292.55 1014.96 301.29C1020.27 308.51 1033.19 310.18 1041.23 312.14C1067.29 318.47 1105.96 326.53 1102.97 361.33C1102.53 366.44 1100.81 371.57 1098.14 375.95C1090.22 388.96 1075.33 395.7 1061.11 399.17C1054.83 400.7 1048.55 401.48 1042.12 402.09C1009.35 405.24 962.5 398.31 954.71 359.48C960.79 357.68 968.38 358.73 974.8 358.73C986.24 358.73 998.7 357.39 1009.97 359.17C1013.77 367.92 1017.98 373.88 1028.47 373.94C1035.37 373.98 1048.22 369.17 1042.38 359.91C1037.91 352.8 1022.33 350.36 1014.73 348.59C987.65 342.27 950.8 333.96 954.04 298.41C954.52 293.11 956.33 287.74 959.17 283.23C975.7 257.07 1020.05 255.31 1047.12 259.68C1054.4 260.85 1061.48 262.62 1068.28 265.52C1081.01 270.96 1100.01 287.69 1099.72 302.67ZM615.51 261.96C626.64 259.93 640.4 261.41 651.87 261.41C675.32 261.41 698.76 261.41 722.2 261.41C732.99 261.41 743.79 261.41 754.58 261.41C760.3 261.41 766.81 260.55 772.16 262.32C772.16 273.43 772.16 284.53 772.16 295.63C767.22 297.04 761.63 296.42 756.43 296.42C745.69 296.42 734.75 295.83 724.04 296.56C721.59 304.68 723.2 319.91 723.2 328.94C723.2 352.27 723.82 375.69 723.12 399C703.48 399 683.85 399 664.21 399C664.21 364.81 664.21 330.62 664.21 296.42C647.97 296.42 631.74 296.42 615.51 296.42C615.51 284.94 615.51 273.45 615.51 261.96ZM789.74 261.43C809.18 261.43 828.61 261.43 848.04 261.43C848.69 270.61 848.24 279.95 848.24 289.16C848.24 305.5 848.24 321.85 848.24 338.2C848.24 350.06 847.93 363.52 863.77 363.36C879.9 363.19 878.83 349.15 878.83 337.27C878.83 320.62 878.83 303.96 878.83 287.31C878.83 279.01 877.57 269.43 879.5 261.42C898.62 261.42 917.74 261.42 936.87 261.42C937.49 268.75 937.1 276.24 937.1 283.6C937.1 296.56 937.1 309.51 937.1 322.47C937.1 341.39 938.52 361.57 927.04 377.85C918.97 389.28 905.98 395.88 892.69 399.15C862.66 406.52 815.82 404.58 797.32 375.48C789.46 363.13 789.21 348.62 789.21 334.5C789.21 322.47 789.21 310.44 789.21 298.41C789.21 287.5 787.77 271.69 789.74 261.43ZM1119.9 261.42C1139.3 261.42 1158.7 261.42 1178.1 261.42C1178.1 279.99 1178.1 298.56 1178.1 317.13C1190.53 298.79 1202.96 280.44 1215.38 262.09C1220.41 260.87 1225.91 261.41 1231.11 261.41C1240.06 261.41 1249 261.41 1257.95 261.41C1263.49 261.41 1270.88 260.22 1275.83 262.32C1262.71 281.45 1249.59 300.57 1236.47 319.69C1249.98 346.13 1263.5 372.57 1277.02 399.01C1255.55 399.01 1234.08 399.01 1212.61 399.01C1206.13 383.94 1199.65 368.87 1193.18 353.8C1188.79 356.7 1185.27 362.17 1181.78 366.16C1180.64 367.48 1178.65 369.03 1178.16 370.74C1177.45 373.22 1178.11 376.36 1178.15 378.91C1178.28 385.6 1178.16 392.31 1178.16 399C1158.74 399 1139.32 399 1119.9 399C1119.9 353.14 1119.9 307.28 1119.9 261.42ZM1292.75 261.41C1336.05 261.41 1379.35 261.41 1422.65 261.41C1424.45 267.2 1424.43 288.91 1422.65 294.72C1406.65 295.28 1390.55 294.79 1374.53 294.79C1367.25 294.79 1358.38 293.48 1351.5 295.63C1351.5 302.02 1351.5 308.4 1351.5 314.78C1369.25 314.78 1387 314.78 1404.75 314.78C1404.75 324.99 1404.75 335.2 1404.75 345.41C1387.23 345.41 1369.71 345.41 1352.19 345.41C1350.72 351.73 1350.4 361.47 1352.33 367.66C1376.05 367.66 1399.76 367.66 1423.48 367.66C1423.48 378.11 1423.48 388.56 1423.48 399.02C1379.9 399.02 1336.33 399.02 1292.75 399.02C1292.75 353.15 1292.75 307.28 1292.75 261.41ZM1566.17 334.5C1573.05 336.75 1579.84 338.23 1584.69 344.06C1590.13 350.61 1589.56 358.92 1589.81 366.88C1590.15 377.83 1591.47 388.22 1593.19 398.99C1573.41 398.99 1553.63 398.99 1533.85 398.99C1531.56 388.52 1531.21 377.58 1531.21 366.88C1531.21 361.75 1531.93 355.1 1527.32 351.52C1522.99 348.15 1506.65 349.3 1501.15 350.16C1501.15 366.44 1501.15 382.72 1501.15 399C1481.48 399 1461.82 399 1442.15 399C1442.15 353.44 1442.15 307.88 1442.15 262.32C1449.25 259.94 1470.38 261.41 1479.09 261.41C1495.75 261.41 1512.4 261.41 1529.06 261.41C1542.88 261.41 1557.43 261.12 1570.31 266.92C1590.52 276.02 1598.46 300.66 1585.9 319.58C1580.87 327.16 1573.46 329.84 1566.17 334.5ZM1501.17 293.77C1501.17 303.03 1501.17 312.3 1501.17 321.56C1507.87 322.36 1521.08 323.34 1527.04 319.97C1535.43 315.23 1536.13 300.65 1527.92 295.38C1522.3 291.77 1507.53 292.44 1501.17 293.77ZM1125.2 433.92C1125.2 437.26 1125.2 440.61 1125.2 443.95C1123.95 444 1121.57 444.57 1120.45 443.7C1119.18 442.72 1119.9 438.64 1119.9 437.2C1119.9 430.75 1119.63 424.22 1120.02 417.77C1124.85 416.55 1133.85 415.66 1138.36 418.44C1143.2 421.44 1143.09 429.7 1137.96 432.43C1134.21 434.43 1129.28 433.68 1125.2 433.92ZM1176.55 430.73C1178.91 434.68 1179.01 439.17 1179.3 443.7C1171.45 444.83 1173.86 439.95 1172.82 434.13C1169.65 432.44 1166.26 432.74 1162.83 433.5C1162.83 436.9 1162.83 440.29 1162.83 443.68C1161.4 443.88 1158.78 444.8 1157.62 443.44C1156.41 442.02 1157.15 438.03 1157.15 436.28C1157.15 430.12 1156.91 423.91 1157.35 417.77C1164.42 415.78 1181.98 414.91 1178.89 426.99C1178.51 428.44 1177.44 429.57 1176.55 430.73ZM1200.14 417.19C1200.14 426.12 1200.14 435.06 1200.14 443.99C1198.84 444.03 1196.59 444.55 1195.44 443.64C1194.42 442.82 1194.92 440.18 1194.92 439.06C1194.91 434.74 1194.92 430.42 1194.92 426.1C1194.92 424.36 1194 418.87 1195.38 417.64C1196.54 416.6 1198.78 417.15 1200.14 417.19ZM1215.38 417.62C1217.05 417.28 1219.01 416.49 1220.65 417.54C1222.1 418.47 1222.57 421.84 1223.11 423.36C1224.72 427.95 1225.81 433.23 1228.34 437.38C1230.4 432.61 1232 427.57 1233.72 422.66C1234.2 421.3 1234.69 418.31 1235.98 417.49C1237.17 416.72 1239.03 417.09 1240.37 417.11C1240.46 422.95 1233.81 438.14 1231.11 444.02C1229.26 444.02 1227.41 444.02 1225.56 444.02C1222.17 435.22 1218.78 426.42 1215.38 417.62ZM1257.95 417.15C1259.8 417.15 1261.65 417.15 1263.5 417.15C1266.89 426.06 1270.28 434.98 1273.68 443.9C1267.15 444.36 1268.23 443.12 1265.91 437.9C1262.54 437.9 1259.16 437.9 1255.79 437.9C1253.57 442.66 1254.68 444.13 1248.69 444.04C1251.78 435.07 1254.86 426.11 1257.95 417.15ZM1306.23 418.7C1305.26 422.82 1300.95 421.25 1297.24 421.62C1297.24 429.03 1297.24 436.44 1297.24 443.86C1296.03 443.94 1293.59 444.61 1292.46 443.82C1291.14 442.88 1291.75 439.53 1291.75 438.13C1291.75 432.68 1292.26 426.93 1291.26 421.61C1287.77 421.19 1283.69 422.64 1282.78 418.7C1285.11 415.81 1295.47 417.06 1299.59 417.06C1301.21 417.06 1303.55 416.64 1305.08 417.28C1306.07 417.71 1305.68 418.02 1306.23 418.7ZM1321.53 417.61C1324.49 417.07 1337.88 415.94 1340.18 417.34C1342.1 418.5 1339.49 417.21 1341.15 418.7C1340.76 419.67 1341.2 420.32 1340.2 421.06C1338.73 422.14 1329.56 421.35 1327.11 421.57C1327.11 423.65 1327.11 425.72 1327.11 427.8C1329.52 428.03 1335.44 426.9 1337.25 428.5C1337.98 429.13 1337.63 429.93 1337.84 430.73C1335.47 433.05 1330.57 432.08 1327.09 432.25C1327.09 434.7 1327.09 437.16 1327.09 439.61C1329.54 439.73 1338.46 438.94 1340.11 439.88C1341.09 440.45 1340.69 440.97 1341.15 441.83C1340.72 442.73 1341.15 443.29 1340.15 443.91C1338.97 444.65 1336.1 444.1 1334.75 444.1C1330.32 444.1 1325.9 444.28 1321.53 443.68C1321.53 434.99 1321.53 426.3 1321.53 417.61ZM1384.11 417.41C1384.11 424.81 1384.11 432.21 1384.11 439.6C1386.33 439.6 1395.98 438.86 1397.42 439.83C1398.25 440.39 1397.89 441.03 1398.21 441.83C1397.9 442.65 1398.27 443.29 1397.43 443.87C1396.3 444.64 1393.42 444.1 1392.12 444.1C1387.79 444.1 1383.45 444.25 1379.16 443.82C1377.94 437.62 1378.75 430.6 1378.75 424.25C1378.75 422.65 1378.02 418.59 1379.42 417.47C1380.6 416.51 1382.82 417.27 1384.11 417.41ZM1413.85 417.21C1415.34 417.15 1418.07 416.46 1419.04 418.03C1419.77 419.21 1419.25 421.98 1419.25 423.33C1419.25 427.95 1419.25 432.58 1419.25 437.2C1419.25 438.72 1419.87 442.06 1418.99 443.36C1418.09 444.69 1415.14 444.01 1413.85 443.97C1413.85 435.05 1413.85 426.13 1413.85 417.21ZM1435.6 417.25C1438.07 417.25 1440.54 417.25 1443.01 417.25C1444.86 423.38 1446.71 429.51 1448.56 435.63C1450.46 429.48 1452.37 423.33 1454.27 417.18C1456.83 417.18 1459.39 417.18 1461.96 417.18C1461.96 426.15 1461.96 435.12 1461.96 444.09C1460.74 444.09 1458.31 444.57 1457.41 443.47C1456.46 442.29 1457.17 439.51 1457.21 438.13C1457.31 434.18 1457.36 430.16 1456.89 426.25C1454.79 430.14 1453.8 434.7 1452.56 438.94C1452.19 440.2 1451.97 442.76 1450.85 443.58C1449.71 444.4 1448.03 444.09 1446.71 444.1C1444.55 437.98 1442.39 431.86 1440.23 425.74C1439.77 429.83 1439.97 434.01 1439.97 438.13C1439.97 439.46 1440.5 442.35 1439.62 443.47C1438.89 444.4 1437.55 444.03 1436.53 444.1C1434.65 442.01 1435.19 439.24 1435.19 436.28C1435.19 430.04 1434.56 423.38 1435.6 417.25ZM1482.8 417.23C1484.21 421.95 1484.34 439.34 1482.8 443.96C1481.5 444 1479.75 444.47 1478.64 443.56C1477.62 442.73 1478.12 440.18 1478.11 439.06C1478.11 434.74 1478.11 430.42 1478.11 426.1C1478.11 424.37 1477.19 419.03 1478.56 417.77C1479.74 416.7 1481.39 417.18 1482.8 417.23ZM1522.51 418.7C1520.7 423.1 1517.42 420.72 1513.33 421.99C1512.92 427.02 1513.15 432.15 1513.15 437.2C1513.15 438.73 1513.79 442.21 1512.77 443.47C1511.86 444.59 1509.28 444.09 1508.06 444.1C1508.06 436.67 1508.06 429.24 1508.06 421.81C1503.81 420.97 1500.31 423.09 1498.83 418.7C1500.15 417.36 1498.08 418.38 1499.63 417.35C1500.86 416.53 1503.59 417.06 1505 417.06C1508.13 417.06 1519.31 416.02 1521.53 417.37C1523.44 418.52 1520.85 417.23 1522.51 418.7ZM1537.83 417.22C1541.1 417.06 1554.35 415.94 1556.65 417.41C1558.31 418.47 1556.08 417.35 1557.53 418.7C1557.18 419.62 1557.59 420.28 1556.67 420.99C1555.2 422.11 1545.73 421.37 1543.34 421.47C1543.34 423.63 1543.34 425.79 1543.34 427.95C1545.61 428 1551.13 426.98 1552.95 428.41C1553.85 429.12 1553.47 429.82 1553.8 430.73C1551.03 432.94 1546.74 431.91 1543.13 432.58C1543.13 434.74 1543.13 436.9 1543.13 439.06C1546.3 439.91 1554.46 438.68 1556.56 439.93C1557.44 440.46 1557.12 441.03 1557.53 441.83C1557.14 442.68 1557.51 443.26 1556.61 443.85C1555.43 444.63 1552.62 444.1 1551.27 444.1C1546.81 444.1 1542.2 444.45 1537.83 443.68C1537.83 434.86 1537.83 426.04 1537.83 417.22ZM1573.04 417.08C1578.39 417.04 1584.92 415.98 1589.81 418.56C1598.13 422.95 1598.53 436.83 1590.7 441.91C1585.66 445.17 1578.75 444.11 1573.04 444.09C1573.04 435.08 1573.04 426.08 1573.04 417.08ZM1136.14 423.33C1133.17 420.62 1129.16 421.17 1125.35 421.66C1125.35 424.13 1125.35 426.6 1125.35 429.07C1131.08 429.58 1136.78 430.9 1136.14 423.33ZM1173.83 423.33C1171.04 420.48 1166.8 421.32 1163.07 421.47C1163.07 423.91 1163.07 426.34 1163.07 428.78C1168.39 428.78 1174.04 430.35 1173.83 423.33ZM1578.57 439.06C1590.52 441.81 1594.58 429.04 1587.99 423.18C1585.44 420.91 1581.68 421.27 1578.57 421.71C1578.57 427.49 1578.57 433.27 1578.57 439.06ZM1260.72 423.68C1259.58 427.04 1258.43 430.4 1257.28 433.77C1259.66 433.77 1262.04 433.77 1264.42 433.77C1263.19 430.4 1261.96 427.04 1260.72 423.68Z"
-              fill="#21242a" fill-rule="evenodd" stroke="#21242a" stroke-width="0.25" stroke-linejoin="round" />
-            <path
-              d="M557.84 68.21C557.84 134.84 557.84 201.46 557.84 268.09C570.66 268.09 583.48 268.09 596.29 268.09C583.52 275.73 570.75 283.37 557.98 291.01C557.98 342.04 557.98 393.07 557.98 444.1C530.91 444.1 503.83 444.1 476.76 444.1C476.76 417.01 476.76 389.91 476.76 362.82C491.11 362.82 505.47 362.82 519.82 362.82C519.82 370.89 519.82 378.96 519.82 387.03C513.51 387.03 507.19 387.03 500.88 387.03C500.88 397.97 500.88 408.91 500.88 419.85C511.74 419.85 522.61 419.85 533.47 419.85C533.47 316.76 533.47 213.67 533.47 110.57C478.36 142.96 423.24 175.34 368.13 207.73C368.13 278.44 368.13 349.14 368.13 419.85C378.99 419.85 389.85 419.85 400.71 419.85C400.71 408.9 400.71 397.95 400.71 387C394.42 387 388.14 387 381.86 387C381.86 378.94 381.86 370.88 381.86 362.82C396.24 362.82 410.62 362.82 425 362.82C425 389.91 425 417 425 444.09C397.95 444.09 370.9 444.09 343.85 444.09C343.85 360.68 343.85 277.27 343.85 193.85C415.18 151.97 486.51 110.09 557.84 68.21ZM519.85 136.53C519.85 182.16 519.85 227.79 519.85 273.42C474.1 273.42 428.36 273.42 382.61 273.42C380.74 266.61 381.85 258.34 381.85 251.22C381.85 241.42 380.25 223.88 382.61 215.1C390.44 210.76 398.27 206.42 406.11 202.08C406.11 217.85 406.11 233.62 406.11 249.4C435.59 249.4 465.08 249.4 494.57 249.4C496.49 245.14 495.49 239.22 495.49 234.56C495.49 223.84 494.84 212.87 495.63 202.18C498.15 201.43 501.39 201.83 503.09 200.33C500.56 198.79 498.03 197.24 495.5 195.7C495.5 180.59 495.5 165.47 495.5 150.36C503.62 145.75 511.73 141.14 519.85 136.53ZM481.86 158.66C481.86 184.24 481.86 209.83 481.86 235.41C473.86 235.41 465.86 235.41 457.85 235.41C457.85 214.16 457.85 192.9 457.85 171.64C465.86 167.31 473.86 162.99 481.86 158.66ZM444.05 180.2C444.05 198.61 444.05 217.02 444.05 235.43C435.99 235.43 427.93 235.43 419.87 235.43C419.87 221.57 419.87 207.71 419.87 193.85C427.93 189.3 435.99 184.75 444.05 180.2ZM519.82 287.05C519.82 295.05 519.82 303.05 519.82 311.06C473.84 311.06 427.85 311.06 381.87 311.06C381.87 303.05 381.87 295.05 381.87 287.05C427.85 287.05 473.84 287.05 519.82 287.05ZM519.82 324.84C519.82 332.91 519.82 340.98 519.82 349.05C500.89 349.05 481.97 349.05 463.04 349.05C463.04 380.72 463.04 412.39 463.04 444.06C454.94 444.06 446.84 444.06 438.74 444.06C438.74 412.39 438.74 380.72 438.74 349.04C419.78 349.04 400.82 349.04 381.85 349.04C381.85 340.98 381.85 332.91 381.85 324.84C427.84 324.84 473.83 324.84 519.82 324.84Z"
-              fill="#e21e3f" fill-rule="evenodd" stroke="#e21e3f" stroke-width="0.25" stroke-linejoin="round" />
-          </svg>
+          <img class="wt-logo small" src="assets/drava-mosaic-logo.png" alt="Drava Mosaic" width="416" height="92" />
           <div>
             <h1>VelocityMap → Color Mapper</h1>
             <div class="sub" id="studioSubtitle">3-zone % · <span class="force-hint">soft 80→100</span> · <span
@@ -2818,10 +2880,10 @@
           <span class="badge hq" id="resBadge" style="margin-left:6px;">-- × --</span>
           <span class="badge gpu" id="gpuBadge" style="margin-left:6px;">WebGL</span>
           <span class="badge" id="loopBadge"
-            style="margin-left:6px;color:#db2777;background:#fdf2f8;border-color:#fce7f3;display:none;">⟲
+            style="margin-left:6px;color:#f2f4f7;background:#1d232a;border-color:#2a3038;display:none;">⟲
             cross-dissolve</span>
           <span class="badge" id="syncBadge"
-            style="margin-left:6px;color:#059669;background:#ecfdf5;border-color:#d1fae5;display:none;">✓ synced</span>
+            style="margin-left:6px;color:#7cf04b;background:#16301d;border-color:#245a31;display:none;">✓ synced</span>
           <button class="fs-btn" id="fullscreenBtn" title="Fullscreen (ESC to exit)">
             <svg viewBox="0 0 24 24">
               <path
@@ -2834,7 +2896,7 @@
       </div>
 
       <div class="range-panel attendance-only">
-        <h2>Zone distribution <span class="badge" style="color:#2563eb;background:#eff6ff;border-color:#dbeafe;">% of
+        <h2>Zone distribution <span class="badge" style="color:#9aa3af;background:#1d232a;border-color:#2a3038;">% of
             velocity pixels</span></h2>
         <div class="range-bar">
           <div class="seg absent" id="barAbsent" style="width:61%">61%</div>
@@ -2853,11 +2915,11 @@
 
       <div class="controls attendance-only">
         <div class="color-box"><span class="absent-hint">Absent</span><input type="color" id="colorAbsent"
-            value="#e11d48"></div>
-        <div class="color-box"><span class="late-hint">Late</span><input type="color" id="colorLate" value="#d97706">
+            value="#0a0d12"></div>
+        <div class="color-box"><span class="late-hint">Late</span><input type="color" id="colorLate" value="#4b5563">
         </div>
         <div class="color-box"><span class="present-hint">Present</span><input type="color" id="colorPresent"
-            value="#059669"></div>
+            value="#22a447"></div>
       </div>
 
       <div class="controls attendance-only" style="margin-top:14px;">
@@ -2914,7 +2976,7 @@
         <div class="mood-header">
           🌈 Mood &amp; Loop
           <span class="scope-pill"
-            style="background:#fdf2f8;color:#db2777;border:1px solid #fce7f3;font-size:0.6rem;font-weight:700;padding:3px 9px;border-radius:10px;letter-spacing:0.3px;text-transform:none;">cross-dissolve
+            style="background:#1d232a;color:#f2f4f7;border:1px solid #2a3038;font-size:0.6rem;font-weight:700;padding:3px 9px;border-radius:10px;letter-spacing:0.3px;text-transform:none;">cross-dissolve
             loop · no dip to black</span>
         </div>
         <div class="mood-row">
@@ -3140,15 +3202,12 @@
     </div>
   </div>
 
-  <!-- The code-made arts, handed to the script below on window.dravaCodeArts. -->
-  <script type="module" src="./studio/codeArts.js"></script>
   <script>
     (() => {
       const splash = document.getElementById('splash');
       setTimeout(() => {
         splash.classList.add('hidden');
         page1.classList.add('active');
-        onStudioShown();
       }, 2800);
 
       const page1 = document.getElementById('page1');
@@ -3201,44 +3260,15 @@
       const pageClock = document.getElementById('pageClock');
       const worldClockFrame = document.getElementById('worldClockFrame');
 
-      // The running clock (cities, art, clock style), or null while its city
-      // picker is showing. The World Clock page reports it (world-clock-state)
-      // so "Show Clock" is shared with the other screens like Generate is.
-      let clockState = null;
-
-      function readClock(c) {
-        if (!c || typeof c !== 'object' || !Array.isArray(c.places)) return null;
-        const places = c.places.filter(p => typeof p === 'string' && p.length <= 64).slice(0, 5);
-        if (!places.length) return null;
-        const id = (x) => (typeof x === 'string' && x.length <= 64 ? x : null);
-        return { places, art: id(c.art), style: id(c.style) };
-      }
-
-      function openWorldClock(art, clock) {
-        clockState = readClock(clock);
-        let src = 'world-clock/index.html?embed=1&art=' + encodeURIComponent(art);
-        if (clockState) {
-          src = 'world-clock/index.html?embed=1&places=' + clockState.places.map(encodeURIComponent).join(',') +
-            '&art=' + encodeURIComponent(clockState.art || art);
-          if (clockState.style) src += '&clock=' + encodeURIComponent(clockState.style);
-        }
-        worldClockFrame.src = src;
+      function openWorldClock(art) {
+        worldClockFrame.src = 'world-clock/index.html?embed=1&art=' + encodeURIComponent(art);
         goToPage(5);
       }
 
       window.addEventListener('message', (event) => {
         if (event.source === worldClockFrame.contentWindow && event.data && event.data.type === 'world-clock-back') {
-          clockState = null;
           goToPage(1);
           worldClockFrame.removeAttribute('src');
-          emitSyncState();
-        }
-        if (event.source === worldClockFrame.contentWindow && event.origin === location.origin &&
-            event.data && event.data.type === 'world-clock-state') {
-          const next = readClock(event.data.clock);
-          if (JSON.stringify(next) === JSON.stringify(clockState)) return;
-          clockState = next;
-          emitSyncState();
         }
       });
 
@@ -3250,13 +3280,12 @@
           // Unload the heavy WebGL/video scene while it is off-screen. It is
           // recreated on the next visit so the opening reveal plays again.
           embeddedFlightGarden.removeAttribute('src');
-          emitSyncState();
         }
       });
 
-      function openCard(cardEl, clock) {
+      function openCard(cardEl) {
         if (cardEl.dataset.clockArt) {
-          openWorldClock(cardEl.dataset.clockArt, clock);
+          openWorldClock(cardEl.dataset.clockArt);
           return;
         }
 
@@ -3270,10 +3299,8 @@
 
         // Art owns the render; the selected data source only drives how that
         // render is coloured and paced. This keeps Weather available on ART 1-4.
-        // A code-made art draws itself (see startCodeArtOutput); the rest play videos.
-        outputCodeArt = cardEl.dataset.codeArt || null;
-        const mainSrc = cardEl.dataset.main || '';
-        const veloSrc = cardEl.dataset.velo || '';
+        const mainSrc = cardEl.dataset.main;
+        const veloSrc = cardEl.dataset.velo;
         const hlDefault = parseFloat(cardEl.dataset.hl || '1');
         const shDefault = parseFloat(cardEl.dataset.sh || '-0.8');
         const dataTitle = selectedData ? selectedData.dataset.title : '';
@@ -3327,7 +3354,7 @@
         const selectedData = document.querySelector('.data-item.selected');
         const allowed = (selectedData && selectedData.dataset.arts)
           ? selectedData.dataset.arts.split(',').map(s => s.trim())
-          : ['artCard1', 'artCard2', 'artCard3', 'artCard4', 'tideCard'];
+          : ['artCard1', 'artCard2', 'artCard3', 'artCard4'];
 
         document.querySelectorAll('.art-card').forEach(card => {
           card.style.display = allowed.includes(card.id) ? '' : 'none';
@@ -3381,95 +3408,16 @@
         });
       }
 
-      document.querySelectorAll('.data-item').forEach(item => onActivate(item, (el) => { selectData(el); emitSyncState(); }));
-      document.querySelectorAll('.art-card').forEach(card => onActivate(card, (el) => { selectArt(el); emitSyncState(); }));
+      document.querySelectorAll('.data-item').forEach(item => onActivate(item, selectData));
+      document.querySelectorAll('.art-card').forEach(card => onActivate(card, selectArt));
 
       lpGenerateBtn.addEventListener('click', () => {
         const art = document.querySelector('.art-card.selected');
         if (art) openCard(art);
-        emitSyncState();
       });
-
-      // ── CMS sync ───────────────────────────────────────────────────────
-      // Inside the CMS this page is an iframe, and the same screen can be open
-      // in several places (the wall, a control surface). The landing choices —
-      // data source, art, Generate/back — are shared through the parent frame
-      // (see DravaMosaicRenderer): what the operator does here is posted up,
-      // and what other clients did is posted back down and applied by driving
-      // the same functions a click would. Anything deeper in a scene (sliders,
-      // the Flight Garden / World Clock internals) is not shared.
-      const SYNCED = window.parent !== window;
-      let applyingRemote = false;
-      let studioShown = false;
-      let pendingRemote = null;
-
-      function syncState() {
-        const data = document.querySelector('.data-item.selected');
-        const art = document.querySelector('.art-card.selected');
-        return { data: data ? data.id : null, art: art ? art.id : null, open: currentPage >= 2, clock: currentPage === 5 ? clockState : null };
-      }
-
-      // Only for choices made on this page — never for a view we were handed,
-      // or two clients would answer each other forever.
-      let lastSent = '';
-      let lastSentAt = 0;
-      function emitSyncState() {
-        if (!SYNCED || applyingRemote) return;
-        const state = syncState();
-        lastSent = JSON.stringify(state);
-        lastSentAt = Date.now();
-        window.parent.postMessage({ type: 'data-art-state', state }, location.origin);
-      }
-
-      function returnToLanding() {
-        clockState = null;
-        goToPage(1);
-        worldClockFrame.removeAttribute('src');
-        const flightFrame = document.getElementById('flightGardenFrame');
-        if (flightFrame) flightFrame.removeAttribute('src');
-      }
-
-      function applySyncState(want) {
-        // The splash still owns the screen for its first moments; opening an
-        // artwork under it would leave the landing page active as well.
-        if (!studioShown) { pendingRemote = want; return; }
-        // The echo of something this page just sent: by the time it comes back
-        // the operator may already have moved on, and replaying it would undo that.
-        const wantClock = readClock(want.clock);
-        if (Date.now() - lastSentAt < 1500 && JSON.stringify({ data: want.data, art: want.art, open: want.open === true, clock: wantClock }) === lastSent) return;
-        const have = syncState();
-        if (have.open === want.open && (!want.data || have.data === want.data) && (!want.art || have.art === want.art) &&
-            JSON.stringify(have.clock) === JSON.stringify(wantClock)) return;
-        applyingRemote = true;
-        try {
-          if (have.open) returnToLanding();
-          const dataEl = want.data && document.getElementById(want.data);
-          if (dataEl && dataEl.classList.contains('data-item') && !dataEl.classList.contains('selected')) selectData(dataEl);
-          const artEl = want.art && document.getElementById(want.art);
-          if (artEl && artEl.classList.contains('art-card') && artEl.style.display !== 'none' && !artEl.classList.contains('selected')) selectArt(artEl);
-          if (want.open) {
-            const art = document.querySelector('.art-card.selected');
-            if (art) openCard(art, wantClock);
-          }
-        } finally {
-          applyingRemote = false;
-        }
-      }
-
-      function onStudioShown() {
-        studioShown = true;
-        if (pendingRemote) { const want = pendingRemote; pendingRemote = null; applySyncState(want); }
-      }
-
-      window.addEventListener('message', (event) => {
-        if (event.source !== window.parent || event.origin !== location.origin) return;
-        const msg = event.data;
-        if (msg && msg.type === 'data-art-apply' && msg.state) applySyncState(msg.state);
-      });
-      if (SYNCED) window.parent.postMessage({ type: 'data-art-ready' }, location.origin);
 
       updateArtFilter();
-      backBtn.addEventListener('click', () => { goToPage(1); emitSyncState(); });
+      backBtn.addEventListener('click', () => goToPage(1));
 
       const mainVideo = document.getElementById('mainVideo');
       const mainVideoB = document.getElementById('mainVideoB');
@@ -3600,37 +3548,6 @@
       // Public URL of the Cloudflare R2 bucket (data-art) holding every video.
       const VIDEO_BASE_URL = '/api/drava-mosaic/video?name='; // nex: the API streams videos same-origin so WebGL can read the frames.
 
-      // ---- Code-made arts (studio/codeArts.js), drawn live in place of video ----
-      // Each draws its render and velocity pass into one texture, the render
-      // on top, inside the WebGL context that shows it, so nothing is copied
-      // between contexts. So one of each is made per context: the output's
-      // and the landing preview's.
-      const codeArtInstances = new Map(); // context -> { art id -> art, or null }
-      let outputCodeArt = null; // the code-made art the output shows, or null for a video
-      let lastCodeArtFrame = 0;
-
-      function whenCodeArts() {
-        if (window.dravaCodeArts) return Promise.resolve(window.dravaCodeArts);
-        return new Promise(resolve => window.addEventListener('drava-code-arts-ready',
-          () => resolve(window.dravaCodeArts), { once: true }));
-      }
-
-      // The art in a context, made the first time it's asked for; null if it
-      // can't run there (it needs WebGL 2).
-      async function getCodeArt(id, ctx) {
-        const arts = await whenCodeArts();
-        if (!codeArtInstances.has(ctx)) codeArtInstances.set(ctx, {});
-        const made = codeArtInstances.get(ctx);
-        if (!(id in made)) made[id] = arts[id] && ctx ? arts[id](ctx) : null;
-        return made[id];
-      }
-
-      // The code-made art the output is showing, once it's made.
-      function outputArt() {
-        const made = outputCodeArt && codeArtInstances.get(gl);
-        return made ? made[outputCodeArt] : null;
-      }
-
       const WEATHER_LOCATIONS = [
         { id: 'bengaluru', label: 'Bengaluru, India', lat: 12.9716, lon: 77.5946 },
         { id: 'reykjavik', label: 'Reykjavik, Iceland', lat: 64.1466, lon: -21.9426 },
@@ -3649,10 +3566,6 @@
       // lifts saturation so the temperature colour reads clearly. whiteLift
       // turns the uncoloured (white-velocity) areas from the render's grey
       // into a clean white support tone: 0 = raw grey, 1 = flat white.
-      // Colour grade for a code-made art's rich colour, in either data mode:
-      // highlights held down so nothing brightens toward white, and a little
-      // more saturation.
-      const RICH_GRADE = { hl: -0.25, sh: 0, sat: 1.15, vib: 1.1, br: 1.0, ct: 1.05, whiteLift: 0 };
       const WEATHER_GRADE = { hl: -0.15, sh: -0.35, sat: 1.35, vib: 1.2, br: 0.94, ct: 1.1, whiteLift: 0.6 };
       const DEFAULT_WEATHER_LOCATION = 'bengaluru';
       const WEATHER_POLL_MS = 5 * 60 * 1000;
@@ -3745,9 +3658,7 @@
         weatherTempValue.textContent = tempC.toFixed(1);
         weatherWindValue.textContent = kph.toFixed(1);
         weatherBandValue.textContent = band.label;
-        // A code-made art sets its own pace from the wind.
-        const codeArt = outputArt();
-        weatherRateValue.textContent = (codeArt ? codeArt.paceFor(kph) : rate).toFixed(2);
+        weatherRateValue.textContent = rate.toFixed(2);
         weatherColorSwatch.style.background = `rgb(${r}, ${g}, ${b})`;
         weatherThermalMarker.style.left = `${clampValue(tempC / 40, 0, 1) * 100}%`;
 
@@ -3964,9 +3875,9 @@
       weatherHudToggle.addEventListener('click', () => {
         setWeatherHudVisible(!weatherHud.classList.contains('hud-active'));
       });
-      weatherBackBtn.addEventListener('click', () => { goToPage(1); emitSyncState(); });
+      weatherBackBtn.addEventListener('click', () => goToPage(1));
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && currentPage === 4 && !document.fullscreenElement) { goToPage(1); emitSyncState(); }
+        if (e.key === 'Escape' && currentPage === 4 && !document.fullscreenElement) goToPage(1);
       });
 
       fullscreenBtn.addEventListener('click', () => {
@@ -4049,13 +3960,6 @@
     uniform float u_weatherMode;
     uniform float u_weatherHue;
     uniform float u_whiteLift;
-    // A code-made art packs its render (top half) and velocity pass (bottom
-    // half) into one image; u_seam keeps each half's samples off the other's.
-    uniform float u_packed;
-    uniform float u_seam;
-    // Rich colour, for a code-made art: no white, and every pixel a shade of
-    // the data's colour (see below).
-    uniform float u_rich;
 
     vec3 overlayBlend(vec3 b, vec3 t) {
       vec3 r;
@@ -4073,14 +3977,8 @@
 
     void main() {
       vec2 uv = v_uv;
-      vec2 uvMain = uv;
-      vec2 uvVelo = uv;
-      if (u_packed > 0.5) {
-        uvMain = vec2(uv.x, mix(0.5 + u_seam, 1.0 - u_seam, uv.y));
-        uvVelo = vec2(uv.x, mix(u_seam, 0.5 - u_seam, uv.y));
-      }
-      vec3 m = mix(texture2D(u_mainA, uvMain).rgb, texture2D(u_mainB, uvMain).rgb, u_cross);
-      vec3 v = mix(texture2D(u_veloA, uvVelo).rgb, texture2D(u_veloB, uvVelo).rgb, u_cross);
+      vec3 m = mix(texture2D(u_mainA, uv).rgb, texture2D(u_mainB, uv).rgb, u_cross);
+      vec3 v = mix(texture2D(u_veloA, uv).rgb, texture2D(u_veloB, uv).rgb, u_cross);
       float vr = v.r, vg = v.g, vb = v.b;
 
       float maskFactor = 1.0;
@@ -4111,25 +4009,7 @@
       // after the colour grade below so the grade never dulls it to grey.
       float weatherWhiteMix = 0.0;
       vec3 weatherWhite = m;
-      if (u_rich > 0.5) {
-        // Rich colour: every pixel is a shade of the data's colour, scaled by
-        // the render's light and shade so its form survives, and never washed
-        // toward white. In Weather the shades run from a deep, redder tone in
-        // the stillest places to the bright colour itself on the liveliest
-        // crests: shifted toward red, never yellow, so dark shades of orange
-        // read as burnt orange rather than olive.
-        float zone = clamp((vg + vb) * 0.5, 0.0, 1.0);
-        vec3 c;
-        if (u_weatherMode > 0.5) {
-          float h = fract(u_weatherHue);
-          c = hsv2rgb(vec3(h - mix(0.045, 0.008, zone), mix(1.0, 0.92, zone), mix(0.7, 1.0, zone)));
-        } else {
-          vec3 midC = mix(u_cAbsent, u_cLate, t1);
-          c = mix(mix(midC, u_cPresent, t2), u_forceColor, u_forceBlend);
-        }
-        float L = dot(m, vec3(0.299, 0.587, 0.114));
-        result = c * mix(0.38, 1.08, smoothstep(0.08, 0.92, L));
-      } else if (u_weatherMode > 0.5) {
+      if (u_weatherMode > 0.5) {
         vec3 weatherColor = hsv2rgb(vec3(fract(u_weatherHue), 0.95, 1.0));
         // Tightened so mid-grey motion doesn't leave a wide cream band
         // between the colour and the white.
@@ -4193,8 +4073,7 @@
         'u_redHi', 'u_redLo', 'u_gbLimit', 'u_invRedRange',
         'u_strength', 'u_baseMix', 'u_extremeMix',
         'u_sat', 'u_vib', 'u_hl', 'u_sh', 'u_br', 'u_ct',
-        'u_mood', 'u_moodMix', 'u_weatherMode', 'u_weatherHue', 'u_whiteLift',
-        'u_packed', 'u_seam', 'u_rich'];
+        'u_mood', 'u_moodMix', 'u_weatherMode', 'u_weatherHue', 'u_whiteLift'];
 
       // Compiles the colour-blend shader into any WebGL context. Used by the
       // studio output and by the landing page's live preview.
@@ -4249,7 +4128,7 @@
         ctx.uniform1i(uniforms.u_veloA, 1);
         ctx.uniform1i(uniforms.u_mainB, 2);
         ctx.uniform1i(uniforms.u_veloB, 3);
-        return { program, uniforms, textures };
+        return { uniforms, textures };
       }
 
       const blendPipeline = createBlendPipeline(gl);
@@ -4352,11 +4231,6 @@
 
       async function startAutoPreload() {
         if (preloading || preloaded) return;
-        if (outputCodeArt) {
-          await startCodeArtOutput();
-          return;
-        }
-        loadingContinue.hidden = false;
         loadingError.classList.remove('active');
         loadingOverlay.classList.remove('done');
         loadingOverlay.classList.add('active');
@@ -4433,38 +4307,6 @@
           console.error('Preload failed:', err);
           loadingError.classList.add('active');
           loadingErrorMsg.textContent = "The artwork couldn't load. Check your connection, or play it while it streams.";
-          loadingStatus.textContent = 'Something went wrong';
-        } finally {
-          preloading = false;
-        }
-      }
-
-      // A code-made art has nothing to download, so it starts drawing at once.
-      async function startCodeArtOutput() {
-        preloading = true;
-        try {
-          const art = await getCodeArt(outputCodeArt, gl);
-          if (!art) throw new Error('This art needs WebGL 2');
-          if (!outputCodeArt || (currentPage !== 2 && currentPage !== 4)) return; // left meanwhile
-          [mainVideo, mainVideoB, veloVideo, veloVideoB].forEach(v => v.pause());
-          loadingOverlay.classList.remove('active');
-          W = 1920; H = 1080;
-          resizeCanvas();
-          if (activeDataMode === 'weather') weatherRateValue.textContent = art.paceFor(lastWeatherReading.kph).toFixed(2);
-          preloaded = true;
-          lastCodeArtFrame = performance.now();
-          if (!running) {
-            running = true;
-            requestAnimationFrame(renderLoop);
-          }
-          if (currentPage === 4 && !pageWeather.classList.contains('revealed')) playWeatherIntro();
-        } catch (err) {
-          console.error('Code art failed:', err);
-          loadingOverlay.classList.remove('done');
-          loadingOverlay.classList.add('active');
-          loadingError.classList.add('active');
-          loadingContinue.hidden = true; // there is no video to fall back to
-          loadingErrorMsg.textContent = "This artwork couldn't start: it needs WebGL 2, which this browser doesn't have turned on.";
           loadingStatus.textContent = 'Something went wrong';
         } finally {
           preloading = false;
@@ -4619,12 +4461,6 @@
       qualitySld.addEventListener('input', () => { qualityAmt = parseFloat(qualitySld.value); qualityVal.textContent = qualityAmt.toFixed(2); resizeCanvas(); });
 
       function startPlayback() {
-        if (outputCodeArt) {
-          if (!preloaded) return;
-          lastCodeArtFrame = performance.now();
-          if (!running) { running = true; requestAnimationFrame(renderLoop); }
-          return;
-        }
         if (!mainReady || !veloReady) { setTimeout(startPlayback, 200); return; }
         setAllPlaybackRates(activeDataMode === 'weather' ? weatherPlaybackRate : 1);
         const primaryMain = primaryIsA ? mainVideo : mainVideoB;
@@ -4655,9 +4491,9 @@
         const pB = softBlend(wPresent), lB = softBlend(wLate), aB = hardForce(wAbsent);
         const noA = wAbsent <= 0, noL = wLate <= 0, noP = wPresent <= 0;
 
-        boxPresent.style.boxShadow = pB > 0 ? `0 0 0 2px rgba(223,33,65,${0.2 + pB * 0.5})` : '';
+        boxPresent.style.boxShadow = pB > 0 ? `0 0 0 2px rgba(34, 164, 71,${0.2 + pB * 0.5})` : '';
         boxLate.style.boxShadow = lB > 0 ? `0 0 0 2px rgba(37,99,235,${0.2 + lB * 0.5})` : '';
-        boxAbsent.style.boxShadow = aB > 0 ? `0 0 0 2px rgba(220,38,38,0.7)` : '';
+        boxAbsent.style.boxShadow = aB > 0 ? `0 0 0 2px rgba(10,13,18,0.7)` : '';
 
         boxPresent.classList.toggle('zeroed', noP);
         boxLate.classList.toggle('zeroed', noL);
@@ -4675,9 +4511,9 @@
         else { tagAbsent.className = 'blend-tag absent' + (aB > 0 ? ' show' : ''); tagAbsent.textContent = 'FULL'; }
 
         let aBlend = 0, aColor = '', aLabel = '', aHard = false;
-        if (pB > 0) { aBlend = pB; aLabel = 'Present (white)'; aColor = '#DF2141'; }
-        else if (lB > 0) { aBlend = lB; aLabel = 'Late (grey)'; aColor = '#2563eb'; }
-        else if (aB > 0) { aBlend = 1; aLabel = 'Absent (black)'; aColor = '#dc2626'; aHard = true; }
+        if (pB > 0) { aBlend = pB; aLabel = 'Present (white)'; aColor = '#22a447'; }
+        else if (lB > 0) { aBlend = lB; aLabel = 'Late (grey)'; aColor = '#6b7280'; }
+        else if (aB > 0) { aBlend = 1; aLabel = 'Absent (black)'; aColor = '#0a0d12'; aHard = true; }
 
         if (aBlend > 0) {
           blendBanner.classList.add('active');
@@ -4743,22 +4579,14 @@
         if (histFrameCounter++ % HIST_RECOMPUTE_EVERY !== 0) {
           return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange };
         }
+        const veloSource = primaryIsA ? veloVideo : veloVideoB;
+        const mainSource = primaryIsA ? mainVideo : mainVideoB;
         let imgData, mainData;
         try {
-          const art = outputArt();
-          if (art) {
-            // The art hands back both its passes, scaled down, pixel for pixel
-            // alike: the last read finished, so drawing never waits on it.
-            const small = art.readSmall(HIST_W, HIST_H);
-            if (!small) return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange };
-            imgData = { data: small.velocity };
-            mainData = { data: small.main };
-          } else {
-            histCtx.drawImage(primaryIsA ? veloVideo : veloVideoB, 0, 0, HIST_W, HIST_H);
-            histMainCtx.drawImage(primaryIsA ? mainVideo : mainVideoB, 0, 0, HIST_W, HIST_H);
-            imgData = histCtx.getImageData(0, 0, HIST_W, HIST_H);
-            mainData = histMainCtx.getImageData(0, 0, HIST_W, HIST_H);
-          }
+          histCtx.drawImage(veloSource, 0, 0, HIST_W, HIST_H);
+          histMainCtx.drawImage(mainSource, 0, 0, HIST_W, HIST_H);
+          imgData = histCtx.getImageData(0, 0, HIST_W, HIST_H);
+          mainData = histMainCtx.getImageData(0, 0, HIST_W, HIST_H);
         } catch (e) { return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange }; }
 
         const px = imgData.data;
@@ -4856,53 +4684,7 @@
         }
       }
 
-      function easeWeatherHue() {
-        let weatherHueDelta = weatherHueTarget - weatherHueCurrent;
-        if (weatherHueDelta > 0.5) weatherHueDelta -= 1;
-        if (weatherHueDelta < -0.5) weatherHueDelta += 1;
-        weatherHueCurrent += weatherHueDelta * 0.08;
-      }
-
-      // The output for a code-made art: it draws its next frame, which is
-      // coloured by the same blend as a video's.
-      function renderCodeArt() {
-        const art = outputArt();
-        if (!art || !preloaded) return;
-        const now = performance.now();
-        const dt = (now - lastCodeArtFrame) / 1000;
-        lastCodeArtFrame = now;
-        const isWeather = activeDataMode === 'weather';
-        art.resize(PW, PH);
-        art.setWind(isWeather ? lastWeatherReading.kph : null);
-        art.render(dt);
-
-        const { b1, b2, softRange } = computeBoundariesCached();
-
-        // The art's one texture holds both halves, so it serves as both.
-        gl.useProgram(blendPipeline.program);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, art.texture);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, art.texture);
-
-        easeWeatherHue();
-        setBlendUniforms(gl, U, currentBlendParams({
-          cross: 0, b1, b2, softRange,
-          packed: true, seam: 0.25 / art.height, rich: true,
-          weatherMode: isWeather,
-          weatherHue: weatherHueCurrent,
-          ...RICH_GRADE
-        }));
-
-        gl.viewport(0, 0, PW, PH);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      }
-
       function render() {
-        if (outputCodeArt) {
-          renderCodeArt();
-          return;
-        }
         if (!mainReady || !veloReady) return;
         if (mainVideo.readyState < 2 || veloVideo.readyState < 2) return;
 
@@ -4935,10 +4717,12 @@
           try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, secondaryVelo); } catch (e) { }
         }
 
-        easeWeatherHue();
+        let weatherHueDelta = weatherHueTarget - weatherHueCurrent;
+        if (weatherHueDelta > 0.5) weatherHueDelta -= 1;
+        if (weatherHueDelta < -0.5) weatherHueDelta += 1;
+        weatherHueCurrent += weatherHueDelta * 0.08;
 
         const isWeather = activeDataMode === 'weather';
-        gl.useProgram(blendPipeline.program); // a code-made art may have drawn with its own
         setBlendUniforms(gl, U, currentBlendParams({
           cross: currentCross, b1, b2, softRange,
           weatherMode: isWeather,
@@ -4957,8 +4741,7 @@
           colorAbsent, colorLate, colorPresent, wAbsent, wLate, wPresent,
           maskAmt, mixAmt, vibrancyAmt,
           sat: satAdj, vib: vibAdj, hl: hlAdj, sh: shAdj, br: brAdj, ct: ctAdj,
-          mood, weatherMode: false, weatherHue: weatherHueCurrent, whiteLift: 0,
-          packed: false, seam: 0, rich: false
+          mood, weatherMode: false, weatherHue: weatherHueCurrent, whiteLift: 0
         }, overrides);
       }
 
@@ -5005,13 +4788,10 @@
         ctx.uniform1f(u.u_weatherMode, p.weatherMode ? 1 : 0);
         ctx.uniform1f(u.u_weatherHue, p.weatherHue);
         ctx.uniform1f(u.u_whiteLift, p.whiteLift);
-        ctx.uniform1f(u.u_packed, p.packed ? 1 : 0);
-        ctx.uniform1f(u.u_seam, p.seam);
-        ctx.uniform1f(u.u_rich, p.rich ? 1 : 0);
       }
 
       function checkSync() {
-        if (!running || outputCodeArt) return;
+        if (!running) return;
         const now = performance.now();
         if (now - lastSyncCheck < 1000) return;
         lastSyncCheck = now;
@@ -5069,9 +4849,9 @@
       const lpTimeline = document.getElementById('lpTimeline');
       const lpTimelineFill = document.getElementById('lpTimelineFill');
 
-      // WebGL 2 where there is one: the code-made arts need it.
-      const previewOptions = { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false };
-      const pgl = lpPreviewCanvas.getContext('webgl2', previewOptions) || lpPreviewCanvas.getContext('webgl', previewOptions);
+      const pgl = lpPreviewCanvas.getContext('webgl', {
+        alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false
+      });
       const previewPipeline = pgl ? createBlendPipeline(pgl) : null;
 
       // Fixed zone boundaries for the attendance preview (the studio derives
@@ -5084,13 +4864,6 @@
       let previewLoopId = null;
       let previewHasFrame = false;
       let previewWeatherFetched = false;
-      let previewCodeArt = null; // the code-made art the preview shows, once it's made
-      let previewCodeLast = 0;
-
-      // Whether the preview shows a code-made art (live) rather than a video.
-      function isCodePreview() {
-        return !!(previewCard && previewCard.dataset.codeArt);
-      }
 
       function formatTime(sec) {
         if (!Number.isFinite(sec)) return '0:00';
@@ -5139,11 +4912,8 @@
       function loadLandingPreview(card) {
         previewCard = card;
         const isClock = !!card.dataset.clockArt;
-        const codeArtId = card.dataset.codeArt;
         lpVideoFrame.classList.toggle('is-clock', isClock);
-        lpVideoFrame.classList.toggle('is-live', !!codeArtId);
-        document.getElementById('lpBadge').textContent = (isClock || codeArtId) ? 'Live Preview' : 'Video Preview';
-        previewCodeArt = null;
+        document.getElementById('lpBadge').textContent = isClock ? 'Live Preview' : 'Video Preview';
         if (isClock) {
           lpPreviewVideo.pause();
           lpPreviewVelo.pause();
@@ -5162,22 +4932,6 @@
         if (pgl) {
           pgl.clearColor(0.953, 0.953, 0.953, 1);
           pgl.clear(pgl.COLOR_BUFFER_BIT);
-        }
-
-        if (codeArtId) {
-          lpPreviewVideo.pause();
-          lpPreviewVelo.pause();
-          getCodeArt(codeArtId, pgl).then(art => {
-            if (previewCard !== card) return;
-            if (!art) {
-              showPreviewError('This art needs WebGL 2, which this browser doesn’t have turned on.');
-              return;
-            }
-            previewCodeArt = art;
-            if (selectedDataMode() === 'weather') refreshPreviewWeather();
-            if (currentPage === 1 || currentPage === 0) playLandingPreview();
-          });
-          return;
         }
 
         const mainSrc = videoUrl(card.dataset.main);
@@ -5202,13 +4956,6 @@
       function playLandingPreview() {
         if (previewCard && previewCard.dataset.clockArt) {
           showClockPreview();
-          return;
-        }
-        if (isCodePreview()) {
-          if (!previewCodeArt) return; // still being made; it plays once it is
-          setPreviewPausedUI(previewUserPaused);
-          previewCodeLast = performance.now();
-          if (!previewLoopId) previewLoopId = requestAnimationFrame(previewLoop);
           return;
         }
         if (previewUserPaused || !previewCard) return;
@@ -5244,7 +4991,6 @@
 
         const mode = selectedDataMode();
         const card = previewCard;
-        pgl.useProgram(previewPipeline.program); // a code-made art may have drawn with its own
         setBlendUniforms(pgl, previewPipeline.uniforms, currentBlendParams({
           ...PREVIEW_ZONES,
           // No velocity pass (Garden): show the render as-is.
@@ -5264,53 +5010,8 @@
         }
       }
 
-      // A code-made art's preview: its next frame, through the same colour
-      // blend as the output. Paused, it redraws the same moment.
-      function drawCodeArtPreview() {
-        const art = previewCodeArt;
-        if (!previewPipeline || !art) return;
-        const now = performance.now();
-        const dt = previewUserPaused ? 0 : (now - previewCodeLast) / 1000;
-        previewCodeLast = now;
-        const mode = selectedDataMode();
-        art.resize(lpPreviewCanvas.width, lpPreviewCanvas.height);
-        art.setWind(mode === 'weather' ? lastWeatherReading.kph : null);
-        art.render(dt);
-
-        pgl.useProgram(previewPipeline.program);
-        pgl.activeTexture(pgl.TEXTURE0);
-        pgl.bindTexture(pgl.TEXTURE_2D, art.texture);
-        pgl.activeTexture(pgl.TEXTURE1);
-        pgl.bindTexture(pgl.TEXTURE_2D, art.texture);
-
-        const card = previewCard;
-        setBlendUniforms(pgl, previewPipeline.uniforms, currentBlendParams({
-          ...PREVIEW_ZONES,
-          packed: true, seam: 0.25 / art.height, rich: true,
-          weatherMode: mode === 'weather',
-          weatherHue: hueForTemp((lastWeatherReading && lastWeatherReading.tempC) ?? DEFAULT_PREVIEW_TEMP),
-          ...RICH_GRADE
-        }));
-        pgl.viewport(0, 0, lpPreviewCanvas.width, lpPreviewCanvas.height);
-        pgl.drawArrays(pgl.TRIANGLE_STRIP, 0, 4);
-
-        lpTime.textContent = 'Live';
-        if (!previewHasFrame) {
-          previewHasFrame = true;
-          lpVideoFrame.classList.add('has-frame');
-        }
-      }
-
       function previewLoop() {
         previewLoopId = null;
-        if (isCodePreview()) {
-          drawCodeArtPreview();
-          // Only while the landing shows: a stray refresh mustn't restart it elsewhere.
-          if (!previewUserPaused && (currentPage === 1 || currentPage === 0)) {
-            previewLoopId = requestAnimationFrame(previewLoop);
-          }
-          return;
-        }
         if (lpPreviewVelo.getAttribute('src') && !lpPreviewVideo.paused &&
           Math.abs(lpPreviewVelo.currentTime - lpPreviewVideo.currentTime) > 0.15) {
           try { lpPreviewVelo.currentTime = lpPreviewVideo.currentTime; } catch (e) { }
@@ -5331,8 +5032,8 @@
         lpPlayBtn.setAttribute('aria-label', paused ? 'Play preview' : 'Pause preview');
       }
 
-      lpPreviewVideo.addEventListener('play', () => { if (!isCodePreview()) setPreviewPausedUI(false); });
-      lpPreviewVideo.addEventListener('pause', () => { if (!isCodePreview()) setPreviewPausedUI(true); });
+      lpPreviewVideo.addEventListener('play', () => setPreviewPausedUI(false));
+      lpPreviewVideo.addEventListener('pause', () => setPreviewPausedUI(true));
       // Redraw once (e.g. new data colours, a new frame while paused).
       function refreshLandingPreview() {
         if (selectedDataMode() === 'weather') refreshPreviewWeather();
@@ -5344,23 +5045,21 @@
       });
 
       // A video that can't play would otherwise leave "Loading" up forever.
-      function showPreviewError(message) {
+      function showPreviewError() {
         lpVideoFrame.classList.add('has-error');
-        lpLoading.textContent = message || 'This video can’t load right now. Check your connection and try again.';
+        lpLoading.textContent = 'This video can’t load right now. Check your connection and try again.';
       }
       [lpPreviewVideo, lpPreviewVelo].forEach(video => {
-        video.addEventListener('error', () => { if (video.getAttribute('src') && !isCodePreview()) showPreviewError(); });
+        video.addEventListener('error', () => { if (video.getAttribute('src')) showPreviewError(); });
       });
 
       lpPlayBtn.addEventListener('click', () => {
-        const paused = isCodePreview() ? previewUserPaused : lpPreviewVideo.paused;
-        if (paused) {
+        if (lpPreviewVideo.paused) {
           previewUserPaused = false;
           playLandingPreview();
         } else {
           previewUserPaused = true;
           pauseLandingPreview();
-          if (isCodePreview()) setPreviewPausedUI(true);
         }
       });
 
