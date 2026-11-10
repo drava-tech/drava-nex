@@ -28,10 +28,13 @@ import {
   Layers,
   Loader2,
   Mail,
+  Play,
   Presentation,
   RefreshCw,
   Search,
   Video,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import {
@@ -604,6 +607,8 @@ export function PublishBoard({
 
   /** The slide wearing the "this is what a swipe publishes" glow. */
   const centredKeyRef = useRef<string | null>(null);
+  /** The one video card playing its preview; a single <video> is mounted at a time. */
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
 
   /** Caches static layout centers (offsetLeft + offsetWidth / 2) so scroll frames do not force DOM layout reads per card. */
   const cachedCentersRef = useRef<Map<string, number>>(new Map());
@@ -683,6 +688,9 @@ export function PublishBoard({
       if (centredKeyRef.current) slideRefs.current.get(centredKeyRef.current)?.removeAttribute("data-centred");
       slideRefs.current.get(nearestKey)?.setAttribute("data-centred", "true");
       centredKeyRef.current = nearestKey;
+      // Moving on to another card ends the preview of the one left behind.
+      const centred = nearestKey;
+      setPreviewKey((k) => (k && k !== centred ? null : k));
     }
     if (nearestKey) saveSnapshot({ centredCardKey: nearestKey });
   }, [saveSnapshot]);
@@ -1406,6 +1414,8 @@ export function PublishBoard({
                       pushing={pushingId === card.id}
                       onPublish={triggerPublish}
                       scheduledIn={scheduleInfo.byContent.get(card.id)}
+                      previewing={previewKey === key}
+                      onPreview={(on) => setPreviewKey(on ? key : null)}
                     />
                   </div>
                 );
@@ -1647,12 +1657,17 @@ function SwipeCard({
   pushing,
   onPublish,
   scheduledIn,
+  previewing,
+  onPreview,
 }: {
   card: ContentCard;
   pushing?: boolean;
   onPublish: (card: ContentCard) => void;
   /** The schedules this card's content is in, for its "Scheduled" tag. */
   scheduledIn?: ContentSchedule[];
+  /** A video card playing its preview in place. */
+  previewing?: boolean;
+  onPreview?: (on: boolean) => void;
 }) {
   const y = useMotionValue(0);
   const opacity = useMotionValue(1);
@@ -1666,6 +1681,7 @@ function SwipeCard({
     if (swipedUp) {
       animate(y, -400, { duration: 0.22, ease: "easeIn" });
       animate(opacity, 0, { duration: 0.22 });
+      if (previewing) onPreview?.(false);
       onPublish(card);
       window.setTimeout(() => {
         y.set(0);
@@ -1685,7 +1701,13 @@ function SwipeCard({
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       className="cursor-grab active:cursor-grabbing"
     >
-      <CardVisual card={card} pushing={pushing} scheduledIn={scheduledIn} />
+      <CardVisual
+        card={card}
+        pushing={pushing}
+        scheduledIn={scheduledIn}
+        previewing={previewing}
+        onPreview={onPreview}
+      />
     </motion.div>
   );
 }
@@ -1706,10 +1728,14 @@ function CardVisual({
   card,
   pushing,
   scheduledIn,
+  previewing,
+  onPreview,
 }: {
   card: ContentCard;
   pushing?: boolean;
   scheduledIn?: ContentSchedule[];
+  previewing?: boolean;
+  onPreview?: (on: boolean) => void;
 }) {
   const FileIcon =
     card.type === "experience" || card.type === "image" || card.type === "video"
@@ -1726,6 +1752,8 @@ function CardVisual({
     frameRef,
   );
   const picture = card.thumbnail ?? frame;
+  const canPreview = card.type === "video" && !!card.videoUrl && !!onPreview;
+  const tap = useTap();
   return (
     // The centred card (the one a swipe up publishes) stands out in lime.
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm transition-[box-shadow,border-color] duration-300 group-data-[centred=true]/slide:border-primary group-data-[centred=true]/slide:shadow-[0_0_0_1px_var(--primary),0_12px_48px_-4px_color-mix(in_srgb,var(--primary)_55%,transparent)] dark:bg-[#111]">
@@ -1750,7 +1778,26 @@ function CardVisual({
             )}
           </div>
         )}
-        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+        {canPreview && previewing && !pushing && (
+          <VideoPreview
+            url={card.videoUrl!}
+            poster={picture}
+            title={card.title}
+            onClose={() => onPreview!(false)}
+          />
+        )}
+        {canPreview && !previewing && !pushing && (
+          <button
+            type="button"
+            {...tap.handlers(() => onPreview!(true))}
+            aria-label={`Play a preview of ${card.title}`}
+            title="Play a preview"
+            className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-black/20 transition-transform hover:scale-110"
+          >
+            <Play className="ml-0.5 h-5 w-5 fill-current" />
+          </button>
+        )}
+        <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-[2] flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
           {card.type === "video" ? (
             <Video className="h-2.5 w-2.5" />
           ) : card.type === "image" ? (
@@ -1764,9 +1811,9 @@ function CardVisual({
             ? "portfolio"
             : MEDIA_TYPE_LABELS[card.type]}
         </div>
-        <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 shadow" />
+        <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 z-[2] shadow" />
         {pushing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <div className="absolute inset-0 z-[3] flex items-center justify-center bg-black/40">
             <Loader2 className="h-5 w-5 animate-spin text-white" />
           </div>
         )}
@@ -1778,6 +1825,188 @@ function CardVisual({
         >
           {card.title}
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Playing a video card before it's pushed ─────────────────────────────────
+
+/**
+ * Clicks that are taps, not the end of a drag: the card swipes up to publish and
+ * the carousel drags sideways, and neither should press a button on the way.
+ */
+function useTap() {
+  const down = useRef<{ x: number; y: number } | null>(null);
+  return {
+    handlers: (fn: () => void) => ({
+      onPointerDown: (e: React.PointerEvent) => {
+        down.current = { x: e.clientX, y: e.clientY };
+      },
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const d = down.current;
+        down.current = null;
+        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) return;
+        fn();
+      },
+    }),
+  };
+}
+
+const clock = (t: number) => {
+  if (!Number.isFinite(t) || t < 0) return "0:00";
+  const m = Math.floor(t / 60);
+  return `${m}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+};
+
+/**
+ * The video playing in its card, muted to start: tap to pause, a sound
+ * switch, a scrubber, and a close. Mounted only while previewing, so the
+ * carousel never holds more than one video decoder.
+ */
+function VideoPreview({
+  url,
+  poster,
+  title,
+  onClose,
+}: {
+  url: string;
+  poster: string | null;
+  title: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [playing, setPlaying] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const tap = useTap();
+  // The scrubber keeps its pointer. It's stopped natively because the card's
+  // swipe and the carousel's drag listen natively too (React's is too late).
+  const scrubRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrubRef.current;
+    if (!el) return;
+    const stop = (e: Event) => e.stopPropagation();
+    el.addEventListener("pointerdown", stop);
+    return () => el.removeEventListener("pointerdown", stop);
+  }, []);
+
+  useEffect(() => {
+    const v = ref.current;
+    return () => {
+      // Let the decoder go as soon as the preview closes.
+      if (v) {
+        v.pause();
+        v.removeAttribute("src");
+        v.load();
+      }
+    };
+  }, []);
+
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.paused) void v.play().catch(() => setPlaying(false));
+    else v.pause();
+  };
+  const seek = (e: React.PointerEvent<HTMLDivElement>) => {
+    const v = ref.current;
+    if (!v || !duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    v.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
+  };
+
+  return (
+    <div className="absolute inset-0 z-[1] bg-black">
+      <video
+        ref={ref}
+        src={url}
+        poster={poster ?? undefined}
+        autoPlay
+        loop
+        muted={muted}
+        playsInline
+        preload="auto"
+        aria-label={`Preview of ${title}`}
+        className="h-full w-full object-contain"
+        {...tap.handlers(toggle)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onError={() => setFailed(true)}
+      />
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-white/80">
+          This video can&apos;t be played here.
+        </div>
+      ) : (
+        !playing && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white">
+              <Play className="ml-0.5 h-5 w-5 fill-current" />
+            </span>
+          </div>
+        )
+      )}
+      <div className="absolute right-1.5 top-1.5 z-[2] flex items-center gap-1">
+        <button
+          type="button"
+          {...tap.handlers(() => setMuted((m) => !m))}
+          aria-label={muted ? "Turn the sound on" : "Mute"}
+          title={muted ? "Sound on" : "Mute"}
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+        >
+          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          {...tap.handlers(onClose)}
+          aria-label="Stop the preview"
+          title="Stop the preview"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Scrubber. Its pointer stays its own so dragging it doesn't swipe the card. */}
+      <div className="absolute inset-x-0 bottom-0 z-[2] flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-1.5 pt-5 pl-[5.5rem] text-[10px] tabular-nums text-white/90">
+        <div
+          ref={scrubRef}
+          role="slider"
+          aria-label="Position in the video"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(time)}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            seek(e);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) seek(e);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            const v = ref.current;
+            if (!v) return;
+            if (e.key === "ArrowRight") v.currentTime = Math.min(duration, v.currentTime + 5);
+            if (e.key === "ArrowLeft") v.currentTime = Math.max(0, v.currentTime - 5);
+          }}
+          className="relative h-3 flex-1 cursor-pointer touch-none"
+        >
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/30" />
+          <div
+            className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
+            style={{ width: duration ? `${(time / duration) * 100}%` : "0%" }}
+          />
+        </div>
+        <span className="shrink-0">
+          {clock(time)} / {clock(duration)}
+        </span>
       </div>
     </div>
   );
