@@ -1,0 +1,8 @@
+{
+  "direct_samples": 64,
+  "ao_samples": 16,
+  "diffuse_bounces": 2,
+  "samples_per_bounce": 16,
+  "seconds": 103.8,
+  "output_bytes": 2094132
+}

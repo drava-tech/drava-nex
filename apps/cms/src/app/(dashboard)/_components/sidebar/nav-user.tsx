@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@platform/ui";
-import { BookOpen, ChevronsUpDown, LogOut, Moon, Sun, UserCog } from "lucide-react";
+import { ChevronsUpDown, CircleHelp, LogOut, Moon, Sun, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { signOut } from "@/lib/auth-client";
@@ -25,6 +25,7 @@ export function NavUser({
   user,
   isGuestMode,
   onToggleGuestMode,
+  roleLabel,
 }: {
   user: {
     name: string;
@@ -32,7 +33,10 @@ export function NavUser({
     avatar: string;
   };
   isGuestMode: boolean;
-  onToggleGuestMode: () => void;
+  /** Admins only: the demo "guest mode". Not offered to Users, who already see the simple menu. */
+  onToggleGuestMode?: () => void;
+  /** "Super admin" / "Admin" / "User", shown in the account menu. */
+  roleLabel?: string;
 }) {
   const { isMobile } = useSidebar();
   const router = useRouter();
@@ -59,11 +63,11 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="rounded-full hover:bg-transparent data-[state=open]:bg-transparent"
+              className="rounded-full hover:bg-transparent data-[state=open]:bg-transparent group-data-[collapsible=icon]:!rounded-lg group-data-[collapsible=icon]:!border-0"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                <AvatarFallback className="rounded-lg btn-active">{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
@@ -82,11 +86,12 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg btn-active">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="truncate text-xs">{user.email}</span>
+                  {roleLabel && <span className="truncate text-[11px] text-primary-ink">{roleLabel}</span>}
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -96,13 +101,15 @@ export function NavUser({
                 onClick={() => window.open("/docs", "_blank", "noopener,noreferrer")}
                 className="cursor-pointer"
               >
-                <BookOpen />
-                Docs
+                <CircleHelp />
+                Help
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
-                <UserCog />
-                {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
-              </DropdownMenuItem>
+              {onToggleGuestMode && (
+                <DropdownMenuItem onClick={onToggleGuestMode} className="cursor-pointer">
+                  <UserCog />
+                  {isGuestMode ? "Switch to Full Mode" : "Switch to Guest Mode"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => setTheme(theme === "light" ? "dark" : "light")}
                 className="cursor-pointer"

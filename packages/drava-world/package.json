@@ -1,0 +1,23 @@
+{
+  "name": "@platform/drava-world",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drava World (the virtual Experience Centre) — a replica of the drava-world app, built as static pages the CMS serves under /drava-world/.",
+  "scripts": {
+    "serve": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@fontsource/geist-sans": "^5.3.0",
+    "@fontsource/instrument-sans": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/poppins": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
+    "lucide": "^1.49.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0"
+  }
+}

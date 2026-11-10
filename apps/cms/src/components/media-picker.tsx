@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { X, Upload, Loader2, ImageIcon } from "lucide-react";
-import { mediaThumbnailSrc } from "@/lib/media-tiles";
+import { X, Upload, Loader2, ImageIcon, Check } from "lucide-react";
+import { MediaThumb } from "@/components/media-thumb";
 
 interface MediaItem {
   id: string;
@@ -33,6 +33,9 @@ export interface MediaPickerItem {
  *   selecting — controlled by `multi`. When set, the picker stays open after
  *               each pick (onSelect fires per click) so the caller can collect
  *               several; "Done" closes it. Otherwise the first pick closes it.
+ *               With onUnselectItem, a click on a picked tile takes it back
+ *               off instead of adding it again, and `pickedIds` opens the
+ *               picker with what the caller already has marked as picked.
  */
 export function MediaPicker({
   open,
@@ -41,15 +44,24 @@ export function MediaPicker({
   onSelectItem,
   accept = "image",
   multi = false,
+  pickedIds,
+  onUnselectItem,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect?: (url: string) => void;
   onSelectItem?: (item: MediaPickerItem) => void;
-  accept?: "image" | "video" | "all";
+  /** "visual" = images and videos only (e.g. a screen schedule's queue). */
+  accept?: "image" | "video" | "visual" | "all";
   multi?: boolean;
+  /** Multi only: ids already chosen (repeats count), shown as picked on open. */
+  pickedIds?: string[];
+  /** Multi only: clicking a picked tile unpicks it, and this is called. */
+  onUnselectItem?: (item: MediaPickerItem) => void;
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
+  /** For accept="visual": show both, or just images, or just videos. */
+  const [kind, setKind] = useState<"all" | "image" | "video">("all");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   /** Drives the "Uploading 2/5" label — null when idle. */
@@ -57,6 +69,21 @@ export function MediaPicker({
   /** Per-file failures from the last batch; the successful ones still land. */
   const [failed, setFailed] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** In multi mode: how many times each item was picked since the picker opened. */
+  const [picked, setPicked] = useState<Map<string, number>>(new Map());
+  // Seeded on open only; while open, the picker keeps its own count.
+  const pickedIdsRef = useRef(pickedIds);
+  pickedIdsRef.current = pickedIds;
+  useEffect(() => {
+    if (open) {
+      const seed = new Map<string, number>();
+      for (const id of pickedIdsRef.current ?? []) seed.set(id, (seed.get(id) ?? 0) + 1);
+      setPicked(seed);
+      setKind("all");
+    }
+  }, [open]);
+  const pickedTotal = [...picked.values()].reduce((a, b) => a + b, 0);
+  const toggles = multi && !!onUnselectItem;
 
   /** Keyset cursor for the next page, or null once the list is exhausted. */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -77,7 +104,8 @@ export function MediaPicker({
         // product-media-editor.tsx opens this picker with accept="all"
         // specifically to attach a brochure (PDF/docx/xlsx/pptx), so narrowing
         // it here made every document in the library unselectable.
-        if (accept !== "all") params.set("types", accept);
+        if (accept === "visual") params.set("types", kind === "all" ? "image,video" : kind);
+        else if (accept !== "all") params.set("types", accept);
         if (cursor) params.set("cursor", cursor);
         const res = await fetch(`/api/media?${params.toString()}`);
         const data = res.ok ? await res.json() : null;
@@ -91,7 +119,7 @@ export function MediaPicker({
         setLoadingMore(false);
       }
     },
-    [accept],
+    [accept, kind],
   );
 
   useEffect(() => {
@@ -115,6 +143,8 @@ export function MediaPicker({
   const uploadAccept =
     accept === "video"
       ? "video/*"
+      : accept === "visual"
+        ? "image/*,video/*"
       : accept === "all"
         ? "image/*,video/*,application/pdf,.xlsx,.csv,.pptx,.docx"
         : "image/*";
@@ -181,7 +211,33 @@ export function MediaPicker({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-3 p-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Select media</h2>
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-foreground">Select media</h2>
+            {accept === "visual" && (
+              <div role="tablist" aria-label="Show" className="flex items-center gap-1 rounded-full bg-muted p-0.5">
+                {(
+                  [
+                    ["all", "All"],
+                    ["image", "Images"],
+                    ["video", "Videos"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={kind === value}
+                    onClick={() => setKind(value)}
+                    className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                      kind === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="file"
@@ -195,7 +251,7 @@ export function MediaPicker({
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               title="Select one or more files"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full btn-primary text-xs font-normal disabled:opacity-50 transition-colors"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
@@ -203,9 +259,9 @@ export function MediaPicker({
             {multi ? (
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 rounded-lg bg-[#4DDD00] text-black text-xs font-semibold hover:bg-[#4DDD00]/90 transition-colors"
+                className="px-3 py-1.5 rounded-full btn-surface text-xs font-normal transition-colors"
               >
-                Done
+                {pickedTotal > 0 ? `Done · ${pickedTotal} ${toggles ? "selected" : "added"}` : "Done"}
               </button>
             ) : null}
             <button
@@ -244,28 +300,54 @@ export function MediaPicker({
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {visible.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    onSelect?.(m.url);
-                    onSelectItem?.(m);
-                    if (!multi) onClose();
-                  }}
-                  className="group relative aspect-video rounded-xl overflow-hidden border border-border hover:border-primary hover:ring-2 hover:ring-primary/20 transition-all"
-                  title={m.name}
-                >
-                  {m.type === "video" ? (
-                    <video src={m.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={mediaThumbnailSrc(m)} alt={m.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                  )}
-                  <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[10px] text-white bg-black/50 truncate text-left">
-                    {m.name}
-                  </span>
-                </button>
-              ))}
+              {visible.map((m) => {
+                const count = picked.get(m.id) ?? 0;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      if (toggles && count > 0) {
+                        onUnselectItem?.(m);
+                        setPicked((prev) => {
+                          const next = new Map(prev);
+                          next.delete(m.id);
+                          return next;
+                        });
+                        return;
+                      }
+                      onSelect?.(m.url);
+                      onSelectItem?.(m);
+                      if (!multi) onClose();
+                      else setPicked((prev) => new Map(prev).set(m.id, (prev.get(m.id) ?? 0) + 1));
+                    }}
+                    aria-pressed={multi ? count > 0 : undefined}
+                    aria-label={count > 0 ? `${m.name}, added${count > 1 ? ` ${count} times` : ""}` : m.name}
+                    title={toggles && count > 0 ? `${m.name} · click to remove` : m.name}
+                    className={`group relative aspect-video overflow-hidden rounded-xl border transition-all ${
+                      count > 0
+                        ? "border-primary ring-2 ring-primary/50"
+                        : "border-border hover:border-primary/60 hover:ring-2 hover:ring-primary/20"
+                    }`}
+                  >
+                    {/* The thumbnail; for a video without one, its first frame; an icon otherwise. */}
+                    <MediaThumb
+                      type={m.type}
+                      src={m.type === "image" ? (m.thumbnailUrl || m.url) : (m.thumbnailUrl ?? null)}
+                      videoSrc={m.type === "video" ? m.url : null}
+                      name={m.name}
+                    />
+                    {count > 0 && (
+                      <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground shadow">
+                        {/* The tick turns into a cross on hover where a click removes it. */}
+                        <Check className={`h-3.5 w-3.5 ${toggles ? "group-hover:hidden" : ""}`} strokeWidth={3} />
+                        {toggles && <X className="hidden h-3.5 w-3.5 group-hover:block" strokeWidth={3} />}
+                        {count > 1 && <span className="tabular-nums">×{count}</span>}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
           {/* Sentinel: the next page loads when this scrolls into view. */}

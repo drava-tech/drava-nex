@@ -5,7 +5,7 @@ import { asc, desc } from "drizzle-orm";
 import { revalidatePath, unstable_cache } from "next/cache";
 import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
-import { extractCoverImage } from "@/lib/extract-cover-image";
+import { experienceCover, extractCoverImage } from "@/lib/extract-cover-image";
 
 // Mutations delegate to the Hono API (the single source of truth); reads stay direct.
 
@@ -69,7 +69,7 @@ const getExperienceCards = unstable_cache(
   async (): Promise<ExperienceCard[]> => {
     const [rows, assignments, mediaRows] = await Promise.all([
       db
-        .select({ id: experience.id, name: experience.name, templateContent: experience.templateContent })
+        .select({ id: experience.id, name: experience.name, templateKey: experience.templateKey, templateContent: experience.templateContent })
         .from(experience)
         .where(isNull(experience.deletedAt))
         .orderBy(asc(experience.position), desc(experience.createdAt)),
@@ -97,7 +97,7 @@ const getExperienceCards = unstable_cache(
 
     return rows.map((r) => {
       const rawCover = extractCoverImage(r.templateContent);
-      const coverImage = rawCover ? (thumbMap.get(rawCover) ?? rawCover) : null;
+      const coverImage = rawCover ? (thumbMap.get(rawCover) ?? rawCover) : experienceCover(null, r.templateKey);
       return {
         id: r.id,
         title: r.name,

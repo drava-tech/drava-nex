@@ -28,6 +28,7 @@ export function DragSlider({
   commitMs = 250,
   onPreview,
   onPreviewEnd,
+  fillClassName = "bg-primary",
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -58,6 +59,8 @@ export function DragSlider({
   onPreview?: (value: number) => void;
   /** The drag ended — tear down whatever onPreview was driving. */
   onPreviewEnd?: () => void;
+  /** Background of the filled part of the track. */
+  fillClassName?: string;
 }) {
   const trackRef = React.useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = React.useState(false);
@@ -132,7 +135,7 @@ export function DragSlider({
     >
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 shadow-inner dark:bg-zinc-800">
         <div
-          className="h-full rounded-full bg-primary"
+          className={`h-full rounded-full ${fillClassName}`}
           style={{ width: `${pct}%`, transition: dragging ? "none" : "width 150ms ease-out" }}
         />
       </div>

@@ -9,6 +9,8 @@ import {
   readFlightSimulationContent,
 } from "@platform/ui/templates/flight-simulation";
 import { GalleryRenderer, readGalleryContent } from "@platform/ui/templates/gallery";
+import { DravaMosaicRenderer } from "@platform/ui/templates/drava-mosaic";
+import { DravaWorldRenderer } from "@platform/ui/templates/drava-world";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -133,6 +135,15 @@ export function ContentRenderer({
       if (content.templateKey === "gallery") {
         const gallery = readGalleryContent(content.templateContent);
         return <GalleryRenderer content={gallery ?? undefined} />;
+      }
+      if (content.templateKey === "drava-mosaic") {
+        // Full-bleed like Flight Simulation: the studio's pages size their own
+        // WebGL canvases to the viewport, so no ScreenStage rescaling.
+        return <DravaMosaicRenderer />;
+      }
+      if (content.templateKey === "drava-world") {
+        // Full-bleed too: Drava World sizes its own WebGL canvas.
+        return <DravaWorldRenderer />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }

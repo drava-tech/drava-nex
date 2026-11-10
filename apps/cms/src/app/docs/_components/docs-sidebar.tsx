@@ -10,7 +10,7 @@ export function DocsSidebar({ activeSlug }: { activeSlug: string }) {
     <aside className="hidden h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar md:flex">
       <div className="flex items-center gap-2 border-b border-sidebar-border px-6 py-5">
         <BookOpen className="h-5 w-5 text-accent" />
-        <span className="font-semibold text-sidebar-foreground">CMS Docs</span>
+        <span className="font-semibold text-sidebar-foreground">Help</span>
       </div>
       <nav className="flex-1 overflow-y-auto px-4 py-6">
         {docsNav.map((section) => (

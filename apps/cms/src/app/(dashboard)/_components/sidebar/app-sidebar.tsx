@@ -10,13 +10,15 @@ import {
   Film,
   Cpu,
   // ScanFace,
-  PenTool,
+  // PenTool,
   Settings2,
+  CalendarClock,
   Send,
   // SquareTerminal,
   // Globe,
 } from "lucide-react";
-import Image from "next/image";
+import { NexLogo } from "@/components/drava-logo";
+import { roleLabel } from "@/lib/roles";
 import {
   Sidebar,
   SidebarContent,
@@ -39,9 +41,36 @@ const ALL_NAV = [
     roles: ["ADMIN", "GUEST"] as string[],
   },
   {
-    title: "Broadcast",
+    title: "Our Story",
     url: "/broadcast",
     icon: Send,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Media",
+    url: "/media",
+    icon: Film,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Screens",
+    url: "/screens",
+    icon: Monitor,
+    roles: ["ADMIN", "GUEST"] as string[],
+    guestModeVisible: true,
+  },
+  {
+    title: "Schedules",
+    url: "/schedules",
+    icon: CalendarClock,
+    roles: ["ADMIN"] as string[],
+  },
+  {
+    title: "Environment",
+    url: "/environment",
+    icon: Cpu,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
   },
@@ -58,20 +87,6 @@ const ALL_NAV = [
   //   icon: Package,
   //   roles: ["ADMIN"] as string[],
   // },
-  {
-    title: "Environment",
-    url: "/environment",
-    icon: Cpu,
-    roles: ["ADMIN"] as string[],
-    guestModeVisible: true,
-  },
-  {
-    title: "Screens",
-    url: "/screens",
-    icon: Monitor,
-    roles: ["ADMIN", "GUEST"] as string[],
-    guestModeVisible: true,
-  },
   // {
   //   title: "Browser",
   //   url: "/browser",
@@ -79,12 +94,14 @@ const ALL_NAV = [
   //   roles: ["ADMIN", "GUEST"] as string[],
   //   guestModeVisible: true,
   // },
-  {
-    title: "Whiteboards",
-    url: "/whiteboards",
-    icon: PenTool,
-    roles: ["ADMIN", "GUEST"] as string[],
-  },
+  // Hidden for now; restore together with the "Draw" item in
+  // whiteboard/whiteboard-overlay.tsx.
+  // {
+  //   title: "Whiteboards",
+  //   url: "/whiteboards",
+  //   icon: PenTool,
+  //   roles: ["ADMIN", "GUEST"] as string[],
+  // },
   // {
   //   title: "Users",
   //   url: "/users",
@@ -97,13 +114,6 @@ const ALL_NAV = [
   //   icon: ScanFace,
   //   roles: ["ADMIN"] as string[],
   // },
-  {
-    title: "Media",
-    url: "/media",
-    icon: Film,
-    roles: ["ADMIN"] as string[],
-    guestModeVisible: true,
-  },
   {
     title: "Settings",
     url: "/settings",
@@ -147,9 +157,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="h-20 items-center justify-center px-4 py-3 group-data-[collapsible=icon]:hidden">
-        <div className="relative aspect-[247.26/74.26] w-35">
-          <Image src="/Logo.svg" alt="Logo" fill className="object-contain" priority sizes="140px" />
-        </div>
+        <NexLogo className="h-12" />
       </SidebarHeader>
       <SidebarContent>
         {isPending ? (
@@ -167,7 +175,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} isGuestMode={isGuestMode} onToggleGuestMode={toggleGuestMode} />
+        <NavUser
+          user={user}
+          isGuestMode={isGuestMode}
+          onToggleGuestMode={effectiveRole === "ADMIN" ? toggleGuestMode : undefined}
+          roleLabel={sessionData?.user ? roleLabel(role) : undefined}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

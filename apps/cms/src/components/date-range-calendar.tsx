@@ -108,11 +108,11 @@ export function DateRangeCalendar({
                 !inMonth ? "text-zinc-300 dark:text-zinc-700" : "text-zinc-700 dark:text-zinc-200"
               } ${
                 isEndpoint
-                  ? "bg-blue-600 font-bold text-white"
+                  ? "bg-primary font-bold text-primary-foreground"
                   : inRange
-                    ? "bg-blue-100 dark:bg-blue-500/20"
+                    ? "bg-primary/15 dark:bg-primary/20"
                     : "hover:bg-zinc-100 dark:hover:bg-white/10"
-              } ${isToday && !isEndpoint ? "ring-1 ring-blue-400" : ""}`}
+              } ${isToday && !isEndpoint ? "ring-1 ring-primary" : ""}`}
             >
               {date.getDate()}
             </button>

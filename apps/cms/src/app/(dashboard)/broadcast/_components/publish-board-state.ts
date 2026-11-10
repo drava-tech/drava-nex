@@ -27,12 +27,16 @@ import type { MediaCardType, MediaItem } from "./publish-board";
 export interface PublishBoardSnapshot {
   filter: "experiences" | "media";
   tagFilter: string | null;
+  /** Experience search text; matches the title or a tag name. "" = no search. */
+  experienceSearch: string;
   mediaTypeFilter: MediaCardType | null;
   emailOnly: boolean;
   /** "" | "YYYY-MM-DD", open-ended if either is empty. */
   mediaDateFrom: string;
   mediaDateTo: string;
   targetIndex: number;
+  /** The screen group the screen list is narrowed to; null = all screens. */
+  groupFilter: string | null;
   /** `${card.type}:${card.id}` of the card nearest the carousel's centre. */
   centredCardKey: string | null;
   /** Cached /api/media rows, so the carousel renders — and can be scrolled
@@ -54,17 +58,24 @@ export interface PublishBoardSnapshot {
 const DEFAULTS: PublishBoardSnapshot = {
   filter: "experiences",
   tagFilter: null,
+  experienceSearch: "",
   mediaTypeFilter: null,
   emailOnly: false,
   mediaDateFrom: "",
   mediaDateTo: "",
   targetIndex: 0,
+  groupFilter: null,
   centredCardKey: null,
   mediaItems: null,
   mediaNextCursor: null,
 };
 
 let snapshot: PublishBoardSnapshot = { ...DEFAULTS };
+
+/** A fresh board's state, for a board that keeps no memory (the Media page's). */
+export function boardDefaults(): PublishBoardSnapshot {
+  return { ...DEFAULTS };
+}
 
 export function readBoardSnapshot(): PublishBoardSnapshot {
   return snapshot;

@@ -56,12 +56,12 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
       if (res.success) {
         router.push("/experiences");
       } else {
-        alert(res.error || "Failed to delete experience.");
+        alert(res.error || "Couldn't delete it from the portfolio.");
         setDeleting(false);
       }
     } catch (err) {
       console.error("Failed to delete experience:", err);
-      alert("An error occurred while deleting the experience.");
+      alert("Something went wrong deleting it from the portfolio.");
       setDeleting(false);
     }
   };

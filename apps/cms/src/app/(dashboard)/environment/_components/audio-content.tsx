@@ -10,6 +10,9 @@ import { noProp } from "./utils";
 // so repeated taps land precisely instead of overshooting.
 const VOLUME_STEP = 2;
 
+// Same surface + shadow as the Climate controls.
+const CTRL_BTN = "bg-[#262626] text-white shadow-[var(--pill-shadow)] hover:bg-[#333333]";
+
 export default function AudioContent({ isExpanded, state, actions }: any) {
   /* ponytail: input selector removed completely per user request; audio panel strictly provides Increase (+), Decrease (-), & Mute options */
   const adjustVolume = (delta: number) => {
@@ -26,7 +29,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
     <div className="flex flex-col h-full z-10 relative text-card-foreground">
       <div className={`flex justify-between items-start shrink-0 ${isExpanded ? "mb-4" : "mb-2"}`}>
         <div className="flex items-center gap-2">
-          <div className={`${isExpanded ? "w-8 h-8" : "w-7 h-7"} rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0`}>
+          <div className={`${isExpanded ? "w-8 h-8" : "w-7 h-7"} rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0`}>
             <SpeakerIcon className={isExpanded ? "w-4 h-4" : "w-3.5 h-3.5"} />
           </div>
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Audio</h3>
@@ -37,7 +40,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
         </div>
       </div>
 
-      <div className={`flex-1 flex flex-col justify-center transition-all duration-150 ${!state.power ? 'opacity-40 grayscale-[0.8] pointer-events-none' : ''}`}>
+      <div className={`flex-1 flex flex-col justify-center transition-all duration-150 ${!state.power ? "opacity-40 grayscale-[0.8] pointer-events-none" : ""}`}>
         {!isExpanded ? (
           <div className="flex min-h-0 flex-1 flex-col justify-center">
             <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 leading-none">
@@ -56,28 +59,28 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
             {/* Center Volume Number & Subtitle */}
             <div className="text-center">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight text-foreground">
+                <span className="text-6xl sm:text-7xl lg:text-8xl font-black tracking-tight text-white">
                   {state.muted ? 0 : state.volume}
                 </span>
-                <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-500/60">%</span>
+                <span className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white/60">%</span>
               </div>
-              <p className="mt-1 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="mt-1 text-[10px] sm:text-xs font-bold text-white/80 uppercase tracking-widest">
                 Master Volume
               </p>
               {/* Which endpoint is actually being driven — reads "Unknown
                   Device" when the native audio bridge isn't connected, which is
                   otherwise indistinguishable from everything working. */}
               {state.device && (
-                <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground/70">
+                <p className="mt-0.5 truncate text-[10px] font-semibold text-white/50">
                   {state.device}
                 </p>
               )}
             </div>
 
-            {/* Glowing Volume Level Bar */}
-            <div className="w-full max-w-sm h-2.5 bg-muted/60 rounded-full overflow-hidden p-0.5 border border-border/40">
+            {/* Volume Level Bar — same black → red as the Climate arc */}
+            <div className="w-full max-w-sm h-2.5 rounded-full overflow-hidden p-0.5 bg-[#262626] shadow-[var(--pill-shadow)]">
               <div
-                className="h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-150 rounded-full shadow-[0_0_12px_rgba(59,130,246,0.5)]"
+                className="h-full rounded-full bg-gradient-to-r from-[#26331f] via-[#5ea83a] to-[#92ff5f] transition-all duration-150"
                 style={{ width: `${state.power && !state.muted ? state.volume : 0}%` }}
               />
             </div>
@@ -89,7 +92,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                 whileTap={{ scale: 0.88 }}
                 onClick={(e) => { noProp(e); adjustVolume(-VOLUME_STEP); }}
                 style={{ touchAction: "manipulation" }}
-                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex flex-col items-center justify-center text-blue-500 transition-all hover:from-blue-500/30 hover:to-blue-500/10 shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
+                className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl flex flex-col items-center justify-center transition-all ${CTRL_BTN}`}
                 aria-label="Decrease volume"
               >
                 <Minus className="w-7 h-7 sm:w-9 sm:h-9" strokeWidth={2.5} />
@@ -100,10 +103,8 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                 whileTap={{ scale: 0.88 }}
                 onClick={(e) => { noProp(e); actions.setMuted(!state.muted); }}
                 style={{ touchAction: "manipulation" }}
-                className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border flex flex-col items-center justify-center gap-1 font-bold transition-all ${
-                  state.muted
-                    ? "bg-red-500/15 text-red-500 border-red-500/40 shadow-[0_4px_20px_rgba(239,68,68,0.3)]"
-                    : "bg-muted/30 text-foreground border-border hover:bg-muted/60 shadow-md"
+                className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl flex flex-col items-center justify-center gap-1 font-bold transition-all ${
+                  state.muted ? "btn-active" : CTRL_BTN
                 }`}
                 aria-label={state.muted ? "Unmute" : "Mute"}
               >
@@ -118,7 +119,7 @@ export default function AudioContent({ isExpanded, state, actions }: any) {
                 whileTap={{ scale: 0.88 }}
                 onClick={(e) => { noProp(e); adjustVolume(VOLUME_STEP); }}
                 style={{ touchAction: "manipulation" }}
-                className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border border-blue-500/30 bg-gradient-to-b from-blue-500/20 to-blue-500/5 flex flex-col items-center justify-center text-blue-500 transition-all hover:from-blue-500/30 hover:to-blue-500/10 shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
+                className={`h-16 w-16 sm:h-20 sm:w-20 rounded-2xl flex flex-col items-center justify-center transition-all ${CTRL_BTN}`}
                 aria-label="Increase volume"
               >
                 <Plus className="w-7 h-7 sm:w-9 sm:h-9" strokeWidth={2.5} />

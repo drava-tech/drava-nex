@@ -14,7 +14,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.thewhitetusker.eccms',
-  appName: 'CMS',
+  appName: 'Nexus',
   webDir: 'www',
   server: {
     // Raw IP, not the `ec-cms` hostname: Android devices on this LAN do not

@@ -1,0 +1,111 @@
+{
+  "project": "White Tusker 50 x 30 four-screen room",
+  "units": "meters",
+  "clear_room_dimensions_ft": [
+    50,
+    30,
+    14
+  ],
+  "clear_room_dimensions_m": [
+    15.24,
+    9.144,
+    4.2672
+  ],
+  "wall_thickness_m": 0.15,
+  "wall_screens": [
+    {
+      "name": "Screen_Front_Left",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        -3.048,
+        1.9812000000000003,
+        -4.422
+      ],
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Screen_Front_Right",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        3.048,
+        1.9812000000000003,
+        -4.422
+      ],
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Screen_Left",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        -7.47,
+        1.9812000000000003,
+        0
+      ],
+      "normal": [
+        1.0,
+        0.0,
+        6.123233995736766e-17
+      ]
+    },
+    {
+      "name": "Screen_Right",
+      "active_width_ft": 16,
+      "active_height_ft": 9,
+      "active_width_m": 4.8768,
+      "active_height_m": 2.7432000000000003,
+      "center_m": [
+        7.47,
+        1.9812000000000003,
+        0
+      ],
+      "normal": [
+        -1.0,
+        0.0,
+        6.123233995736766e-17
+      ]
+    }
+  ],
+  "wall_display_count": 4,
+  "kiosk": {
+    "center_plan_m": [
+      0,
+      0
+    ],
+    "active_diagonal_in": 55,
+    "active_width_m": 1.2175910253629953,
+    "active_height_m": 0.6848949517666849,
+    "tilt_from_horizontal_deg": 45,
+    "active_surface_center_m": [
+      0.0,
+      1.2417193000900062,
+      0.0417193000900063
+    ],
+    "housing_height_range_m": [
+      0.8864352827028305,
+      1.5135647172971693
+    ]
+  },
+  "rear_entry_clear_width_ft": 8,
+  "rear_entry_clear_height_ft": 9,
+  "ceiling_disc_diameter_ft": 20,
+  "layout_notes": "Front wall spans the 50 ft width; left and right walls span the 30 ft depth. Rear entry added as a practical access opening. Floating ceiling fixtures sit below the 14 ft shell height.",
+  "material_reference": "02-1001069430.jpg and previously approved WTZ1 glossy finish",
+  "kiosk_reference": "01-1001069645.jpg; geometry adapted to a true 55-inch 16:9 panel."
+}

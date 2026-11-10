@@ -13,7 +13,12 @@ function readGuestModeCookie(): boolean {
 
 function writeGuestModeCookie(value: boolean) {
   const maxAge = value ? 60 * 60 * 24 * 365 : 0;
-  document.cookie = `${COOKIE_NAME}=1; path=/; max-age=${maxAge}`;
+  // Inside an iframe on another site a default (Lax) cookie is dropped, so the
+  // toggle would never stick. SameSite=None requires Secure, i.e. HTTPS.
+  const crossSiteFrame = window.top !== window.self && location.protocol === "https:";
+  document.cookie = `${COOKIE_NAME}=1; path=/; max-age=${maxAge}${
+    crossSiteFrame ? "; SameSite=None; Secure" : ""
+  }`;
 }
 
 export function useGuestMode() {

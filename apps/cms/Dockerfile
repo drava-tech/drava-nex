@@ -14,6 +14,8 @@ COPY packages/db/package.json    ./packages/db/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json    ./packages/ui/
 COPY packages/vision-browser/package.json ./packages/vision-browser/
+COPY packages/drava-mosaic/package.json ./packages/drava-mosaic/
+COPY packages/drava-world/package.json ./packages/drava-world/
 
 RUN pnpm install --frozen-lockfile
 

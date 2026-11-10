@@ -29,6 +29,10 @@ const CONTENT_READERS: Record<
   "object-recognition": readObjectRecognitionContent,
   "flight-simulation": readFlightSimulationContent,
   gallery: readGalleryContent,
+  // Nothing is authored — the studio is shown exactly as the standalone app.
+  "drava-mosaic": () => null,
+  // Same for Drava World: the app is shown exactly as the standalone one.
+  "drava-world": () => null,
 };
 
 interface EditPageProps {

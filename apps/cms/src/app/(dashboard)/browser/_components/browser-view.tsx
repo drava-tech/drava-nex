@@ -125,7 +125,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
                     onClick={() => toggleScreen(screen.screenId)}
                     className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                       isSelected
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+                        ? "bg-red-50 text-primary dark:bg-primary/10 dark:text-red-300"
                         : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
                     }`}
                   >
@@ -161,7 +161,7 @@ export function BrowserView({ screens, activeScreenIds, deviceId }: BrowserViewP
           type="button"
           onClick={handleSend}
           disabled={!detected || selectedIds.length === 0 || sending}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {sending ? (
             <>

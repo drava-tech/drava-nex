@@ -7,7 +7,9 @@ export { device } from "./devices.js";
 // ─── CMS Tables ───────────────────────────────────────────────────────────────
 export { experience } from "./projects.js";
 export { experienceType, experienceToType } from "./experience-types.js";
-export { screen } from "./screens.js";
+export { screen, screenGroup } from "./screens.js";
+export { schedule, scheduleItem, scheduleScreenState } from "./schedules.js";
+export { motionTrigger } from "./motion-triggers.js";
 export { mediaAsset } from "./media.js";
 export { gmailIngestedMessage } from "./gmail-ingest.js";
 export {
@@ -75,7 +77,9 @@ export type { Device, NewDevice } from "./devices.js";
 export type { Experience, NewExperience } from "./projects.js";
 export type { WhiteboardDocument, NewWhiteboardDocument } from "./whiteboards.js";
 export type { ExperienceType, NewExperienceType } from "./experience-types.js";
-export type { Screen, NewScreen } from "./screens.js";
+export type { Screen, NewScreen, ScreenGroup, NewScreenGroup } from "./screens.js";
+export type { Schedule, NewSchedule, ScheduleItem, ScheduleScreenState } from "./schedules.js";
+export type { MotionTrigger } from "./motion-triggers.js";
 export type { MediaAsset, NewMediaAsset } from "./media.js";
 export type { GmailIngestedMessage, NewGmailIngestedMessage } from "./gmail-ingest.js";
 export type { Visitor, NewVisitor } from "./visitors.js";

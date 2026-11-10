@@ -152,7 +152,18 @@ export function OverviewView({
           return (
             <div
               key={i}
-              className="flex flex-col"
+              // The whole card opens the Projects view, same as its Projects pill.
+              // The play button stops propagation so it only opens the video.
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenSplit?.(i)}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  onOpenSplit?.(i);
+                }
+              }}
+              className="flex flex-col cursor-pointer"
               style={{
                 position: "relative",
                 height: "100%",
@@ -248,7 +259,10 @@ export function OverviewView({
                   role="button"
                   tabIndex={0}
                   aria-label={card.button1 || "Watch video"}
-                  onClick={() => applyVideo(card.videoUrl ?? null, { emit: true })}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    applyVideo(card.videoUrl ?? null, { emit: true });
+                  }}
                   className="flex items-center justify-center cursor-pointer"
                   style={glassIconButtonStyle}
                 >
@@ -258,7 +272,7 @@ export function OverviewView({
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => onOpenSplit?.(i)}
+                    // Click bubbles to the card, which opens the Projects view.
                     className="flex items-center justify-center cursor-pointer flex-1"
                     style={glassButtonStyle}
                   >

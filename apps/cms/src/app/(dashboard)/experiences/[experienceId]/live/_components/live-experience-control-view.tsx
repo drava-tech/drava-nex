@@ -300,12 +300,12 @@ export function LiveExperienceControlView({
           {/* Center cluster */}
           <div className="flex items-center gap-1">
             {hasQueue && (
-              <div className="flex items-center gap-0.5 rounded-xl bg-white/5 px-1 py-1 md:gap-1">
+              <div className="flex items-center gap-0.5 rounded-full bg-[var(--btn-bg)] px-1 py-1 md:gap-1">
                 <button
                   onClick={() => navigateQueue("prev")}
                   disabled={navigatingQueue || queueIndex === 0}
                   title="Previous item"
-                  className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30 md:p-2"
+                  className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] disabled:opacity-30 md:p-2"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -316,7 +316,7 @@ export function LiveExperienceControlView({
                   onClick={() => navigateQueue("next")}
                   disabled={navigatingQueue || queueIndex === initialQueueMediaIds!.length - 1}
                   title="Next item"
-                  className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30 md:p-2"
+                  className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] disabled:opacity-30 md:p-2"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -334,12 +334,12 @@ export function LiveExperienceControlView({
                 is live (video, image, experience, or the touchpad), since it
                 drives the PC's system audio rather than any one piece of
                 content. */}
-            <div className="flex items-center gap-0.5 rounded-xl bg-white/5 px-1 py-1 md:gap-1">
+            <div className="flex items-center gap-0.5 rounded-full bg-[var(--btn-bg)] px-1 py-1 md:gap-1">
               <button
                 onClick={() => adjustVolume(-VOLUME_STEP)}
                 title="Decrease volume"
                 aria-label="Decrease volume"
-                className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white md:p-2"
+                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] md:p-2"
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -348,8 +348,8 @@ export function LiveExperienceControlView({
                 title={muted ? "Unmute" : "Mute"}
                 aria-label={muted ? "Unmute" : "Mute"}
                 aria-pressed={muted}
-                className={`flex min-w-[2.5rem] items-center justify-center gap-1 rounded-lg p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors md:min-w-[3.5rem] md:p-2 ${
-                  muted ? "text-red-400 hover:bg-red-500/10" : "text-white/60 hover:bg-white/10 hover:text-white"
+                className={`flex min-w-[2.5rem] items-center justify-center gap-1 rounded-full p-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors md:min-w-[3.5rem] md:p-2 ${
+                  muted ? "btn-active" : "text-white hover:bg-[var(--btn-bg-hover)]"
                 }`}
               >
                 {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
@@ -359,7 +359,7 @@ export function LiveExperienceControlView({
                 onClick={() => adjustVolume(VOLUME_STEP)}
                 title="Increase volume"
                 aria-label="Increase volume"
-                className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white md:p-2"
+                className="rounded-full p-1.5 text-white transition-colors hover:bg-[var(--btn-bg-hover)] md:p-2"
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -378,7 +378,7 @@ export function LiveExperienceControlView({
             <button
               onClick={() => setShowPicker(true)}
               title="Change content"
-              className="flex min-w-[40px] items-center justify-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-zinc-950 transition-colors hover:bg-zinc-200 md:px-4 md:py-2"
+              className="flex min-w-[40px] items-center justify-center gap-1.5 rounded-full btn-primary px-2.5 py-1.5 transition-colors md:px-4 md:py-2"
             >
               <Layers className="h-5 w-5" />
               <span className="hidden text-[9px] font-bold uppercase tracking-widest md:inline">Change content</span>
@@ -414,18 +414,16 @@ function DockButton({
   tone?: "default" | "danger" | "warning";
 }) {
   const toneClasses =
-    tone === "danger"
-      ? "text-red-400 hover:bg-red-500/10"
-      : tone === "warning"
-        ? "text-amber-400 hover:bg-amber-500/10"
-        : "text-white/70 hover:bg-white/10 hover:text-white";
+    tone === "danger" || tone === "warning"
+      ? "btn-active"
+      : "btn-surface";
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={label}
-      className={`flex min-w-[40px] items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 transition-colors active:scale-95 disabled:opacity-40 disabled:active:scale-100 md:min-w-[64px] md:px-3 md:py-2 ${toneClasses}`}
+      className={`flex min-w-[40px] items-center justify-center gap-1.5 rounded-full px-2 py-1.5 transition-colors active:scale-95 disabled:opacity-40 disabled:active:scale-100 md:min-w-[64px] md:px-3 md:py-2 ${toneClasses}`}
     >
       {icon}
       <span className="hidden whitespace-nowrap text-[9px] font-bold uppercase tracking-widest md:inline">

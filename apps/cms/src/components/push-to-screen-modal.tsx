@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MonitorPlay, Radio, X, AlertCircle } from "lucide-react";
 import { getScreens } from "@/actions/screen-actions";
+import { getScreenGroups } from "@/actions/screen-group-actions";
+import { SearchPill, matchesSearch } from "@/components/filter-bar";
 import type { DocumentKind } from "@platform/types";
 import { LiveControlDialog, type LiveScreen } from "@/components/live-control-dialog";
 import { ControlChooserDialog } from "@/components/control-chooser-dialog";
@@ -95,6 +97,9 @@ export interface QueuePushConfig {
   onNavigate: (screenId: string, direction: "next" | "prev") => Promise<number>;
 }
 
+/** More screens than this and the list gets a search box. */
+const SEARCH_FROM = 5;
+
 /** Label for whatever a screen is currently showing, so admins know what they'd overwrite. */
 export function currentLabel(screen: ScreenRow): string {
   if (screen.currentContentKind === "experience" && screen.experienceName) {
@@ -146,6 +151,17 @@ export function PushToScreenModal({
   const [controlScreens, setControlScreens] = useState<LiveScreen[] | null>(null);
   const [chooserScreens, setChooserScreens] = useState<LiveScreen[] | null>(null);
   const [removingScreenId, setRemovingScreenId] = useState<string | null>(null);
+  // Finding the screen in a big install: by its name, its group's, or what it's playing.
+  const [query, setQuery] = useState("");
+  const [groupNames, setGroupNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    // Names only sharpen the search and the row's label; the list works without them.
+    getScreenGroups()
+      .then((groups) => setGroupNames(new Map(groups.map((g) => [g.id, g.name]))))
+      .catch(() => {});
+  }, []);
+  const groupNameOf = (s: ScreenRow) => (s.groupId ? groupNames.get(s.groupId) : undefined);
+  const shown = screens.filter((s) => matchesSearch(query, s.screenName, groupNameOf(s), currentLabel(s)));
 
   // Reusable so a successful Remove can refetch without duplicating the
   // mount-time pre-selection logic (which must stay mount-only, see below).
@@ -355,6 +371,25 @@ export function PushToScreenModal({
               </h3>
             </div>
 
+            {screens.length > SEARCH_FROM && (
+              <div className="flex items-center gap-2 px-5 pb-2">
+                <SearchPill value={query} onChange={setQuery} label="Search screens or groups" className="min-w-0 flex-1" autoFocus />
+                {/* A group's name narrows to its screens; this then takes the lot. One target only in queue mode. */}
+                {!queue && query.trim() && shown.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNeedsSelection(false);
+                      setSelectedIds((prev) => [...new Set([...prev, ...shown.map((s) => s.screenId)])]);
+                    }}
+                    className="shrink-0 rounded-full btn-surface px-3 py-1.5 text-xs"
+                  >
+                    Select all {shown.length}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
               {loadingScreens ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-sm text-zinc-400">
@@ -362,14 +397,17 @@ export function PushToScreenModal({
                 </div>
               ) : screens.length === 0 ? (
                 <p className="px-2 py-8 text-center text-sm text-zinc-400">No screens registered yet</p>
+              ) : shown.length === 0 ? (
+                <p className="px-2 py-8 text-center text-sm text-zinc-400">No screen or group matches &ldquo;{query.trim()}&rdquo;</p>
               ) : (
                 <div
                   className={`space-y-1 rounded-lg transition-shadow ${
                     needsSelection ? "ring-2 ring-red-500 ring-offset-2 ring-offset-white dark:ring-offset-[#0f0f0f]" : ""
                   }`}
                 >
-                  {screens.map((screen) => {
+                  {shown.map((screen) => {
                     const isSelected = selectedIds.includes(screen.screenId);
+                    const groupName = groupNameOf(screen);
                     const isOnline = activeScreenIds.has(screen.screenId);
                     const alreadyShowing = isAlreadyShowing?.(screen) ?? false;
                     const isRemoving = removingScreenId === screen.screenId;
@@ -391,12 +429,13 @@ export function PushToScreenModal({
                           <span className="flex min-w-0 flex-1 items-center gap-2">
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                isOnline ? "bg-[#4DDD00] shadow-[0_0_6px_#4DDD00]" : "bg-muted-foreground/40"
+                                isOnline ? "bg-[#92ff5f] shadow-[0_0_6px_#92ff5f]" : "bg-muted-foreground/40"
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">
                               <span className="block truncate font-medium">{screen.screenName}</span>
                               <span className="block truncate text-xs text-muted-foreground">
+                                {groupName && `${groupName} · `}
                                 {currentLabel(screen)}
                               </span>
                             </span>
@@ -456,7 +495,7 @@ export function PushToScreenModal({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="inline-flex h-9 items-center justify-center text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                  className="inline-flex h-9 items-center justify-center rounded-full btn-surface px-4 text-xs font-normal uppercase tracking-wider transition-colors"
                 >
                   {skipLabel}
                 </button>
@@ -464,7 +503,7 @@ export function PushToScreenModal({
               <button
                 onClick={handlePush}
                 disabled={pushing || screens.length === 0 || removingScreenId !== null}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {pushing ? (
                   <>

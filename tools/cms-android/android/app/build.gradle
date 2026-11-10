@@ -12,6 +12,11 @@ if (hasReleaseKeystore) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
+// Built files come out as Nexus-debug.apk / Nexus-release.apk instead of app-*.apk.
+base {
+    archivesName = "Nexus"
+}
+
 android {
     namespace = "com.thewhitetusker.eccms"
     compileSdk = rootProject.ext.compileSdkVersion

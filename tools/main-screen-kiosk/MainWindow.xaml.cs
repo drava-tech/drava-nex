@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
@@ -27,7 +28,17 @@ public partial class MainWindow : Window
     // every launch.
     private const string FrameUnlockExtensionName = "CMS Platform — Frame Unlock";
 
+    // Width (in CSS px) the page lays out at on any panel at least this wide —
+    // the same 1920x1080 design size ScreenStage uses. See ApplyPageZoom.
+    private const double ReferenceLayoutWidth = 1920.0;
+
     private bool _allowClose;
+    // True after Esc: a normal window with a title bar (minimize, maximize,
+    // close), like the Grid player. F11 or maximize brings the kiosk back.
+    private bool _windowed;
+    // Set while this code itself changes WindowState, so StateChanged doesn't
+    // react to its own switch.
+    private bool _switching;
     private readonly DispatcherTimer _retryTimer;
 
     public MainWindow()
@@ -81,6 +92,13 @@ public partial class MainWindow : Window
             //
             // See also app.manifest — that stops Windows bitmap-stretching the
             // whole window, which is the other half of the same problem.
+            //
+            // Side effect: at 1 a pushed web page lays out 3840px wide and
+            // reads as a desktop browser at 50% zoom. ApplyPageZoom fixes that
+            // with WebView2 page zoom instead of changing this flag — page zoom
+            // raises devicePixelRatio, so the layout is a normal 1920x1080
+            // while Chromium still rasterizes (and draws video) at the panel's
+            // physical 3840x2160.
             AdditionalBrowserArguments =
                 "--autoplay-policy=no-user-gesture-required --force-device-scale-factor=1",
         };
@@ -110,8 +128,16 @@ public partial class MainWindow : Window
             }
         };
 
+        ApplyPageZoom();
+        SizeChanged += (_, _) => ApplyPageZoom();
+        DpiChanged += (_, _) => ApplyPageZoom();
+
         core.NavigationCompleted += (_, args) =>
         {
+            // The WPF control can drop its zoom on a navigation (including the
+            // retry timer's re-navigate), so it is re-applied every time.
+            ApplyPageZoom();
+
             if (!args.IsSuccess)
             {
                 _retryTimer.Stop();
@@ -129,7 +155,16 @@ public partial class MainWindow : Window
 
         StateChanged += (_, _) =>
         {
-            if (WindowState != WindowState.Minimized)
+            if (_switching || WindowState == WindowState.Minimized)
+            {
+                return;
+            }
+
+            // Kiosk restored from minimized (taskbar, remote): back to full
+            // screen. Windowed and maximized (its button or a title-bar
+            // double-click): that's asking for the whole screen, which a
+            // maximized window doesn't give (title bar and taskbar stay).
+            if (!_windowed || WindowState == WindowState.Maximized)
             {
                 RestoreKiosk();
             }
@@ -138,6 +173,28 @@ public partial class MainWindow : Window
         await EnsureFrameUnlockExtensionLoadedAsync(core);
 
         core.Navigate(TargetUrl);
+    }
+
+    /// <summary>
+    /// Zooms the page so it lays out at ReferenceLayoutWidth CSS px across the
+    /// panel's physical width: 2.0 on the 4K TV, 1.0 (no zoom) on a 1080p
+    /// panel or narrower. Physical width = WPF's DIP width x the monitor's DPI
+    /// scale, which is exact because app.manifest makes this window
+    /// PerMonitorV2 DPI aware. User zoom stays disabled (IsZoomControlEnabled).
+    /// </summary>
+    private void ApplyPageZoom()
+    {
+        if (Browser.CoreWebView2 is null || ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var physicalWidth = ActualWidth * VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var zoom = Math.Max(1.0, physicalWidth / ReferenceLayoutWidth);
+        if (Math.Abs(Browser.ZoomFactor - zoom) > 0.001)
+        {
+            Browser.ZoomFactor = zoom;
+        }
     }
 
     /// <summary>
@@ -224,14 +281,41 @@ public partial class MainWindow : Window
 
     private void RestoreKiosk()
     {
+        _windowed = false;
+        _switching = true;
+        // Normal first: switching the frame off on an already-maximized window
+        // leaves it sized to the work area, i.e. the taskbar still shows.
+        WindowState = WindowState.Normal;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
         WindowState = WindowState.Maximized;
+        _switching = false;
         ShowInTaskbar = false;
         Topmost = true;
     }
 
+    /// <summary>Esc: a normal window with a title bar, so it can be minimized, moved or closed.</summary>
+    private void LeaveKiosk()
+    {
+        _windowed = true;
+        _switching = true;
+        Topmost = false;
+        ShowInTaskbar = true;
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        ResizeMode = ResizeMode.CanResize;
+        WindowState = WindowState.Normal;
+        Width = Math.Min(1280, SystemParameters.WorkArea.Width);
+        Height = Math.Min(720, SystemParameters.WorkArea.Height);
+        Left = SystemParameters.WorkArea.Left + (SystemParameters.WorkArea.Width - Width) / 2;
+        Top = SystemParameters.WorkArea.Top + (SystemParameters.WorkArea.Height - Height) / 2;
+        _switching = false;
+    }
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!_allowClose)
+        // Full screen it can't be closed by accident (Alt+F4 on the TV);
+        // windowed (after Esc) its close button and Alt+F4 work normally.
+        if (!_allowClose && !_windowed)
         {
             e.Cancel = true;
         }
@@ -240,7 +324,10 @@ public partial class MainWindow : Window
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         // Hidden escape hatch for maintenance: Ctrl+Shift+Alt+X closes the kiosk.
-        if (e.Key == Key.X &&
+        // With Alt held, WPF reports the key as Key.System and puts the real
+        // key in SystemKey, so e.Key alone is never Key.X here.
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.X &&
             Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt))
         {
             _allowClose = true;
@@ -248,8 +335,30 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Escape || e.Key == Key.F11 ||
-            (e.Key == Key.System && e.SystemKey == Key.F4))
+        // Same keys as the Grid player: Esc leaves full screen, F11 goes back.
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            if (!_windowed)
+            {
+                LeaveKiosk();
+            }
+            return;
+        }
+
+        if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            if (_windowed)
+            {
+                RestoreKiosk();
+            }
+            return;
+        }
+
+        // Alt+F4 only while full screen; windowed, it closes like any app
+        // (MainWindow_Closing decides).
+        if (key == Key.F4 && Keyboard.Modifiers == ModifierKeys.Alt && !_windowed)
         {
             e.Handled = true;
         }

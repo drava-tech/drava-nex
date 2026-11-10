@@ -13,11 +13,14 @@ import {
 } from "@platform/ui";
 
 const ROUTE_LABELS: Record<string, string> = {
-  "projects": "Experiences",
+  "projects": "Portfolio",
+  "experiences": "Portfolio",
+  "broadcast": "Our Story",
   "screens": "Screens",
   "media": "Media",
   "users": "Users",
   "settings": "Settings",
+  "schedules": "Schedules",
 };
 
 const toLabel = (segment: string) =>

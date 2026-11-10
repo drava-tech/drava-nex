@@ -4,11 +4,12 @@ import fsPromises from "fs/promises";
 import { Readable } from "node:stream";
 import path from "path";
 import { randomUUID } from "crypto";
-import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, type MediaAsset } from "@platform/db";
+import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibraryStats, getMediaAsset, softDeleteMediaAsset, markMediaSaved, isMediaOwnedBy, type MediaAsset, type MediaOwner } from "@platform/db";
 import { classifyLink, listMediaQuerySchema } from "@platform/types";
-import { requireAdmin, requireGuestOrAdmin } from "../middleware/auth.js";
+import { requireGuestOrAdmin, type SessionUser as AuthUser } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
-import { generateThumbnail } from "../services/thumbnails.js";
+import { thumbnailForUpload } from "../services/thumbnails.js";
+import { videoLengthSeconds } from "../services/video-length.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
 // Uploaded files live on a Docker volume mounted only into this (api) container
@@ -121,6 +122,22 @@ function getMimeType(filePath: string): string {
 
 export const mediaRouter = new Hono();
 
+/**
+ * Whose media this request may see. A User (GUEST) has their own library —
+ * what they uploaded, plus emails they sent from their own address — and
+ * starts with an empty one; admins and the super admin see everything.
+ */
+function ownerOf(c: { get: (key: never) => unknown }): MediaOwner | null {
+  const u = c.get("user" as never) as AuthUser | undefined;
+  return u && u.role === "GUEST" ? { userId: u.id, email: u.email } : null;
+}
+
+/** For a User, someone else's media is "not found": its existence isn't theirs to know. */
+function hiddenFrom(c: { get: (key: never) => unknown }, asset: Parameters<typeof isMediaOwnedBy>[0]): boolean {
+  const owner = ownerOf(c);
+  return owner !== null && !isMediaOwnedBy(asset, owner);
+}
+
 // --- Reads ---
 
 // GET /api/media — paginated media listing, in one of two modes:
@@ -149,11 +166,11 @@ mediaRouter.get("/", requireGuestOrAdmin, async (c) => {
     const query = parsed.data;
 
     if (query.mode === "cursor") {
-      const { items, nextCursor } = await listMediaAssetsCursor(query);
+      const { items, nextCursor } = await listMediaAssetsCursor(query, ownerOf(c));
       return c.json({ media: items.map(toMediaItem), nextCursor });
     }
 
-    const { items, total, page, pageSize } = await listMediaAssets(query);
+    const { items, total, page, pageSize } = await listMediaAssets(query, ownerOf(c));
     return c.json({ media: items.map(toMediaItem), total, page, pageSize });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to list media" }, 500);
@@ -178,7 +195,7 @@ mediaRouter.get("/stats", requireGuestOrAdmin, async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Invalid media query", details: parsed.error.issues }, 400);
     }
-    const stats = await getMediaLibraryStats(parsed.data);
+    const stats = await getMediaLibraryStats(parsed.data, 4, ownerOf(c));
     return c.json({
       total: stats.total,
       totalBytes: stats.totalBytes,
@@ -202,7 +219,8 @@ mediaRouter.get("/stats", requireGuestOrAdmin, async (c) => {
 // POST /api/media/gmail/load — triggered by the "Load Email" button on the
 // Media Library page. Not a background job: nothing touches the mailbox
 // except when this is called. See services/gmail-ingest.ts.
-mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
+// Users may run it too: they see only what came from their own address.
+mediaRouter.post("/gmail/load", requireGuestOrAdmin, async (c) => {
   try {
     const result = await runGmailLoad(2);
     if (result.added > 0) broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
@@ -219,7 +237,7 @@ mediaRouter.post("/gmail/load", requireAdmin, async (c) => {
 // absolute url and no file on disk, so screens/preview/push all work unchanged.
 // pendingSave: true (used by the Browser tool's ad-hoc push) hides the row
 // from the Media Library listing until explicitly saved via POST /:id/save.
-mediaRouter.post("/link", requireAdmin, async (c) => {
+mediaRouter.post("/link", requireGuestOrAdmin, async (c) => {
   try {
     const body = await c.req.json().catch(() => null);
     const rawUrl = typeof body?.url === "string" ? body.url : "";
@@ -253,12 +271,12 @@ mediaRouter.post("/link", requireAdmin, async (c) => {
 
 // POST /api/media/:id/save — confirms an ad-hoc pushed link is worth keeping,
 // making it show up in the Media Library from now on.
-mediaRouter.post("/:id/save", requireAdmin, async (c) => {
+mediaRouter.post("/:id/save", requireGuestOrAdmin, async (c) => {
   try {
     const id = c.req.param("id");
     if (!id) return c.json({ error: "Missing id" }, 400);
     const asset = await getMediaAsset(id);
-    if (!asset) return c.json({ error: "Media item not found" }, 404);
+    if (!asset || hiddenFrom(c, asset)) return c.json({ error: "Media item not found" }, 404);
     await markMediaSaved(id);
     broadcastToCms({ type: "MEDIA_LIBRARY_UPDATED" });
     return c.json({ success: true });
@@ -267,15 +285,42 @@ mediaRouter.post("/:id/save", requireAdmin, async (c) => {
   }
 });
 
+// --- Video length ---
+
+/**
+ * How long a library video plays, in whole seconds plus one (so its last
+ * frame is seen before the next item), read from the file's header. null for
+ * anything that isn't a video file this server holds.
+ */
+export async function libraryVideoSeconds(asset: Pick<MediaAsset, "type" | "url">): Promise<number | null> {
+  if (asset.type !== "video" || !asset.url.startsWith("/media/")) return null;
+  const rel = asset.url.slice("/media/".length).split("?")[0] ?? "";
+  // Stay inside the media folders: no "..", no absolute paths.
+  if (!rel || rel.split("/").some((part) => part === ".." || part === "")) return null;
+  for (const dir of [UPLOAD_DIR, SEED_MEDIA_DIR]) {
+    const seconds = await videoLengthSeconds(path.join(dir, ...rel.split("/")));
+    if (seconds) return Math.ceil(seconds) + 1;
+  }
+  return null;
+}
+
+// GET /api/media/:id/length — { seconds } for a video, null if it can't be read
+mediaRouter.get("/:id/length", requireGuestOrAdmin, async (c) => {
+  const asset = await getMediaAsset(c.req.param("id") ?? "");
+  if (!asset || hiddenFrom(c, asset)) return c.json({ error: "Media item not found" }, 404);
+  return c.json({ seconds: await libraryVideoSeconds(asset) });
+});
+
 // --- Delete ---
 
 // DELETE /api/media?id=<id>
-mediaRouter.delete("/", requireAdmin, async (c) => {
+// A User can delete only their own media.
+mediaRouter.delete("/", requireGuestOrAdmin, async (c) => {
   const id = c.req.query("id");
   if (!id) return c.json({ error: "Missing id parameter" }, 400);
   try {
     const asset = await getMediaAsset(id);
-    if (!asset) return c.json({ error: "Media item not found" }, 404);
+    if (!asset || hiddenFrom(c, asset)) return c.json({ error: "Media item not found" }, 404);
     await softDeleteMediaAsset(id);
     if (asset.url.startsWith("/media/")) {
       const filePath = path.join(UPLOAD_DIR, path.basename(asset.url));
@@ -293,7 +338,8 @@ export const uploadRouter = new Hono();
 
 type SessionUser = { id: string };
 
-uploadRouter.post("/", requireAdmin, async (c) => {
+// Users upload too; the file is recorded as theirs (uploadedByUserId).
+uploadRouter.post("/", requireGuestOrAdmin, async (c) => {
   try {
     const body = await c.req.parseBody();
     const file = body["file"] as File | undefined;
@@ -341,10 +387,8 @@ uploadRouter.post("/", requireAdmin, async (c) => {
     // Best-effort by contract: null here just means consumers fall back to the
     // original, so a sharp failure can never cost the user their upload. Done
     // before the insert so the row is written once, already complete.
-    const thumbnailUrl =
-      classified.type === "image"
-        ? await generateThumbnail(UPLOAD_DIR, storedName, buffer)
-        : null;
+    // Videos get a poster frame the same way (ffmpeg), so they have a picture too.
+    const thumbnailUrl = await thumbnailForUpload(classified.type, UPLOAD_DIR, storedName, buffer);
 
     const asset = await createMediaAsset({
       type: classified.type,

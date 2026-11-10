@@ -25,11 +25,22 @@ export function middleware(request: NextRequest) {
     // Next serves the same files from public/, so it must match — otherwise
     // assets 307 to /login and templates render empty.
     pathname.startsWith("/media/") ||
+    // The Drava Mosaic template's pages (public/drava-mosaic, copied from
+    // packages/drava-mosaic) — iframed by unauthenticated displays.
+    pathname.startsWith("/drava-mosaic/") ||
+    // The Drava World template's pages (public/drava-world, copied from
+    // packages/drava-world) — iframed by unauthenticated displays. Also the
+    // bare /drava-world, the address its Welcome Zone settles on.
+    pathname === "/drava-world" ||
+    pathname.startsWith("/drava-world/") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     // Logo shown on the unauthenticated /display kiosk idle screen — must be
     // public for the same reason /media/ is (see comment above).
-    pathname === "/Logo.svg"
+    pathname === "/Logo.svg" ||
+    // The drava nex logo, shown on the login page before there's a session.
+    pathname === "/drava-nex-logo.png" ||
+    pathname === "/drava-nex-logo-light.png"
   ) {
     return NextResponse.next();
   }

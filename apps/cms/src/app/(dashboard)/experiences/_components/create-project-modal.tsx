@@ -81,7 +81,7 @@ export function CreateProjectModal({ onClose, experienceTypes = [] }: CreateProj
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               New experience
             </p>
-            <h2 className="text-lg font-semibold tracking-tight">Create Experience</h2>
+            <h2 className="text-lg font-semibold tracking-tight">Add to Portfolio</h2>
           </div>
           <Button
             type="button"
@@ -142,7 +142,7 @@ export function CreateProjectModal({ onClose, experienceTypes = [] }: CreateProj
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className={labelClasses}>Experience Types</label>
+            <label className={labelClasses}>Types</label>
             {experienceTypes.length === 0 ? (
               <p className="text-xs text-muted-foreground">
                 No types yet. Create them in{" "}
@@ -193,7 +193,7 @@ export function CreateProjectModal({ onClose, experienceTypes = [] }: CreateProj
                 Creating…
               </>
             ) : (
-              "Create Experience"
+              "Add to Portfolio"
             )}
           </Button>
         </form>

@@ -15,4 +15,6 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   "object-recognition": "Object Recognition",
   "flight-simulation": "Data Art",
   gallery: "Gallery",
+  "drava-mosaic": "Drava Mosaic",
+  "drava-world": "Drava World",
 };

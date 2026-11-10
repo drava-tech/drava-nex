@@ -25,13 +25,14 @@ const WhiteboardOverlay = dynamic(
     ),
   { ssr: false }
 );
-import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
+// Restore together with the commented-out toggle in the header below.
+// import { WelcomeTriggerToggle } from './welcome-trigger-toggle';
 import { StoreProvider } from '@/store/store-provider';
 
 export function DashboardLayoutClient({
   children,
   isAdmin,
-  initialTriggerArmed,
+  // initialTriggerArmed — read again once WelcomeTriggerToggle is restored.
 }: {
   children: React.ReactNode;
   isAdmin: boolean;
@@ -82,7 +83,8 @@ export function DashboardLayoutClient({
             globals.css), not the nesting itself. */}
           <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
         </SidebarInset>
-        {/* Floating whiteboard — available on every dashboard page */}
+        {/* Floating "+" menu (Browse URL) — on every dashboard page. Its "Draw"
+            item is commented out inside whiteboard-overlay.tsx. */}
         <WhiteboardOverlay />
       </SidebarProvider>
     </StoreProvider>

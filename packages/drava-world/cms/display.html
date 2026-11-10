@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Display · White Tusker Nex</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+      #screen { position: fixed; inset: 0; }
+      #screen > img, #screen > video, #screen > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="screen"></div>
+    <script type="module" src="/src/zones/cms/app/display.js"></script>
+  </body>
+</html>

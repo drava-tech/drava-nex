@@ -36,6 +36,14 @@ export async function requireAdmin() {
   return user as typeof user & { role: "ADMIN" | "SUPERADMIN" };
 }
 
+/** Only the super admin — managing who can sign in. */
+export async function requireSuperAdmin() {
+  const user = await requireAuth();
+  const role = (user as { role?: string }).role;
+  if (role !== "SUPERADMIN") redirect("/403");
+  return user as typeof user & { role: "SUPERADMIN" };
+}
+
 export async function requireGuestOrAdmin() {
   const user = await requireAuth();
   const role = (user as { role?: string }).role;

@@ -26,7 +26,8 @@ RUN pnpm exec turbo run build --filter="@platform/api..."
 # ─── Stage 2: Runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-RUN apk add --no-cache libc6-compat
+# ffmpeg: poster frames for uploaded videos (src/services/thumbnails.ts).
+RUN apk add --no-cache libc6-compat ffmpeg
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 WORKDIR /app

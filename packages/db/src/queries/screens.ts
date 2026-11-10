@@ -36,6 +36,8 @@ export interface ScreenRow {
   defaultMediaAssetId: string | null;
   defaultMediaName: string | null;
   blanked: boolean;
+  /** The screen_group it is listed under; null = ungrouped. */
+  groupId: string | null;
 }
 
 export async function listScreens(): Promise<ScreenRow[]> {
@@ -54,6 +56,7 @@ export async function listScreens(): Promise<ScreenRow[]> {
       defaultMediaAssetId: screen.defaultMediaAssetId,
       defaultMediaName: defaultMedia.name,
       blanked: screen.blanked,
+      groupId: screen.groupId,
     })
     .from(screen)
     .leftJoin(
@@ -271,10 +274,20 @@ export async function deleteScreen(screenId: string): Promise<void> {
     .where(eq(screen.screenId, screenId));
 }
 
+/**
+ * Options for setScreenExperience / setScreenMedia. `record: false` skips the
+ * push-history row — the scheduler moves screens on every few seconds, and
+ * logging each step would bury the pushes people actually made.
+ */
+export interface AssignOptions {
+  record?: boolean;
+}
+
 /** Assign an experience (or clear with null). Clears any media assignment. */
 export async function setScreenExperience(
   screenId: string,
-  experienceId: string | null
+  experienceId: string | null,
+  options: AssignOptions = {}
 ): Promise<void> {
   await db
     .update(screen)
@@ -293,13 +306,14 @@ export async function setScreenExperience(
     .where(eq(screen.screenId, screenId));
 
   // A clear-to-null isn't a "push" — nothing to log.
-  if (experienceId) await recordScreenExperiencePush(screenId, experienceId);
+  if (experienceId && options.record !== false) await recordScreenExperiencePush(screenId, experienceId);
 }
 
 /** Assign a media asset (or clear with null). Clears any experience assignment. */
 export async function setScreenMedia(
   screenId: string,
-  mediaAssetId: string | null
+  mediaAssetId: string | null,
+  options: AssignOptions = {}
 ): Promise<void> {
   await db
     .update(screen)
@@ -315,7 +329,7 @@ export async function setScreenMedia(
     .where(eq(screen.screenId, screenId));
 
   // A clear-to-default (null) isn't a "push" — nothing to log.
-  if (mediaAssetId) await recordScreenMediaPush(screenId, mediaAssetId);
+  if (mediaAssetId && options.record !== false) await recordScreenMediaPush(screenId, mediaAssetId);
 }
 
 /**

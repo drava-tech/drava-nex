@@ -65,13 +65,28 @@ export function PortfolioApp({
     label: link.label,
     // Carries `cameFromSplit` across, so the back button still returns to
     // wherever this visit began however many sideways jumps it took.
-    onSelect: () =>
+    onSelect: () => {
+      // Jumping back to where this visit came from is just going back — don't
+      // stack the two pages on each other.
+      const origin = view.from;
+      if (
+        origin &&
+        origin.cardIndex === link.cardIndex &&
+        origin.sectionIndex === link.sectionIndex &&
+        origin.projectIndex === link.projectIndex
+      ) {
+        onNavigate({ ...origin });
+        return;
+      }
       onNavigate({
         cardIndex: link.cardIndex,
         sectionIndex: link.sectionIndex,
         projectIndex: link.projectIndex,
         cameFromSplit: view.cameFromSplit,
-      }),
+        // Remember the page we're leaving so Back returns to it.
+        from: { cardIndex, sectionIndex, projectIndex, cameFromSplit: view.cameFromSplit },
+      });
+    },
   }));
 
   return (
@@ -79,6 +94,9 @@ export function PortfolioApp({
       card={card}
       activeSectionIndex={sectionIndex}
       activeProjectIndex={projectIndex}
+      // Only a deliberate jump names a company (even company 0); a plain visit
+      // to the Films page has none, and shows the grid.
+      focusProject={view.projectIndex ?? undefined}
       galleryStyle={content?.gallery}
       links={links}
       // Same navigation as a cross-category link, only staying put — which is
@@ -90,13 +108,16 @@ export function PortfolioApp({
           sectionIndex,
           projectIndex: pi,
           cameFromSplit: view.cameFromSplit,
+          from: view.from,
         })
       }
       onBack={() =>
         onNavigate(
-          view.cameFromSplit
-            ? { cardIndex: view.cardIndex, sectionIndex: null, splitView: true }
-            : { cardIndex: null, sectionIndex: null }
+          view.from
+            ? { ...view.from }
+            : view.cameFromSplit
+              ? { cardIndex: view.cardIndex, sectionIndex: null, splitView: true }
+              : { cardIndex: null, sectionIndex: null }
         )
       }
     />

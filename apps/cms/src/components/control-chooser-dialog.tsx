@@ -53,7 +53,7 @@ export function ControlChooserDialog({ contentName, screens, onChoose, onClose }
             >
               <span
                 className={`h-2 w-2 shrink-0 rounded-full ${
-                  s.isOnline ? "bg-[#4DDD00] animate-pulse shadow-[0_0_8px_#4DDD00]" : "bg-muted-foreground/40"
+                  s.isOnline ? "bg-[#92ff5f] animate-pulse shadow-[0_0_8px_#92ff5f]" : "bg-muted-foreground/40"
                 }`}
               />
               <span className="min-w-0 flex-1">

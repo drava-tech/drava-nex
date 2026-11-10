@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "@/lib/auth-client";
+import { getMediaInbox } from "@/actions/media-inbox-actions";
 import {
   Search,
   Upload,
@@ -40,11 +42,13 @@ import {
   cn,
 } from "@platform/ui";
 import { parseYouTubeId } from "@platform/types";
-import { isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
+import { PUSHABLE_MEDIA_TYPES, isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
+import { MediaBoardView } from "./_components/media-board-view";
+import { ScheduledChip, useScheduleInfo } from "@/components/schedule-info";
 
 // "All Media" isn't a real filterable category — it's the zero-selection
 // state (nothing checked in the dropdown = show everything).
@@ -99,7 +103,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const SOURCE_BADGE_STYLES: Record<string, string> = {
-  upload: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+  upload: "bg-red-50 text-primary dark:bg-primary/10 dark:text-red-400",
   email: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
   link: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
 };
@@ -121,6 +125,15 @@ function SourceBadge({ source }: { source?: string | null }) {
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function MediaPage() {
+  // A User has a library of their own (see apps/api/src/routes/media.ts), so
+  // their empty state says how to fill it.
+  const { data: session } = useSession();
+  const sessionUser = session?.user as { role?: string; email?: string } | undefined;
+  const isUser = sessionUser?.role === "GUEST";
+  const [inbox, setInbox] = useState<string | null>(null);
+  useEffect(() => {
+    if (isUser) getMediaInbox().then(setInbox).catch(() => setInbox(null));
+  }, [isUser]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   /** Total matching the current filters, across all pages — the paging controls
    *  need it, and it can no longer be read off mediaItems.length now that only
@@ -131,6 +144,16 @@ export default function MediaPage() {
   // Empty set = "All Media" (no filter applied). Multiple categories checked
   // at once is an OR — an item matching ANY selected category is shown.
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  // Opened from the dashboard's media tiles as /media?category=videos (or a
+  // comma list): start with that filter. Read once, on mount; window.location
+  // rather than useSearchParams, which would need a Suspense boundary here.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("category");
+    if (!wanted) return;
+    const known = new Set(CATEGORIES.map((c) => c.id));
+    const picked = wanted.split(",").map((s) => s.trim()).filter((id) => known.has(id));
+    if (picked.length) setSelectedCategories(new Set(picked));
+  }, []);
   // Same OR-within-the-filter, AND-across-filters shape as selectedCategories.
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState("");
@@ -140,6 +163,36 @@ export default function MediaPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  /** Which media are in a schedule, for the "Scheduled" tag on their rows. */
+  const scheduleInfo = useScheduleInfo();
+  /**
+   * The item opened in Our Story's view (?view=<id>), or null for the list.
+   * In the address so the browser's Back returns to the list, and a link to
+   * one item works. window.location for the same reason as ?category below.
+   */
+  const [boardId, setBoardId] = useState<string | null>(null);
+  /** Opened from the list here, so "All media" can just go back in history. */
+  const openedHereRef = useRef(false);
+  useEffect(() => {
+    const read = () => setBoardId(new URLSearchParams(window.location.search).get("view"));
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const openBoard = (id: string) => {
+    openedHereRef.current = true;
+    window.history.pushState(null, "", `/media?view=${encodeURIComponent(id)}`);
+    setBoardId(id);
+  };
+  const closeBoard = () => {
+    if (openedHereRef.current) {
+      openedHereRef.current = false;
+      window.history.back();
+    } else {
+      window.history.replaceState(null, "", "/media");
+    }
+    setBoardId(null);
+  };
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -393,6 +446,8 @@ export default function MediaPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
+  if (boardId) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
+
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
       {/* Hidden file input */}
@@ -406,84 +461,28 @@ export default function MediaPage() {
 
       {/* Top Header Section */}
       <div className="flex flex-col gap-4 p-4 border-b border-border sticky top-0 z-20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
-            {/* <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Manage and organize your assets</p> */}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
-              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border text-sm font-medium transition-all active:scale-95 ${selecting
-                  ? "border-blue-600 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-400"
-                  : "border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5"
-                }`}
-            >
-              <CheckSquare className="h-4 w-4" />
-              {selecting ? "Cancel" : "Select"}
-            </button>
-            <button
-              onClick={handleLoadFromEmail}
-              disabled={loadingInbox}
-              title="Load last 2 days from email"
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border border-border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/5 text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`h-4 w-4 shrink-0 ${loadingInbox ? "animate-spin" : ""}`} />
-              {loadingInbox ? "Loading…" : "Load Email"}
-            </button>
-            <button
-              onClick={handleUploadClick}
-              disabled={uploading}
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all hover:shadow-lg hover:shadow-blue-600/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Upload
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
 
         {loadError && (
           <p className="text-xs font-medium text-red-600 dark:text-red-400">{loadError}</p>
         )}
 
-        {/* Search + category filter dropdown (multi-select) */}
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <div className="relative group shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search media..."
-              className="h-9 pl-9 pr-4 w-48 sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-sm outline-none dark:text-white"
-            />
-          </div>
-
+        {/* Laid out like Our Story's toolbar: the filters and search on the
+            left, the actions on the right, all in the same pills. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedCategories.size > 0
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-active`}
               >
-                <Folder className={`h-3.5 w-3.5 ${selectedCategories.size > 0 ? "text-white" : "text-zinc-400"}`} />
                 {selectedCategories.size === 0
                   ? "All Media"
                   : selectedCategories.size === 1
                     ? CATEGORIES.find((c) => selectedCategories.has(c.id))?.label
-                    : `${selectedCategories.size} filters`}
-                <ChevronDown className={`h-3.5 w-3.5 ${selectedCategories.size > 0 ? "text-white" : "text-zinc-400"}`} />
+                    : `${selectedCategories.size} types`}
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
@@ -493,7 +492,7 @@ export default function MediaPage() {
                   checked={selectedCategories.has(cat.id)}
                   onCheckedChange={() => toggleCategory(cat.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2"
+                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
                 >
                   <cat.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {cat.label}
@@ -503,10 +502,10 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedCategories(new Set())}
                   >
-                    Clear filters
+                    All Media
                   </DropdownMenuItem>
                 </>
               )}
@@ -517,18 +516,15 @@ export default function MediaPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedSources.size > 0
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selectedSources.size > 0 ? "btn-active" : "btn-surface"}`}
               >
-                <Mail className={`h-3.5 w-3.5 ${selectedSources.size > 0 ? "text-white" : "text-zinc-400"}`} />
                 {selectedSources.size === 0
-                  ? "Source"
+                  ? "All sources"
                   : selectedSources.size === 1
                     ? SOURCES.find((s) => selectedSources.has(s.id))?.label
                     : `${selectedSources.size} sources`}
-                <ChevronDown className={`h-3.5 w-3.5 ${selectedSources.size > 0 ? "text-white" : "text-zinc-400"}`} />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
@@ -538,7 +534,7 @@ export default function MediaPage() {
                   checked={selectedSources.has(src.id)}
                   onCheckedChange={() => toggleSource(src.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2"
+                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
                 >
                   <src.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {src.label}
@@ -548,29 +544,23 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedSources(new Set())}
                   >
-                    Clear filters
+                    All sources
                   </DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Date range filter — two native date inputs; onSelect prevented
-              on the wrapping item isn't needed since these aren't menu items,
-              but keeping the menu open while typing/picking matters, which
-              plain <input>s inside DropdownMenuContent already do by default. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${dateFrom || dateTo
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-100"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${dateFrom || dateTo ? "btn-active" : "btn-surface"}`}
               >
-                <CalendarRange className={`h-3.5 w-3.5 ${dateFrom || dateTo ? "text-white" : "text-zinc-400"}`} />
+                <CalendarRange className="h-3.5 w-3.5" />
                 {!dateFrom && !dateTo
                   ? "Date Range"
                   : dateFrom && dateTo
@@ -578,7 +568,7 @@ export default function MediaPage() {
                     : dateFrom
                       ? `From ${dateFrom}`
                       : `Until ${dateTo}`}
-                <ChevronDown className={`h-3.5 w-3.5 ${dateFrom || dateTo ? "text-white" : "text-zinc-400"}`} />
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="p-3">
@@ -592,6 +582,63 @@ export default function MediaPage() {
               />
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Search — the same pill as Our Story's portfolio search. */}
+          <div className="relative flex items-center">
+            <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
+              }}
+              placeholder="Search media"
+              aria-label="Search media"
+              className="h-8 w-44 rounded-full border border-border bg-card pl-8 pr-8 text-xs text-foreground placeholder:text-muted-foreground outline-none transition-[width,border-color] focus:w-60 focus:border-ring sm:w-56 sm:focus:w-72 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selecting ? "btn-active" : "btn-surface"}`}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {selecting ? "Cancel" : "Select"}
+            </button>
+            <button
+              type="button"
+              onClick={handleLoadFromEmail}
+              disabled={loadingInbox}
+              title="Load last 2 days from email"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
+              {loadingInbox ? "Loading…" : "Load Email"}
+            </button>
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              disabled={uploading}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -616,7 +663,7 @@ export default function MediaPage() {
                 <button
                   onClick={handlePushSelected}
                   disabled={selectedIds.size === 0}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-full btn-primary text-xs font-normal uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <MonitorPlay className="h-3.5 w-3.5" />
                   {selectedIds.size ? `Push selected (${selectedIds.size})` : "Push selected"}
@@ -631,7 +678,7 @@ export default function MediaPage() {
                 </button>
                 <button
                   onClick={handleExitSelecting}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-full text-zinc-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-wider hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-full btn-surface text-xs font-normal uppercase tracking-wider transition-colors"
                 >
                   <X className="h-3.5 w-3.5" /> Cancel
                 </button>
@@ -651,14 +698,33 @@ export default function MediaPage() {
         ) : total === 0 && !uploading ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
             <Folder className="h-8 w-8 text-zinc-400 opacity-60" />
-            <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
-            <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
+            {isUser && !searchQuery && selectedCategories.size === 0 && selectedSources.size === 0 && !dateFrom && !dateTo ? (
+              <>
+                <p className="text-sm text-foreground">Your media library is empty</p>
+                <p className="max-w-md text-xs text-muted-foreground">
+                  This is your own space: you see only what you add. Upload files or add a link above
+                  {inbox ? (
+                    <>
+                      , or email attachments to <span className="text-foreground">{inbox}</span> from{" "}
+                      <span className="text-foreground">{sessionUser?.email}</span> and press Load Email.
+                    </>
+                  ) : (
+                    <>, or email them to Nex from {sessionUser?.email} and press Load Email.</>
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
+                <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
+              </>
+            )}
           </div>
         ) : (
           /* Media Table */
           <div className="overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+              <thead className="border-b bg-sidebar text-left text-xs text-sidebar-foreground">
                 <tr>
                   {selecting && <th className="w-10 px-4 py-3 font-medium" />}
                   <th className="px-4 py-3 font-medium">Name</th>
@@ -674,7 +740,7 @@ export default function MediaPage() {
                   <tr className="border-b last:border-0">
                     <td colSpan={selecting ? 7 : 6} className="px-4 py-3">
                       <div className="flex items-center gap-3 text-zinc-400 dark:text-zinc-500">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
                         Uploading asset…
                       </div>
                     </td>
@@ -685,10 +751,18 @@ export default function MediaPage() {
                   return (
                     <tr
                       key={media.id}
-                      onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
+                      onClick={() =>
+                        selecting
+                          ? toggleSelected(media.id)
+                          : // Files a screen can show open in Our Story's view;
+                            // links (YouTube, Drive…) keep the preview window.
+                            (PUSHABLE_MEDIA_TYPES as readonly string[]).includes(media.type)
+                            ? openBoard(media.id)
+                            : setPreviewItem(media)
+                      }
                       className={cn(
                         "cursor-pointer border-b last:border-0 hover:bg-muted/30",
-                        isSelected && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                        isSelected && "bg-primary/10 hover:bg-primary/10"
                       )}
                     >
                       {selecting && (
@@ -700,17 +774,17 @@ export default function MediaPage() {
                             className={cn(
                               "flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors",
                               isSelected
-                                ? "bg-blue-600 border-blue-600"
+                                ? "bg-primary border-primary"
                                 : "border-border hover:border-zinc-400 dark:hover:border-zinc-500"
                             )}
                           >
-                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" strokeWidth={3} />}
                           </button>
                         </td>
                       )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-white/10">
+                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-sidebar">
                             <MediaThumbnail media={media} compact />
                           </div>
                           <span
@@ -719,11 +793,12 @@ export default function MediaPage() {
                           >
                             {media.name}
                           </span>
+                          <ScheduledChip list={scheduleInfo.byContent.get(media.id)} />
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                          <TypeIcon type={media.type} className="w-3.5 h-3.5" />
+                          <TypeIcon type={media.type} className="w-3.5 h-3.5 dark:text-white" />
                           {TYPE_LABELS[media.type] ?? media.type}
                         </span>
                       </td>
@@ -783,7 +858,7 @@ export default function MediaPage() {
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="h-7 pl-2 pr-6 rounded-lg bg-zinc-100 dark:bg-white/5 border-transparent text-xs font-medium text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                  className="h-7 pl-2 pr-6 rounded-lg bg-zinc-100 dark:bg-white/5 border-transparent text-xs font-medium text-zinc-700 dark:text-zinc-300 outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
                 >
                   {PAGE_SIZE_OPTIONS.map((size) => (
                     <option key={size} value={size}>{size}</option>
@@ -835,6 +910,20 @@ export default function MediaPage() {
  * (vs. the large aspect-video preview in MediaPreviewModal).
  */
 function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?: boolean }) {
+  // A video with a poster frame shows that, like an image; the video itself
+  // only for ones made before posters existed.
+  if (media.type === 'video' && media.thumbnailUrl) {
+    return (
+      <img
+        src={media.thumbnailUrl}
+        alt={media.name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+
   if (media.type === 'video') {
     return (
       // preload="metadata": without it the browser buffers megabytes of every
@@ -873,7 +962,7 @@ function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?
     const videoId = parseYouTubeId(media.url);
     return (
       <div className="absolute inset-0 flex items-center justify-center">
-        <Play className={compact ? "w-4 h-4 text-zinc-300 dark:text-zinc-600" : "w-12 h-12 text-zinc-300 dark:text-zinc-600"} />
+        <Play className={compact ? "w-4 h-4 text-zinc-400 dark:text-white" : "w-12 h-12 text-zinc-300 dark:text-zinc-600"} />
         {videoId && (
           // YouTube's own thumbnail, layered over the glyph — if the screen has
           // no internet the image just fails and the glyph shows through.
@@ -891,7 +980,7 @@ function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <TypeIcon type={media.type} className={compact ? "w-4 h-4 text-zinc-300 dark:text-zinc-600" : "w-16 h-16 text-zinc-300 dark:text-zinc-600"} />
+      <TypeIcon type={media.type} className={compact ? "w-4 h-4 text-zinc-400 dark:text-white" : "w-16 h-16 text-zinc-300 dark:text-zinc-600"} />
     </div>
   );
 }

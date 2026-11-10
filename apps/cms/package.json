@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "dotenv -e ../../.env -- next dev -p 3000 --turbo",
-    "build": "next build",
+    "dev": "node scripts/sync-drava-mosaic.mjs --optional && node scripts/sync-drava-world.mjs --optional && dotenv -e ../../.env -- next dev -p 3000 --turbo",
+    "build": "node scripts/sync-drava-mosaic.mjs && node scripts/sync-drava-world.mjs && next build",
     "start": "dotenv -e ../../.env -- next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
@@ -19,6 +19,8 @@
     "@fontsource/cousine": "^5.3.0",
     "@fontsource/gelasio": "^5.3.0",
     "@fontsource/tinos": "^5.3.0",
+    "@platform/drava-mosaic": "workspace:*",
+    "@platform/drava-world": "workspace:*",
     "@platform/db": "workspace:*",
     "@platform/types": "workspace:*",
     "@platform/ui": "workspace:*",

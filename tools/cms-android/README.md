@@ -1,6 +1,6 @@
-# CMS Platform — Android shell
+# Nexus — Android shell
 
-An Android app that opens the CMS admin dashboard full-screen on an office
+**Nexus** (launcher name, formerly EMS) is an Android app that opens the CMS admin dashboard full-screen on an office
 tablet, with its own launcher icon and no browser chrome. Built with Capacitor.
 
 Target server is set in `capacitor.config.ts`:
@@ -101,7 +101,9 @@ npm run build:debug        # debug apk, no keystore needed
 npm run gradle -- <task>   # any other Gradle task, same environment
 ```
 
-Output: `android/app/build/outputs/apk/release/app-release.apk` (~3.8 MB).
+Output: `android/app/build/outputs/apk/release/Nexus-release.apk` (~3.8 MB), or
+`apk/debug/Nexus-debug.apk` for a debug build. The file name comes from
+`base.archivesName` in `android/app/build.gradle`.
 
 Both build scripts run `npm run sync` first, which re-copies the root CA, points
 the offline page at the current `server.url`, and reports how long the server
@@ -128,7 +130,7 @@ needs a manual uninstall and reinstall, and every installed copy is orphaned.
 Check what a built apk is actually signed with:
 
 ```
-apksigner verify --print-certs -v android/app/build/outputs/apk/release/app-release.apk
+apksigner verify --print-certs -v android/app/build/outputs/apk/release/Nexus-release.apk
 ```
 
 ### Why `-Djava.net.preferIPv4Stack=true`

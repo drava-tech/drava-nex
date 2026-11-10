@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PortfolioApp } from "./portfolio-app";
 import { useReplayableWindowEvent } from "../../lib/replayable-window-event";
-import type { PortfolioContent, PortfolioViewState } from "./content";
+import type { PortfolioContent, PortfolioOrigin, PortfolioViewState } from "./content";
 
 /**
  * State-driven portfolio navigation for live screens: local navigation emits a
@@ -31,6 +31,7 @@ export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
             projectIndex: v.projectIndex,
             splitView: v.splitView,
             cameFromSplit: v.cameFromSplit,
+            from: v.from,
           },
         },
       })
@@ -43,6 +44,7 @@ export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
     projectIndex?: number | null;
     splitView?: boolean;
     cameFromSplit?: boolean;
+    from?: PortfolioOrigin;
   }>("portfolio-set-view", (detail) => {
     setView({
       cardIndex: detail?.cardIndex ?? null,
@@ -50,6 +52,7 @@ export function PortfolioLiveApp({ content }: { content?: PortfolioContent }) {
       projectIndex: detail?.projectIndex ?? null,
       splitView: detail?.splitView,
       cameFromSplit: detail?.cameFromSplit,
+      from: detail?.from,
     });
   });
 

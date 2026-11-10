@@ -77,6 +77,19 @@ const AUTO_RELOCK_MS = 5_000;
 // Safety-net poll for the lock; the live path is the LOCK_STATE_UPDATE push.
 const LOCK_POLL_FALLBACK_MS = 30_000;
 
+let lastIrAlertAt = 0;
+/**
+ * Tell the operator an IR command didn't go through, like the dashboard's AC
+ * tile does. Once per few seconds: a burst of debounced AC commands that all
+ * fail would otherwise stack one alert per setting. The error itself goes to
+ * the console — a server action's message is withheld in production builds.
+ */
+function reportIrFailure(what: string, _err: unknown) {
+  if (Date.now() - lastIrAlertAt < 5_000) return;
+  lastIrAlertAt = Date.now();
+  alert(`${what}. Check that the IR hub is online; details are in the browser console.`);
+}
+
 export function EnvironmentView() {
   const [focused, setFocused] = useState<PanelType>("lighting");
   const [isClient, setIsClient] = useState(false);
@@ -492,6 +505,10 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
 
+  // queueAcCommand is created once (empty deps) but loadClimate is declared
+  // further down, so it reaches it through a ref.
+  const loadClimateRef = useRef<() => void>(() => {});
+
   const queueAcCommand = useCallback(
     (family: string, run: () => Promise<unknown>) => {
       if (!IR_AC_CONFIGURED) return; // still mock until a real device uuid is set
@@ -513,7 +530,12 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
           pendingAcRef.current.delete(family);
           sendingAcRef.current.add(family);
           next()
-            .catch((err) => console.error(`Error sending AC ${family}:`, err))
+            .catch((err) => {
+              console.error(`Error sending AC ${family}:`, err);
+              // Undo the optimistic change rather than show a setting the AC never got.
+              loadClimateRef.current();
+              reportIrFailure("The AC didn't respond", err);
+            })
             .finally(() => {
               setTimeout(sendNext, 50);
             });
@@ -562,14 +584,17 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
   );
 
   const handleRemoteKey = useCallback((deviceUuid: string, key: string) => {
-    sendRemoteKey(deviceUuid, key).catch((err) =>
-      console.error(`Error sending IR key ${key}:`, err),
-    );
+    sendRemoteKey(deviceUuid, key).catch((err) => {
+      console.error(`Error sending IR key ${key}:`, err);
+      reportIrFailure(`The remote didn't send "${key}"`, err);
+    });
   }, []);
 
   // Hydrate the Climate panel from the AC's last-known persisted state, so a
-  // reload reflects reality instead of the hardcoded mock defaults.
-  useEffect(() => {
+  // reload reflects reality instead of the hardcoded mock defaults. Also run
+  // after a failed command: the API only saves state once Tuya accepts it, so
+  // this puts back what the AC was really last set to.
+  const loadClimate = useCallback(() => {
     if (!IR_AC_CONFIGURED) return;
     getIrDeviceState(IR_AC.uuid)
       .then((dev) => {
@@ -589,6 +614,8 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
       })
       .catch((err) => console.error("Failed to load AC state:", err));
   }, []);
+  useEffect(loadClimate, [loadClimate]);
+  loadClimateRef.current = loadClimate;
 
   // Real lock state — read live from Home Assistant (unlike the other mock
   // panels above), polled so it stays correct even when the lock changes
@@ -756,13 +783,13 @@ const handleModeApplied = useCallback((mode: { color: string; stripOn: boolean }
   if (!isClient) return null;
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 sm:gap-6 overflow-y-auto lg:overflow-hidden font-sans text-foreground pb-2">
-      <h1 className="shrink-0 text-3xl font-black tracking-tight pt-2">
+    <div className="w-full h-full flex flex-col gap-3 sm:gap-4 overflow-y-auto lg:overflow-hidden font-sans text-foreground">
+      <h1 className="shrink-0 text-2xl font-black tracking-tight">
         Environment
       </h1>
 
       <div
-        className="flex-1 w-full grid gap-6 min-h-0"
+        className="flex-1 w-full grid gap-4 min-h-0"
         // Sized from PANELS so hiding or restoring a card leaves no empty cell:
         // one tall "primary" beside a stack of the remaining secondary slots.
         style={

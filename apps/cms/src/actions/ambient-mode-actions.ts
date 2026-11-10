@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin, requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
 
 export interface AmbientModeSummary {
@@ -16,7 +16,7 @@ export interface AmbientModeSummary {
 
 /** The whole-room lighting modes (pre-entry, entry, meeting, presentation), in display order. */
 export async function listAmbientModes(): Promise<AmbientModeSummary[]> {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<AmbientModeSummary[]>("/api/ambient-modes", { method: "GET" });
   if (!res.ok) throw new Error(res.error.message);
   return res.data;
@@ -38,7 +38,7 @@ export async function saveAmbientMode(
 
 /** Put the room's lights into a mode. Reports how many lights took it. */
 export async function applyAmbientMode(key: string): Promise<{ key: string; applied: number; failed: number }> {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{ key: string; applied: number; failed: number }>(
     `/api/ambient-modes/${encodeURIComponent(key)}/apply`,
     { method: "POST" },

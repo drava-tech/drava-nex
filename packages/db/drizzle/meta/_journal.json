@@ -267,6 +267,48 @@
       "when": 1784020305848,
       "tag": "0037_ambient_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793772809297,
+      "tag": "0038_drava_mosaic_template",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794212291600,
+      "tag": "0039_screen_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794220708499,
+      "tag": "0040_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794221599401,
+      "tag": "0041_schedule_loop",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794229146514,
+      "tag": "0042_schedule_after_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794230728203,
+      "tag": "0043_motion_triggers",
+      "breakpoints": true
     }
   ]
 }

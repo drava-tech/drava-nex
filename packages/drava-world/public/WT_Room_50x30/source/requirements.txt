@@ -1,0 +1,6 @@
+numpy
+scipy
+Pillow
+trimesh
+xatlas
+embreex

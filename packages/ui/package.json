@@ -29,6 +29,14 @@
       "import": "./src/templates/flight-simulation/index.ts",
       "types": "./src/templates/flight-simulation/index.ts"
     },
+    "./templates/drava-mosaic": {
+      "import": "./src/templates/drava-mosaic/index.ts",
+      "types": "./src/templates/drava-mosaic/index.ts"
+    },
+    "./templates/drava-world": {
+      "import": "./src/templates/drava-world/index.ts",
+      "types": "./src/templates/drava-world/index.ts"
+    },
     "./templates/object-recognition": {
       "import": "./dist/templates/object-recognition/index.js",
       "types": "./dist/templates/object-recognition/index.d.ts"

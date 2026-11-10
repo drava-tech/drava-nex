@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
 
 /**
@@ -11,7 +11,7 @@ import { apiFetch } from "@/lib/api-client";
  */
 
 async function postIrCommand(deviceUuid: string, command: string, params?: Record<string, unknown>) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{ id: string; state: Record<string, unknown> }>(
     `/api/devices/ir/${deviceUuid}/command`,
     {
@@ -30,7 +30,7 @@ export async function sendIrCommand(deviceUuid: string, command: string, params?
 
 /** Read a device's last-known persisted state — used to hydrate the Climate panel on load. */
 export async function getIrDeviceState(deviceUuid: string) {
-  await requireAdmin();
+  await requireGuestOrAdmin();
   const res = await apiFetch<{
     id: string;
     deviceId: string;

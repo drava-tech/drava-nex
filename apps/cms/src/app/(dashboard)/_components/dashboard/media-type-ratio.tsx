@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FileText, Film, Image as ImageIcon, type LucideIcon } from "lucide-react";
 import {
   groupMediaStats,
@@ -12,12 +13,15 @@ interface RatioCategory {
   label: string;
   icon: LucideIcon;
   color: string;
+  /** The Media page, filtered to this kind (see ?category= in media/page.tsx). */
+  href: string;
 }
 
 const CATEGORIES: RatioCategory[] = [
-  { group: "video", label: "Videos", icon: Film, color: "var(--chart-1)" },
-  { group: "image", label: "Images", icon: ImageIcon, color: "var(--chart-2)" },
-  { group: "document", label: "Documents", icon: FileText, color: "var(--chart-3)" },
+  { group: "video", label: "Videos", icon: Film, color: "var(--chart-1)", href: "/media?category=videos" },
+  { group: "image", label: "Images", icon: ImageIcon, color: "var(--chart-2)", href: "/media?category=images" },
+  // Documents here are PDFs, Word files, sheets and slides together.
+  { group: "document", label: "Documents", icon: FileText, color: "var(--chart-3)", href: "/media?category=documents,sheets,presentations" },
 ];
 
 export function MediaTypeRatio() {
@@ -27,21 +31,23 @@ export function MediaTypeRatio() {
   const trackedTotal = counts.video + counts.image + counts.document;
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-baseline justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Asset ratio</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+    // @container: the card sits in a side column, half a row or a full row
+    // depending on the page width, so it lays itself out by its own width.
+    <div className="@container space-y-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Asset ratio</p>
+          <p className="mt-1 whitespace-nowrap text-xl tabular-nums text-foreground @xs:text-2xl">
             {counts.video} : {counts.image} : {counts.document}
           </p>
         </div>
-        <p className="text-right text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           {trackedTotal} categorized asset{trackedTotal === 1 ? "" : "s"}
         </p>
       </div>
 
       <div
-        className="flex h-3 w-full overflow-hidden rounded-full bg-white/5"
+        className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
         role="img"
         aria-label={`${counts.video} videos, ${counts.image} images, ${counts.document} documents`}
       >
@@ -57,28 +63,34 @@ export function MediaTypeRatio() {
         })}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+      {/* Three tiles once there is room for them; one row each before that. */}
+      <div className="grid grid-cols-1 gap-2 @sm:grid-cols-3">
         {CATEGORIES.map((category) => {
           const Icon = category.icon;
           const count = counts[category.group];
           const percentage = trackedTotal > 0 ? Math.round((count / trackedTotal) * 100) : 0;
           return (
-            <div key={category.group} className="rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-slate-300">
-                <Icon className="h-4 w-4" style={{ color: category.color }} />
-                <span className="text-xs">{category.label}</span>
+            <Link
+              key={category.group}
+              href={category.href}
+              aria-label={`${category.label}: ${count}. Open in Media`}
+              className="group relative flex min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 transition-colors hover:border-primary/40 @sm:block @sm:p-3"
+            >
+              <div className="flex min-w-0 items-center gap-2 text-foreground/80">
+                <Icon className="h-4 w-4 shrink-0" style={{ color: category.color }} />
+                <span className="truncate text-xs">{category.label}</span>
               </div>
-              <div className="mt-2 flex items-end justify-between gap-2">
-                <span className="text-xl font-semibold tabular-nums text-white">{count}</span>
-                <span className="text-xs tabular-nums text-slate-400">{percentage}%</span>
+              <div className="flex items-baseline gap-2 @sm:mt-2 @sm:items-end @sm:justify-between">
+                <span className="text-lg tabular-nums text-foreground @sm:text-xl">{count}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{percentage}%</span>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
 
       {counts.other > 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           {counts.other} linked or embedded asset{counts.other === 1 ? " is" : "s are"} not included in this ratio.
         </p>
       )}

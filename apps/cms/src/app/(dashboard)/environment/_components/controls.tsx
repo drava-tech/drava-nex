@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { RotateCw, Wind, Clock, Zap } from "lucide-react";
-import { DragSlider } from "@/components/drag-slider";
+import { DragSlider as BaseDragSlider } from "@/components/drag-slider";
 
 export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix = "%", color = "bg-primary" }: { value: number, onChange: (v: number) => void, min?: number, max?: number, label?: string, suffix?: string, color?: string }) {
   // Single click/tap on the track sets the value directly at that position —
@@ -38,11 +38,11 @@ export function MiniSlider({ value, onChange, min = 0, max = 100, label, suffix 
 export function Switch({ checked, onChange }: { checked: boolean, onChange: (c: boolean) => void }) {
   return (
     <div
-      className={`w-11 h-6 rounded-full p-1 cursor-pointer transition-colors ${checked ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-200 dark:bg-zinc-700'}`}
+      className={`w-11 h-6 rounded-full p-1 cursor-pointer transition-[background-color,box-shadow] ${checked ? 'bg-zinc-900 dark:bg-white shadow-[var(--pill-shadow)] dark:shadow-[0_4px_12px_-2px_rgba(255,255,255,0.35),inset_0_1px_1px_0_rgba(0,0,0,0.35),inset_0_-2px_4px_rgba(0,0,0,0.15)]' : 'bg-zinc-200 dark:bg-zinc-700 shadow-[var(--pill-shadow)]'}`}
       onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
     >
       <motion.div
-        className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-900 shadow-sm`}
+        className={`w-4 h-4 rounded-full bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.5)]`}
         animate={{ x: checked ? 20 : 0 }}
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
       />
@@ -120,6 +120,14 @@ export function ClimateControlIcon({ type, active }: { type: "swing" | "timer" |
  * Re-exported so this page keeps its single controls import. The
  * implementation moved to components/drag-slider.tsx when the video scrub bar
  * started needing it too — a shared control must not live inside one route's
- * private _components folder.
+ * private _components folder. Here it takes the same black→red fill as the
+ * Audio card's volume bar.
  */
-export { DragSlider };
+export function DragSlider(props: React.ComponentProps<typeof BaseDragSlider>) {
+  return (
+    <BaseDragSlider
+      fillClassName="bg-gradient-to-r from-[#26331f] via-[#5ea83a] to-[#92ff5f]"
+      {...props}
+    />
+  );
+}

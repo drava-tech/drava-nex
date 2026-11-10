@@ -1,0 +1,11 @@
+{
+  "direct_samples": 150,
+  "ao_samples": 16,
+  "diffuse_bounces": 2,
+  "samples_per_bounce": 16,
+  "seconds": 348.9,
+  "output_bytes": 29131980,
+  "optimized_output_bytes": 7110792,
+  "vertices_before": 457614,
+  "vertices_after": 116533
+}

@@ -5,6 +5,7 @@ import { IDLE_WS_CONTENT } from "@platform/types";
 import type { WsContent } from "@platform/types";
 import { cn, dispatchReplayableEvent } from "@platform/ui";
 import { SET_VIDEO_PLAYBACK, VIDEO_PLAYBACK_EVENT } from "@platform/ui/templates/portfolio";
+import { DATA_ART_VIEW_COMMAND, DATA_ART_VIEW_EVENT } from "@platform/ui/templates/drava-mosaic";
 import type { Content } from "@/types/display";
 import { useScreenWebSocket } from "@/hooks/useScreenWebSocket";
 import { useContentPreloader } from "@/hooks/useContentPreloader";
@@ -221,6 +222,11 @@ export function LiveScreenPlayer({
       // than for most: the engine chunk is a slow dynamic import, so a replayed
       // view routinely arrives before the canvas has mounted its listener.
       dispatchReplayableEvent("flight-set-view", value);
+    } else if (command === DATA_ART_VIEW_COMMAND) {
+      // Data Art Studio's landing choices (data source, art, Generate/back) from
+      // another client of this screen. Replayable for the same reason as the
+      // flight view: the studio is an iframe that loads well after the replay.
+      dispatchReplayableEvent(DATA_ART_VIEW_EVENT, value);
     } else if (command === "SET_FILM_VIEW") {
       // Films page grid/player + which film — replayable, same reason as above.
       dispatchReplayableEvent("film-set-view", value);
@@ -249,6 +255,8 @@ export function LiveScreenPlayer({
       // replay buffer lets a freshly-mounted scene use them rather than being
       // driven back to a guess made here.
       dispatchReplayableEvent("flight-set-view", undefined);
+      // Undefined closes any open artwork and keeps the studio's picks.
+      dispatchReplayableEvent(DATA_ART_VIEW_EVENT, undefined);
       // Null, not a position: the gateway drops its own cache on RESET_STATE,
       // but the replay buffer here is per-tab and would otherwise resume a film
       // at the position it was reset away from the next time one is opened.

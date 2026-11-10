@@ -30,8 +30,10 @@ vi.mock("@platform/db", async (importOriginal) => {
   };
 });
 
+// The door is for anyone signed in (Users too), so the route uses requireGuestOrAdmin.
 vi.mock("../src/middleware/auth.js", () => ({
   requireAdmin,
+  requireGuestOrAdmin: requireAdmin,
 }));
 
 vi.mock("../src/ws/gateway.js", () => ({

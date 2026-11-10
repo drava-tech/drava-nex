@@ -112,6 +112,12 @@ export interface GalleryLink {
   onSelect: () => void;
 }
 
+/** Handle to the page's expanded-photo state — see `controlRef` below. */
+export interface GalleryControl {
+  isOpen: boolean;
+  collapse: () => void;
+}
+
 /** Stepping through sibling pages in place — see `pager` below. */
 export interface GalleryPager {
   index: number;
@@ -125,7 +131,16 @@ export function GalleryView({
   topInset = 0,
   links,
   pager,
+  controlRef,
 }: {
+  /**
+   * Lets a caller with its own back button ask "is a photo open?" and close it,
+   * so Back from an expanded photo returns to the page with the description
+   * instead of leaving the page. Assigned on every render; read it in a click
+   * handler. Closing goes through the same path as a tap, so mirrored screens
+   * follow.
+   */
+  controlRef?: React.MutableRefObject<GalleryControl | null>;
   content?: GalleryContent;
   pageIndex?: number;
   /**
@@ -301,12 +316,17 @@ export function GalleryView({
   // Deliberately leaves `railOrder` alone: the rail fades out still holding the
   // three photos that were in it, instead of a fourth popping in mid-fade.
   const collapse = () => applyExpansion({ expanded: null, railOrder }, { emit: true });
+  if (controlRef) controlRef.current = { isOpen, collapse };
 
   const heading = (railMode: boolean) => (
     <>
       <h1
         style={{
-          margin: 0,
+          // Optical left alignment: a glyph's built-in left gap grows with its
+          // size, so the big title otherwise looks indented next to the smaller
+          // subtitle and description. Em-based, so it tracks the font-size
+          // controls. The rail keeps no pull-back (its text is much smaller).
+          margin: railMode ? 0 : "0 0 0 -0.04em",
           // The rail is narrow — step the title down so it still fits on a
           // line or two instead of wrapping into a wall of text.
           fontSize: `calc(${TITLE_SIZE} * ${(railMode ? 0.62 : 1) * titleScale})`,
@@ -326,10 +346,19 @@ export function GalleryView({
       {page.subtitle ? (
         <p
           style={{
-            margin: `${gap * (railMode ? 0.6 : 1.6)}px 0 0`,
+            // Same `gap` as the description's margin below, so the space under
+            // the title equals the space under the subtitle.
+            margin: `${gap * (railMode ? 0.6 : 1)}px 0 0`,
             fontSize: railMode ? Math.round(subtitleSize * 0.85) : subtitleSize,
-            fontWeight: 700,
+            // Same face as the title above it: weight, tracking and the 1.1x
+            // widening — not bold. Spacing (margin above, line height) is
+            // unchanged, so the description below sits where it did.
+            fontWeight: TITLE_WEIGHT,
+            letterSpacing: TITLE_TRACKING,
             lineHeight: 1.2,
+            maxWidth: "90%",
+            transform: "scaleX(1.1)",
+            transformOrigin: "left",
             transition: `font-size ${FAST}, margin ${FAST}`,
           }}
         >

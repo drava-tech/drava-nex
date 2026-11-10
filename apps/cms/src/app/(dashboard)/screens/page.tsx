@@ -1,15 +1,17 @@
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getScreens, getActiveScreens, getActiveWhiteboardSessions } from "@/actions/screen-actions";
 import { getExperiences } from "@/actions/project-actions";
+import { getScreenGroups } from "@/actions/screen-group-actions";
 import { ScreensController } from "./_components/screens-controller";
 
 export default async function ScreensPage() {
   const user = await requireGuestOrAdmin();
-  const [screens, experiences, activeScreenIds, activeWhiteboards] = await Promise.all([
+  const [screens, experiences, activeScreenIds, activeWhiteboards, groups] = await Promise.all([
     getScreens(),
     getExperiences(),
     getActiveScreens(),
     getActiveWhiteboardSessions(),
+    getScreenGroups(),
   ]);
   const role = (user as { role?: string }).role;
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
@@ -22,6 +24,7 @@ export default async function ScreensPage() {
         experiences={experiences}
         initialActiveScreenIds={activeScreenIds}
         activeWhiteboards={activeWhiteboards}
+        groups={groups}
       />
     </div>
   );

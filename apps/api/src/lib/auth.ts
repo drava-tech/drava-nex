@@ -9,6 +9,14 @@ import * as schema from "@platform/db";
 // extras in BETTER_AUTH_TRUSTED_ORIGINS. No dynamic per-port IP enumeration.
 const CMS_URL = process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000";
 
+// Embedding the CMS in an <iframe> on ANOTHER site: the default SameSite=Lax
+// session cookie is never sent inside a cross-site frame, so the dashboard
+// loops back to /login. SameSite=None fixes that but requires Secure (HTTPS
+// only) and drops the browser's CSRF backstop on cookie-authed routes, so it
+// is opt-in. Same-host framing (ec-cms / 192.168.1.250, any port) needs none of this.
+const ALLOW_IFRAME_EMBED =
+  process.env["ALLOW_IFRAME_EMBED"] === "true" && CMS_URL.startsWith("https://");
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -44,6 +52,9 @@ export const auth = betterAuth({
   // Bearer plugin: lets mobile clients send `Authorization: Bearer <token>`
   // and have getSession resolve it (cookie + bearer both work via one call).
   plugins: [bearer()],
+  ...(ALLOW_IFRAME_EMBED && {
+    advanced: { defaultCookieAttributes: { sameSite: "none", secure: true } },
+  }),
   secret: process.env["BETTER_AUTH_SECRET"]!,
   baseURL: CMS_URL,
   trustedOrigins: [

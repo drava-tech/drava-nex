@@ -116,3 +116,9 @@ services/vision/models/**/w600k_r50.onnx
 *.log
 *.log.1
 infra/docker/docker-compose.yml.pre-volume-migration
+
+# Drava Mosaic build copied in by apps/cms/scripts/sync-drava-mosaic.mjs
+apps/cms/public/drava-mosaic/
+
+# Drava World build copied in by apps/cms/scripts/sync-drava-world.mjs
+apps/cms/public/drava-world/

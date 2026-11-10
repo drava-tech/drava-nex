@@ -20,14 +20,15 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        default: "btn-primary rounded-full border-0 font-normal",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
-        outline: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
-        secondary: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
-        glass: "shiny-border rounded-full border-0 font-normal text-foreground [background-image:var(--glass-bg)] hover:[background-image:var(--glass-bg-hover)]",
+        outline: "btn-surface rounded-full border-0 font-normal",
+        secondary: "btn-surface rounded-full border-0 font-normal",
+        glass: "glass-shine rounded-full font-normal",
+        active: "btn-active rounded-full border-0 font-normal",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        pill: "rounded-full border-0 font-normal text-white [background-image:var(--pill-bg)] [box-shadow:var(--pill-shadow)] hover:[background-image:var(--pill-bg-hover)]",
+        link: "text-primary-ink underline-offset-4 hover:underline",
+        pill: "btn-primary rounded-full border-0 font-normal",
       },
       size: {
         default: "h-9 px-4 py-2",
@@ -176,9 +177,9 @@ CardFooter.displayName = "CardFooter";
 // ==========================================
 export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
   const colors = {
-    online: "bg-[#4DDD00]/10 text-[#4DDD00] border-[#4DDD00]/30",
-    offline: "bg-[#E21D3E]/10 text-[#E21D3E] border-[#E21D3E]/30",
-    maintenance: "bg-[#FF3000]/10 text-[#FF3000] border-[#FF3000]/30",
+    online: "bg-status-online/10 text-status-online border-status-online/30",
+    offline: "bg-status-offline/10 text-status-offline border-status-offline/30",
+    maintenance: "bg-status-alert/10 text-status-alert border-status-alert/30",
   };
 
   const statusLabel = {
@@ -198,10 +199,10 @@ export const StatusBadge = ({ status }: { status: Screen["status"] }) => {
         className={cn(
           "h-1.5 w-1.5 rounded-full",
           status === "online"
-            ? "bg-[#4DDD00]"
+            ? "bg-status-online"
             : status === "offline"
-            ? "bg-[#E21D3E]"
-            : "bg-[#FF2400]"
+            ? "bg-status-offline"
+            : "bg-status-alert"
         )}
       />
       {statusLabel[status]}

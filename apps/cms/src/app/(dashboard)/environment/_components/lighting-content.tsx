@@ -5,6 +5,7 @@ import { Switch, DragSlider } from "./controls";
 import { Flame, Palette } from "lucide-react";
 import { LIGHT_PRESETS, groupLights } from "@/lib/casambi-lights";
 import AmbientModesPanel from "./ambient-modes-panel";
+import { SampleBadge } from "../../_components/dashboard/sample-badge";
 
 /**
  * One row per fixture group, expandable to the individual fixtures underneath.
@@ -23,6 +24,27 @@ type Row = { uuid: string; deviceId: string; name: string; status: string; state
 
 /** Below this the fixture is rendering its white LEDs and will ignore RGB. */
 const COLOUR_MODE_MIN = 32;
+
+/**
+ * Shown while no Casambi fixtures are registered, so the card keeps its real
+ * layout instead of an empty state. Mirrors the roster in
+ * apps/api/src/scripts/seed-casambi-devices.ts. Controls are inert for these.
+ */
+const PLACEHOLDER_LIGHTS: Row[] = [
+  { uuid: "placeholder-23", deviceId: "casambi-light-23", name: "Strip Light", status: "offline" },
+  { uuid: "placeholder-27", deviceId: "casambi-light-27", name: "Stretch Fabric 0", status: "offline" },
+  { uuid: "placeholder-28", deviceId: "casambi-light-28", name: "Stretch Fabric 1", status: "offline" },
+];
+
+const NOOP_ACTIONS = {
+  setPower: () => {},
+  setBrightness: () => {},
+  setColor: () => {},
+  setMode: () => {},
+  identify: () => {},
+  openColourPanel: () => {},
+  modeApplied: () => {},
+};
 
 const inColourMode = (r: Row) => (r.state?.colorBalance ?? 0) >= COLOUR_MODE_MIN;
 
@@ -47,7 +69,7 @@ function ModeToggle({ mode, onMode }: { mode: "warm" | "colour"; onMode: (m: "wa
   // state reads without any surrounding chrome.
   const base =
     "flex h-6 shrink-0 items-center gap-1 rounded-full px-3 text-[9px] font-bold uppercase tracking-widest transition-all";
-  const idle = "bg-muted/60 text-muted-foreground hover:bg-muted";
+  const idle = "btn-surface";
   return (
     <div className="flex shrink-0 items-center gap-2">
       <button
@@ -55,7 +77,7 @@ function ModeToggle({ mode, onMode }: { mode: "warm" | "colour"; onMode: (m: "wa
         title="Warm white — the fixture's own white LEDs"
         aria-pressed={mode === "warm"}
         onClick={(e) => { e.stopPropagation(); onMode("warm"); }}
-        className={`${base} ${mode === "warm" ? "bg-amber-500 text-white shadow-sm" : idle}`}
+        className={`${base} ${mode === "warm" ? "btn-active" : idle}`}
       >
         <Flame className="h-2.5 w-2.5" />
         Warm
@@ -65,7 +87,7 @@ function ModeToggle({ mode, onMode }: { mode: "warm" | "colour"; onMode: (m: "wa
         title="Colour mode — unlocks the swatches"
         aria-pressed={mode === "colour"}
         onClick={(e) => { e.stopPropagation(); onMode("colour"); }}
-        className={`${base} ${mode === "colour" ? "bg-primary text-primary-foreground shadow-sm" : idle}`}
+        className={`${base} ${mode === "colour" ? "btn-active" : idle}`}
       >
         <Palette className="h-2.5 w-2.5" />
         Colour
@@ -150,8 +172,11 @@ function Dimmer({ value, onChange }: { value: number; onChange: (v: number) => v
   );
 }
 
-export default function LightingContent({ isExpanded, state, actions }: any) {
-  const lights: Row[] = state.lights ?? [];
+export default function LightingContent({ isExpanded, state, actions: liveActions }: any) {
+  const isPlaceholder = (state.lights ?? []).length === 0;
+  const lights: Row[] = isPlaceholder ? PLACEHOLDER_LIGHTS : state.lights;
+  // Never send commands for the placeholder fixtures.
+  const actions = isPlaceholder ? NOOP_ACTIONS : liveActions;
   const groups = groupLights(lights);
   const [open, setOpen] = React.useState<Record<string, boolean>>({});
   // Optimistic mode wins while it exists; otherwise fall back to what the
@@ -172,6 +197,7 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
           <h3 className={`${isExpanded ? "text-lg" : "text-base"} font-semibold tracking-tight`}>Lighting</h3>
         </div>
         <div className={`flex items-center ${isExpanded ? "gap-3" : "gap-2"}`}>
+          {isPlaceholder && <SampleBadge title="No Casambi lights registered — placeholder fixtures" />}
           <Badge variant="secondary" className={`${isExpanded ? "" : "hidden xl:inline-flex"} border-0 bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-slate-300 shadow-none font-bold uppercase text-[10px] tracking-widest`}>
             {groups.length === 0 ? "None" : `${onCount}/${groups.length} On`}
           </Badge>
@@ -188,29 +214,24 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
             {groups.length === 1 ? "Light On" : "Lights On"}
           </span>
         </div>
-      ) : groups.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-6 text-center">
-          <p className="text-[11px] text-muted-foreground/70">
-            No Casambi lights registered. Run <span className="font-mono">pnpm --filter @platform/api seed:casambi</span> to add them.
-          </p>
-        </div>
       ) : (
-              <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
-        <AmbientModesPanel onApplied={actions.modeApplied} />
-        {groups.map((g) => {
+        // Fixture rows take the height they need (scrolling quietly if they
+        // outgrow the card); the ambient modes follow straight on beneath them.
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="no-scrollbar flex min-h-0 flex-col gap-2.5 overflow-y-auto pr-1">
+          {groups.map((g) => {
 
             const uuids = g.members.map((m) => m.uuid);
             const on = g.members.some((m) => state.on?.[m.uuid]);
-            const offline = g.members.every((m) => m.status === "offline");
             const many = g.members.length > 1;
             const isOpen = !!open[g.name];
             return (
-              // Offline fixtures dim but stay interactive — the gateway's online
-              // flag has proven unreliable, so it must not lock out a light the
-              // user can actually still reach.
+              // Offline shows only on the StatusDot — the gateway's online flag
+              // has proven unreliable, so the card must neither dim nor lock out
+              // a light the user can actually still reach.
               <div
                 key={g.name}
-                className={`rounded-2xl border border-border p-3 transition-opacity ${offline ? "opacity-50" : ""}`}
+                className={`rounded-2xl border p-3 border-border bg-accent shadow-[var(--pill-shadow)]`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -301,6 +322,8 @@ export default function LightingContent({ isExpanded, state, actions }: any) {
               </div>
             );
           })}
+          </div>
+          <AmbientModesPanel onApplied={actions.modeApplied} />
         </div>
       )}
     </div>

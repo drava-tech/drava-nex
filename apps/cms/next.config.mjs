@@ -5,6 +5,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const API_INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:4000';
 
+/**
+ * Where uploaded files are fetched from when no page matches /media/... —
+ * normally this machine's API. A dev checkout shares the office database but
+ * not its files (they live on the deployment host), so every thumbnail there
+ * 404s; set DEV_MEDIA_ORIGIN=http://<that host> in .env to load them from it.
+ */
+const MEDIA_ORIGIN = process.env.DEV_MEDIA_ORIGIN?.replace(/\/+$/, '') || API_INTERNAL;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -34,12 +42,22 @@ const nextConfig = {
         { source: '/ws',         destination: `${API_INTERNAL}/ws` },
         { source: '/ws/:path*',  destination: `${API_INTERNAL}/ws/:path*` },
       ],
+      // Drava World (public/drava-world) is a multi-page app with folder
+      // addresses: Next serves public/ files by exact name only, so point its
+      // folders at their index.html, and its zone addresses (/zone/<id>, which
+      // the app pushes as you move between zones) at the main page, so a
+      // reload lands back in the same zone.
+      afterFiles: [
+        { source: '/drava-world', destination: '/drava-world/index.html' },
+        { source: '/drava-world/zone/:id', destination: '/drava-world/index.html' },
+        { source: '/drava-world/:page(cms|push|assembly)', destination: '/drava-world/:page/index.html' },
+      ],
       // fallback (not beforeFiles/afterFiles): app routes under /media/ — like
       // the dynamic /media/live/[deviceId] — must resolve first. This only
       // proxies to the API's file server for paths with no matching page,
       // i.e. actual uploaded media files.
       fallback: [
-        { source: '/media/:path*', destination: `${API_INTERNAL}/media/:path*` },
+        { source: '/media/:path*', destination: `${MEDIA_ORIGIN}/media/:path*` },
       ],
     };
   },

@@ -18,6 +18,7 @@ export * from "./media-listing.js";
 // --- Flight Garden simulation runtime data (airport catalog + flight roster) ---
 export * from "./flight-simulation.js";
 export * from "./flight-art.js";
+export * from "./schedule.js";
 
 // --- Experience templates (code-defined; shared by CMS UI + API validation) ---
 export const TEMPLATE_KEYS = [
@@ -28,6 +29,8 @@ export const TEMPLATE_KEYS = [
   "object-recognition",
   "flight-simulation",
   "gallery",
+  "drava-mosaic",
+  "drava-world",
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
