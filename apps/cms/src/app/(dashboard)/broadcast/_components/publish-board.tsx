@@ -122,7 +122,13 @@ export interface MediaItem {
   createdAt: string | null;
   /** Small derived tile; null for videos and pre-backfill images. */
   thumbnailUrl?: string | null;
+  /** Display-ready from /api/media: "6.8 MB" ("—" for links), "Nov 09, 2026". */
+  size?: string;
+  date?: string;
 }
+
+/** Where a media item came from, as the card's details line says it. */
+const SOURCE_LABELS: Record<string, string> = { upload: "Upload", email: "Email", link: "Link" };
 
 /** Every non-experience card carries the media asset's own classified type
  * (see apps/api/src/routes/media.ts's ALLOWED map) — "image"/"video" render a
@@ -152,6 +158,8 @@ interface ContentCard {
   typeIds?: string[];
   /** Videos: the file, for a frame when there's no poster yet. */
   videoUrl?: string;
+  /** Media only: shown in the details card under the carousel while this card is centred. */
+  details?: { size?: string; date?: string; source?: string | null };
 }
 
 interface PublishBoardProps {
@@ -557,6 +565,7 @@ export function PublishBoard({
       // to prevent Android WebView from mounting native <video> decoders across carousel slides.
       thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
       videoUrl: m.type === "video" ? m.url : undefined,
+      details: { size: m.size === "—" ? undefined : m.size, date: m.date, source: m.source },
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, experienceTypes, mediaItems, filter, tagFilter, searchQuery]);
@@ -605,6 +614,9 @@ export function PublishBoard({
 
   /** The slide wearing the "this is what a swipe publishes" glow. */
   const centredKeyRef = useRef<string | null>(null);
+  /** The same, as state: the details card under the carousel shows this one. */
+  const [centredKey, setCentredKey] = useState<string | null>(null);
+  const centredCard = cards.find((c) => `${c.type}:${c.id}` === centredKey) ?? null;
 
   /** Caches static layout centers (offsetLeft + offsetWidth / 2) so scroll frames do not force DOM layout reads per card. */
   const cachedCentersRef = useRef<Map<string, number>>(new Map());
@@ -684,6 +696,7 @@ export function PublishBoard({
       if (centredKeyRef.current) slideRefs.current.get(centredKeyRef.current)?.removeAttribute("data-centred");
       slideRefs.current.get(nearestKey)?.setAttribute("data-centred", "true");
       centredKeyRef.current = nearestKey;
+      setCentredKey(nearestKey);
     }
     if (nearestKey) saveSnapshot({ centredCardKey: nearestKey });
   }, [saveSnapshot]);
@@ -1445,6 +1458,10 @@ export function PublishBoard({
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
+
+            {centredCard?.details && (
+              <MediaDetailsCard card={centredCard} scheduledIn={scheduleInfo.byContent.get(centredCard.id)} />
+            )}
           </>
         )}
       </div>
@@ -1706,6 +1723,44 @@ const FILE_TYPE_ICONS: Record<
   sheet: FileSpreadsheet,
   presentation: Presentation,
 };
+
+/**
+ * What the centred media card is: its name and what's known about the file,
+ * in one card the width of the board, under the carousel. Follows the
+ * carousel as it moves; media only (the portfolio's cards have no file).
+ */
+function MediaDetailsCard({ card, scheduledIn }: { card: ContentCard; scheduledIn?: ContentSchedule[] }) {
+  const d = card.details ?? {};
+  const rows: [string, React.ReactNode][] = [
+    ["Type", card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type]],
+    ["Size", d.size ?? "—"],
+    ["Added", d.date ?? "—"],
+    ["Source", d.source ? SOURCE_LABELS[d.source] ?? d.source : "—"],
+  ];
+  return (
+    <section
+      aria-label="Details"
+      aria-live="polite"
+      className="flex shrink-0 flex-col gap-3 rounded-2xl border border-border bg-card px-5 py-4 text-card-foreground shadow-[var(--card-shadow)] md:flex-row md:items-center md:gap-8"
+    >
+      <div className="min-w-0 md:w-1/3">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Selected</p>
+        <h2 className="mt-0.5 truncate text-base font-semibold" title={card.title}>
+          {card.title}
+        </h2>
+        {scheduledIn && scheduledIn.length > 0 && <ScheduledChip list={scheduledIn} className="mt-1.5" />}
+      </div>
+      <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        {rows.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</dt>
+            <dd className="mt-0.5 truncate text-sm tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
 
 function CardVisual({
   card,
