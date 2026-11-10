@@ -18,6 +18,8 @@ import {
 } from "framer-motion";
 import {
   CalendarRange,
+  MonitorPlay,
+  CalendarClock,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -125,6 +127,9 @@ export interface MediaItem {
   /** Display-ready from /api/media: "6.8 MB" ("—" for links), "Nov 09, 2026". */
   size?: string;
   date?: string;
+  /** Email-ingested media only. */
+  emailFrom?: string | null;
+  emailSubject?: string | null;
 }
 
 /** Where a media item came from, as the card's details line says it. */
@@ -159,7 +164,15 @@ interface ContentCard {
   /** Videos: the file, for a frame when there's no poster yet. */
   videoUrl?: string;
   /** Media only: shown in the details card under the carousel while this card is centred. */
-  details?: { size?: string; date?: string; source?: string | null };
+  details?: {
+    size?: string;
+    date?: string;
+    source?: string | null;
+    emailFrom?: string | null;
+    emailSubject?: string | null;
+    /** The file itself, for a video's length and resolution. */
+    url?: string;
+  };
 }
 
 interface PublishBoardProps {
@@ -565,7 +578,14 @@ export function PublishBoard({
       // to prevent Android WebView from mounting native <video> decoders across carousel slides.
       thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
       videoUrl: m.type === "video" ? m.url : undefined,
-      details: { size: m.size === "—" ? undefined : m.size, date: m.date, source: m.source },
+      details: {
+        size: m.size === "—" ? undefined : m.size,
+        date: m.date,
+        source: m.source,
+        emailFrom: m.emailFrom,
+        emailSubject: m.emailSubject,
+        url: m.url,
+      },
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, experienceTypes, mediaItems, filter, tagFilter, searchQuery]);
@@ -1460,7 +1480,17 @@ export function PublishBoard({
             </div>
 
             {centredCard?.details && (
-              <MediaDetailsCard card={centredCard} scheduledIn={scheduleInfo.byContent.get(centredCard.id)} />
+              <MediaDetailsCard
+                card={centredCard}
+                playingOn={screens
+                  .filter((s) => s.currentContentKind === "media" && s.currentMediaAssetId === centredCard.id)
+                  .map((s) => ({ name: s.screenName, online: activeScreenIds.includes(s.screenId) }))}
+                schedules={(scheduleInfo.byContent.get(centredCard.id) ?? []).map((sc) => ({
+                  name: sc.name,
+                  afterQueue: sc.role === "after",
+                  onAir: scheduleInfo.status?.some((st) => st.current?.scheduleId === sc.id) ?? false,
+                }))}
+              />
             )}
           </>
         )}
@@ -1724,41 +1754,151 @@ const FILE_TYPE_ICONS: Record<
   presentation: Presentation,
 };
 
+/** "0:27", "4:05", "1:02:10". */
+function formatLength(seconds: number): string {
+  const t = Math.round(seconds);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
 /**
- * What the centred media card is: its name and what's known about the file,
- * in one card the width of the board, under the carousel. Follows the
- * carousel as it moves; media only (the portfolio's cards have no file).
+ * A video's length and resolution, read from its header only (preload
+ * "metadata", no frames decoded) and only for the one card in the details.
  */
-function MediaDetailsCard({ card, scheduledIn }: { card: ContentCard; scheduledIn?: ContentSchedule[] }) {
+function useVideoInfo(url: string | undefined): { length: string; resolution: string | null } | null {
+  const [info, setInfo] = useState<{ length: string; resolution: string | null } | null>(null);
+  useEffect(() => {
+    setInfo(null);
+    if (!url) return;
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    const done = () => {
+      if (Number.isFinite(video.duration)) {
+        setInfo({
+          length: formatLength(video.duration),
+          resolution: video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : null,
+        });
+      }
+    };
+    video.addEventListener("loadedmetadata", done);
+    video.src = url;
+    return () => {
+      video.removeEventListener("loadedmetadata", done);
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [url]);
+  return info;
+}
+
+/**
+ * What the centred media card is and where it's in use: on which screens now,
+ * in which schedules, and the file itself. One card the width of the board,
+ * under the carousel, following it as it moves. Media only.
+ */
+function MediaDetailsCard({
+  card,
+  playingOn,
+  schedules,
+}: {
+  card: ContentCard;
+  playingOn: { name: string; online: boolean }[];
+  schedules: { name: string; onAir: boolean; afterQueue: boolean }[];
+}) {
   const d = card.details ?? {};
-  const rows: [string, React.ReactNode][] = [
-    ["Type", card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type]],
-    ["Size", d.size ?? "—"],
-    ["Added", d.date ?? "—"],
-    ["Source", d.source ? SOURCE_LABELS[d.source] ?? d.source : "—"],
-  ];
+  const video = useVideoInfo(card.type === "video" ? d.url : undefined);
+  const typeLabel = card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type];
+  const fileFacts = [d.size, video?.length, video?.resolution].filter(Boolean).join(" · ");
   return (
     <section
       aria-label="Details"
-      aria-live="polite"
-      className="flex shrink-0 flex-col gap-3 rounded-2xl border border-border bg-card px-5 py-4 text-card-foreground shadow-[var(--card-shadow)] md:flex-row md:items-center md:gap-8"
+      className="shrink-0 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-[var(--card-shadow)]"
     >
-      <div className="min-w-0 md:w-1/3">
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Selected</p>
-        <h2 className="mt-0.5 truncate text-base font-semibold" title={card.title}>
+      <header className="flex items-center gap-3 border-b border-border px-5 py-3">
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold" title={card.title}>
           {card.title}
         </h2>
-        {scheduledIn && scheduledIn.length > 0 && <ScheduledChip list={scheduledIn} className="mt-1.5" />}
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {typeLabel}
+        </span>
+        {d.date && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">Added {d.date}</span>}
+      </header>
+
+      <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+        <DetailBlock icon={MonitorPlay} label="Playing now">
+          {playingOn.length === 0 ? (
+            <span className="text-muted-foreground">Not on any screen</span>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {playingOn.map((sc) => (
+                <li key={sc.name} className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-ink">
+                  <span
+                    aria-hidden
+                    className={`h-1.5 w-1.5 rounded-full ${sc.online ? "bg-emerald-400" : "bg-amber-400"}`}
+                  />
+                  {sc.name}
+                  {!sc.online && <span className="font-normal text-muted-foreground">offline</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DetailBlock>
+
+        <DetailBlock icon={CalendarClock} label="Schedules">
+          {schedules.length === 0 ? (
+            <span className="text-muted-foreground">Not scheduled</span>
+          ) : (
+            <ul className="space-y-1">
+              {schedules.map((sc) => (
+                <li key={sc.name} className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{sc.name}</span>
+                  {sc.afterQueue && <span className="shrink-0 text-xs text-muted-foreground">after the queue</span>}
+                  {sc.onAir && (
+                    <span className="shrink-0 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-primary-ink">
+                      On air
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DetailBlock>
+
+        <DetailBlock icon={card.type === "video" ? Video : FileText} label="File">
+          <p className="tabular-nums">{fileFacts || "—"}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={d.emailSubject ?? undefined}>
+            {d.source === "email"
+              ? `Email${d.emailFrom ? ` from ${d.emailFrom}` : ""}${d.emailSubject ? ` · “${d.emailSubject}”` : ""}`
+              : d.source
+                ? SOURCE_LABELS[d.source] === "Upload" ? "Uploaded" : SOURCE_LABELS[d.source] ?? d.source
+                : null}
+          </p>
+        </DetailBlock>
       </div>
-      <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-        {rows.map(([label, value]) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</dt>
-            <dd className="mt-0.5 truncate text-sm tabular-nums">{value}</dd>
-          </div>
-        ))}
-      </dl>
     </section>
+  );
+}
+
+function DetailBlock({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof Video;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 px-5 py-3.5">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      <div className="text-sm">{children}</div>
+    </div>
   );
 }
 
