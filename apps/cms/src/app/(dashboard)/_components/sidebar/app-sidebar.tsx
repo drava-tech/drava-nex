@@ -17,7 +17,7 @@ import {
   // SquareTerminal,
   // Globe,
 } from "lucide-react";
-import { DravaLogo } from "@/components/drava-logo";
+import { NexLogo } from "@/components/drava-logo";
 import { roleLabel } from "@/lib/roles";
 import {
   Sidebar,
@@ -157,7 +157,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="h-20 items-center justify-center px-4 py-3 group-data-[collapsible=icon]:hidden">
-        <DravaLogo product="nex" className="text-2xl" />
+        <NexLogo className="h-12" />
       </SidebarHeader>
       <SidebarContent>
         {isPending ? (

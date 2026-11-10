@@ -37,7 +37,10 @@ export function middleware(request: NextRequest) {
     pathname === "/favicon.ico" ||
     // Logo shown on the unauthenticated /display kiosk idle screen — must be
     // public for the same reason /media/ is (see comment above).
-    pathname === "/Logo.svg"
+    pathname === "/Logo.svg" ||
+    // The drava nex logo, shown on the login page before there's a session.
+    pathname === "/drava-nex-logo.png" ||
+    pathname === "/drava-nex-logo-light.png"
   ) {
     return NextResponse.next();
   }

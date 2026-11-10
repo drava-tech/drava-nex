@@ -40,3 +40,20 @@ export function DravaLogo({ product, className }: { product?: string; className?
     </span>
   );
 }
+
+/**
+ * The drava nex logo: "drava" over a large "NEX". The artwork from brand, as
+ * given (public/drava-nex-logo.png, grey #c3c3cb + lime), for the dark theme;
+ * a recoloured copy for light (#393b3d + the leaf-green primary-ink), where
+ * light grey and lime would barely show. Size it by height, e.g. `h-12`.
+ */
+export function NexLogo({ className }: { className?: string }) {
+  return (
+    <span role="img" aria-label="drava nex" className={cn("inline-block aspect-[399/143] h-12 shrink-0", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/drava-nex-logo-light.png" alt="" width={399} height={143} className="h-full w-full object-contain dark:hidden" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/drava-nex-logo.png" alt="" width={399} height={143} className="hidden h-full w-full object-contain dark:block" />
+    </span>
+  );
+}
