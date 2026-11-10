@@ -79,7 +79,7 @@ export function CreateProjectModal({ onClose, experienceTypes = [] }: CreateProj
         <div className="mb-6 flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              New experience
+              New portfolio item
             </p>
             <h2 className="text-lg font-semibold tracking-tight">Add to Portfolio</h2>
           </div>

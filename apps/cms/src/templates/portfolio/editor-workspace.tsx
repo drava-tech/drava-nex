@@ -191,7 +191,7 @@ export function PortfolioEditorWorkspace({
           <Link
             href="/experiences"
             className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-accent-foreground"
-            title="Back to experiences"
+            title="Back to portfolio"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

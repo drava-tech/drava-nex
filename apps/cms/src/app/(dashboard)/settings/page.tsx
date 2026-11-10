@@ -32,9 +32,9 @@ export default async function SettingsPage() {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-lg">Experience Types</h2>
+          <h2 className="text-lg">Portfolio Types</h2>
           <p className="text-sm text-muted-foreground">
-            Create the types people can assign when building a new experience.
+            Create the types people can assign when adding to the portfolio.
           </p>
         </div>
         <ExperienceTypesClient types={types} />

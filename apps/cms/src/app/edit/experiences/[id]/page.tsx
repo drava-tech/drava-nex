@@ -64,7 +64,7 @@ export default async function ExperienceEditPage({ params }: EditPageProps) {
   if (!exp) notFound();
 
   const key = isTemplateKey(exp.templateKey) ? exp.templateKey : null;
-  if (!key) return <FullScreenMessage>Assign a template to this experience first.</FullScreenMessage>;
+  if (!key) return <FullScreenMessage>Assign a template to this portfolio item first.</FullScreenMessage>;
 
   const def = TEMPLATE_DEFINITIONS[key];
   const Workspace = def.Workspace;

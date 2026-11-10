@@ -11,7 +11,7 @@ export default function DocsIntroductionPage() {
       <DocH2 id="welcome">Welcome</DocH2>
       <DocP>
         The CMS is where you manage the screens, content, and smart-building systems tied to your spaces.
-        From here you can push media and interactive experiences to displays live, manage the devices
+        From here you can push media and your interactive portfolio to displays live, manage the devices
         themselves, and control the environment around them.
       </DocP>
 

@@ -38,7 +38,7 @@ export function WelcomeTriggerToggle({ initialArmed }: { initialArmed: boolean }
         onClick={toggle}
         disabled={isToggling}
         className="gap-1.5"
-        title="While armed, a detected face switches the idle main screen to the Welcome experience"
+        title="While armed, a detected face switches the idle main screen to the Welcome portfolio item"
       >
         {isToggling ? (
           <Loader2 className="h-4 w-4 animate-spin" />

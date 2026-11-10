@@ -21,7 +21,7 @@ const ICONS: Record<string, { icon: LucideIcon; label: string }> = {
   presentation: { icon: Presentation, label: "Slides" },
   link: { icon: LinkIcon, label: "Link" },
   youtube: { icon: Film, label: "YouTube" },
-  experience: { icon: SquareTerminal, label: "Experience" },
+  experience: { icon: SquareTerminal, label: "Portfolio" },
 };
 
 /**

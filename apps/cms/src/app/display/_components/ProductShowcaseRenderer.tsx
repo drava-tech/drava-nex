@@ -161,7 +161,7 @@ function WaitingForTrigger({ content }: { content: ExperienceContent }) {
       </p>
       <p style={{ margin: 0, maxWidth: 1100, fontSize: 26, lineHeight: 1.35, color: "#a1a1aa" }}>
         This screen is running the {content.title ?? "product showcase"} layout, but no product is
-        saved on the experience. When the camera detects a known product, the detected product will
+        saved on the portfolio item. When the camera detects a known product, the detected product will
         appear here automatically.
       </p>
       <dl
@@ -174,7 +174,7 @@ function WaitingForTrigger({ content }: { content: ExperienceContent }) {
           fontSize: 20,
         }}
       >
-        <dt style={{ color: "#71717a", fontWeight: 700 }}>Experience</dt>
+        <dt style={{ color: "#71717a", fontWeight: 700 }}>Portfolio item</dt>
         <dd style={{ margin: 0 }}>{content.title ?? content.id}</dd>
         <dt style={{ color: "#71717a", fontWeight: 700 }}>Template</dt>
         <dd style={{ margin: 0 }}>{content.templateKey ?? "unknown"}</dd>

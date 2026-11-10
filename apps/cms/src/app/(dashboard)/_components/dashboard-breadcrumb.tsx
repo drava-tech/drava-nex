@@ -46,7 +46,7 @@ export function DashboardBreadcrumb() {
     }
 
     if (segment === "projects") {
-      breadcrumbs.push({ label: "Experiences", href });
+      breadcrumbs.push({ label: "Portfolio", href });
       return;
     }
 

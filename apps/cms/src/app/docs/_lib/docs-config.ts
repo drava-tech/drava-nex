@@ -46,7 +46,7 @@ export const docsNav: DocSection[] = [
       {
         slug: "broadcast",
         title: "Broadcast / Publish Board",
-        description: "Drag-and-drop UI for pushing media and experiences live to a screen.",
+        description: "Drag-and-drop UI for pushing media and portfolio items live to a screen.",
         headings: STANDARD_HEADINGS,
       },
       {
@@ -92,7 +92,7 @@ export const docsNav: DocSection[] = [
       {
         slug: "settings",
         title: "Settings",
-        description: "Experience-type configuration for the CMS.",
+        description: "Portfolio-type configuration for the CMS.",
         headings: STANDARD_HEADINGS,
       },
       {
