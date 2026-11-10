@@ -47,6 +47,7 @@ import {
   type ScreenRow,
 } from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
+import { SearchPill, matchesSearch } from "@/components/filter-bar";
 import { readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -141,6 +142,8 @@ interface PublishBoardProps {
   initialActiveScreenIds: string[];
   experiences: ExperienceOption[];
   experienceTypes: ExperienceTag[];
+  /** Screen groups, so the screen finder can search by a group's name. */
+  groups?: { id: string; name: string }[];
 }
 
 /**
@@ -156,6 +159,7 @@ export function PublishBoard({
   initialActiveScreenIds,
   experiences,
   experienceTypes,
+  groups = [],
 }: PublishBoardProps) {
   // Publishing navigates to the live page and coming back mounts a fresh
   // board, so everything the user had set up would be lost — restored here
@@ -982,6 +986,17 @@ export function PublishBoard({
         >
           <ChevronRight className="h-5 w-5" />
         </button>
+
+        {/* The arrows step one screen at a time; past a handful, jump by name. */}
+        {screens.length > 3 && (
+          <ScreenFinder
+            screens={screens}
+            groups={groups}
+            activeScreenIds={activeScreenIds}
+            currentId={targetScreen?.screenId ?? null}
+            onPick={(screenId) => setTargetIndex(Math.max(0, screens.findIndex((s) => s.screenId === screenId)))}
+          />
+        )}
       </div>
 
       {/* Feedback banner / gesture hint */}
@@ -1332,6 +1347,96 @@ export function PublishBoard({
             Opening {covering.screenName}…
           </span>
         </motion.div>
+      )}
+    </div>
+  );
+}
+
+/** Jump the publish target straight to a screen, by its name, its group's, or what it's playing. */
+function ScreenFinder({
+  screens,
+  groups,
+  activeScreenIds,
+  currentId,
+  onPick,
+}: {
+  screens: ScreenRow[];
+  groups: { id: string; name: string }[];
+  activeScreenIds: string[];
+  currentId: string | null;
+  onPick: (screenId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const groupNames = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
+  const groupNameOf = (s: ScreenRow) => (s.groupId ? groupNames.get(s.groupId) : undefined);
+  const shown = screens.filter((s) => matchesSearch(query, s.screenName, groupNameOf(s), currentLabel(s)));
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+  const pick = (screenId: string) => {
+    onPick(screenId);
+    close();
+  };
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-expanded={open}
+        aria-label="Find a screen"
+        title="Find a screen"
+        className="flex h-11 w-11 items-center justify-center rounded-full btn-surface transition-colors"
+      >
+        <Search className="h-5 w-5" />
+      </button>
+      {open && (
+        <>
+          {/* Click anywhere else to close. z-[299]/[300]: above the coverflow cards, as the menus below are. */}
+          <button type="button" aria-label="Close screen search" tabIndex={-1} onClick={close} className="fixed inset-0 z-[299] cursor-default" />
+          <div
+            role="dialog"
+            aria-label="Find a screen"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") close();
+              // Enter takes the first match, so type-and-go works without the mouse.
+              else if (e.key === "Enter" && shown[0]) pick(shown[0].screenId);
+            }}
+            className="absolute right-0 top-full z-[300] mt-2 flex max-h-96 w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-2xl border border-border bg-card p-2 shadow-2xl"
+          >
+            <SearchPill value={query} onChange={setQuery} label="Search screens or groups" className="w-full" autoFocus />
+            <ul className="min-h-0 overflow-y-auto">
+              {shown.length === 0 && <li className="px-3 py-6 text-center text-xs text-muted-foreground">No screen or group matches.</li>}
+              {shown.map((s) => {
+                const groupName = groupNameOf(s);
+                return (
+                  <li key={s.screenId}>
+                    <button
+                      type="button"
+                      onClick={() => pick(s.screenId)}
+                      className={`flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+                        s.screenId === currentId ? "bg-primary/10" : ""
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`h-2 w-2 shrink-0 rounded-full ${activeScreenIds.includes(s.screenId) ? "bg-emerald-400" : "bg-amber-400"}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{s.screenName}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {groupName && `${groupName} · `}
+                          {currentLabel(s)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );
