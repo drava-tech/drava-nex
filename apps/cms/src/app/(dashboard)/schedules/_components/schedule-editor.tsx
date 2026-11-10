@@ -707,7 +707,16 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
         </div>
       </div>
 
-      <MediaPicker open={picking} onClose={() => setPicking(false)} onSelectItem={addMedia} accept="visual" multi />
+      <MediaPicker
+        open={picking}
+        onClose={() => setPicking(false)}
+        onSelectItem={addMedia}
+        // The queue's media show as picked; clicking one again takes it out.
+        pickedIds={items.map((i) => i.contentId)}
+        onUnselectItem={(m) => setItems((prev) => prev.filter((i) => i.contentId !== m.id))}
+        accept="visual"
+        multi
+      />
       <MediaPicker
         open={pickingAfter}
         onClose={() => setPickingAfter(false)}

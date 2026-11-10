@@ -33,6 +33,9 @@ export interface MediaPickerItem {
  *   selecting — controlled by `multi`. When set, the picker stays open after
  *               each pick (onSelect fires per click) so the caller can collect
  *               several; "Done" closes it. Otherwise the first pick closes it.
+ *               With onUnselectItem, a click on a picked tile takes it back
+ *               off instead of adding it again, and `pickedIds` opens the
+ *               picker with what the caller already has marked as picked.
  */
 export function MediaPicker({
   open,
@@ -41,6 +44,8 @@ export function MediaPicker({
   onSelectItem,
   accept = "image",
   multi = false,
+  pickedIds,
+  onUnselectItem,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,6 +54,10 @@ export function MediaPicker({
   /** "visual" = images and videos only (e.g. a screen schedule's queue). */
   accept?: "image" | "video" | "visual" | "all";
   multi?: boolean;
+  /** Multi only: ids already chosen (repeats count), shown as picked on open. */
+  pickedIds?: string[];
+  /** Multi only: clicking a picked tile unpicks it, and this is called. */
+  onUnselectItem?: (item: MediaPickerItem) => void;
 }) {
   const [items, setItems] = useState<MediaItem[]>([]);
   /** For accept="visual": show both, or just images, or just videos. */
@@ -62,13 +71,19 @@ export function MediaPicker({
   const fileRef = useRef<HTMLInputElement>(null);
   /** In multi mode: how many times each item was picked since the picker opened. */
   const [picked, setPicked] = useState<Map<string, number>>(new Map());
+  // Seeded on open only; while open, the picker keeps its own count.
+  const pickedIdsRef = useRef(pickedIds);
+  pickedIdsRef.current = pickedIds;
   useEffect(() => {
     if (open) {
-      setPicked(new Map());
+      const seed = new Map<string, number>();
+      for (const id of pickedIdsRef.current ?? []) seed.set(id, (seed.get(id) ?? 0) + 1);
+      setPicked(seed);
       setKind("all");
     }
   }, [open]);
   const pickedTotal = [...picked.values()].reduce((a, b) => a + b, 0);
+  const toggles = multi && !!onUnselectItem;
 
   /** Keyset cursor for the next page, or null once the list is exhausted. */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -246,7 +261,7 @@ export function MediaPicker({
                 onClick={onClose}
                 className="px-3 py-1.5 rounded-full btn-surface text-xs font-normal transition-colors"
               >
-                {pickedTotal > 0 ? `Done · ${pickedTotal} added` : "Done"}
+                {pickedTotal > 0 ? `Done · ${pickedTotal} ${toggles ? "selected" : "added"}` : "Done"}
               </button>
             ) : null}
             <button
@@ -292,6 +307,15 @@ export function MediaPicker({
                     key={m.id}
                     type="button"
                     onClick={() => {
+                      if (toggles && count > 0) {
+                        onUnselectItem?.(m);
+                        setPicked((prev) => {
+                          const next = new Map(prev);
+                          next.delete(m.id);
+                          return next;
+                        });
+                        return;
+                      }
                       onSelect?.(m.url);
                       onSelectItem?.(m);
                       if (!multi) onClose();
@@ -299,7 +323,7 @@ export function MediaPicker({
                     }}
                     aria-pressed={multi ? count > 0 : undefined}
                     aria-label={count > 0 ? `${m.name}, added${count > 1 ? ` ${count} times` : ""}` : m.name}
-                    title={m.name}
+                    title={toggles && count > 0 ? `${m.name} · click to remove` : m.name}
                     className={`group relative aspect-video overflow-hidden rounded-xl border transition-all ${
                       count > 0
                         ? "border-primary ring-2 ring-primary/50"
@@ -315,7 +339,9 @@ export function MediaPicker({
                     />
                     {count > 0 && (
                       <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground shadow">
-                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        {/* The tick turns into a cross on hover where a click removes it. */}
+                        <Check className={`h-3.5 w-3.5 ${toggles ? "group-hover:hidden" : ""}`} strokeWidth={3} />
+                        {toggles && <X className="hidden h-3.5 w-3.5 group-hover:block" strokeWidth={3} />}
                         {count > 1 && <span className="tabular-nums">×{count}</span>}
                       </span>
                     )}
