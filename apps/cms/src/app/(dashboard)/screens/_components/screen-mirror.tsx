@@ -18,25 +18,12 @@ export function ScreenMirror({
   screenId,
   title,
   interactive = false,
-  isOnline,
-  loadStream = true,
 }: {
   screenId: string;
   title?: string;
   interactive?: boolean;
-  /** When provided, shows a centered "Live Mirror"/"No Signal" indicator,
-   * matching how the Experiences card centers its category label. Omitted by
-   * callers (e.g. the full-page live control view) that don't want this
-   * overlay. */
-  isOnline?: boolean;
-  /** False skips mounting the iframe entirely — just the isOnline indicator
-   * over the card's own background. Used by the Screens grid, which shouldn't
-   * spin up a live stream per card just from being visible; the real stream
-   * only starts once the user clicks into the full Control view. */
-  loadStream?: boolean;
 }) {
-  const [ref, inView] = useInView<HTMLDivElement>("150px");
-  const shouldMount = loadStream && inView;
+  const [ref, shouldMount] = useInView<HTMLDivElement>("150px");
   const boxRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -47,21 +34,11 @@ export function ScreenMirror({
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [loadStream, shouldMount]);
+  }, [shouldMount]);
 
   return (
-    <div ref={ref} className={`absolute inset-0 w-full h-full ${loadStream && isOnline !== false ? "bg-zinc-950" : "bg-white"}`}>
-      {isOnline !== undefined && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-1.5">
-          <span className="flex items-center gap-1.5 text-sm font-light text-zinc-800">
-            {isOnline && (
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e] animate-pulse" />
-            )}
-            {isOnline ? "Live Mirror" : "No Signal"}
-          </span>
-        </div>
-      )}
-      {!loadStream ? null : shouldMount ? (
+    <div ref={ref} className="absolute inset-0 w-full h-full bg-zinc-950">
+      {shouldMount ? (
         <div ref={boxRef} className="absolute inset-0 overflow-hidden">
           <iframe
             src={screenMirrorUrl(screenId)}

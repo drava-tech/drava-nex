@@ -23,7 +23,11 @@ export function ImageRenderer({
         inset: 0,
         width: "100vw",
         height: "100vh",
-        objectFit: "cover",
+        // "contain", not "cover", the same as VideoRenderer: the whole image
+        // shows. A wide one touches the left and right edges, a tall one the
+        // top and bottom, and the rest is the black ground below. Cover zoomed
+        // in and cut the edges off anything that wasn't the panel's shape.
+        objectFit: "contain",
         backgroundColor: "#000",
         display: "block",
       }}

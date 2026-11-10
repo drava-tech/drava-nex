@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Maximize, Minimize, Save, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
+import { SearchPill, matchesSearch } from "@/components/filter-bar";
 import type { DocumentKind } from "@platform/types";
 import { ScreenMirror } from "@/app/(dashboard)/screens/_components/screen-mirror";
 import { ScreenTouchpad } from "@/app/(dashboard)/screens/_components/screen-touchpad";
@@ -72,6 +73,7 @@ export function LiveControlDialog({
 }: LiveControlDialogProps) {
   const switchableScreens = allScreens && allScreens.length > 0 ? allScreens : screens;
   const [activeScreenId, setActiveScreenId] = useState(screens[0]?.screenId);
+  const [screenQuery, setScreenQuery] = useState("");
   const activeScreen =
     switchableScreens.find((s) => s.screenId === activeScreenId) ?? screens[0] ?? switchableScreens[0];
 
@@ -174,8 +176,19 @@ export function LiveControlDialog({
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
-                {switchableScreens.map((s) => (
+              <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+                {switchableScreens.length > 5 && (
+                  <div
+                    className="sticky top-0 z-10 bg-popover p-1"
+                    // The menu's own type-to-jump would otherwise swallow keystrokes; Escape still closes it.
+                    onKeyDown={(e) => {
+                      if (e.key !== "Escape") e.stopPropagation();
+                    }}
+                  >
+                    <SearchPill value={screenQuery} onChange={setScreenQuery} label="Search screens" className="w-full" autoFocus />
+                  </div>
+                )}
+                {switchableScreens.filter((s) => matchesSearch(screenQuery, s.screenName)).map((s) => (
                   <DropdownMenuItem
                     key={s.screenId}
                     className="cursor-pointer gap-2"

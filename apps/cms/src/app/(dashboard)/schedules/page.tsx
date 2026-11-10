@@ -28,7 +28,7 @@ export default async function SchedulesPage() {
   return (
     <SchedulesView
       schedules={schedules}
-      screens={screens.map((s) => ({ screenId: s.screenId, screenName: s.screenName, groupId: s.groupId ?? null }))}
+      screenRows={screens}
       groups={groups}
       experiences={experiences.map((e) => ({ id: e.id, title: e.title, coverImage: e.coverImage }))}
       initialStatus={status}

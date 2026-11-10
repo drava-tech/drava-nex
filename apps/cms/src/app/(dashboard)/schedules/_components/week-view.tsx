@@ -17,7 +17,6 @@ import {
   playableItems,
   targetScreenIds,
   toScheduleSpecClient,
-  type GroupOption,
   type ScreenOption,
 } from "./schedule-shared";
 
@@ -42,13 +41,13 @@ interface Block {
 export function WeekView({
   schedules,
   screens,
-  groups,
+  filter,
 }: {
   schedules: ScheduleRow[];
   screens: ScreenOption[];
-  groups: GroupOption[];
+  /** Picked in the bar above the tabs: "all", "group:<id>" or "screen:<id>". */
+  filter: string;
 }) {
-  const [filter, setFilter] = useState<string>("all");
   const [offsetWeeks, setOffsetWeeks] = useState(0);
   const tz = schedules[0]?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE;
   const today = localParts(new Date(), tz);
@@ -134,27 +133,7 @@ export function WeekView({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          aria-label="Show schedules for"
-          className="rounded-full border border-input bg-card px-4 py-1.5 text-sm outline-none focus:border-ring"
-        >
-          <option value="all">All screens</option>
-          {groups.length > 0 && (
-            <optgroup label="Groups">
-              {groups.map((g) => (
-                <option key={g.id} value={`group:${g.id}`}>{g.name}</option>
-              ))}
-            </optgroup>
-          )}
-          <optgroup label="Screens">
-            {screens.map((s) => (
-              <option key={s.screenId} value={`screen:${s.screenId}`}>{s.screenName}</option>
-            ))}
-          </optgroup>
-        </select>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex items-center gap-1">
           <button type="button" aria-label="Previous week" onClick={() => setOffsetWeeks((w) => w - 1)} className="btn-surface flex h-8 w-8 items-center justify-center rounded-full">
             <ChevronLeft className="h-4 w-4" />

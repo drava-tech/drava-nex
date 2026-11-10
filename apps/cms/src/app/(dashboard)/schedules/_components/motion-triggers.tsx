@@ -25,6 +25,7 @@ import {
 } from "@platform/types";
 import { MediaPicker } from "@/components/media-picker";
 import { MediaThumb } from "@/components/media-thumb";
+import { SearchPill, matchesSearch } from "@/components/filter-bar";
 import {
   createMotionTrigger,
   deleteMotionTrigger,
@@ -68,6 +69,7 @@ export function MotionTriggers({
   const router = useRouter();
   const [editing, setEditing] = useState<MotionTriggerRow | "new" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -93,6 +95,17 @@ export function MotionTriggers({
 
   const screenNames = new Map(screens.map((s) => [s.screenId, s.screenName]));
   const groupNames = new Map(groups.map((g) => [g.id, g.name]));
+  // By name, sensor, where it plays, and what it plays.
+  const shown = overview.triggers.filter((t) =>
+    matchesSearch(
+      query,
+      t.name,
+      t.sensorId,
+      t.media?.name,
+      ...t.groupIds.map((g) => groupNames.get(g)),
+      ...t.screenIds.map((s) => screenNames.get(s)),
+    ),
+  );
 
   const run = async (id: string, fn: () => Promise<{ success: boolean; error?: string }>) => {
     setBusy(id);
@@ -150,6 +163,23 @@ export function MotionTriggers({
         </div>
       )}
 
+      {overview.triggers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchPill value={query} onChange={setQuery} label="Search triggers, sensors, screens" className="w-64" />
+          {query.trim() && (
+            <span aria-live="polite" className="px-1 text-xs tabular-nums text-muted-foreground">
+              {shown.length} of {overview.triggers.length} triggers
+            </span>
+          )}
+        </div>
+      )}
+
+      {overview.triggers.length > 0 && shown.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+          No motion trigger matches &ldquo;{query.trim()}&rdquo;.
+        </p>
+      )}
+
       {overview.triggers.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center">
           <Radar className="h-8 w-8 text-muted-foreground" />
@@ -161,7 +191,7 @@ export function MotionTriggers({
       ) : (
         <div className="@container">
           <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-2 @7xl:grid-cols-3">
-            {overview.triggers.map((t) => {
+            {shown.map((t) => {
               const st = overview.status[t.id];
               const playingUntil = st?.playingUntil ? Date.parse(st.playingUntil) : 0;
               const readyAt = st?.readyAt ? Date.parse(st.readyAt) : 0;

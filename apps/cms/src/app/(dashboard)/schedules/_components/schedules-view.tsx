@@ -8,12 +8,15 @@ import {
   Copy,
   Hand,
   ListVideo,
+  Monitor,
   MoreVertical,
   Pause,
   Pencil,
   Plus,
   Radar,
   Radio,
+  Repeat,
+  Repeat1,
   Trash2,
 } from "lucide-react";
 import {
@@ -24,7 +27,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@platform/ui";
-import type { ScheduleRow } from "@platform/db";
+import type { ScheduleRow, ScreenRow } from "@platform/db";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { screensHydrated } from "@/store/screens-slice";
 import {
   describeDays,
   describeWindow,
@@ -38,6 +43,7 @@ import {
 } from "@/actions/schedule-actions";
 import { ScheduleEditor, type EditorDraft } from "./schedule-editor";
 import { MediaThumb } from "@/components/media-thumb";
+import { FilterPill, SearchPill, matchesSearch } from "@/components/filter-bar";
 import { WeekView } from "./week-view";
 import { MotionTriggers } from "./motion-triggers";
 import type { MotionOverview } from "@/actions/motion-trigger-actions";
@@ -55,7 +61,8 @@ type Tab = "now" | "schedules" | "week" | "motion";
 
 interface SchedulesViewProps {
   schedules: ScheduleRow[];
-  screens: ScreenOption[];
+  /** Seeds the shared screen store, which then keeps names and what's showing live. */
+  screenRows: ScreenRow[];
   groups: GroupOption[];
   experiences: ExperienceOption[];
   initialStatus: { now: string; screens: ScreenScheduleStatus[] } | null;
@@ -67,8 +74,30 @@ interface SchedulesViewProps {
 /** How often "On air" re-asks the API; countdowns tick locally in between. */
 const STATUS_POLL_MS = 15_000;
 
-export function SchedulesView({ schedules, screens, groups, experiences, initialStatus, motion, isAdmin }: SchedulesViewProps) {
+export function SchedulesView({ schedules, screenRows, groups, experiences, initialStatus, motion, isAdmin }: SchedulesViewProps) {
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  useEffect(() => {
+    dispatch(screensHydrated(screenRows));
+  }, [dispatch, screenRows]);
+  const storeRows = useAppSelector((st) => st.screens.rows);
+  // Props until the hydrate lands, the store after (same as the Screens page).
+  const rows = storeRows.length > 0 ? storeRows : screenRows;
+  const screens = useMemo<ScreenOption[]>(
+    () => rows.map((s) => ({ screenId: s.screenId, screenName: s.screenName, groupId: s.groupId ?? null })),
+    [rows],
+  );
+  /** What each screen shows now, by name — for screens no schedule is driving. */
+  const showing = useMemo(
+    () =>
+      new Map(
+        rows.map((s) => [
+          s.screenId,
+          s.currentContentKind === "experience" ? s.experienceName : s.currentContentKind === "media" ? s.mediaName : null,
+        ]),
+      ),
+    [rows],
+  );
   const [tab, setTab] = useState<Tab>(schedules.length === 0 ? "schedules" : "now");
   const [status, setStatus] = useState(initialStatus);
   const [editing, setEditing] = useState<EditorDraft | null>(null);
@@ -109,6 +138,79 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
   const byId = useMemo(() => new Map(schedules.map((s) => [s.id, s])), [schedules]);
   const groupNames = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
   const onAirCount = status?.screens.filter((s) => s.current).length ?? 0;
+
+  // The bar under the tabs. Search and the screen pick apply on every tab; the
+  // other pills belong to the tab that shows them.
+  const [query, setQuery] = useState("");
+  /** "all", "group:<id>" or "screen:<id>". */
+  const [target, setTarget] = useState("all");
+  const [triggerFilter, setTriggerFilter] = useState<"all" | keyof typeof TRIGGERS | "idle">("all");
+  const [stateFilter, setStateFilter] = useState<"all" | "live" | "attention" | "ended">("all");
+  const [modeFilter, setModeFilter] = useState<"all" | "loop" | "once">("all");
+  const clearFilters = () => {
+    setQuery("");
+    setTarget("all");
+    setTriggerFilter("all");
+    setStateFilter("all");
+    setModeFilter("all");
+  };
+
+  /** The screens the pick covers; null = all of them. */
+  const targetScreens = useMemo(() => {
+    if (target === "all") return null;
+    if (target.startsWith("group:")) {
+      return new Set(screens.filter((s) => s.groupId === target.slice(6)).map((s) => s.screenId));
+    }
+    return new Set([target.slice(7)]);
+  }, [target, screens]);
+  const screenNames = useMemo(() => new Map(screens.map((s) => [s.screenId, s.screenName])), [screens]);
+
+  // Schedules by name, by where they play, and by what's in the queue.
+  const found = schedules.filter(
+    (row) =>
+      (!targetScreens || targetScreenIds(row, screens).some((id) => targetScreens.has(id))) &&
+      matchesSearch(
+        query,
+        row.name,
+        ...row.groupIds.map((g) => groupNames.get(g)),
+        ...row.screenIds.map((s) => screenNames.get(s)),
+        ...row.items.map((i) => i.title),
+      ),
+  );
+  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, as schedule dates are stored
+  const isLive = (row: ScheduleRow) => status?.screens.some((s) => s.current?.scheduleId === row.id) ?? false;
+  const needsAttention = (row: ScheduleRow) => {
+    const playable = playableItems(row).length;
+    return playable === 0 || playable < row.items.length || targetScreenIds(row, screens).length === 0;
+  };
+  const listed = found.filter(
+    (row) =>
+      (stateFilter === "all" ||
+        (stateFilter === "live" && isLive(row)) ||
+        (stateFilter === "attention" && needsAttention(row)) ||
+        (stateFilter === "ended" && !!row.endDate && row.endDate < today)) &&
+      // All-day schedules always loop.
+      (modeFilter === "all" || (row.loop || !row.startTime) === (modeFilter === "loop")),
+  );
+  const onAirScreens = (status?.screens ?? []).filter(
+    (s) =>
+      (!targetScreens || targetScreens.has(s.screenId)) &&
+      (triggerFilter === "all" || screenTrigger(s, showing) === triggerFilter) &&
+      matchesSearch(query, s.screenName, s.groupId ? groupNames.get(s.groupId) : null, s.current?.scheduleName, showing.get(s.screenId)),
+  );
+  const filtering =
+    Boolean(query.trim()) ||
+    target !== "all" ||
+    (tab === "now" && triggerFilter !== "all") ||
+    (tab === "schedules" && (stateFilter !== "all" || modeFilter !== "all"));
+  const nothingFound = (
+    <EmptyState
+      icon={ListVideo}
+      title="Nothing matches"
+      text="No result for what you searched or picked."
+      action={<Button variant="outline" size="sm" onClick={clearFilters}>Clear</Button>}
+    />
+  );
 
   const onSaved = () => {
     setEditing(null);
@@ -188,13 +290,94 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
         ))}
       </div>
 
-      {tab === "now" && (
-        <OnAir status={status} schedules={byId} groupNames={groupNames} experiences={experiences} now={now} />
+      {/* The bar — the Motion tab lists its own triggers and has none. */}
+      {tab !== "motion" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchPill value={query} onChange={setQuery} label="Search schedules, screens, content" className="w-64" />
+          <FilterPill
+            label="Screens"
+            value={target}
+            onChange={setTarget}
+            options={[
+              { value: "all", label: "All screens" },
+              ...groups.map((g) => ({ value: `group:${g.id}`, label: `Group · ${g.name}` })),
+              ...screens.map((s) => ({ value: `screen:${s.screenId}`, label: s.screenName })),
+            ]}
+          />
+          {tab === "now" && (
+            <FilterPill
+              label="Trigger"
+              value={triggerFilter}
+              onChange={setTriggerFilter}
+              options={[
+                { value: "all", label: "Any trigger" },
+                { value: "timed", label: "Timed" },
+                { value: "motion", label: "Motion" },
+                { value: "manual", label: "Manual" },
+                { value: "idle", label: "Nothing showing" },
+              ]}
+            />
+          )}
+          {tab === "schedules" && (
+            <>
+              <FilterPill
+                label="State"
+                value={stateFilter}
+                onChange={setStateFilter}
+                options={[
+                  { value: "all", label: "Any state" },
+                  { value: "live", label: "On air now", count: found.filter(isLive).length },
+                  { value: "attention", label: "Needs attention", count: found.filter(needsAttention).length },
+                  { value: "ended", label: "Ended", count: found.filter((r) => !!r.endDate && r.endDate < today).length },
+                ]}
+              />
+              <FilterPill
+                label="Play mode"
+                value={modeFilter}
+                onChange={setModeFilter}
+                options={[
+                  { value: "all", label: "Loop or once" },
+                  { value: "loop", label: "Loop" },
+                  { value: "once", label: "Play once" },
+                ]}
+              />
+            </>
+          )}
+          {filtering && (
+            <>
+              {tab !== "week" && (
+                <span aria-live="polite" className="px-1 text-xs tabular-nums text-muted-foreground">
+                  {tab === "now"
+                    ? `${onAirScreens.length} of ${status?.screens.length ?? 0} screens`
+                    : `${listed.length} of ${schedules.length} schedules`}
+                </span>
+              )}
+              <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                Clear
+              </button>
+            </>
+          )}
+        </div>
       )}
 
-      {tab === "schedules" && (
+      {tab === "now" &&
+        (status && filtering && onAirScreens.length === 0 ? (
+          nothingFound
+        ) : (
+          <OnAir
+            status={status && { ...status, screens: filtering ? onAirScreens : status.screens }}
+            schedules={byId}
+            groupNames={groupNames}
+            experiences={experiences}
+            showing={showing}
+            now={now}
+          />
+        ))}
+
+      {tab === "schedules" && filtering && listed.length === 0 && nothingFound}
+      {tab === "schedules" && !(filtering && listed.length === 0) && (
         <ScheduleList
-          schedules={schedules}
+          schedules={filtering ? listed : schedules}
           screens={screens}
           groupNames={groupNames}
           status={status}
@@ -207,11 +390,45 @@ export function SchedulesView({ schedules, screens, groups, experiences, initial
         />
       )}
 
-      {tab === "week" && <WeekView schedules={schedules} screens={screens} groups={groups} />}
+      {tab === "week" && <WeekView schedules={found} screens={screens} filter={target} />}
 
       {tab === "motion" && isAdmin && <MotionTriggers overview={motion} screens={screens} groups={groups} isAdmin={isAdmin} />}
     </div>
   );
+}
+
+// ─── What put it on the screen ───────────────────────────────────────────────
+
+const TRIGGERS = {
+  timed: { label: "Timed", icon: CalendarClock, hint: "Plays at the times set in a schedule." },
+  motion: { label: "Motion", icon: Radar, hint: "Played because a sensor saw someone." },
+  manual: { label: "Manual", icon: Hand, hint: "Someone pushed it to the screen by hand." },
+} as const;
+
+function TriggerBadge({ kind }: { kind: keyof typeof TRIGGERS }) {
+  const { label, icon: Icon, hint } = TRIGGERS[kind];
+  return (
+    <span title={hint} className="flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+      <Icon aria-hidden className="h-3 w-3" />
+      {label}
+    </span>
+  );
+}
+
+/**
+ * What is driving a screen that has something on air. A hand push sits on top
+ * of whatever was scheduled, and a motion trigger reaches us shaped like a
+ * schedule whose id is "motion:<trigger id>" (see the API's motionResolutionFor).
+ */
+function triggerOf(current: NonNullable<ScreenScheduleStatus["current"]>): keyof typeof TRIGGERS {
+  if (current.manualOverride) return "manual";
+  return current.scheduleId.startsWith("motion:") ? "motion" : "timed";
+}
+
+/** A screen's trigger for the bar's filter: "idle" when nothing is on it at all. */
+function screenTrigger(s: ScreenScheduleStatus, showing: Map<string, string | null>): keyof typeof TRIGGERS | "idle" {
+  if (s.current) return triggerOf(s.current);
+  return showing.get(s.screenId) ? "manual" : "idle";
 }
 
 // ─── On air ──────────────────────────────────────────────────────────────────
@@ -221,12 +438,15 @@ function OnAir({
   schedules,
   groupNames,
   experiences,
+  showing,
   now,
 }: {
   status: { now: string; screens: ScreenScheduleStatus[] } | null;
   schedules: Map<string, ScheduleRow>;
   groupNames: Map<string, string>;
   experiences: ExperienceOption[];
+  /** What each screen shows now, by name (null = nothing assigned). */
+  showing: Map<string, string | null>;
   now: number;
 }) {
   if (!status) {
@@ -279,6 +499,9 @@ function OnAir({
                   <span className="shrink-0 text-muted-foreground">
                     · {s.current.itemIndex + 1} of {s.current.itemCount}
                   </span>
+                  <span className="ml-auto">
+                    <TriggerBadge kind={triggerOf(s.current)} />
+                  </span>
                 </div>
                 <p className="truncate text-sm text-foreground">{title}</p>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -312,7 +535,15 @@ function OnAir({
               </>
             ) : (
               <div className="flex flex-col gap-1">
-                <p className="text-sm text-muted-foreground">Not scheduled right now</p>
+                {showing.get(s.screenId) ? (
+                  // No schedule is driving it, so whatever is on was put there by hand.
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm text-foreground">{showing.get(s.screenId)}</p>
+                    <TriggerBadge kind="manual" />
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nothing showing, not scheduled</p>
+                )}
                 <p className="text-[11px] text-muted-foreground">
                   {s.next ? `Next: ${s.next.scheduleName}, ${formatWhen(s.next.startsAt, new Date(now))}` : "Nothing coming up in the next two weeks."}
                 </p>
@@ -368,10 +599,10 @@ function ScheduleList({
         const targets = targetScreenIds(row, screens);
         const items = playableItems(row);
         const missing = row.items.length - items.length;
-        const targetLabel = [
-          ...row.groupIds.map((g) => groupNames.get(g)).filter(Boolean),
-          ...row.screenIds.map((s) => screenNames.get(s)).filter(Boolean),
-        ].join(", ");
+        const targetNames = [
+          ...row.groupIds.map((g) => groupNames.get(g)),
+          ...row.screenIds.map((s) => screenNames.get(s)),
+        ].filter((n): n is string => Boolean(n));
         const dates =
           row.startDate || row.endDate
             ? `${row.startDate ? fmtDate(row.startDate) : "Now"} – ${row.endDate ? fmtDate(row.endDate) : "no end"}`
@@ -385,6 +616,25 @@ function ScheduleList({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate font-heading text-base">{row.name}</p>
+                {/* What starts it, then where it plays — the groups and screens picked, by name. */}
+                <div className="my-1.5 flex flex-wrap gap-1">
+                  <TriggerBadge kind="timed" />
+                  {targetNames.slice(0, 4).map((name, i) => (
+                    <span
+                      // A group and a screen can share a name.
+                      key={`${i}-${name}`}
+                      className="flex min-w-0 items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground"
+                    >
+                      <Monitor className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{name}</span>
+                    </span>
+                  ))}
+                  {targetNames.length > 4 && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                      +{targetNames.length - 4}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {describeDays(row.daysOfWeek)} · {describeWindow(row)}
                   {dates && <> · {dates}</>}
@@ -428,14 +678,24 @@ function ScheduleList({
             </div>
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
-                {row.loop || !row.startTime ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
+              <span className="flex min-w-0 items-center gap-1.5">
+                {/* The music-player pair: repeat = loops, repeat-1 = plays once. All-day always loops. */}
+                {row.loop || !row.startTime ? (
+                  <Repeat role="img" aria-label="Loops" className="h-3.5 w-3.5 shrink-0 text-foreground" />
+                ) : (
+                  <Repeat1 role="img" aria-label="Plays once" className="h-3.5 w-3.5 shrink-0 text-foreground" />
+                )}
+                <span className="min-w-0">
+                  {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
+                  {row.loop || !row.startTime ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
+                </span>
               </span>
-              <span>
-                {targets.length} screen{targets.length === 1 ? "" : "s"}
-                {targetLabel && <>: {targetLabel}</>}
-              </span>
+              {/* Only when a group is picked: the chips up top name the group, not how many screens are in it. */}
+              {row.groupIds.length > 0 && (
+                <span>
+                  {targets.length} screen{targets.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
 
             {/* Thumbnails of the queue */}
