@@ -306,10 +306,11 @@ export function MediaPicker({
                         : "border-border hover:border-primary/60 hover:ring-2 hover:ring-primary/20"
                     }`}
                   >
-                    {/* The thumbnail for images and videos (never the video file itself); an icon otherwise. */}
+                    {/* The thumbnail; for a video without one, its first frame; an icon otherwise. */}
                     <MediaThumb
                       type={m.type}
                       src={m.type === "image" ? (m.thumbnailUrl || m.url) : (m.thumbnailUrl ?? null)}
+                      videoSrc={m.type === "video" ? m.url : null}
                       name={m.name}
                     />
                     {count > 0 && (

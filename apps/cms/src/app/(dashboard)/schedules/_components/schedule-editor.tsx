@@ -435,7 +435,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                   <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                     <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
                     <div className="h-10 w-14 shrink-0 overflow-hidden rounded-md border border-border">
-                      <MediaThumb compact type={item.type} src={item.thumbnailUrl} name={item.title} />
+                      <MediaThumb compact type={item.type} src={item.thumbnailUrl} videoSrc={item.type === "video" ? item.url : null} name={item.title} />
                     </div>
                     <div className="min-w-[8rem] flex-1">
                       <p className="truncate text-sm">{item.title}</p>
@@ -544,6 +544,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                               compact
                               type={afterMedia.type}
                               src={afterMedia.type === "image" ? (afterMedia.thumbnailUrl || afterMedia.url) : afterMedia.thumbnailUrl}
+                              videoSrc={afterMedia.type === "video" ? afterMedia.url : null}
                               name={afterMedia.name}
                             />
                           </div>

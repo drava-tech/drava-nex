@@ -447,6 +447,7 @@ function ScheduleList({
                       compact
                       type={i.kind === "experience" ? "experience" : i.mediaType ?? "image"}
                       src={i.thumbnailUrl}
+                      videoSrc={i.mediaType === "video" ? i.mediaUrl : null}
                       name={`${i.title} · ${formatDuration(i.durationSeconds)}`}
                     />
                   </div>

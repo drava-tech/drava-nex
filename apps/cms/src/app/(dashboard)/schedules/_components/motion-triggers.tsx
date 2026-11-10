@@ -223,6 +223,7 @@ export function MotionTriggers({
                         compact
                         type={t.media?.type ?? "image"}
                         src={t.media ? (t.media.type === "image" ? t.media.thumbnailUrl || t.media.url : t.media.thumbnailUrl) : null}
+                        videoSrc={t.media?.type === "video" ? t.media.url : null}
                         name={t.media?.name}
                       />
                     </div>
@@ -456,7 +457,7 @@ function MotionEditor({
               {media ? (
                 <>
                   <div className="h-10 w-16 shrink-0 overflow-hidden rounded-md border border-border">
-                    <MediaThumb compact type={media.type} src={media.type === "image" ? media.thumbnailUrl || media.url : media.thumbnailUrl} name={media.name} />
+                    <MediaThumb compact type={media.type} src={media.type === "image" ? media.thumbnailUrl || media.url : media.thumbnailUrl} videoSrc={media.type === "video" ? media.url : null} name={media.name} />
                   </div>
                   <span className="min-w-[8rem] flex-1 truncate text-sm">{media.name}</span>
                 </>
