@@ -715,7 +715,9 @@ function ScheduleList({
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="min-w-0">
                 {items.length} item{items.length === 1 ? "" : "s"} · {formatDuration(playlistSeconds(items))} queue
-                {loops ? "" : `, plays once, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
+                {!row.startTime
+                  ? ""
+                  : `, ${loops ? "loops" : "plays once"}, then ${row.afterMedia ? row.afterMedia.name : "idle"}`}
               </span>
               {/* Only when a group is picked: the chips up top name the group, not how many screens are in it. */}
               {row.groupIds.length > 0 && (

@@ -15,7 +15,7 @@ export interface ContentSchedule {
   id: string;
   name: string;
   enabled: boolean;
-  /** "queue": an item of its playlist; "after": shown once a play-once queue ends. */
+  /** "queue": an item of its playlist; "after": shown once the schedule is over (its slot ends, or a play-once queue finishes). */
   role: "queue" | "after";
 }
 

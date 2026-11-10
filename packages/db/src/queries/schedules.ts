@@ -185,7 +185,7 @@ function scheduleValues(input: ScheduleInput) {
     endTime: input.endTime,
     timezone: input.timezone,
     loop: input.loop,
-    afterMediaAssetId: input.loop ? null : input.afterMediaId,
+    afterMediaAssetId: input.afterMediaId,
     screenIds: input.screenIds,
     groupIds: input.groupIds,
   };
