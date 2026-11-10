@@ -63,14 +63,6 @@ function rememberedClock() {
   return DEFAULT_CLOCK;
 }
 
-// Embedded in the studio, tell it what is on screen (the running clock, or null
-// for the city picker) so "Show Clock" reaches the other screens of the CMS.
-function reportState(clock) {
-  if (EMBED && !PREVIEW && window.parent !== window) {
-    window.parent.postMessage({ type: "world-clock-state", clock }, location.origin);
-  }
-}
-
 function route() {
   stopView?.();
   stopView = null;
@@ -79,7 +71,6 @@ function route() {
   const ids = PREVIEW
     ? rememberedPlaces().filter((id) => LOCATIONS_BY_ID.has(id)).slice(0, MAX_PLACES)
     : placesFromUrl();
-  reportState(ids.length ? { places: ids, art: artFromUrl().id, style: clockFromUrl() } : null);
   if (ids.length) {
     document.title = "World Clock";
     stopView = startClock(

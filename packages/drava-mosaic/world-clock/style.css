@@ -543,25 +543,25 @@ button {
 
 /* ───────────── Landing ─────────────
    Matches Data Art Studio's "Compose your piece" landing: soft, raised white
-   surfaces, Manrope, uppercase labels and black selected states. */
+   surfaces, Inter, uppercase labels and black selected states. */
 
 body:has(.landing-view) {
-  background: #ffffff;
+  background: #0a0d12;
 }
 
 .landing-view {
-  --lp-ink: #111111;
-  --lp-muted: #8a8a8a;
-  --lp-line: #e6e6e6;
+  --lp-ink: #f2f4f7;
+  --lp-muted: #8b94a1;
+  --lp-line: #2a3038;
   --lp-raise: 0 10px 22px -8px rgba(0, 0, 0, 0.22), 0 2px 4px rgba(0, 0, 0, 0.06);
-  --lp-raise-soft: 0 18px 40px -18px rgba(0, 0, 0, 0.22), inset 0 1px 0 #ffffff;
+  --lp-raise-soft: 0 18px 40px -18px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.05);
   /* One unit drives every landing size so the layout scales as a whole:
      1px on a 1440x900 viewport, limited by whichever side is tighter. */
-  --u: clamp(0.55px, min(100vw / 1440, 100vh / 900), 3px);
-  --u: clamp(0.55px, min(100vw / 1440, 100dvh / 900), 3px);
-  background: #ffffff;
+  --u: clamp(0.55px, min(100vw / 1440, 100vh / 940), 3px);
+  --u: clamp(0.55px, min(100vw / 1440, 100dvh / 940), 3px);
+  background: #0a0d12;
   color: var(--lp-ink);
-  font-family: "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 .landing {
@@ -580,6 +580,8 @@ body:has(.landing-view) {
 }
 
 .landing-kicker {
+  font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
+  color: #f2f4f7;
   font-size: calc(48 * var(--u));
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -588,11 +590,12 @@ body:has(.landing-view) {
 }
 
 .landing-kicker span {
-  color: #8c8c8c;
+  color: #7cf04b;
   font-weight: 600;
 }
 
 .landing-title {
+  font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
   margin-top: calc(2 * var(--u));
   line-height: 1.15;
   font-size: calc(24 * var(--u));
@@ -603,7 +606,7 @@ body:has(.landing-view) {
 .landing-sub {
   margin-top: calc(16 * var(--u));
   font-size: calc(17 * var(--u));
-  color: #a6a6a6;
+  color: #9aa3af;
 }
 
 .lp-shell {
@@ -614,15 +617,15 @@ body:has(.landing-view) {
   align-items: start;
   gap: calc(32 * var(--u));
   padding: calc(48 * var(--u)) calc(36 * var(--u)) calc(40 * var(--u));
-  background: linear-gradient(180deg, rgba(251, 251, 251, 0.42) 0%, rgba(244, 244, 244, 0.55) 100%);
-  border: 1px solid rgba(237, 237, 237, 0.9);
+  background: linear-gradient(180deg, rgba(22, 27, 33, 0.42) 0%, rgba(22, 27, 33, 0.55) 100%);
+  border: 1px solid #2a3038;
   border-radius: calc(32 * var(--u));
   box-shadow: var(--lp-raise-soft);
 }
 
 .lp-panel {
-  background: linear-gradient(180deg, #fdfdfd 0%, #f5f5f5 100%);
-  border: 1px solid #ececec;
+  background: linear-gradient(180deg, #0f1318 0%, #1d232a 100%);
+  border: 1px solid #2a3038;
   border-radius: calc(30 * var(--u));
   box-shadow: var(--lp-raise-soft);
   overflow: hidden;
@@ -664,7 +667,7 @@ body:has(.landing-view) {
   padding: 0 calc(16 * var(--u));
   border: 0;
   border-radius: calc(14 * var(--u));
-  background: #ffffff;
+  background: #161b21;
   box-shadow: var(--lp-raise);
   text-align: left;
   user-select: none;
@@ -673,13 +676,13 @@ body:has(.landing-view) {
 
 .band-item.empty {
   color: #b5b5b5;
-  box-shadow: inset 0 0 0 1px #ececec;
+  box-shadow: inset 0 0 0 1px #2a3038;
   background: transparent;
 }
 
 .band-item.selected {
-  background: #111111;
-  color: #ffffff;
+  background: #7cf04b;
+  color: #0a0d12;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
   cursor: grab;
   /* Dragging a band reorders it (landing.js), so a touch on it mustn't
@@ -775,7 +778,7 @@ body:has(.landing-view) {
 .lp-exit {
   position: fixed;
   top: calc(20 * var(--u));
-  left: calc(20 * var(--u));
+  right: calc(20 * var(--u));
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -783,7 +786,7 @@ body:has(.landing-view) {
   padding: calc(9 * var(--u)) calc(16 * var(--u));
   border: 0;
   border-radius: 999px;
-  background: #ffffff;
+  background: #161b21;
   box-shadow: var(--lp-raise);
   font: inherit;
   font-size: calc(13 * var(--u));
@@ -800,7 +803,7 @@ body:has(.landing-view) {
 }
 
 .lp-exit:focus-visible {
-  outline: calc(2 * var(--u)) solid #111;
+  outline: calc(2 * var(--u)) solid #22a447;
   outline-offset: calc(3 * var(--u));
 }
 
@@ -834,7 +837,7 @@ body:has(.landing-view) {
   align-items: center;
   gap: calc(9 * var(--u));
   padding: calc(8 * var(--u)) calc(14 * var(--u));
-  background: #ffffff;
+  background: #161b21;
   border-radius: calc(14 * var(--u));
   box-shadow: var(--lp-raise);
   font-size: calc(16 * var(--u));
@@ -847,7 +850,7 @@ body:has(.landing-view) {
   width: calc(8 * var(--u));
   height: calc(8 * var(--u));
   border-radius: 50%;
-  background: #111;
+  background: #7cf04b;
 }
 
 .lp-preview-title {
@@ -1038,7 +1041,7 @@ body:has(.landing-view) {
 
 /* Dark, like the world map's clock, with the same faint column lines. */
 .lp-frame.has-map {
-  background: #000;
+  background: #000000;
 }
 
 .lp-frame.has-map .mini-band:not(:last-child) {
@@ -1171,7 +1174,7 @@ body:has(.landing-view) {
   padding: 0 calc(20 * var(--u));
   border: 0;
   border-radius: calc(12 * var(--u));
-  background: #ffffff;
+  background: #161b21;
   box-shadow: var(--lp-raise);
   font-size: calc(14 * var(--u));
   font-weight: 500;
@@ -1186,8 +1189,8 @@ body:has(.landing-view) {
 }
 
 .lp-art-option[aria-checked="true"] {
-  background: #111111;
-  color: #ffffff;
+  background: #7cf04b;
+  color: #0a0d12;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
 }
 
@@ -1199,8 +1202,8 @@ body:has(.landing-view) {
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--lp-ink);
-  background: #ffffff;
+  color: #0a0d12;
+  background: #7cf04b;
   border: 0;
   border-radius: calc(14 * var(--u));
   box-shadow: var(--lp-raise);
@@ -1209,8 +1212,8 @@ body:has(.landing-view) {
 }
 
 .lp-generate:hover {
-  background: #111111;
-  color: #ffffff;
+  background: #f2f4f7;
+  color: #0a0d12;
   transform: translateY(-1px);
 }
 
@@ -1218,8 +1221,8 @@ body:has(.landing-view) {
   opacity: 0.5;
   cursor: default;
   transform: none;
-  background: #ffffff;
-  color: var(--lp-ink);
+  background: #1d232a;
+  color: #6b7280;
 }
 
 .lp-hint {
@@ -1252,7 +1255,7 @@ body:has(.landing-view) {
   padding: 0 calc(16 * var(--u)) 0 calc(42 * var(--u));
   border: 0;
   border-radius: calc(14 * var(--u));
-  background: #ffffff;
+  background: #161b21;
   box-shadow: inset 0 0 0 1px #e8e8e8;
   font: inherit;
   font-size: calc(15 * var(--u));
@@ -1261,7 +1264,7 @@ body:has(.landing-view) {
 }
 
 .lp-search:focus {
-  box-shadow: inset 0 0 0 calc(2 * var(--u)) #111;
+  box-shadow: inset 0 0 0 calc(2 * var(--u)) #22a447;
 }
 
 .country-list {
@@ -1285,7 +1288,7 @@ body:has(.landing-view) {
   padding: 0 calc(18 * var(--u)) 0 calc(16 * var(--u));
   border: 0;
   border-radius: calc(14 * var(--u));
-  background: #ffffff;
+  background: #161b21;
   box-shadow: var(--lp-raise);
   text-align: left;
   cursor: pointer;
@@ -1304,7 +1307,7 @@ body:has(.landing-view) {
   width: calc(26 * var(--u));
   height: calc(26 * var(--u));
   border-radius: 50%;
-  border: calc(2 * var(--u)) solid #d9d9d9;
+  border: calc(2 * var(--u)) solid #2a3038;
   font-size: calc(12 * var(--u));
   font-weight: 700;
 }
@@ -1327,19 +1330,19 @@ body:has(.landing-view) {
 }
 
 .country-card.selected {
-  background: #000000;
-  color: #ffffff;
+  background: #7cf04b;
+  color: #0a0d12;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
 }
 
 .country-card.selected .country-badge {
-  border-color: #ffffff;
-  background: #ffffff;
-  color: #000000;
+  border-color: #2a3038;
+  background: #161b21;
+  color: #f2f4f7;
 }
 
 .country-card.selected .country-city {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(10, 13, 18, 0.65);
 }
 
 .country-card:disabled {
@@ -1352,7 +1355,7 @@ body:has(.landing-view) {
 .lp-art-option:focus-visible,
 .lp-generate:focus-visible,
 .lp-clear:focus-visible {
-  outline: calc(2 * var(--u)) solid #111;
+  outline: calc(2 * var(--u)) solid #22a447;
   outline-offset: calc(3 * var(--u));
 }
 
@@ -1489,4 +1492,234 @@ body:has(.landing-view) {
 /* The studio's landing preview is look-only. */
 .preview-mode .back {
   display: none;
+}
+
+.lp-brand {
+  position: absolute;
+  top: calc(20 * var(--u));
+  left: calc(28 * var(--u));
+  height: calc(38 * var(--u));
+  width: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Desktop: keep the card the same size as Data Art's, so the page never
+   needs a scroll. The artwork and clock choices share one compact row. */
+@media (min-width: 1081px) {
+  .lp-preview-col {
+    position: relative;
+    gap: calc(14 * var(--u));
+  }
+
+  .lp-frame {
+    aspect-ratio: 2 / 1;
+  }
+
+  .lp-options {
+    flex-wrap: nowrap;
+    gap: 0 calc(20 * var(--u));
+  }
+
+  .lp-arts {
+    flex-wrap: nowrap;
+    gap: calc(6 * var(--u));
+  }
+
+  .lp-arts-label {
+    white-space: nowrap;
+    margin-right: calc(2 * var(--u));
+    font-size: calc(12 * var(--u));
+  }
+
+  .lp-art-option {
+    white-space: nowrap;
+    height: calc(36 * var(--u));
+    padding: 0 calc(10 * var(--u));
+    font-size: calc(12 * var(--u));
+  }
+
+  .lp-hint {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: calc(10 * var(--u));
+    text-align: center;
+  }
+
+  .country-name {
+    font-size: calc(15 * var(--u));
+  }
+
+  .country-card {
+    gap: calc(10 * var(--u));
+  }
+
+  .country-list {
+    max-height: calc(366 * var(--u));
+  }
+}
+
+/* Artwork and Clock are two separate segmented controls, each in its own
+   outlined track, so they read as two different choices. */
+@media (min-width: 1081px) {
+  .lp-options {
+    gap: 0 calc(10 * var(--u));
+  }
+
+  .lp-arts {
+    gap: calc(2 * var(--u));
+    padding: calc(4 * var(--u)) calc(4 * var(--u)) calc(4 * var(--u)) calc(12 * var(--u));
+    background: #12161b;
+    border: 1px solid var(--lp-line);
+    border-radius: calc(16 * var(--u));
+  }
+
+  .lp-arts-label {
+    margin-right: calc(6 * var(--u));
+    padding-right: calc(10 * var(--u));
+    border-right: 1px solid var(--lp-line);
+    line-height: calc(24 * var(--u));
+  }
+
+  .lp-art-option {
+    height: calc(32 * var(--u));
+    padding: 0 calc(6 * var(--u));
+    border-radius: calc(11 * var(--u));
+    background: transparent;
+    box-shadow: none;
+    color: var(--lp-muted);
+  }
+
+  .lp-art-option:hover {
+    color: var(--lp-ink);
+    transform: none;
+  }
+
+  .lp-art-option[aria-checked="true"] {
+    background: #7cf04b;
+    color: #0a0d12;
+    box-shadow: none;
+  }
+}
+
+/* Artwork and Clock are headed groups: a small title above each segmented
+   control, so they read as option types, not as options. */
+.lp-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(6 * var(--u));
+}
+
+@media (min-width: 1081px) {
+  .lp-frame {
+    aspect-ratio: 2.15 / 1;
+  }
+
+  .lp-options {
+    align-items: flex-end;
+    gap: 0 calc(80 * var(--u));
+  }
+
+  .lp-arts {
+    padding: calc(4 * var(--u));
+  }
+
+  .lp-group > .lp-arts-label {
+    margin: 0 0 0 calc(4 * var(--u));
+    padding: 0;
+    border: 0;
+    line-height: 1;
+    font-size: calc(11 * var(--u));
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #7cf04b;
+  }
+}
+
+/* Brand type scale (website column): Aktiv Ex for headings, Inter for the rest.
+   H1 48 · H3 24 · Body 17 · Label 15 · Caption 13 · Overline 14. */
+.landing-kicker {
+  font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
+  font-size: calc(48 * var(--u));
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.landing-kicker span {
+  font-weight: 500;
+}
+
+.landing-title {
+  font-family: "Aktiv Ex", "Inter", system-ui, sans-serif;
+  font-size: calc(24 * var(--u));
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.landing-sub {
+  font-size: calc(17 * var(--u));
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.lp-panel-title,
+.lp-group > .lp-arts-label {
+  font-size: calc(14 * var(--u));
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+}
+
+.data-name,
+.art-name,
+.band-name,
+.country-name,
+.lp-generate,
+.lp-badge,
+.lp-preview-title {
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+.lp-art-option {
+  font-size: calc(13 * var(--u));
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.lp-preview-blurb,
+.country-city,
+.lp-hint,
+.lp-clear,
+.lp-loading,
+.lp-time,
+.lp-empty {
+  font-size: calc(13 * var(--u));
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.landing-title {
+  margin-top: calc(10 * var(--u));
+}
+
+.landing-sub {
+  margin-top: calc(10 * var(--u));
+}
+
+.landing-logo img {
+  display: block;
+  height: calc(78 * var(--u));
+  width: auto;
+  margin: 0 auto;
+}
+
+.landing-title {
+  margin-top: calc(14 * var(--u));
 }
