@@ -82,3 +82,68 @@ export async function generateThumbnail(
     return null;
   }
 }
+
+/** Longest a poster grab may take before it's abandoned (a huge or odd file). */
+const POSTER_TIMEOUT_MS = 30_000;
+
+/**
+ * One frame of the video as PNG bytes, via ffmpeg (FFMPEG_PATH, or `ffmpeg` on
+ * the PATH; the API image installs it). A second in, so a fade from black
+ * doesn't give a black poster; the first frame for a clip shorter than that.
+ * null when ffmpeg is missing or can't read the file.
+ */
+async function grabFrame(videoPath: string, atSeconds: number): Promise<Buffer | null> {
+  const { spawn } = await import("child_process");
+  return new Promise((resolve) => {
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(
+        process.env["FFMPEG_PATH"] || "ffmpeg",
+        ["-hide_banner", "-loglevel", "error", "-ss", String(atSeconds), "-i", videoPath, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"],
+        { stdio: ["ignore", "pipe", "ignore"], windowsHide: true }
+      );
+    } catch {
+      return resolve(null);
+    }
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => proc.kill("SIGKILL"), POSTER_TIMEOUT_MS);
+    proc.stdout?.on("data", (c: Buffer) => chunks.push(c));
+    proc.on("error", () => {
+      clearTimeout(timer);
+      resolve(null); // ffmpeg not installed
+    });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      const out = Buffer.concat(chunks);
+      resolve(code === 0 && out.length > 0 ? out : null);
+    });
+  });
+}
+
+/**
+ * A WebP poster for a video, next to it in `uploadDir` (same name and size as
+ * an image's thumbnail), so the media grid and the Our Story carousel can show
+ * a picture without loading the video. Best-effort like generateThumbnail:
+ * null means "no poster", never an error.
+ */
+export async function generateVideoPoster(uploadDir: string, storedName: string): Promise<string | null> {
+  const videoPath = path.join(uploadDir, storedName);
+  const frame = (await grabFrame(videoPath, 1)) ?? (await grabFrame(videoPath, 0));
+  if (!frame) {
+    console.warn(`[thumbnails] no poster for ${storedName} (ffmpeg missing, or the file can't be read)`);
+    return null;
+  }
+  return generateThumbnail(uploadDir, storedName, frame);
+}
+
+/** The thumbnail for a freshly stored file: a tile for images, a poster for videos, none otherwise. */
+export async function thumbnailForUpload(
+  type: string,
+  uploadDir: string,
+  storedName: string,
+  source?: Buffer
+): Promise<string | null> {
+  if (type === "image") return generateThumbnail(uploadDir, storedName, source);
+  if (type === "video") return generateVideoPoster(uploadDir, storedName);
+  return null;
+}

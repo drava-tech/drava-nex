@@ -6,6 +6,7 @@ import { google, type gmail_v1 } from "googleapis";
 import { createMediaAsset, isMessageIngested, markMessageIngested, getLastGmailIngestTimestamp } from "@platform/db";
 import { classifyLink } from "@platform/types";
 import { UPLOAD_DIR, classifyUpload } from "../routes/media.js";
+import { thumbnailForUpload } from "./thumbnails.js";
 
 /**
  * Watches hello@thewhitetusker.com (or whichever mailbox GMAIL_IMPERSONATE_USER
@@ -135,6 +136,8 @@ async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise
     await fsPromises.mkdir(UPLOAD_DIR, { recursive: true });
     const storedName = `${randomUUID()}${classified.ext}`;
     await fsPromises.writeFile(path.join(UPLOAD_DIR, storedName), bytes);
+    // Same tile / poster an upload gets (best-effort: null just means none).
+    const thumbnailUrl = await thumbnailForUpload(classified.type, UPLOAD_DIR, storedName, bytes);
 
     const displayName =
       (part.filename || subject || "Email attachment").replace(/[^a-zA-Z0-9_.\- ]/g, "_").slice(0, 200) ||
@@ -149,6 +152,7 @@ async function processMessage(gmail: gmail_v1.Gmail, messageId: string): Promise
       emailFrom: from ?? null,
       emailSubject: subject ?? null,
       pendingSave: false,
+      thumbnailUrl,
     });
     added++;
   }
