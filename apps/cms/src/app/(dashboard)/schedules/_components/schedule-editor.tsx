@@ -209,9 +209,11 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
 
   // ─── The draft as the scheduler will see it ───
   const windowSpec = { startTime: allDay ? null : startTime, endTime: allDay ? null : endTime };
-  // Loop: repeat until the slot ends. Unticked: play once, then idle. All day
-  // always loops — "once" from midnight would leave the screens idle all day.
+  // Loop: repeat until the slot ends. Unticked: play once. Either way the
+  // screens then show the media chosen for afterwards, or go idle. All day
+  // always loops and never ends a slot, so it has no "afterwards".
   const repeats = allDay || loop;
+  const afterMediaId = allDay ? null : afterMedia?.id ?? null;
   const draftSpec: ScheduleSpec = {
     id: draft.mode === "edit" ? draft.schedule.id : "__draft__",
     name: name || "This schedule",
@@ -225,7 +227,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     ...windowSpec,
     timezone,
     loop: repeats,
-    afterMediaId: repeats ? null : afterMedia?.id ?? null,
+    afterMediaId,
     items: items.map((i) => ({ id: i.key, kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
     createdAt: draft.mode === "edit" ? draft.schedule.createdAt : new Date().toISOString(),
   };
@@ -330,7 +332,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       endTime: windowSpec.endTime,
       timezone,
       loop: repeats,
-      afterMediaId: repeats ? null : afterMedia?.id ?? null,
+      afterMediaId,
       screenIds: [...screenIds],
       groupIds: [...groupIds],
       items: items.map((i) => ({ kind: "media" as const, contentId: i.contentId, durationSeconds: i.durationSeconds })),
@@ -515,7 +517,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                   <div role="radiogroup" aria-label="How the queue plays" className="grid gap-2 @md:grid-cols-2">
                     {(
                       [
-                        [true, "Loop", "Repeats until the time slot ends."],
+                        [true, "Loop", "Repeats until the time slot ends, then shows what you choose below."],
                         [false, "Play once", "Plays through one time, then shows what you choose below."],
                       ] as const
                     ).map(([value, label, hint]) => (
@@ -539,9 +541,10 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                       </button>
                     ))}
                   </div>
-                  {!loop && (
                     <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
-                      <span className="text-[11px] text-muted-foreground">Afterwards, show</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {loop ? "When the slot ends, show" : "Afterwards, show"}
+                      </span>
                       {afterMedia ? (
                         <div className="flex min-w-0 flex-1 items-center gap-2">
                           <div className="h-9 w-12 shrink-0 overflow-hidden rounded-md border border-border">
@@ -569,7 +572,6 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                         )}
                       </div>
                     </div>
-                  )}
                 </div>
               )}
               {items.length > 0 && (
@@ -757,13 +759,19 @@ function fitSummary(x: { loop: boolean; queueSeconds: number; windowSeconds: num
   if (x.unfit > 0) {
     return head + `The last ${x.unfit === 1 ? "item doesn't" : `${x.unfit} items don't`} get a turn: shorten the images or make the slot longer.`;
   }
-  if (x.queueSeconds >= x.windowSeconds) return head + "It fills the slot once.";
+  const then = x.afterName ? ` Then the screens show ${x.afterName}.` : " Then the screens go to their idle screen.";
+  if (x.queueSeconds >= x.windowSeconds) return head + "It fills the slot once." + then;
   if (!x.loop) {
     const [h, m] = x.startTime.split(":").map(Number) as [number, number];
     return head + `It plays once, finishing at ${formatClock((h * 60 + m) * 60 + x.queueSeconds)}${x.afterName ? `, then the screens show ${x.afterName}.` : ", then the screens go to their idle screen."}`;
   }
   const times = Math.floor(x.windowSeconds / Math.max(1, x.queueSeconds));
-  return head + `It repeats about ${times} time${times === 1 ? "" : "s"}.`;
+  return (
+    head +
+    `It repeats about ${times} time${times === 1 ? "" : "s"}${
+      x.afterName ? `, then the screens show ${x.afterName}.` : ", then the screens go to their idle screen."
+    }`
+  );
 }
 
 // ─── Small parts ─────────────────────────────────────────────────────────────
