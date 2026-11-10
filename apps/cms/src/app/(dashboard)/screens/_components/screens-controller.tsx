@@ -582,7 +582,6 @@ export function ScreensController({
         {/* The bar — outside the scrolling list, so search is always in reach. */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-4 pt-2 sm:px-6 lg:px-10">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <SearchPill value={query} onChange={setQuery} label="Search screens, groups, content" className="w-64" />
             {groups.length > 0 && (
               <FilterPill
                 label="Group"
@@ -617,18 +616,19 @@ export function ScreensController({
                 { value: "none", label: "Nothing assigned", count: screens.filter((s) => kindOf(s) === "none").length },
               ]}
             />
+            <SearchPill value={query} onChange={setQuery} label="Search screens, groups, content" className="w-64" />
             <span aria-live="polite" className="px-1 text-xs tabular-nums text-muted-foreground">
               {filtering ? `${visible.length} of ${screens.length} screens` : `${screens.length} screen${screens.length === 1 ? "" : "s"} · ${liveCount} live`}
             </span>
             {filtering && (
-              <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+              <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
                 Clear
               </button>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="View" className="flex items-center rounded-full border border-border p-0.5">
+            <div role="group" aria-label="View" className="flex items-center gap-1">
               {(
                 [
                   ["grid", "Cards with a live preview", LayoutGrid],
@@ -642,29 +642,29 @@ export function ScreensController({
                   aria-label={title}
                   aria-pressed={view === key}
                   onClick={() => setView(key)}
-                  className={`flex h-7 w-8 items-center justify-center rounded-full transition-colors ${
-                    view === key ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                  className={`flex h-8 w-9 items-center justify-center rounded-full transition-colors ${
+                    view === key ? "btn-active" : "btn-surface"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="pill" onClick={() => router.push("/broadcast")}>
-              <Send className="h-4 w-4" />
+            <button type="button" onClick={() => router.push("/broadcast")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
+              <Send className="h-3.5 w-3.5" />
               Drag & Publish
-            </Button>
+            </button>
             {isAdmin && (
-              <Button variant="outline" size="pill" onClick={() => setGroupDialog("new")}>
-                <FolderPlus className="h-4 w-4" />
+              <button type="button" onClick={() => setGroupDialog("new")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
+                <FolderPlus className="h-3.5 w-3.5" />
                 New group
-              </Button>
+              </button>
             )}
             {isAdmin && (
-              <Button variant="pill" size="pill" onClick={() => setShowAddModal(true)}>
-                <Plus className="h-4 w-4" />
+              <button type="button" onClick={() => setShowAddModal(true)} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-primary">
+                <Plus className="h-3.5 w-3.5" />
                 Add Screen
-              </Button>
+              </button>
             )}
           </div>
         </div>
