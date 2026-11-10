@@ -100,7 +100,7 @@ export default function AmbientModesPanel({
   const editingMode = modes?.find((m) => m.key === editing) ?? null;
 
   return (
-    <div className="mt-auto shrink-0">
+    <div className="shrink-0">
       {loadFailed ? (
         <p className="text-[11px] text-muted-foreground/70">Couldn&apos;t load the modes.</p>
       ) : modes === null ? (
