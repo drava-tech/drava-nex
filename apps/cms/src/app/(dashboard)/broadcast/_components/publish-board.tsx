@@ -47,7 +47,16 @@ import {
   type ScreenRow,
 } from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
-import { readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
+import { boardDefaults, readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
+
+/** The group filter's value for screens in no group. */
+const UNGROUPED = "__ungrouped__";
+
+/** For the media-only board, which keeps no memory between visits. */
+const noSnapshot: typeof saveBoardSnapshot = () => {};
+
+/** The media-only board pages through the library looking for the opened item, up to this many pages. */
+const FOCUS_MAX_PAGES = 40;
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   activeScreensUpdated,
@@ -133,6 +142,8 @@ interface ContentCard {
   title: string;
   thumbnail: string | null;
   typeIds?: string[];
+  /** Videos: the file, for a frame when there's no poster yet. */
+  videoUrl?: string;
 }
 
 interface PublishBoardProps {
@@ -141,6 +152,14 @@ interface PublishBoardProps {
   initialActiveScreenIds: string[];
   experiences: ExperienceOption[];
   experienceTypes: ExperienceTag[];
+  /** Screen groups, for the group dropdown beside the screen bar. */
+  screenGroups?: { id: string; name: string }[];
+  /**
+   * The Media page's view: media only (no Portfolio switch), opened on this
+   * item, with a way back to the list. Keeps none of Our Story's remembered
+   * state, and doesn't disturb it.
+   */
+  focusMedia?: { id: string; onBack: () => void };
 }
 
 /**
@@ -156,6 +175,8 @@ export function PublishBoard({
   initialActiveScreenIds,
   experiences,
   experienceTypes,
+  screenGroups = [],
+  focusMedia,
 }: PublishBoardProps) {
   // Publishing navigates to the live page and coming back mounts a fresh
   // board, so everything the user had set up would be lost — restored here
@@ -163,7 +184,10 @@ export function PublishBoard({
   // first visit every value below is the same default as before, so the
   // server-rendered markup is unchanged. Captured in a ref so its identity is
   // stable for the lifetime of this mount.
-  const restored = useRef(readBoardSnapshot()).current;
+  const restored = useRef(
+    focusMedia ? { ...boardDefaults(), filter: "media" as const } : readBoardSnapshot(),
+  ).current;
+  const saveSnapshot = focusMedia ? noSnapshot : saveBoardSnapshot;
   const dispatch = useAppDispatch();
   const storeRows = useAppSelector((s) => s.screens.rows);
   const screens = storeRows.length > 0 ? storeRows : initialScreens;
@@ -181,6 +205,8 @@ export function PublishBoard({
   const activeScreenIds =
     storeActiveIds.length > 0 ? storeActiveIds : initialActiveScreenIds;
   const [targetIndex, setTargetIndex] = useState(restored.targetIndex);
+  /** Narrows the screen dropdown to one group; UNGROUPED = screens in none. */
+  const [groupFilter, setGroupFilter] = useState<string | null>(restored.groupFilter);
   /** What the filter's two rows are called on screen (the values stay internal). */
   const FILTER_LABELS = { experiences: "Portfolio", media: "Media" } as const;
   const [filter, setFilter] = useState<"experiences" | "media">(
@@ -330,7 +356,7 @@ export function PublishBoard({
           const deduped = merged.filter((m) =>
             seen.has(m.id) ? false : (seen.add(m.id), true),
           );
-          saveBoardSnapshot({ mediaItems: deduped, mediaNextCursor: cursorOut });
+          saveSnapshot({ mediaItems: deduped, mediaNextCursor: cursorOut });
           return deduped;
         });
         setNextCursor(cursorOut);
@@ -343,7 +369,7 @@ export function PublishBoard({
         setLoadingMore(false);
       }
     },
-    [mediaQuery],
+    [mediaQuery, saveSnapshot],
   );
 
   // Restart the walk whenever a media filter changes. Deliberately not keyed on
@@ -409,7 +435,7 @@ export function PublishBoard({
       if (scrollerRef.current) scrollerRef.current.scrollLeft = 0;
       // ...and the snapshot must forget whichever card *was* centred, or a
       // later return visit would scroll back to it and undo this jump.
-      saveBoardSnapshot({ centredCardKey: null });
+      saveSnapshot({ centredCardKey: null });
       setFeedback({ message: "Loaded new media from email", tone: "success" });
     } catch (err) {
       setFeedback({
@@ -445,7 +471,7 @@ export function PublishBoard({
   // Everything the user picked, remembered for the trip to the live page and
   // back. The carousel position is saved separately, from the scroll handler.
   useEffect(() => {
-    saveBoardSnapshot({
+    saveSnapshot({
       filter,
       tagFilter,
       experienceSearch,
@@ -454,8 +480,10 @@ export function PublishBoard({
       mediaDateFrom,
       mediaDateTo,
       targetIndex,
+      groupFilter,
     });
   }, [
+    groupFilter,
     filter,
     tagFilter,
     experienceSearch,
@@ -464,6 +492,7 @@ export function PublishBoard({
     mediaDateFrom,
     mediaDateTo,
     targetIndex,
+    saveSnapshot,
   ]);
 
   // Only offer tags that actually have at least one experience — same
@@ -513,6 +542,7 @@ export function PublishBoard({
       // ponytail: For videos without a pre-generated thumbnail image, avoid passing original video .mp4 URL
       // to prevent Android WebView from mounting native <video> decoders across carousel slides.
       thumbnail: m.type === "video" ? (m.thumbnailUrl ?? null) : mediaThumbnailSrc(m),
+      videoUrl: m.type === "video" ? m.url : undefined,
     }));
     return filter === "experiences" ? experienceCards : mediaCards;
   }, [experiences, experienceTypes, mediaItems, filter, tagFilter, searchQuery]);
@@ -521,6 +551,33 @@ export function PublishBoard({
   // restored from a previous mount, and the screens list is re-fetched by the
   // server on every visit, so a remembered index can outlive its screen.
   const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
+
+  // Only groups that have a screen in them; and "No group" only when some
+  // screen is in none while others are grouped.
+  const groupOptions = useMemo(() => {
+    const used = new Set(screens.map((s) => s.groupId ?? UNGROUPED));
+    const named = screenGroups.filter((g) => used.has(g.id));
+    return named.length > 0 && used.has(UNGROUPED)
+      ? [...named, { id: UNGROUPED, name: "No group" }]
+      : named;
+  }, [screens, screenGroups]);
+  // A remembered group that's since been emptied or deleted means "all".
+  const activeGroup = groupOptions.some((g) => g.id === groupFilter) ? groupFilter : null;
+  const screensInGroup = useMemo(
+    () => (activeGroup ? screens.filter((s) => (s.groupId ?? UNGROUPED) === activeGroup) : screens),
+    [screens, activeGroup],
+  );
+  const pickGroup = (id: string | null) => {
+    setGroupFilter(id);
+    // Keep the screen if it's in the group; otherwise move to the group's first.
+    const inGroup = id ? screens.filter((s) => (s.groupId ?? UNGROUPED) === id) : screens;
+    if (targetScreen && inGroup.some((s) => s.screenId === targetScreen.screenId)) return;
+    const first = inGroup[0];
+    if (first) setTargetIndex(screens.findIndex((s) => s.screenId === first.screenId));
+  };
+
+  /** The slide wearing the "this is what a swipe publishes" glow. */
+  const centredKeyRef = useRef<string | null>(null);
 
   /** Caches static layout centers (offsetLeft + offsetWidth / 2) so scroll frames do not force DOM layout reads per card. */
   const cachedCentersRef = useRef<Map<string, number>>(new Map());
@@ -596,8 +653,13 @@ export function PublishBoard({
       }
     }
 
-    if (nearestKey) saveBoardSnapshot({ centredCardKey: nearestKey });
-  }, []);
+    if (nearestKey && nearestKey !== centredKeyRef.current) {
+      if (centredKeyRef.current) slideRefs.current.get(centredKeyRef.current)?.removeAttribute("data-centred");
+      slideRefs.current.get(nearestKey)?.setAttribute("data-centred", "true");
+      centredKeyRef.current = nearestKey;
+    }
+    if (nearestKey) saveSnapshot({ centredCardKey: nearestKey });
+  }, [saveSnapshot]);
 
   /**
    * Pull the next keyset page when the scroller nears its right-hand end.
@@ -627,6 +689,7 @@ export function PublishBoard({
     // pass before the skip-if-parked optimisation can be trusted again.
     parkedSlidesRef.current.clear();
     cachedCentersRef.current.clear();
+    centredKeyRef.current = null;
     updateSlideTransforms();
 
     let ticking = false;
@@ -690,6 +753,32 @@ export function PublishBoard({
     updateSlideTransforms();
   }, [cards, restored.centredCardKey, updateSlideTransforms]);
 
+  // The Media page's board: centre the item it was opened on. It may be
+  // further down than the first page, so keep paging until it arrives (or the
+  // list ends, when the carousel just stays at the start).
+  const focusDoneRef = useRef(false);
+  const focusPagesRef = useRef(0);
+  useIsomorphicLayoutEffect(() => {
+    if (!focusMedia || focusDoneRef.current || loadingMedia || cards.length === 0) return;
+    const el = slideRefs.current.get(
+      [...slideRefs.current.keys()].find((k) => k.endsWith(`:${focusMedia.id}`)) ?? "",
+    );
+    if (el) {
+      focusDoneRef.current = true;
+      el.scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
+      updateSlideTransforms();
+      return;
+    }
+    if (!nextCursor || focusPagesRef.current >= FOCUS_MAX_PAGES) {
+      focusDoneRef.current = true;
+      return;
+    }
+    if (!loadingMore) {
+      focusPagesRef.current += 1;
+      void loadMediaPage(nextCursor);
+    }
+  }, [cards, focusMedia, loadingMedia, loadingMore, nextCursor, loadMediaPage, updateSlideTransforms]);
+
   // Only an explicit filter (or tag/media-type) switch should jump the
   // carousel back to the start — publishing a card, a screen-sync update,
   // etc. must never reset scroll position (cards itself doesn't change from
@@ -704,6 +793,7 @@ export function PublishBoard({
     // A real filter switch also cancels a restore still waiting on its cards,
     // so it can't fire later and undo this jump.
     scrollRestoredRef.current = true;
+    focusDoneRef.current = true;
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = 0;
   }, [
@@ -944,44 +1034,53 @@ export function PublishBoard({
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
-      {/* Screen switcher / publish target */}
-      <div className="flex shrink-0 items-center gap-3">
-        <button
-          type="button"
-          onClick={() =>
-            setTargetIndex((i) =>
-              screens.length ? (i - 1 + screens.length) % screens.length : 0,
-            )
-          }
-          disabled={screens.length < 2}
-          aria-label="Previous screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface transition-colors disabled:opacity-30"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-
+      {/* Publish target: a group, then a screen in it. */}
+      <div className="flex shrink-0 items-center gap-2">
+        {groupOptions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Screen group"
+                className={`flex h-12 max-w-[40%] shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-semibold uppercase tracking-wide shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 ${activeGroup ? "border-primary/50 bg-card text-primary-ink" : "bg-card text-card-foreground"}`}
+              >
+                <Layers className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {activeGroup ? groupOptions.find((g) => g.id === activeGroup)?.name : "All screens"}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            {/* z-[300]: above the carousel's centred card (inline z-index up to 5). */}
+            <DropdownMenuContent align="start" className="z-[300] max-h-[60vh] min-w-56 overflow-y-auto">
+              {[{ id: null as string | null, name: "All screens" }, ...groupOptions].map((g) => {
+                const count = g.id ? screens.filter((s) => (s.groupId ?? UNGROUPED) === g.id).length : screens.length;
+                return (
+                  <DropdownMenuItem
+                    key={g.id ?? "all"}
+                    onSelect={() => pickGroup(g.id)}
+                    className="flex cursor-pointer items-center gap-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wide">{g.name}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
+                    {activeGroup === g.id ? <Check className="h-4 w-4 shrink-0 text-primary-ink" /> : <span className="w-4 shrink-0" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <DropZone
           screen={targetScreen}
-          isOnline={
-            targetScreen ? activeScreenIds.includes(targetScreen.screenId) : false
-          }
+          screens={screensInGroup}
+          activeScreenIds={activeScreenIds}
+          onPick={(screenId) => {
+            const i = screens.findIndex((s) => s.screenId === screenId);
+            if (i >= 0) setTargetIndex(i);
+          }}
           isPushing={pushingId !== null}
           controls={boxControls}
         />
-
-        <button
-          type="button"
-          onClick={() =>
-            setTargetIndex((i) =>
-              screens.length ? (i + 1) % screens.length : 0,
-            )
-          }
-          disabled={screens.length < 2}
-          aria-label="Next screen"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full btn-surface transition-colors disabled:opacity-30"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
       </div>
 
       {/* Feedback banner / gesture hint */}
@@ -1007,7 +1106,17 @@ export function PublishBoard({
 
       {/* Filter (left) + Load from email (right). */}
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {focusMedia ? (
+            <button
+              type="button"
+              onClick={focusMedia.onBack}
+              className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              All media
+            </button>
+          ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -1045,6 +1154,7 @@ export function PublishBoard({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* Second-level filter — only once "Experiences" is picked, and only
             offering tags that at least one experience actually has. */}
@@ -1158,7 +1268,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${
                     mediaDateFrom || mediaDateTo
                       ? "btn-active"
                       : "btn-surface"
@@ -1204,7 +1314,7 @@ export function PublishBoard({
                   ? "Showing only media from email — click to show all"
                   : "Show only media that came in from email"
               }
-              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider text-white transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${
                 emailOnly
                   ? "btn-active"
                   : "btn-surface"
@@ -1277,7 +1387,7 @@ export function PublishBoard({
                   <div
                     key={key}
                     ref={(el) => setSlideRef(key, el)}
-                    className="w-96 shrink-0 snap-center"
+                    className="group/slide w-96 shrink-0 snap-center"
                   >
                     <SwipeCard
                       card={card}
@@ -1339,43 +1449,85 @@ export function PublishBoard({
 
 function DropZone({
   screen,
-  isOnline,
+  screens,
+  activeScreenIds,
+  onPick,
   isPushing,
   controls,
 }: {
   screen: ScreenRow | null;
-  /** Whether a real display is attached right now — false means a push lands nowhere. */
-  isOnline: boolean;
+  screens: ScreenRow[];
+  /** Connected displays — a screen not in here means a push lands nowhere. */
+  activeScreenIds: string[];
+  onPick: (screenId: string) => void;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
 }) {
+  const isOnline = screen ? activeScreenIds.includes(screen.screenId) : false;
   return (
-    <motion.div
-      animate={controls}
-      className="flex h-12 w-full flex-1 items-center justify-between gap-3 rounded-xl border bg-card px-4 text-card-foreground shadow-[var(--card-shadow)]"
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        {screen && (
-          <span
-            title={isOnline ? "Display connected" : "No display connected"}
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              isOnline ? "bg-emerald-400" : "bg-amber-400"
-            }`}
-          />
-        )}
-        <span className="truncate text-sm font-bold uppercase tracking-wide text-card-foreground">
-          {screen ? screen.screenName : "No screens registered yet"}
-        </span>
-      </span>
-      {screen && (
-        <span className="shrink-0 truncate text-xs text-muted-foreground">
-          {isPushing
-            ? "Publishing…"
-            : isOnline
-              ? currentLabel(screen)
-              : "Offline — nothing will change on the wall"}
-        </span>
-      )}
+    <motion.div animate={controls} className="w-full flex-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={screens.length === 0}>
+          <button
+            type="button"
+            aria-label={screen ? `Publishing to ${screen.screenName}. Choose another screen` : "No screens"}
+            className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border bg-card px-4 text-left text-card-foreground shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 disabled:cursor-default"
+                >
+            <span className="flex min-w-0 items-center gap-2">
+              {screen && (
+                <span
+                  title={isOnline ? "Display connected" : "No display connected"}
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    isOnline ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                />
+              )}
+              <span className="truncate text-sm font-bold uppercase tracking-wide text-card-foreground">
+                {screen ? screen.screenName : "No screens registered yet"}
+              </span>
+            </span>
+            <span className="flex min-w-0 items-center gap-2">
+              {screen && (
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {isPushing
+                    ? "Publishing…"
+                    : isOnline
+                      ? currentLabel(screen)
+                      : "Offline — nothing will change on the wall"}
+                </span>
+              )}
+              {screens.length > 0 && <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            </span>
+          </button>
+        </DropdownMenuTrigger>
+        {/* z-[300]: above the carousel's centred card (inline z-index up to 5). */}
+        <DropdownMenuContent
+          align="start"
+          className="z-[300] max-h-[60vh] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+        >
+          {screens.map((s) => {
+            const online = activeScreenIds.includes(s.screenId);
+            const picked = s.screenId === screen?.screenId;
+            return (
+              <DropdownMenuItem
+                key={s.screenId}
+                onSelect={() => onPick(s.screenId)}
+                className="flex cursor-pointer items-center gap-3 py-2"
+              >
+                <span
+                  title={online ? "Display connected" : "No display connected"}
+                  className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-emerald-400" : "bg-amber-400"}`}
+                />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wide">{s.screenName}</span>
+                <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
+                  {online ? currentLabel(s) : "Offline"}
+                </span>
+                {picked ? <Check className="h-4 w-4 shrink-0 text-primary-ink" /> : <span className="w-4 shrink-0" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </motion.div>
   );
 }
@@ -1458,13 +1610,22 @@ function CardVisual({
 
   // ponytail: Carousel cards use static images/icons instead of HTML5 <video> elements to avoid
   // instantiating native hardware decoders per video slide in Android WebView / APK containers.
+  // A video with no poster yet gets one frame grabbed into a still (useVideoFrame),
+  // one video at a time and only once it's on screen; no <video> stays mounted.
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const frame = useVideoFrame(
+    card.type === "video" && !card.thumbnail ? card.videoUrl : undefined,
+    frameRef,
+  );
+  const picture = card.thumbnail ?? frame;
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm dark:bg-[#111]">
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
-        {card.thumbnail &&
+    // The centred card (the one a swipe up publishes) stands out in lime.
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm transition-[box-shadow,border-color] duration-300 group-data-[centred=true]/slide:border-primary group-data-[centred=true]/slide:shadow-[0_0_0_1px_var(--primary),0_12px_48px_-4px_color-mix(in_srgb,var(--primary)_55%,transparent)] dark:bg-[#111]">
+      <div ref={frameRef} className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
+        {picture &&
         (card.type === "image" || card.type === "experience" || card.type === "video") ? (
           <img
-            src={card.thumbnail}
+            src={picture}
             alt={card.title}
             className="h-full w-full object-cover"
             loading="lazy"
@@ -1511,4 +1672,80 @@ function CardVisual({
       </div>
     </div>
   );
+}
+
+// ─── A still from a video that has no poster yet ─────────────────────────────
+
+/** Grabbed stills by video URL, for the life of the page. */
+const videoFrames = new Map<string, string | null>();
+/** One video decoded at a time: a carousel of them must not open a decoder each. */
+let frameQueue: Promise<void> = Promise.resolve();
+
+function grabVideoFrame(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    let settled = false;
+    const finish = (still: string | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      // Let the decoder go straight away.
+      video.removeAttribute("src");
+      video.load();
+      resolve(still);
+    };
+    const timer = window.setTimeout(() => finish(null), 15_000);
+    video.addEventListener("loadedmetadata", () => {
+      // A second in (a fade from black would give a black still), or halfway in a short clip.
+      video.currentTime = Math.min(1, (video.duration || 0) / 2);
+    });
+    video.addEventListener("seeked", () => {
+      try {
+        const w = Math.min(640, video.videoWidth || 640);
+        const h = Math.round(w * ((video.videoHeight || 9) / (video.videoWidth || 16)));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")?.drawImage(video, 0, 0, w, h);
+        finish(canvas.toDataURL("image/jpeg", 0.72));
+      } catch {
+        finish(null);
+      }
+    });
+    video.addEventListener("error", () => finish(null));
+    video.src = url;
+  });
+}
+
+/** A still of `url` once `ref`'s element scrolls into view; null until then (or if it can't be read). */
+function useVideoFrame(url: string | undefined, ref: React.RefObject<HTMLElement | null>): string | null {
+  const [still, setStill] = useState<string | null>(() => (url ? videoFrames.get(url) ?? null : null));
+  useEffect(() => {
+    if (!url) return;
+    if (videoFrames.has(url)) {
+      setStill(videoFrames.get(url) ?? null);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    let cancelled = false;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      observer.disconnect();
+      frameQueue = frameQueue.then(async () => {
+        if (cancelled) return;
+        if (!videoFrames.has(url)) videoFrames.set(url, await grabVideoFrame(url));
+        if (!cancelled) setStill(videoFrames.get(url) ?? null);
+      });
+    });
+    observer.observe(el);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [url, ref]);
+  return still;
 }

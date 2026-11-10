@@ -35,6 +35,8 @@ export interface PublishBoardSnapshot {
   mediaDateFrom: string;
   mediaDateTo: string;
   targetIndex: number;
+  /** The screen group the screen list is narrowed to; null = all screens. */
+  groupFilter: string | null;
   /** `${card.type}:${card.id}` of the card nearest the carousel's centre. */
   centredCardKey: string | null;
   /** Cached /api/media rows, so the carousel renders — and can be scrolled
@@ -62,12 +64,18 @@ const DEFAULTS: PublishBoardSnapshot = {
   mediaDateFrom: "",
   mediaDateTo: "",
   targetIndex: 0,
+  groupFilter: null,
   centredCardKey: null,
   mediaItems: null,
   mediaNextCursor: null,
 };
 
 let snapshot: PublishBoardSnapshot = { ...DEFAULTS };
+
+/** A fresh board's state, for a board that keeps no memory (the Media page's). */
+export function boardDefaults(): PublishBoardSnapshot {
+  return { ...DEFAULTS };
+}
 
 export function readBoardSnapshot(): PublishBoardSnapshot {
   return snapshot;

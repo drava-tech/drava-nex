@@ -3,7 +3,7 @@ import { db, experience, experienceToType, eq, and, isNull } from "@platform/db"
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
 import { getScreens, getActiveScreens } from "@/actions/screen-actions";
-import { extractCoverImage } from "@/lib/extract-cover-image";
+import { experienceCover } from "@/lib/extract-cover-image";
 import { ExperienceDetailView } from "./_components/experience-detail-view";
 
 interface PageProps {
@@ -52,7 +52,7 @@ export default async function ExperiencePage({ params }: PageProps) {
           slug: row.slug,
           templateKey: row.templateKey,
           typeIds: typeAssignments.map((t) => t.typeId),
-          coverImage: extractCoverImage(row.templateContent),
+          coverImage: experienceCover(row.templateContent, row.templateKey),
           createdAt: row.createdAt.toISOString(),
         }}
         isAdmin={isAdmin}

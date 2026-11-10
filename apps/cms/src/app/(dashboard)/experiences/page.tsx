@@ -5,7 +5,7 @@ import { asc, desc } from "drizzle-orm";
 import { ProjectsList } from "./_components/projects-list";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
 import { getScreens, getActiveScreens } from "@/actions/screen-actions";
-import { extractCoverImage } from "@/lib/extract-cover-image";
+import { experienceCover } from "@/lib/extract-cover-image";
 
 export default async function ProjectsPage() {
   const user = await requireGuestOrAdmin();
@@ -40,7 +40,7 @@ export default async function ProjectsPage() {
     typeIds: typeIdsByExperience.get(exp.id) ?? [],
     // Resolved server-side so the showcase pills can render a thumbnail
     // without a dedicated coverImage column.
-    coverImage: extractCoverImage(exp.templateContent),
+    coverImage: experienceCover(exp.templateContent, exp.templateKey),
   }));
 
   return (

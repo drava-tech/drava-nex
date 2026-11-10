@@ -26,6 +26,8 @@ export interface MediaItem {
    * listing until explicitly saved. Only present on items just created via
    * that flow; ordinary already-listed items omit it (falsy). */
   pendingSave?: boolean;
+  /** Small derived picture: an image's tile, or a video's poster frame. */
+  thumbnailUrl?: string | null;
 }
 
 /**

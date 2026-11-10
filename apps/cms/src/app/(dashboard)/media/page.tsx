@@ -42,11 +42,12 @@ import {
   cn,
 } from "@platform/ui";
 import { parseYouTubeId } from "@platform/types";
-import { isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
+import { PUSHABLE_MEDIA_TYPES, isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
+import { MediaBoardView } from "./_components/media-board-view";
 
 // "All Media" isn't a real filterable category — it's the zero-selection
 // state (nothing checked in the dropdown = show everything).
@@ -161,6 +162,34 @@ export default function MediaPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  /**
+   * The item opened in Our Story's view (?view=<id>), or null for the list.
+   * In the address so the browser's Back returns to the list, and a link to
+   * one item works. window.location for the same reason as ?category below.
+   */
+  const [boardId, setBoardId] = useState<string | null>(null);
+  /** Opened from the list here, so "All media" can just go back in history. */
+  const openedHereRef = useRef(false);
+  useEffect(() => {
+    const read = () => setBoardId(new URLSearchParams(window.location.search).get("view"));
+    read();
+    window.addEventListener("popstate", read);
+    return () => window.removeEventListener("popstate", read);
+  }, []);
+  const openBoard = (id: string) => {
+    openedHereRef.current = true;
+    window.history.pushState(null, "", `/media?view=${encodeURIComponent(id)}`);
+    setBoardId(id);
+  };
+  const closeBoard = () => {
+    if (openedHereRef.current) {
+      openedHereRef.current = false;
+      window.history.back();
+    } else {
+      window.history.replaceState(null, "", "/media");
+    }
+    setBoardId(null);
+  };
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -414,6 +443,8 @@ export default function MediaPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
+  if (boardId) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
+
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
       {/* Hidden file input */}
@@ -427,83 +458,27 @@ export default function MediaPage() {
 
       {/* Top Header Section */}
       <div className="flex flex-col gap-4 p-4 border-b border-border sticky top-0 z-20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
-            {/* <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Manage and organize your assets</p> */}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
-              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full border-0 text-sm font-normal transition-all active:scale-95 ${selecting
-                  ? "btn-active"
-                  : "btn-surface"
-                }`}
-            >
-              <CheckSquare className="h-4 w-4" />
-              {selecting ? "Cancel" : "Select"}
-            </button>
-            <button
-              onClick={handleLoadFromEmail}
-              disabled={loadingInbox}
-              title="Load last 2 days from email"
-              className="h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full btn-surface text-sm font-normal transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`h-4 w-4 shrink-0 ${loadingInbox ? "animate-spin" : ""}`} />
-              {loadingInbox ? "Loading…" : "Load Email"}
-            </button>
-            <button
-              onClick={handleUploadClick}
-              disabled={uploading}
-              className={`h-10 px-4 inline-flex items-center justify-center gap-2 rounded-full btn-primary text-sm font-normal transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Upload
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+        <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Media Library</h1>
 
         {loadError && (
           <p className="text-xs font-medium text-red-600 dark:text-red-400">{loadError}</p>
         )}
 
-        {/* Search + category filter dropdown (multi-select) */}
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <div className="relative group shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search media..."
-              className="h-9 pl-9 pr-4 w-48 sm:w-64 rounded-full bg-zinc-100 dark:bg-white/5 border-transparent focus:bg-white dark:focus:bg-[#111] focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm outline-none dark:text-white"
-            />
-          </div>
-
+        {/* Laid out like Our Story's toolbar: the filters and search on the
+            left, the actions on the right, all in the same pills. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedCategories.size > 0
-                    ? "btn-active"
-                    : "btn-surface"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-active`}
               >
-                <Folder className="h-3.5 w-3.5" />
                 {selectedCategories.size === 0
                   ? "All Media"
                   : selectedCategories.size === 1
                     ? CATEGORIES.find((c) => selectedCategories.has(c.id))?.label
-                    : `${selectedCategories.size} filters`}
+                    : `${selectedCategories.size} types`}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -514,7 +489,7 @@ export default function MediaPage() {
                   checked={selectedCategories.has(cat.id)}
                   onCheckedChange={() => toggleCategory(cat.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2"
+                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
                 >
                   <cat.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {cat.label}
@@ -524,10 +499,10 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedCategories(new Set())}
                   >
-                    Clear filters
+                    All Media
                   </DropdownMenuItem>
                 </>
               )}
@@ -538,14 +513,11 @@ export default function MediaPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${selectedSources.size > 0
-                    ? "btn-active"
-                    : "btn-surface"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selectedSources.size > 0 ? "btn-active" : "btn-surface"}`}
               >
-                <Mail className="h-3.5 w-3.5" />
                 {selectedSources.size === 0
-                  ? "Source"
+                  ? "All sources"
                   : selectedSources.size === 1
                     ? SOURCES.find((s) => selectedSources.has(s.id))?.label
                     : `${selectedSources.size} sources`}
@@ -559,7 +531,7 @@ export default function MediaPage() {
                   checked={selectedSources.has(src.id)}
                   onCheckedChange={() => toggleSource(src.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2"
+                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
                 >
                   <src.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {src.label}
@@ -569,27 +541,21 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedSources(new Set())}
                   >
-                    Clear filters
+                    All sources
                   </DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Date range filter — two native date inputs; onSelect prevented
-              on the wrapping item isn't needed since these aren't menu items,
-              but keeping the menu open while typing/picking matters, which
-              plain <input>s inside DropdownMenuContent already do by default. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${dateFrom || dateTo
-                    ? "btn-active"
-                    : "btn-surface"
-                  }`}
+                type="button"
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${dateFrom || dateTo ? "btn-active" : "btn-surface"}`}
               >
                 <CalendarRange className="h-3.5 w-3.5" />
                 {!dateFrom && !dateTo
@@ -613,6 +579,63 @@ export default function MediaPage() {
               />
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Search — the same pill as Our Story's portfolio search. */}
+          <div className="relative flex items-center">
+            <Search className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
+              }}
+              placeholder="Search media"
+              aria-label="Search media"
+              className="h-8 w-44 rounded-full border border-border bg-card pl-8 pr-8 text-xs text-foreground placeholder:text-muted-foreground outline-none transition-[width,border-color] focus:w-60 focus:border-ring sm:w-56 sm:focus:w-72 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selecting ? "btn-active" : "btn-surface"}`}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {selecting ? "Cancel" : "Select"}
+            </button>
+            <button
+              type="button"
+              onClick={handleLoadFromEmail}
+              disabled={loadingInbox}
+              title="Load last 2 days from email"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
+              {loadingInbox ? "Loading…" : "Load Email"}
+            </button>
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              disabled={uploading}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -725,10 +748,18 @@ export default function MediaPage() {
                   return (
                     <tr
                       key={media.id}
-                      onClick={() => (selecting ? toggleSelected(media.id) : setPreviewItem(media))}
+                      onClick={() =>
+                        selecting
+                          ? toggleSelected(media.id)
+                          : // Files a screen can show open in Our Story's view;
+                            // links (YouTube, Drive…) keep the preview window.
+                            (PUSHABLE_MEDIA_TYPES as readonly string[]).includes(media.type)
+                            ? openBoard(media.id)
+                            : setPreviewItem(media)
+                      }
                       className={cn(
                         "cursor-pointer border-b last:border-0 hover:bg-muted/30",
-                        isSelected && "bg-red-50 dark:bg-primary/10 hover:bg-red-50 dark:hover:bg-primary/10"
+                        isSelected && "bg-primary/10 hover:bg-primary/10"
                       )}
                     >
                       {selecting && (
@@ -744,7 +775,7 @@ export default function MediaPage() {
                                 : "border-border hover:border-zinc-400 dark:hover:border-zinc-500"
                             )}
                           >
-                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" strokeWidth={3} />}
                           </button>
                         </td>
                       )}
@@ -875,6 +906,20 @@ export default function MediaPage() {
  * (vs. the large aspect-video preview in MediaPreviewModal).
  */
 function MediaThumbnail({ media, compact = false }: { media: MediaItem; compact?: boolean }) {
+  // A video with a poster frame shows that, like an image; the video itself
+  // only for ones made before posters existed.
+  if (media.type === 'video' && media.thumbnailUrl) {
+    return (
+      <img
+        src={media.thumbnailUrl}
+        alt={media.name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+
   if (media.type === 'video') {
     return (
       // preload="metadata": without it the browser buffers megabytes of every
