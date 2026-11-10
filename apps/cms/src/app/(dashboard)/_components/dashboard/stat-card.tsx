@@ -38,7 +38,8 @@ interface StatCardProps {
 const HIGHLIGHT_SHELL =
   "relative overflow-hidden rounded-2xl border border-[var(--sidebar-active-border)] text-[var(--sidebar-active-fg)] transition-all duration-200 hover:-translate-y-0.5 [background-image:var(--sidebar-active-gradient)] [background-repeat:no-repeat] [background-size:100%_100%] [box-shadow:var(--sidebar-active-shadow)]";
 
-export function StatCard({ stat, icon: Icon, accent = "slate", href, highlight = false }: StatCardProps) {
+// "blue" is the lime chip (the name predates the palette), the dashboard's icon colour.
+export function StatCard({ stat, icon: Icon, accent = "blue", href, highlight = false }: StatCardProps) {
   const shell = highlight ? HIGHLIGHT_SHELL : CARD_SHELL;
   const inner = (
     <>

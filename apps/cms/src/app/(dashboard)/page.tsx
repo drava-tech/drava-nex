@@ -1,5 +1,5 @@
 import React from "react";
-import { Monitor, SquareTerminal, Users } from "lucide-react";
+import { Monitor, Send, Users } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -24,11 +24,6 @@ import { MediaAssetsStatCard } from "@/app/(dashboard)/_components/dashboard/med
 import { ScreensTable } from "@/app/(dashboard)/_components/dashboard/screens-table";
 import { EnvironmentWidget } from "@/app/(dashboard)/_components/dashboard/environment-widget";
 import { roleLabel } from "@/lib/roles";
-
-/** Turn a template key into something readable: "live-stream" → "live stream". */
-function humanTemplate(key: string): string {
-  return key.replace(/[-_]/g, " ");
-}
 
 export default async function DashboardPage() {
   const viewer = await requireGuestOrAdmin();
@@ -56,11 +51,8 @@ export default async function DashboardPage() {
 
   const onlineCount = screenRows.filter((s) => activeScreenIds.includes(s.screenId)).length;
   const offlineCount = screenRows.length - onlineCount;
-
-  const topTemplates = experienceStats.byTemplate
-    .slice(0, 2)
-    .map((t) => `${t.count} ${humanTemplate(t.templateKey)}`)
-    .join(" · ");
+  /** Screens showing a portfolio item right now. */
+  const portfolioOnScreens = screenRows.filter((s) => s.currentContentKind === "experience").length;
 
   const roleBreakdown = userStats.byRole
     .map((r) => `${r.count} ${roleLabel(r.role).toLowerCase()}${r.count === 1 ? "" : "s"}`)
@@ -104,14 +96,15 @@ export default async function DashboardPage() {
           icon={Monitor}
           href="/screens"
         />
+        {/* Our Story, the publishing board: what there is to publish, and what's out. */}
         <StatCard
           stat={{
-            label: "Portfolio",
+            label: "Our Story",
             value: String(experienceStats.total),
-            breakdown: topTemplates || undefined,
+            breakdown: `portfolio items · ${portfolioOnScreens} on screen${portfolioOnScreens === 1 ? "" : "s"} now`,
           }}
-          icon={SquareTerminal}
-          href="/experiences"
+          icon={Send}
+          href="/broadcast"
         />
         <MediaAssetsStatCard />
         <StatCard
