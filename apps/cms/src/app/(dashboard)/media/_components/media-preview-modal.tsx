@@ -90,7 +90,7 @@ export function MediaPreviewModal({
 }
 
 /** Renders the asset itself, using the same embed URL a screen would load. */
-function MediaPreviewSurface({ media }: { media: MediaItem }) {
+export function MediaPreviewSurface({ media }: { media: MediaItem }) {
   if (media.type === "image") {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -100,7 +100,15 @@ function MediaPreviewSurface({ media }: { media: MediaItem }) {
 
   if (media.type === "video") {
     return (
-      <video src={media.url} controls playsInline className="max-h-full max-w-full" />
+      <video
+        // Without a poster, "#t=0.1" makes the browser paint the first frame instead of a grey box.
+        src={media.thumbnailUrl ? media.url : `${media.url}#t=0.1`}
+        poster={media.thumbnailUrl ?? undefined}
+        preload="metadata"
+        controls
+        playsInline
+        className="max-h-full max-w-full"
+      />
     );
   }
 
