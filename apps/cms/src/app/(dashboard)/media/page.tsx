@@ -31,10 +31,7 @@ import {
   RefreshCw,
   Mail,
   CalendarRange,
-  LayoutGrid,
-  List,
-  PanelRight,
-  ExternalLink,
+  GalleryHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,7 +46,7 @@ import { parseYouTubeId } from "@platform/types";
 import { PUSHABLE_MEDIA_TYPES, isLinkMediaType, mediaThumbnailSrc, typesForCategories } from "@/lib/media-tiles";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
-import { MediaPreviewModal, MediaPreviewSurface, type MediaItem } from "./_components/media-preview-modal";
+import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
 import { MediaBoardView } from "./_components/media-board-view";
 import { ScheduledChip, useScheduleInfo } from "@/components/schedule-info";
@@ -128,27 +125,6 @@ function SourceBadge({ source }: { source?: string | null }) {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-/** Remembered per browser: list or icons, and whether the preview pane is open. */
-const LAYOUT_KEY = "media-layout";
-const PANE_KEY = "media-preview-pane";
-/** The preview pane needs room beside the files; below this a click opens the file instead. */
-const PANE_MIN_WIDTH = "(min-width: 1024px)";
-
-function readPref(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function writePref(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Not remembered; the choice still applies now.
-  }
-}
-
 export default function MediaPage() {
   // A User has a library of their own (see apps/api/src/routes/media.ts), so
   // their empty state says how to fill it.
@@ -196,61 +172,36 @@ export default function MediaPage() {
    * one item works. window.location for the same reason as ?category below.
    */
   const [boardId, setBoardId] = useState<string | null>(null);
+  /** The file list (?list) — uploading, selecting, deleting. Otherwise the board, like Our Story. */
+  const [showList, setShowList] = useState(false);
   /** Opened from the list here, so "All media" can just go back in history. */
   const openedHereRef = useRef(false);
   useEffect(() => {
-    const read = () => setBoardId(new URLSearchParams(window.location.search).get("view"));
+    const read = () => {
+      const q = new URLSearchParams(window.location.search);
+      setShowList(q.has("list"));
+      setBoardId(q.get("view"));
+    };
     read();
     window.addEventListener("popstate", read);
     return () => window.removeEventListener("popstate", read);
   }, []);
   const openBoard = (id: string) => {
     openedHereRef.current = true;
+    setShowList(false);
     window.history.pushState(null, "", `/media?view=${encodeURIComponent(id)}`);
     setBoardId(id);
   };
   const closeBoard = () => {
     if (openedHereRef.current) {
+      // Came from the list: Back returns to it (popstate re-reads ?list).
       openedHereRef.current = false;
       window.history.back();
     } else {
-      window.history.replaceState(null, "", "/media");
+      window.history.pushState(null, "", "/media?list");
+      setShowList(true);
+      setBoardId(null);
     }
-    setBoardId(null);
-  };
-
-  // Like a file explorer: list or icons, and a preview pane at the side. With
-  // the pane open a click previews the file there and a double-click opens it;
-  // with it closed (or no room for it) a click opens it, as before.
-  const [layout, setLayoutState] = useState<"list" | "grid">("grid");
-  const [paneOpen, setPaneOpenState] = useState(true);
-  const [paneItem, setPaneItem] = useState<MediaItem | null>(null);
-  useEffect(() => {
-    const l = readPref(LAYOUT_KEY);
-    if (l === "list" || l === "grid") setLayoutState(l);
-    if (readPref(PANE_KEY) === "off") setPaneOpenState(false);
-  }, []);
-  const setLayout = (next: "list" | "grid") => {
-    setLayoutState(next);
-    writePref(LAYOUT_KEY, next);
-  };
-  const togglePane = () => {
-    setPaneOpenState((open) => {
-      writePref(PANE_KEY, open ? "off" : "on");
-      return !open;
-    });
-  };
-  /** Open a file: files a screen can show open in Our Story's view; links (YouTube, Drive...) keep the preview window. */
-  const openItem = (media: MediaItem) =>
-    (PUSHABLE_MEDIA_TYPES as readonly string[]).includes(media.type) ? openBoard(media.id) : setPreviewItem(media);
-  const paneShowing = () => paneOpen && window.matchMedia(PANE_MIN_WIDTH).matches;
-  const handleItemClick = (media: MediaItem) => {
-    if (selecting) toggleSelected(media.id);
-    else if (paneShowing()) setPaneItem(media);
-    else openItem(media);
-  };
-  const handleItemDoubleClick = (media: MediaItem) => {
-    if (!selecting && paneShowing()) openItem(media);
   };
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -386,7 +337,6 @@ export default function MediaPage() {
       if (res.ok) {
         setMediaItems((prev) => prev.filter((item) => item.id !== id));
         setPreviewItem((current) => (current?.id === id ? null : current));
-        setPaneItem((current) => (current?.id === id ? null : current));
         // Refetch rather than just splicing locally: with server-side paging
         // the page is now one short and `total` is stale, and dropping the last
         // row of the last page needs the page clamp to run. The refetch pulls
@@ -506,7 +456,8 @@ export default function MediaPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  if (boardId) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
+  // Like Our Story: the media as cards, on the item asked for (?view=<id>) or the newest.
+  if (!showList) return <MediaBoardView mediaId={boardId} onBack={closeBoard} />;
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-transparent min-h-[calc(100vh-4rem)] select-none">
@@ -671,6 +622,19 @@ export default function MediaPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Back to the cards, the page's main view. */}
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState(null, "", "/media");
+                setShowList(false);
+                setBoardId(null);
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface"
+            >
+              <GalleryHorizontal className="h-3.5 w-3.5" />
+              Cards
+            </button>
             <button
               type="button"
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
@@ -702,9 +666,8 @@ export default function MediaPage() {
         </div>
       </div>
 
-      {/* Main Content: the files, and the preview pane beside them */}
-      <div className="flex min-h-0 flex-1">
-      <div className="min-w-0 flex-1 p-4 overflow-y-auto">
+      {/* Main Content */}
+      <div className="flex-1 p-4 overflow-y-auto">
         {/* Controls Bar */}
         <div className="flex items-center justify-between mb-6 gap-4">
           {selecting ? (
@@ -746,50 +709,9 @@ export default function MediaPage() {
               </div>
             </>
           ) : (
-            <>
-              <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                Showing {selectedCategories.size === 0 ? 'All Files' : Array.from(selectedCategories).map((id) => CATEGORIES.find((c) => c.id === id)?.label).join(', ')} <span className="text-zinc-400 dark:text-zinc-500">({total})</span>
-              </p>
-              <div className="flex shrink-0 items-center gap-2">
-                <div role="group" aria-label="View" className="flex items-center rounded-full border border-border p-0.5">
-                  {(
-                    [
-                      ["grid", "Icons", LayoutGrid],
-                      ["list", "List", List],
-                    ] as const
-                  ).map(([key, label, Icon]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      title={label}
-                      aria-label={label}
-                      aria-pressed={layout === key}
-                      onClick={() => setLayout(key)}
-                      className={cn(
-                        "flex h-7 w-8 items-center justify-center rounded-full transition-colors",
-                        layout === key ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </button>
-                  ))}
-                </div>
-                {/* Only where there's room for the pane beside the files. */}
-                <button
-                  type="button"
-                  onClick={togglePane}
-                  title={paneOpen ? "Hide the preview pane" : "Show the preview pane"}
-                  aria-label="Preview pane"
-                  aria-pressed={paneOpen}
-                  className={cn(
-                    "hidden h-8 w-9 items-center justify-center rounded-full border border-border transition-colors lg:flex",
-                    paneOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <PanelRight className="h-4 w-4" />
-                </button>
-              </div>
-            </>
+            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+              Showing {selectedCategories.size === 0 ? 'All Files' : Array.from(selectedCategories).map((id) => CATEGORIES.find((c) => c.id === id)?.label).join(', ')} <span className="text-zinc-400 dark:text-zinc-500">({total})</span>
+            </p>
           )}
         </div>
 
@@ -822,53 +744,6 @@ export default function MediaPage() {
               </>
             )}
           </div>
-        ) : layout === "grid" ? (
-          /* Icons, like a file explorer's large-icon view */
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
-            {uploading && (
-              <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-            )}
-            {paginatedItems.map((media) => {
-              const isSelected = selectedIds.has(media.id);
-              const isPreviewed = !selecting && paneOpen && paneItem?.id === media.id;
-              return (
-                <button
-                  key={media.id}
-                  type="button"
-                  onClick={() => handleItemClick(media)}
-                  onDoubleClick={() => handleItemDoubleClick(media)}
-                  title={media.name}
-                  aria-pressed={selecting ? isSelected : undefined}
-                  className={cn(
-                    "group flex min-w-0 flex-col gap-1.5 rounded-xl p-1.5 text-left transition-colors hover:bg-muted/50",
-                    (isSelected || isPreviewed) && "bg-primary/10 ring-1 ring-primary/50 hover:bg-primary/10"
-                  )}
-                >
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-sidebar">
-                    <MediaThumbnail media={media} />
-                    {selecting && (
-                      <span
-                        className={cn(
-                          "absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-md border-2",
-                          isSelected ? "border-primary bg-primary" : "border-white/80 bg-black/30"
-                        )}
-                      >
-                        {isSelected && <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={3} />}
-                      </span>
-                    )}
-                    <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                      <TypeIcon type={media.type} className="h-2.5 w-2.5" />
-                      {TYPE_LABELS[media.type] ?? media.type}
-                    </span>
-                    <ScheduledChip list={scheduleInfo.byContent.get(media.id)} className="absolute right-1 top-1 shadow" />
-                  </div>
-                  <span className="line-clamp-2 break-all px-0.5 text-xs text-foreground">{media.name}</span>
-                </button>
-              );
-            })}
-          </div>
         ) : (
           /* Media Table */
           <div className="overflow-hidden rounded-xl border">
@@ -900,11 +775,18 @@ export default function MediaPage() {
                   return (
                     <tr
                       key={media.id}
-                      onClick={() => handleItemClick(media)}
-                      onDoubleClick={() => handleItemDoubleClick(media)}
+                      onClick={() =>
+                        selecting
+                          ? toggleSelected(media.id)
+                          : // Files a screen can show open in Our Story's view;
+                            // links (YouTube, Drive…) keep the preview window.
+                            (PUSHABLE_MEDIA_TYPES as readonly string[]).includes(media.type)
+                            ? openBoard(media.id)
+                            : setPreviewItem(media)
+                      }
                       className={cn(
                         "cursor-pointer border-b last:border-0 hover:bg-muted/30",
-                        (isSelected || (!selecting && paneOpen && paneItem?.id === media.id)) && "bg-primary/10 hover:bg-primary/10"
+                        isSelected && "bg-primary/10 hover:bg-primary/10"
                       )}
                     >
                       {selecting && (
@@ -1035,16 +917,6 @@ export default function MediaPage() {
         )}
       </div>
 
-      {paneOpen && !selecting && (
-        <MediaPreviewPane
-          media={paneItem}
-          onClose={() => setPaneItem(null)}
-          onPush={(m) => setPreviewItem(m)}
-          onOpen={(m) => openBoard(m.id)}
-        />
-      )}
-      </div>
-
       {previewItem && (
         <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />
       )}
@@ -1053,114 +925,6 @@ export default function MediaPage() {
         <MediaQueuePushModal items={queueItems} onClose={() => setQueueItems(null)} />
       )}
     </div>
-  );
-}
-
-/**
- * The explorer-style preview pane: the file picked in the list or grid, shown
- * the way a screen would show it, with its details and what you can do with it.
- * Wide screens only (the toggle and pane are lg+); narrower ones open the file.
- */
-function MediaPreviewPane({
-  media,
-  onClose,
-  onPush,
-  onOpen,
-}: {
-  media: MediaItem | null;
-  onClose: () => void;
-  onPush: (media: MediaItem) => void;
-  onOpen: (media: MediaItem) => void;
-}) {
-  return (
-    <aside aria-label="Preview" className="hidden w-[22rem] shrink-0 flex-col border-l border-border lg:flex xl:w-[26rem]">
-      {!media ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
-          <PanelRight className="h-7 w-7 opacity-60" />
-          <p className="text-sm">Select a file to preview it here.</p>
-          <p className="text-xs">Double-click to open it.</p>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
-          {/* What it is, first: the name, then its kind and size underneath. */}
-          <header className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className="line-clamp-2 break-words text-base font-semibold leading-snug text-foreground" title={media.name}>
-                {media.name}
-              </h2>
-              <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <TypeIcon type={media.type} className="h-3.5 w-3.5" />
-                {TYPE_LABELS[media.type] ?? media.type}
-                {media.size !== "—" && <> · {media.size}</>}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close preview"
-              className="-mr-1.5 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </header>
-
-          {/* Keyed so switching files resets the player or frame. The media fills the box. */}
-          <div
-            key={media.id}
-            className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-black [&>img]:h-full [&>img]:w-full [&>img]:object-contain [&>video]:h-full [&>video]:w-full"
-          >
-            <MediaPreviewSurface media={media} />
-          </div>
-
-          {/* What you'd do next, right under what you're looking at. */}
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => onPush(media)}
-              className="flex h-10 items-center justify-center gap-2 rounded-full btn-primary text-xs uppercase tracking-wider"
-            >
-              <MonitorPlay className="h-4 w-4" /> Push to screen
-            </button>
-            <div className="flex gap-2">
-              {(PUSHABLE_MEDIA_TYPES as readonly string[]).includes(media.type) && (
-                <button
-                  type="button"
-                  onClick={() => onOpen(media)}
-                  title="Open in Our Story's view"
-                  className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full btn-surface text-xs uppercase tracking-wider"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Open
-                </button>
-              )}
-              {!isLinkMediaType(media.type) && (
-                <a
-                  href={media.url}
-                  download={media.name}
-                  className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full btn-surface text-xs uppercase tracking-wider"
-                >
-                  <Download className="h-3.5 w-3.5" /> Download
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* The details: quiet labels, plain values. */}
-          <section>
-            <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Details</h3>
-            <dl className="divide-y divide-border text-sm">
-              <div className="flex items-center justify-between gap-4 py-2">
-                <dt className="text-muted-foreground">Added</dt>
-                <dd className="text-foreground">{media.date}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4 py-2">
-                <dt className="text-muted-foreground">Source</dt>
-                <dd><SourceBadge source={media.source} /></dd>
-              </div>
-            </dl>
-          </section>
-        </div>
-      )}
-    </aside>
   );
 }
 

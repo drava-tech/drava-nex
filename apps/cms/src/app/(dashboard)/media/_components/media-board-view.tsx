@@ -11,11 +11,11 @@ import { PublishBoard } from "../../broadcast/_components/publish-board";
 const PRIMARY_SCREEN_NAME = "tv-86inch";
 
 /**
- * One media item opened from the Media list, in Our Story's view: the screen
- * box on top, the media as swipeable cards below, starting on this item.
- * Hold and swipe a card up to put it on the screen in the box.
+ * The Media page, in Our Story's view: the screen box on top, the media as
+ * swipeable cards below, starting on `mediaId` if given (opened from the
+ * list) or the newest. Hold and swipe a card up to put it on the screen.
  */
-export function MediaBoardView({ mediaId, onBack }: { mediaId: string; onBack: () => void }) {
+export function MediaBoardView({ mediaId, onBack }: { mediaId: string | null; onBack: () => void }) {
   const [screens, setScreens] = useState<{
     rows: ScreenRow[];
     active: string[];
@@ -45,7 +45,7 @@ export function MediaBoardView({ mediaId, onBack }: { mediaId: string; onBack: (
       ) : (
         <PublishBoard
           // A new board per item, so opening another starts on that one.
-          key={mediaId}
+          key={mediaId ?? "newest"}
           initialScreens={screens.rows}
           initialActiveScreenIds={screens.active}
           experiences={[]}
