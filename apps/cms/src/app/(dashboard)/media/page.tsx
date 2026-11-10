@@ -48,6 +48,7 @@ import { DateRangeCalendar } from "@/components/date-range-calendar";
 import { MediaPreviewModal, type MediaItem } from "./_components/media-preview-modal";
 import { MediaQueuePushModal } from "./_components/media-queue-push-modal";
 import { MediaBoardView } from "./_components/media-board-view";
+import { ScheduledChip, useScheduleInfo } from "@/components/schedule-info";
 
 // "All Media" isn't a real filterable category — it's the zero-selection
 // state (nothing checked in the dropdown = show everything).
@@ -162,6 +163,8 @@ export default function MediaPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  /** Which media are in a schedule, for the "Scheduled" tag on their rows. */
+  const scheduleInfo = useScheduleInfo();
   /**
    * The item opened in Our Story's view (?view=<id>), or null for the list.
    * In the address so the browser's Back returns to the list, and a link to
@@ -790,6 +793,7 @@ export default function MediaPage() {
                           >
                             {media.name}
                           </span>
+                          <ScheduledChip list={scheduleInfo.byContent.get(media.id)} />
                         </div>
                       </td>
                       <td className="px-4 py-3">

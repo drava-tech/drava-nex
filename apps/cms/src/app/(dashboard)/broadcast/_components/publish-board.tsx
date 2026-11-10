@@ -47,6 +47,12 @@ import {
   type ScreenRow,
 } from "@/components/push-to-screen-modal";
 import { DateRangeCalendar } from "@/components/date-range-calendar";
+import {
+  ScheduledChip,
+  ScreenScheduleStrip,
+  useScheduleInfo,
+  type ContentSchedule,
+} from "@/components/schedule-info";
 import { boardDefaults, readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
 
 /** The group filter's value for screens in no group. */
@@ -551,6 +557,19 @@ export function PublishBoard({
   // restored from a previous mount, and the screens list is re-fetched by the
   // server on every visit, so a remembered index can outlive its screen.
   const targetScreen = screens[targetIndex] ?? screens[0] ?? null;
+
+  // The schedules: what the chosen screen has on air, and which cards are in
+  // one. Re-read when what the screen shows changes (a publish, the schedule
+  // moving on), as well as on its own timer.
+  const scheduleInfo = useScheduleInfo(
+    targetScreen
+      ? `${targetScreen.screenId}:${targetScreen.currentContentKind}:${targetScreen.currentMediaAssetId ?? targetScreen.currentExperienceId ?? ""}`
+      : undefined,
+  );
+  const scheduleScreens = useMemo(
+    () => screens.map((s) => ({ screenId: s.screenId, screenName: s.screenName, groupId: s.groupId ?? null })),
+    [screens],
+  );
 
   // Only groups that have a screen in them; and "No group" only when some
   // screen is in none while others are grouped.
@@ -1083,6 +1102,9 @@ export function PublishBoard({
         />
       </div>
 
+      {/* This screen's schedule: on air now, next up, and a way to the Schedules page. */}
+      <ScreenScheduleStrip info={scheduleInfo} screen={targetScreen} screens={scheduleScreens} />
+
       {/* Feedback banner / gesture hint */}
       <div className="flex h-6 shrink-0 items-center justify-center">
         {feedback ? (
@@ -1393,6 +1415,7 @@ export function PublishBoard({
                       card={card}
                       pushing={pushingId === card.id}
                       onPublish={triggerPublish}
+                      scheduledIn={scheduleInfo.byContent.get(card.id)}
                     />
                   </div>
                 );
@@ -1543,10 +1566,13 @@ function SwipeCard({
   card,
   pushing,
   onPublish,
+  scheduledIn,
 }: {
   card: ContentCard;
   pushing?: boolean;
   onPublish: (card: ContentCard) => void;
+  /** The schedules this card's content is in, for its "Scheduled" tag. */
+  scheduledIn?: ContentSchedule[];
 }) {
   const y = useMotionValue(0);
   const opacity = useMotionValue(1);
@@ -1579,7 +1605,7 @@ function SwipeCard({
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       className="cursor-grab active:cursor-grabbing"
     >
-      <CardVisual card={card} pushing={pushing} />
+      <CardVisual card={card} pushing={pushing} scheduledIn={scheduledIn} />
     </motion.div>
   );
 }
@@ -1599,9 +1625,11 @@ const FILE_TYPE_ICONS: Record<
 function CardVisual({
   card,
   pushing,
+  scheduledIn,
 }: {
   card: ContentCard;
   pushing?: boolean;
+  scheduledIn?: ContentSchedule[];
 }) {
   const FileIcon =
     card.type === "experience" || card.type === "image" || card.type === "video"
@@ -1656,6 +1684,7 @@ function CardVisual({
             ? "experience"
             : MEDIA_TYPE_LABELS[card.type]}
         </div>
+        <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 shadow" />
         {pushing && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
             <Loader2 className="h-5 w-5 animate-spin text-white" />
