@@ -4,11 +4,11 @@ export default function DocsSettingsPage() {
   return (
     <article>
       <DocTitle>Settings</DocTitle>
-      <DocLead>Portfolio-type configuration for the CMS.</DocLead>
+      <DocLead>Who can sign in to Nex, and what they can do.</DocLead>
 
       <DocH2 id="overview">Overview</DocH2>
       <DocP>
-        Settings holds configuration for how portfolio types behave across the CMS.
+        Settings is where the super admin adds the people who use Nex and chooses their role.
       </DocP>
 
       <DocH2 id="how-to-access">How to Access</DocH2>
@@ -19,7 +19,7 @@ export default function DocsSettingsPage() {
 
       <DocH2 id="key-capabilities">Key Capabilities</DocH2>
       <DocList>
-        <li>Configure portfolio-type behavior for the CMS.</li>
+        <li>Add users, change their role or password, and remove them (super admin only).</li>
       </DocList>
     </article>
   );
