@@ -14,6 +14,7 @@ import {
   formatDuration,
   isValidTimezone,
   localParts,
+  activeWindow,
   MAX_ITEM_SECONDS,
   MIN_ITEM_SECONDS,
   nextWindowStart,
@@ -140,6 +141,18 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const [days, setDays] = useState<number[]>(base?.daysOfWeek ?? ALL_DAYS);
   const [startDate, setStartDate] = useState(base?.startDate ?? "");
   const [endDate, setEndDate] = useState(base?.endDate ?? "");
+  /**
+   * "weekly": on the chosen weekdays, optionally between two dates.
+   * "date": on one day only — stored as that date for both ends, every weekday.
+   */
+  const [runs, setRuns] = useState<"weekly" | "date">(
+    base?.startDate && base.startDate === base.endDate ? "date" : "weekly"
+  );
+  const [onDate, setOnDate] = useState(
+    base?.startDate && base.startDate === base.endDate
+      ? base.startDate
+      : localParts(new Date(), base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE).date
+  );
   const [timezone, setTimezone] = useState(base?.timezone ?? DEFAULT_SCHEDULE_TIMEZONE);
   const [loop, setLoop] = useState(base?.loop ?? true);
   /** Play once: what the screens show after the queue; null = their idle screen. */
@@ -204,9 +217,11 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     name: name || "This schedule",
     enabled: true,
     priority: 0,
-    startDate: startDate || null,
-    endDate: endDate || null,
-    daysOfWeek: days,
+    startDate: runs === "date" ? onDate : startDate || null,
+    endDate: runs === "date" ? onDate : endDate || null,
+    daysOfWeek: runs === "date" ? ALL_DAYS : days,
+    // As if saved now: a slot already running starts its queue from item 1 now.
+    activeFrom: new Date().toISOString(),
     ...windowSpec,
     timezone,
     loop: repeats,
@@ -222,7 +237,12 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
   const videos = items.filter((i) => i.type === "video").length;
   const images = items.length - videos;
   const stillReading = items.some((i) => i.length === "reading");
-  const nextStart = days.length ? nextWindowStart(draftSpec, new Date()) : null;
+  const nowDate = new Date();
+  const onAirNow = activeWindow(draftSpec, nowDate);
+  const nextStart = draftSpec.daysOfWeek.length ? nextWindowStart(draftSpec, nowDate) : null;
+  const today = localParts(nowDate, timezone).date;
+  /** "On a date" set to a day or slot that has already gone by. */
+  const datePassed = runs === "date" && !onAirNow && !nextStart && onDate <= today;
 
   // Other schedules that would be on the same screens at the same time. With
   // no priorities, the newer schedule plays.
@@ -287,8 +307,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
     if (!name.trim()) return setError("Give the schedule a name.");
     if (items.length === 0) return setError("Add at least one image or video to the queue.");
     if (stillReading) return setError("Still reading the videos' lengths — one moment.");
-    if (days.length === 0) return setError("Pick at least one day.");
-    if (startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
+    if (runs === "weekly" && days.length === 0) return setError("Pick at least one day.");
+    if (runs === "date" && !onDate) return setError("Pick the date.");
+    if (runs === "weekly" && startDate && endDate && endDate < startDate) return setError("The end date is before the start date.");
     // Only images have a time to check; a video's length comes from its file.
     const bad = items.find(
       (i) => i.type === "image" && (i.durationSeconds < MIN_ITEM_SECONDS || i.durationSeconds > MAX_ITEM_SECONDS)
@@ -302,9 +323,9 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
       // where two overlap the newer one plays.
       enabled: true,
       priority: 0,
-      startDate: startDate || null,
-      endDate: endDate || null,
-      daysOfWeek: [...days].sort(),
+      startDate: runs === "date" ? onDate : startDate || null,
+      endDate: runs === "date" ? onDate : endDate || null,
+      daysOfWeek: runs === "date" ? ALL_DAYS : [...days].sort(),
       startTime: windowSpec.startTime,
       endTime: windowSpec.endTime,
       timezone,
@@ -472,7 +493,7 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
           </Section>
 
           {/* ─── When ─── */}
-          <Section title="When" hint={`${describeDays(days)} · ${describeWindow(windowSpec)}`}>
+          <Section title="When" hint={`${runs === "date" ? formatDay(onDate) : describeDays(days)} · ${describeWindow(windowSpec)}`}>
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div className="flex items-center gap-2.5 text-sm">
@@ -553,6 +574,55 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 </p>
               )}
 
+              <div role="radiogroup" aria-label="Which days" className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["weekly", "Repeats weekly"],
+                    ["date", "On a date"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={runs === value}
+                    onClick={() => setRuns(value)}
+                    className={`rounded-full px-4 py-1.5 text-sm ${runs === value ? "btn-active" : "btn-surface"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {runs === "date" ? (
+                <div className="flex flex-wrap items-end gap-3">
+                  <Field label="Date">
+                    <input
+                      type="date"
+                      value={onDate}
+                      min={today}
+                      onChange={(e) => e.target.value && setOnDate(e.target.value)}
+                      className="rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring"
+                    />
+                  </Field>
+                  <div className="flex gap-1.5 pb-1">
+                    <button type="button" onClick={() => setOnDate(today)} className={`rounded-full px-3 py-1.5 text-xs ${onDate === today ? "btn-active" : "btn-surface"}`}>
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const [y, m, d] = today.split("-").map(Number) as [number, number, number];
+                        setOnDate(new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10));
+                      }}
+                      className="btn-surface rounded-full px-3 py-1.5 text-xs"
+                    >
+                      Tomorrow
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              <>
               <div className="flex flex-wrap items-center gap-1.5">
                 {SCHEDULE_DAY_LABELS.map((label, d) => {
                   const on = days.includes(d);
@@ -576,13 +646,18 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 ))}
               </div>
 
-              <div className="grid gap-3 @lg:grid-cols-3">
+              <div className="grid gap-3 @lg:grid-cols-2">
                 <Field label="From (optional)">
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
                 </Field>
                 <Field label="Until (optional)">
                   <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring" />
                 </Field>
+              </div>
+              </>
+              )}
+
+              <div className="grid gap-3 @lg:grid-cols-3">
                 <Field label="Timezone">
                   <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring">
                     {tzOptions.map((tz) => (
@@ -601,9 +676,13 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
                 ? "Add images or videos to the queue for this schedule to play."
                 : draftTargets.length === 0
                   ? "Pick at least one screen or group for this schedule to play."
-                  : nextStart
-                    ? `Next starts ${formatWhen(nextStart.toISOString())} on ${draftTargets.length} screen${draftTargets.length === 1 ? "" : "s"}.`
-                    : "It won't start in the next two weeks with these dates and days."}
+                  : onAirNow
+                    ? `On air now on ${draftTargets.length} screen${draftTargets.length === 1 ? "" : "s"}: it starts as soon as you save, until ${formatWhen(new Date(nowDate.getTime() + onAirNow.remainingSeconds * 1000).toISOString())}.`
+                    : datePassed
+                      ? "That time has already passed on that date. Pick a later time or another date."
+                      : nextStart
+                        ? `Next starts ${formatWhen(nextStart.toISOString())} on ${draftTargets.length} screen${draftTargets.length === 1 ? "" : "s"}.`
+                        : "It won't start in the next two weeks with these dates and days."}
             </p>
             {conflicts.map((c) => (
               <p key={c.name} className="flex items-start gap-1.5 text-warning">
@@ -642,6 +721,12 @@ export function ScheduleEditor({ draft, schedules, screens, groups, onClose, onS
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** "YYYY-MM-DD" → "Tue 10 Nov". */
+function formatDay(date: string): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+}
 
 /** Length of the daily time slot, in seconds (all day = 24h). */
 function windowLengthSeconds(spec: { startTime: string | null; endTime: string | null }): number {

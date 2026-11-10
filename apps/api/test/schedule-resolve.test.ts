@@ -143,6 +143,27 @@ describe("long items and play once", () => {
   });
 });
 
+describe("saved while its slot is already running", () => {
+  // 10:00–11:00, a 30s queue, saved at 10:10.
+  const saved = () => spec({ startTime: "10:00", endTime: "11:00", activeFrom: new Date(at("2026-11-09", "10:10")).toISOString() });
+
+  it("starts the queue from its first item when it's saved", () => {
+    const r = resolveSchedules([saved()], new Date(at("2026-11-09", "10:10:05")));
+    expect(r?.position).toMatchObject({ index: 0, cycle: 0, itemElapsedSeconds: 5 });
+  });
+
+  it("plays a play-once queue in full today, then stops", () => {
+    const once = { ...saved(), loop: false };
+    expect(resolveSchedules([once], new Date(at("2026-11-09", "10:10:15")))?.position.index).toBe(1);
+    expect(resolveSchedules([once], new Date(at("2026-11-09", "10:10:31")))).toBeNull();
+  });
+
+  it("counts from the slot's start on later days", () => {
+    const r = resolveSchedules([saved()], new Date(at("2026-11-10", "10:00:45")));
+    expect(r?.position).toMatchObject({ index: 1, cycle: 1 }); // 45s into a 30s loop
+  });
+});
+
 describe("resolveSchedules", () => {
   it("lets the higher priority win and reports the loser", () => {
     const low = spec({ id: "low", priority: 0 });

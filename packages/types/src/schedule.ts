@@ -51,6 +51,13 @@ export interface ScheduleSpec {
    * it finishes. null = their normal idle screen.
    */
   afterMediaId: string | null;
+  /**
+   * ISO time the schedule was last saved. If that falls inside a window
+   * already running (saved at 10:10 for 10:00–11:00), the queue starts from
+   * its first item at that moment rather than as if it had been playing since
+   * 10:00 — otherwise a short play-once queue would already be "over".
+   */
+  activeFrom?: string | null;
   /** ISO timestamp; breaks priority ties (the newer schedule wins). */
   createdAt: string;
 }
@@ -313,6 +320,16 @@ export function compareSchedules(a: ScheduleSpec, b: ScheduleSpec): number {
   return b.createdAt.localeCompare(a.createdAt);
 }
 
+/**
+ * How far into its queue a schedule is: from the window's start, or from when
+ * it was saved if that was later in this same window (see activeFrom).
+ */
+export function queueElapsedSeconds(spec: Pick<ScheduleSpec, "activeFrom">, window: ActiveWindow, at: Date): number {
+  if (!spec.activeFrom) return window.elapsedSeconds;
+  const sinceSaved = (at.getTime() - Date.parse(spec.activeFrom)) / 1000;
+  return sinceSaved >= 0 && sinceSaved < window.elapsedSeconds ? sinceSaved : window.elapsedSeconds;
+}
+
 /** What a screen should show at `at`, given the schedules that target it. */
 export function resolveSchedules(specs: ScheduleSpec[], at: Date): ScheduleResolution | null {
   const live: { spec: ScheduleSpec; window: ActiveWindow; position: PlaylistPosition }[] = [];
@@ -320,7 +337,7 @@ export function resolveSchedules(specs: ScheduleSpec[], at: Date): ScheduleResol
     if (!spec.enabled || spec.items.length === 0) continue;
     const window = activeWindow(spec, at);
     if (!window) continue;
-    const position = playlistPosition(spec.items, window.elapsedSeconds, spec.loop);
+    const position = playlistPosition(spec.items, queueElapsedSeconds(spec, window, at), spec.loop);
     if (position) live.push({ spec, window, position });
   }
   if (live.length === 0) return null;
