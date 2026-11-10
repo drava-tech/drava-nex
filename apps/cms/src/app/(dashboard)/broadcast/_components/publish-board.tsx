@@ -216,8 +216,10 @@ export function PublishBoard({
   const [groupFilter, setGroupFilter] = useState<string | null>(restored.groupFilter);
   /** What the filter's two rows are called on screen (the values stay internal). */
   const FILTER_LABELS = { experiences: "Portfolio", media: "Media" } as const;
-  const [filter, setFilter] = useState<"experiences" | "media">(
-    restored.filter,
+  // Our Story is the portfolio; media are browsed this way from the Media page
+  // (focusMedia). Fixed per board, so a remembered "media" can't come back.
+  const [filter] = useState<"experiences" | "media">(
+    focusMedia ? "media" : "experiences",
   );
   /** Only meaningful (and shown) while filter === "experiences" — narrows to one tag. */
   const [tagFilter, setTagFilter] = useState<string | null>(restored.tagFilter);
@@ -389,17 +391,21 @@ export function PublishBoard({
   // (which is waiting for exactly those cards) at the start of the list.
   const skipInitialLoadRef = useRef(restored.mediaItems !== null);
   useEffect(() => {
+    if (!focusMedia) return; // portfolio only: no media to load
     if (skipInitialLoadRef.current) {
       skipInitialLoadRef.current = false;
       return;
     }
     void loadMediaPage(null);
+    // focusMedia is fixed for a board's life (MediaBoardView keys it per item).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadMediaPage]);
 
   // Which media types exist under the current source/date filter, for the type
   // dropdown. Deliberately asks WITHOUT the type filter applied, or selecting
   // one type would collapse the dropdown to just that type.
   useEffect(() => {
+    if (!focusMedia) return; // portfolio only: no media types to offer
     const params = new URLSearchParams();
     if (emailOnly) params.set("sources", "email");
     if (mediaDateFrom) params.set("dateFrom", mediaDateFrom);
@@ -1155,43 +1161,9 @@ export function PublishBoard({
               All media
             </button>
           ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
-              >
-                {FILTER_LABELS[filter]}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            {/* z-[300]: the coverflow effect above gives the centered card an
-              inline z-index up to 5 (updateSlideTransforms) — this must
-              always outrank that or cards poke over the open menu. */}
-            <DropdownMenuContent align="start" className="z-[300]">
-              {(["experiences", "media"] as const).map((key) => (
-                <DropdownMenuItem
-                  key={key}
-                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
-                  onSelect={() => {
-                    setFilter(key);
-                    if (key !== "experiences") {
-                      setTagFilter(null);
-                      setExperienceSearch("");
-                    }
-                    if (key !== "media") {
-                      setMediaTypeFilter(null);
-                      setEmailOnly(false);
-                      setMediaDateFrom("");
-                      setMediaDateTo("");
-                    }
-                  }}
-                >
-                  {FILTER_LABELS[key]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <span className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider">
+              {FILTER_LABELS.experiences}
+            </span>
           )}
 
           {/* Second-level filter — only once "Experiences" is picked, and only
@@ -1367,6 +1339,7 @@ export function PublishBoard({
             </button>
           )}
 
+          {focusMedia && (
           <button
             type="button"
             onClick={handleLoadFromEmail}
@@ -1379,6 +1352,7 @@ export function PublishBoard({
             />
             {loadingInbox ? "Loading…" : "Load Email"}
           </button>
+          )}
         </div>
       </div>
 
@@ -1787,7 +1761,7 @@ function CardVisual({
             <Layers className="h-2.5 w-2.5" />
           )}
           {card.type === "experience"
-            ? "experience"
+            ? "portfolio"
             : MEDIA_TYPE_LABELS[card.type]}
         </div>
         <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 shadow" />
