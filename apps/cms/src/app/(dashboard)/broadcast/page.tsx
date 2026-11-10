@@ -1,8 +1,8 @@
 import { requireGuestOrAdmin } from "@/lib/auth-helpers";
 import { getScreens, getActiveScreens } from "@/actions/screen-actions";
 import { getExperiences } from "@/actions/project-actions";
-import { getScreenGroups } from "@/actions/screen-group-actions";
 import { getExperienceTypes } from "@/actions/experience-type-actions";
+import { getScreenGroups } from "@/actions/screen-group-actions";
 import { PublishBoard } from "./_components/publish-board";
 
 /**
@@ -18,12 +18,13 @@ const isPrimary = (screenName: string) =>
 
 export default async function BroadcastPage() {
   await requireGuestOrAdmin();
-  const [allScreens, activeScreenIds, experiences, experienceTypes, groups] = await Promise.all([
+  const [allScreens, activeScreenIds, experiences, experienceTypes, screenGroups] = await Promise.all([
     getScreens(),
     getActiveScreens(),
     getExperiences(),
     getExperienceTypes(),
-    getScreenGroups(),
+    // A missing groups table (an unmigrated database) just means no group dropdown.
+    getScreenGroups().catch(() => []),
   ]);
   // Stable sort: only moves the TV to the front, the rest keep listScreens() order.
   const screens = [...allScreens].sort(
@@ -37,7 +38,7 @@ export default async function BroadcastPage() {
         initialActiveScreenIds={activeScreenIds}
         experiences={experiences}
         experienceTypes={experienceTypes}
-        groups={groups}
+        screenGroups={screenGroups}
       />
     </div>
   );

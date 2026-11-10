@@ -8,7 +8,7 @@ import { createMediaAsset, listMediaAssets, listMediaAssetsCursor, getMediaLibra
 import { classifyLink, listMediaQuerySchema } from "@platform/types";
 import { requireGuestOrAdmin, type SessionUser as AuthUser } from "../middleware/auth.js";
 import { runGmailLoad } from "../services/gmail-ingest.js";
-import { generateThumbnail } from "../services/thumbnails.js";
+import { thumbnailForUpload } from "../services/thumbnails.js";
 import { videoLengthSeconds } from "../services/video-length.js";
 import { broadcastToCms } from "../ws/gateway.js";
 
@@ -387,10 +387,8 @@ uploadRouter.post("/", requireGuestOrAdmin, async (c) => {
     // Best-effort by contract: null here just means consumers fall back to the
     // original, so a sharp failure can never cost the user their upload. Done
     // before the insert so the row is written once, already complete.
-    const thumbnailUrl =
-      classified.type === "image"
-        ? await generateThumbnail(UPLOAD_DIR, storedName, buffer)
-        : null;
+    // Videos get a poster frame the same way (ffmpeg), so they have a picture too.
+    const thumbnailUrl = await thumbnailForUpload(classified.type, UPLOAD_DIR, storedName, buffer);
 
     const asset = await createMediaAsset({
       type: classified.type,

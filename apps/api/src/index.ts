@@ -25,6 +25,7 @@ import { schedulesRouter } from './routes/schedules.js';
 import { motionTriggersRouter } from './routes/motion-triggers.js';
 import { startMotionTriggers } from './services/motion-triggers.js';
 import { startScheduler } from './services/scheduler.js';
+import { startThumbnailBackfill } from './services/thumbnail-backfill.js';
 import { experiencesRouter } from './routes/experiences.js';
 import { experienceTypesRouter } from './routes/experience-types.js';
 import { flightSimulationRouter } from './routes/flight-simulation.js';
@@ -219,6 +220,7 @@ httpServer.listen(PORT, () => {
   audioService.start();
   startScreenUptimeSampler();
   startScheduler();
+  startThumbnailBackfill();
   console.info('');
   console.info('┌─────────────────────────────────────────────────────────┐');
   console.info('│          @platform/api  —  CMS Platform Gateway         │');

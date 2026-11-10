@@ -351,12 +351,12 @@ export async function setMediaThumbnail(id: string, thumbnailUrl: string | null)
     .where(eq(mediaAsset.id, id));
 }
 
-/** Image assets still missing a thumbnail — drives the backfill. */
-export async function listMediaMissingThumbnails(limit = 500): Promise<MediaAsset[]> {
+/** Assets (images by default) still missing a thumbnail — drives the backfills. */
+export async function listMediaMissingThumbnails(limit = 500, types: string[] = ["image"]): Promise<MediaAsset[]> {
   return db
     .select()
     .from(mediaAsset)
-    .where(and(isNull(mediaAsset.deletedAt), eq(mediaAsset.type, "image"), isNull(mediaAsset.thumbnailUrl)))
+    .where(and(isNull(mediaAsset.deletedAt), inArray(mediaAsset.type, types), isNull(mediaAsset.thumbnailUrl)))
     .orderBy(desc(mediaAsset.createdAt))
     .limit(limit);
 }

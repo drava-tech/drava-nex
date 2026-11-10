@@ -46,3 +46,17 @@ export function extractCoverImage(content: unknown): string | null {
 
   return fallback;
 }
+
+/**
+ * A picture for templates whose content holds no image of its own (the 3D
+ * ones): their artwork, from public/template-covers.
+ */
+const TEMPLATE_COVERS: Record<string, string> = {
+  "drava-mosaic": "/template-covers/drava-mosaic.webp",
+  "drava-world": "/template-covers/drava-world.webp",
+};
+
+/** The experience's cover: an image from its content, else its template's. */
+export function experienceCover(content: unknown, templateKey: string | null | undefined): string | null {
+  return extractCoverImage(content) ?? (templateKey ? TEMPLATE_COVERS[templateKey] ?? null : null);
+}

@@ -5,6 +5,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const API_INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:4000';
 
+/**
+ * Where uploaded files are fetched from when no page matches /media/... —
+ * normally this machine's API. A dev checkout shares the office database but
+ * not its files (they live on the deployment host), so every thumbnail there
+ * 404s; set DEV_MEDIA_ORIGIN=http://<that host> in .env to load them from it.
+ */
+const MEDIA_ORIGIN = process.env.DEV_MEDIA_ORIGIN?.replace(/\/+$/, '') || API_INTERNAL;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -49,7 +57,7 @@ const nextConfig = {
       // proxies to the API's file server for paths with no matching page,
       // i.e. actual uploaded media files.
       fallback: [
-        { source: '/media/:path*', destination: `${API_INTERNAL}/media/:path*` },
+        { source: '/media/:path*', destination: `${MEDIA_ORIGIN}/media/:path*` },
       ],
     };
   },

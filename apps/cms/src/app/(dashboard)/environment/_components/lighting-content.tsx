@@ -215,10 +215,10 @@ export default function LightingContent({ isExpanded, state, actions: liveAction
           </span>
         </div>
       ) : (
-        // Fixture rows take the free height (scrolling quietly if they run out);
-        // the ambient modes sit pinned to the bottom of the card beneath them.
+        // Fixture rows take the height they need (scrolling quietly if they
+        // outgrow the card); the ambient modes follow straight on beneath them.
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+          <div className="no-scrollbar flex min-h-0 flex-col gap-2.5 overflow-y-auto pr-1">
           {groups.map((g) => {
 
             const uuids = g.members.map((m) => m.uuid);

@@ -1175,7 +1175,7 @@ function ToolbarButton({
       aria-pressed={active}
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
         active
-          ? "bg-primary text-white"
+          ? "bg-primary text-primary-foreground"
           : danger
             ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
             : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/10"
