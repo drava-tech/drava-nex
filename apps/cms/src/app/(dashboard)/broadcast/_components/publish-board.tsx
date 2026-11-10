@@ -1967,15 +1967,22 @@ function CardVisual({
     frameRef,
   );
   const picture = card.thumbnail ?? frame;
+  // A picture that won't load shows the type icon instead. (Its alt text would
+  // otherwise print the name over the preview: a third copy of it, with the
+  // caption below and the details card.)
+  const [failedPicture, setFailedPicture] = useState<string | null>(null);
+  const showPicture = !!picture && picture !== failedPicture;
   return (
     // The centred card (the one a swipe up publishes) stands out in lime.
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-zinc-50 text-left shadow-sm transition-[box-shadow,border-color] duration-300 group-data-[centred=true]/slide:border-primary group-data-[centred=true]/slide:shadow-[0_0_0_1px_var(--primary),0_12px_48px_-4px_color-mix(in_srgb,var(--primary)_55%,transparent)] dark:bg-[#111]">
       <div ref={frameRef} className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800/60">
-        {picture &&
+        {showPicture &&
         (card.type === "image" || card.type === "experience" || card.type === "video") ? (
           <img
             src={picture}
-            alt={card.title}
+            // Decorative: the caption under the preview names it.
+            alt=""
+            onError={() => setFailedPicture(picture)}
             className="h-full w-full object-cover"
             loading="lazy"
             decoding="async"
