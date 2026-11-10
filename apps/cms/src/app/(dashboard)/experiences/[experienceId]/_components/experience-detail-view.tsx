@@ -73,7 +73,7 @@ export function ExperienceDetailView({ experience, isAdmin, experienceTypes, liv
       router.refresh();
     } catch (err) {
       console.error("Failed to remove experience from screen:", err);
-      alert("Failed to remove experience from screen.");
+      alert("Couldn't take it off the screen.");
       setRemovingScreenId(null);
     }
   };

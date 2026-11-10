@@ -30,7 +30,7 @@ export default async function ExperiencePreviewPage({ params }: PreviewPageProps
   if (!key) {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white/50 text-sm">
-        No template assigned to this experience.
+        No template assigned to this portfolio item.
       </div>
     );
   }

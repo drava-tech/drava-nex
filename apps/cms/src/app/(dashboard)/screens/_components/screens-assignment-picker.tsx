@@ -189,7 +189,7 @@ function ExperienceRecentCard({
       <div className="aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800/40 relative overflow-hidden flex items-center justify-center border-b border-border">
         <LayoutTemplate className="w-6 h-6 text-zinc-400 dark:text-zinc-600" />
         <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-white text-[9px] font-bold tracking-wide uppercase">
-          Experience
+          Portfolio
         </div>
       </div>
       <div className="p-3 w-full flex flex-col gap-0.5">
@@ -414,7 +414,7 @@ export function ScreenAssignmentPicker({
                   : "btn-surface"
               }`}
             >
-              Experiences
+              Portfolio
             </button>
             <button
               onClick={() => {
@@ -453,7 +453,7 @@ export function ScreenAssignmentPicker({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
                 activeTab === "experiences"
-                  ? "Search experiences..."
+                  ? "Search portfolio..."
                   : activeTab === "recent"
                     ? "Search recently opened..."
                     : "Search files..."
@@ -486,7 +486,7 @@ export function ScreenAssignmentPicker({
                         }`}
                     >
                       <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1 transition-colors group-hover:text-zinc-500">
-                        Experience
+                        Portfolio
                       </span>
                       <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 leading-tight truncate w-full">
                         {item.title}

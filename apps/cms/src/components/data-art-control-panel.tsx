@@ -186,7 +186,7 @@ export function DataArtControlPanel({
             <button
               onClick={handleGenerate}
               disabled={saving}
-              title="Save this pair as the experience's default, so a screen reboot comes back to it"
+              title="Save this pair as the portfolio item's default, so a screen reboot comes back to it"
               className="flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:bg-purple-500 active:scale-95 disabled:opacity-50"
             >
               {saving ? (

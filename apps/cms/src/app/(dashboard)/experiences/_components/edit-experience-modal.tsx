@@ -73,7 +73,7 @@ export function EditExperienceModal({
         <div className="mb-6 flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Edit experience
+              Edit portfolio item
             </p>
             <h2 className="text-lg font-semibold tracking-tight">{experience.name}</h2>
           </div>

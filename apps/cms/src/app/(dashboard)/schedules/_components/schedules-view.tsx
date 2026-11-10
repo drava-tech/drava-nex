@@ -618,7 +618,7 @@ function ScheduleList({
       <EmptyState
         icon={CalendarClock}
         title="No schedules yet"
-        text="A schedule plays a queue of experiences and media on the screens you pick, at the times you set."
+        text="A schedule plays a queue of images and videos on the screens you pick, at the times you set."
         action={isAdmin ? <Button variant="pill" size="pill" onClick={onNew}><Plus className="h-4 w-4" /> New schedule</Button> : undefined}
       />
     );

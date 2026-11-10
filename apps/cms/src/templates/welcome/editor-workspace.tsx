@@ -57,7 +57,7 @@ export function WelcomeEditorWorkspace({
           <Link
             href="/experiences"
             className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            title="Back to experiences"
+            title="Back to portfolio"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

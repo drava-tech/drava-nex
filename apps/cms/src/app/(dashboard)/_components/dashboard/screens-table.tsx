@@ -28,7 +28,7 @@ interface ScreenDetail {
 }
 
 const kindMeta: Record<ContentKind, { icon: typeof Layers; label: string }> = {
-  experience: { icon: Layers, label: "Experience" },
+  experience: { icon: Layers, label: "Portfolio" },
   "live-stream": { icon: Radio, label: "Live" },
   media: { icon: Film, label: "Media" },
   none: { icon: Slash, label: "—" },

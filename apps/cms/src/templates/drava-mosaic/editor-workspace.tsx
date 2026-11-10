@@ -16,8 +16,8 @@ export function DravaMosaicEditorWorkspace({ experience }: { experience: Experie
       <DravaMosaicRenderer />
       <Link
         href="/experiences"
-        title={`Back to experiences (${experience.name})`}
-        aria-label="Back to experiences"
+        title={`Back to portfolio (${experience.name})`}
+        aria-label="Back to portfolio"
         className="absolute bottom-4 left-4 rounded-full bg-black/60 p-2.5 text-white/80 backdrop-blur transition-colors hover:bg-black/80 hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" />

@@ -197,7 +197,7 @@ function SortableCard({ proj, isAdmin, dragEnabled = false, onDelete, screens, a
                 className="cursor-pointer gap-2 py-1"
                 onSelect={() => setShowEditModal(true)}
               >
-                <Tags className="h-4 w-4" /> Edit Experience
+                <Tags className="h-4 w-4" /> Edit details
               </DropdownMenuItem>
               {proj.templateKey ? (
                 <DropdownMenuItem asChild className="cursor-pointer gap-2 py-1">
@@ -457,7 +457,7 @@ export function ProjectsList({
             <div>
               <h1 className="text-xl font-light tracking-tight">Portfolio</h1>
               <p className="text-sm font-light text-muted-foreground">
-                Manage your signage experiences
+                Manage your signage portfolio
               </p>
             </div>
             <Badge
@@ -479,7 +479,7 @@ export function ProjectsList({
           {isAdmin && (
             <Button size="pill" onClick={() => setShowModal(true)}>
               <Plus className="h-4 w-4" />
-              New Experience
+              Add to Portfolio
             </Button>
           )}
         </div>
@@ -551,7 +551,7 @@ export function ProjectsList({
               <p className="text-sm text-muted-foreground">Nothing in the portfolio yet</p>
               {isAdmin && (
                 <p className="mt-0.5 text-xs text-muted-foreground/70">
-                  Click to create your first experience
+                  Click to add the first item to your portfolio
                 </p>
               )}
             </div>
@@ -559,7 +559,7 @@ export function ProjectsList({
         ) : filteredItems.length === 0 ? (
           <Card className="flex flex-col items-center justify-center gap-2 border-dashed bg-muted/30 p-12 text-center shadow-none">
             <p className="text-sm text-muted-foreground">
-              No experiences match your filter.
+              Nothing in the portfolio matches your filter.
             </p>
             <button
               type="button"

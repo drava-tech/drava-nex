@@ -38,7 +38,7 @@ export function ExperienceTypesClient({ types }: Props) {
   }
 
   function handleDelete(id: string) {
-    if (!confirm("Delete this type? It will be removed from all experiences.")) return;
+    if (!confirm("Delete this type? It will be removed from everything in the portfolio.")) return;
     startTransition(async () => {
       const res = await deleteExperienceType(id);
       if (res.success) {
@@ -83,7 +83,7 @@ export function ExperienceTypesClient({ types }: Props) {
                   colSpan={2}
                   className="px-4 py-6 text-center text-muted-foreground"
                 >
-                  No experience types yet. Add one above.
+                  No portfolio types yet. Add one above.
                 </td>
               </tr>
             ) : (

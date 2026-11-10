@@ -4,11 +4,11 @@ export default function DocsBroadcastPage() {
   return (
     <article>
       <DocTitle>Broadcast / Publish Board</DocTitle>
-      <DocLead>Push media and experiences live to a screen with a drag-and-drop board.</DocLead>
+      <DocLead>Push media and portfolio items live to a screen with a drag-and-drop board.</DocLead>
 
       <DocH2 id="overview">Overview</DocH2>
       <DocP>
-        The Broadcast page is a &quot;swipe to publish&quot; board: drag media or an experience onto a target
+        The Broadcast page is a &quot;swipe to publish&quot; board: drag media or a portfolio item onto a target
         screen to push it live. It also opens a live control view for a device, so you can watch what a
         screen is showing in real time.
       </DocP>
