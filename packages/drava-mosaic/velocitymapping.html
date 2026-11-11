@@ -433,6 +433,11 @@
       display: none;
     }
 
+    /* A code-made art plays live, so it has no timeline to scrub. */
+    .lp-video-frame.is-live .lp-timeline {
+      visibility: hidden;
+    }
+
     .lp-loading {
       position: absolute;
       inset: 0;
@@ -2675,7 +2680,7 @@
               <span class="data-name">Flight</span>
             </div>
 
-            <div class="data-item" id="dataCard2" data-title="Weather" data-arts="artCard1,artCard2,artCard3,artCard4"
+            <div class="data-item" id="dataCard2" data-title="Weather" data-arts="artCard1,artCard2,artCard3,artCard4,tideCard"
               role="radio" tabindex="0" aria-checked="false">
               <span class="data-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -2685,7 +2690,7 @@
             </div>
 
             <div class="data-item" id="dataCard3" data-title="Attendance"
-              data-arts="artCard1,artCard2,artCard3,artCard4" role="radio" tabindex="0" aria-checked="false">
+              data-arts="artCard1,artCard2,artCard3,artCard4,tideCard" role="radio" tabindex="0" aria-checked="false">
               <span class="data-icon"><svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V9h16v12z" />
@@ -2780,6 +2785,14 @@
               data-sh="-0.8" role="radio" tabindex="0" aria-checked="false">
               <span class="art-thumb"><img src="assets/art_4_thumb.jpg" alt=""></span>
               <span class="art-name">ART 4</span>
+            </div>
+
+            <!-- Made in code (studio/tideArt.js) rather than played from a video. -->
+            <div class="art-card" id="tideCard" data-title="Tide" data-code-art="tide"
+              data-blurb="Made in code: currents of pigment swirling through water in the box" data-hl="0.4"
+              data-sh="0.2" role="radio" tabindex="0" aria-checked="false">
+              <span class="art-thumb"><img src="assets/tide_thumb.jpg" alt=""></span>
+              <span class="art-name">Tide</span>
             </div>
 
             <div class="art-card" id="clockMapCard" data-title="World Map" data-clock-art="map"
@@ -3202,6 +3215,8 @@
     </div>
   </div>
 
+  <!-- The code-made arts, handed to the script below on window.dravaCodeArts. -->
+  <script type="module" src="./studio/codeArts.js"></script>
   <script>
     (() => {
       const splash = document.getElementById('splash');
@@ -3299,8 +3314,10 @@
 
         // Art owns the render; the selected data source only drives how that
         // render is coloured and paced. This keeps Weather available on ART 1-4.
-        const mainSrc = cardEl.dataset.main;
-        const veloSrc = cardEl.dataset.velo;
+        // A code-made art draws itself (see startCodeArtOutput); the rest play videos.
+        outputCodeArt = cardEl.dataset.codeArt || null;
+        const mainSrc = cardEl.dataset.main || '';
+        const veloSrc = cardEl.dataset.velo || '';
         const hlDefault = parseFloat(cardEl.dataset.hl || '1');
         const shDefault = parseFloat(cardEl.dataset.sh || '-0.8');
         const dataTitle = selectedData ? selectedData.dataset.title : '';
@@ -3354,7 +3371,7 @@
         const selectedData = document.querySelector('.data-item.selected');
         const allowed = (selectedData && selectedData.dataset.arts)
           ? selectedData.dataset.arts.split(',').map(s => s.trim())
-          : ['artCard1', 'artCard2', 'artCard3', 'artCard4'];
+          : ['artCard1', 'artCard2', 'artCard3', 'artCard4', 'tideCard'];
 
         document.querySelectorAll('.art-card').forEach(card => {
           card.style.display = allowed.includes(card.id) ? '' : 'none';
@@ -3548,6 +3565,37 @@
       // Public URL of the Cloudflare R2 bucket (data-art) holding every video.
       const VIDEO_BASE_URL = '/api/drava-mosaic/video?name='; // nex: the API streams videos same-origin so WebGL can read the frames.
 
+      // ---- Code-made arts (studio/codeArts.js), drawn live in place of video ----
+      // Each draws its render and velocity pass into one texture, the render
+      // on top, inside the WebGL context that shows it, so nothing is copied
+      // between contexts. So one of each is made per context: the output's
+      // and the landing preview's.
+      const codeArtInstances = new Map(); // context -> { art id -> art, or null }
+      let outputCodeArt = null; // the code-made art the output shows, or null for a video
+      let lastCodeArtFrame = 0;
+
+      function whenCodeArts() {
+        if (window.dravaCodeArts) return Promise.resolve(window.dravaCodeArts);
+        return new Promise(resolve => window.addEventListener('drava-code-arts-ready',
+          () => resolve(window.dravaCodeArts), { once: true }));
+      }
+
+      // The art in a context, made the first time it's asked for; null if it
+      // can't run there (it needs WebGL 2).
+      async function getCodeArt(id, ctx) {
+        const arts = await whenCodeArts();
+        if (!codeArtInstances.has(ctx)) codeArtInstances.set(ctx, {});
+        const made = codeArtInstances.get(ctx);
+        if (!(id in made)) made[id] = arts[id] && ctx ? arts[id](ctx) : null;
+        return made[id];
+      }
+
+      // The code-made art the output is showing, once it's made.
+      function outputArt() {
+        const made = outputCodeArt && codeArtInstances.get(gl);
+        return made ? made[outputCodeArt] : null;
+      }
+
       const WEATHER_LOCATIONS = [
         { id: 'bengaluru', label: 'Bengaluru, India', lat: 12.9716, lon: 77.5946 },
         { id: 'reykjavik', label: 'Reykjavik, Iceland', lat: 64.1466, lon: -21.9426 },
@@ -3566,6 +3614,10 @@
       // lifts saturation so the temperature colour reads clearly. whiteLift
       // turns the uncoloured (white-velocity) areas from the render's grey
       // into a clean white support tone: 0 = raw grey, 1 = flat white.
+      // Colour grade for a code-made art's rich colour, in either data mode:
+      // highlights held down so nothing brightens toward white, and a little
+      // more saturation.
+      const RICH_GRADE = { hl: -0.25, sh: 0, sat: 1.15, vib: 1.1, br: 1.0, ct: 1.05, whiteLift: 0 };
       const WEATHER_GRADE = { hl: -0.15, sh: -0.35, sat: 1.35, vib: 1.2, br: 0.94, ct: 1.1, whiteLift: 0.6 };
       const DEFAULT_WEATHER_LOCATION = 'bengaluru';
       const WEATHER_POLL_MS = 5 * 60 * 1000;
@@ -3658,7 +3710,9 @@
         weatherTempValue.textContent = tempC.toFixed(1);
         weatherWindValue.textContent = kph.toFixed(1);
         weatherBandValue.textContent = band.label;
-        weatherRateValue.textContent = rate.toFixed(2);
+        // A code-made art sets its own pace from the wind.
+        const codeArt = outputArt();
+        weatherRateValue.textContent = (codeArt ? codeArt.paceFor(kph) : rate).toFixed(2);
         weatherColorSwatch.style.background = `rgb(${r}, ${g}, ${b})`;
         weatherThermalMarker.style.left = `${clampValue(tempC / 40, 0, 1) * 100}%`;
 
@@ -3960,6 +4014,13 @@
     uniform float u_weatherMode;
     uniform float u_weatherHue;
     uniform float u_whiteLift;
+    // A code-made art packs its render (top half) and velocity pass (bottom
+    // half) into one image; u_seam keeps each half's samples off the other's.
+    uniform float u_packed;
+    uniform float u_seam;
+    // Rich colour, for a code-made art: no white, and every pixel a shade of
+    // the data's colour (see below).
+    uniform float u_rich;
 
     vec3 overlayBlend(vec3 b, vec3 t) {
       vec3 r;
@@ -3977,8 +4038,14 @@
 
     void main() {
       vec2 uv = v_uv;
-      vec3 m = mix(texture2D(u_mainA, uv).rgb, texture2D(u_mainB, uv).rgb, u_cross);
-      vec3 v = mix(texture2D(u_veloA, uv).rgb, texture2D(u_veloB, uv).rgb, u_cross);
+      vec2 uvMain = uv;
+      vec2 uvVelo = uv;
+      if (u_packed > 0.5) {
+        uvMain = vec2(uv.x, mix(0.5 + u_seam, 1.0 - u_seam, uv.y));
+        uvVelo = vec2(uv.x, mix(u_seam, 0.5 - u_seam, uv.y));
+      }
+      vec3 m = mix(texture2D(u_mainA, uvMain).rgb, texture2D(u_mainB, uvMain).rgb, u_cross);
+      vec3 v = mix(texture2D(u_veloA, uvVelo).rgb, texture2D(u_veloB, uvVelo).rgb, u_cross);
       float vr = v.r, vg = v.g, vb = v.b;
 
       float maskFactor = 1.0;
@@ -4009,7 +4076,25 @@
       // after the colour grade below so the grade never dulls it to grey.
       float weatherWhiteMix = 0.0;
       vec3 weatherWhite = m;
-      if (u_weatherMode > 0.5) {
+      if (u_rich > 0.5) {
+        // Rich colour: every pixel is a shade of the data's colour, scaled by
+        // the render's light and shade so its form survives, and never washed
+        // toward white. In Weather the shades run from a deep, redder tone in
+        // the stillest places to the bright colour itself on the liveliest
+        // crests: shifted toward red, never yellow, so dark shades of orange
+        // read as burnt orange rather than olive.
+        float zone = clamp((vg + vb) * 0.5, 0.0, 1.0);
+        vec3 c;
+        if (u_weatherMode > 0.5) {
+          float h = fract(u_weatherHue);
+          c = hsv2rgb(vec3(h - mix(0.045, 0.008, zone), mix(1.0, 0.92, zone), mix(0.7, 1.0, zone)));
+        } else {
+          vec3 midC = mix(u_cAbsent, u_cLate, t1);
+          c = mix(mix(midC, u_cPresent, t2), u_forceColor, u_forceBlend);
+        }
+        float L = dot(m, vec3(0.299, 0.587, 0.114));
+        result = c * mix(0.38, 1.08, smoothstep(0.08, 0.92, L));
+      } else if (u_weatherMode > 0.5) {
         vec3 weatherColor = hsv2rgb(vec3(fract(u_weatherHue), 0.95, 1.0));
         // Tightened so mid-grey motion doesn't leave a wide cream band
         // between the colour and the white.
@@ -4073,7 +4158,8 @@
         'u_redHi', 'u_redLo', 'u_gbLimit', 'u_invRedRange',
         'u_strength', 'u_baseMix', 'u_extremeMix',
         'u_sat', 'u_vib', 'u_hl', 'u_sh', 'u_br', 'u_ct',
-        'u_mood', 'u_moodMix', 'u_weatherMode', 'u_weatherHue', 'u_whiteLift'];
+        'u_mood', 'u_moodMix', 'u_weatherMode', 'u_weatherHue', 'u_whiteLift',
+        'u_packed', 'u_seam', 'u_rich'];
 
       // Compiles the colour-blend shader into any WebGL context. Used by the
       // studio output and by the landing page's live preview.
@@ -4128,7 +4214,7 @@
         ctx.uniform1i(uniforms.u_veloA, 1);
         ctx.uniform1i(uniforms.u_mainB, 2);
         ctx.uniform1i(uniforms.u_veloB, 3);
-        return { uniforms, textures };
+        return { program, uniforms, textures };
       }
 
       const blendPipeline = createBlendPipeline(gl);
@@ -4231,6 +4317,11 @@
 
       async function startAutoPreload() {
         if (preloading || preloaded) return;
+        if (outputCodeArt) {
+          await startCodeArtOutput();
+          return;
+        }
+        loadingContinue.hidden = false;
         loadingError.classList.remove('active');
         loadingOverlay.classList.remove('done');
         loadingOverlay.classList.add('active');
@@ -4307,6 +4398,38 @@
           console.error('Preload failed:', err);
           loadingError.classList.add('active');
           loadingErrorMsg.textContent = "The artwork couldn't load. Check your connection, or play it while it streams.";
+          loadingStatus.textContent = 'Something went wrong';
+        } finally {
+          preloading = false;
+        }
+      }
+
+      // A code-made art has nothing to download, so it starts drawing at once.
+      async function startCodeArtOutput() {
+        preloading = true;
+        try {
+          const art = await getCodeArt(outputCodeArt, gl);
+          if (!art) throw new Error('This art needs WebGL 2');
+          if (!outputCodeArt || (currentPage !== 2 && currentPage !== 4)) return; // left meanwhile
+          [mainVideo, mainVideoB, veloVideo, veloVideoB].forEach(v => v.pause());
+          loadingOverlay.classList.remove('active');
+          W = 1920; H = 1080;
+          resizeCanvas();
+          if (activeDataMode === 'weather') weatherRateValue.textContent = art.paceFor(lastWeatherReading.kph).toFixed(2);
+          preloaded = true;
+          lastCodeArtFrame = performance.now();
+          if (!running) {
+            running = true;
+            requestAnimationFrame(renderLoop);
+          }
+          if (currentPage === 4 && !pageWeather.classList.contains('revealed')) playWeatherIntro();
+        } catch (err) {
+          console.error('Code art failed:', err);
+          loadingOverlay.classList.remove('done');
+          loadingOverlay.classList.add('active');
+          loadingError.classList.add('active');
+          loadingContinue.hidden = true; // there is no video to fall back to
+          loadingErrorMsg.textContent = "This artwork couldn't start: it needs WebGL 2, which this browser doesn't have turned on.";
           loadingStatus.textContent = 'Something went wrong';
         } finally {
           preloading = false;
@@ -4461,6 +4584,12 @@
       qualitySld.addEventListener('input', () => { qualityAmt = parseFloat(qualitySld.value); qualityVal.textContent = qualityAmt.toFixed(2); resizeCanvas(); });
 
       function startPlayback() {
+        if (outputCodeArt) {
+          if (!preloaded) return;
+          lastCodeArtFrame = performance.now();
+          if (!running) { running = true; requestAnimationFrame(renderLoop); }
+          return;
+        }
         if (!mainReady || !veloReady) { setTimeout(startPlayback, 200); return; }
         setAllPlaybackRates(activeDataMode === 'weather' ? weatherPlaybackRate : 1);
         const primaryMain = primaryIsA ? mainVideo : mainVideoB;
@@ -4579,14 +4708,22 @@
         if (histFrameCounter++ % HIST_RECOMPUTE_EVERY !== 0) {
           return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange };
         }
-        const veloSource = primaryIsA ? veloVideo : veloVideoB;
-        const mainSource = primaryIsA ? mainVideo : mainVideoB;
         let imgData, mainData;
         try {
-          histCtx.drawImage(veloSource, 0, 0, HIST_W, HIST_H);
-          histMainCtx.drawImage(mainSource, 0, 0, HIST_W, HIST_H);
-          imgData = histCtx.getImageData(0, 0, HIST_W, HIST_H);
-          mainData = histMainCtx.getImageData(0, 0, HIST_W, HIST_H);
+          const art = outputArt();
+          if (art) {
+            // The art hands back both its passes, scaled down, pixel for pixel
+            // alike: the last read finished, so drawing never waits on it.
+            const small = art.readSmall(HIST_W, HIST_H);
+            if (!small) return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange };
+            imgData = { data: small.velocity };
+            mainData = { data: small.main };
+          } else {
+            histCtx.drawImage(primaryIsA ? veloVideo : veloVideoB, 0, 0, HIST_W, HIST_H);
+            histMainCtx.drawImage(primaryIsA ? mainVideo : mainVideoB, 0, 0, HIST_W, HIST_H);
+            imgData = histCtx.getImageData(0, 0, HIST_W, HIST_H);
+            mainData = histMainCtx.getImageData(0, 0, HIST_W, HIST_H);
+          }
         } catch (e) { return { b1: cachedB1, b2: cachedB2, softRange: cachedSoftRange }; }
 
         const px = imgData.data;
@@ -4684,7 +4821,53 @@
         }
       }
 
+      function easeWeatherHue() {
+        let weatherHueDelta = weatherHueTarget - weatherHueCurrent;
+        if (weatherHueDelta > 0.5) weatherHueDelta -= 1;
+        if (weatherHueDelta < -0.5) weatherHueDelta += 1;
+        weatherHueCurrent += weatherHueDelta * 0.08;
+      }
+
+      // The output for a code-made art: it draws its next frame, which is
+      // coloured by the same blend as a video's.
+      function renderCodeArt() {
+        const art = outputArt();
+        if (!art || !preloaded) return;
+        const now = performance.now();
+        const dt = (now - lastCodeArtFrame) / 1000;
+        lastCodeArtFrame = now;
+        const isWeather = activeDataMode === 'weather';
+        art.resize(PW, PH);
+        art.setWind(isWeather ? lastWeatherReading.kph : null);
+        art.render(dt);
+
+        const { b1, b2, softRange } = computeBoundariesCached();
+
+        // The art's one texture holds both halves, so it serves as both.
+        gl.useProgram(blendPipeline.program);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, art.texture);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, art.texture);
+
+        easeWeatherHue();
+        setBlendUniforms(gl, U, currentBlendParams({
+          cross: 0, b1, b2, softRange,
+          packed: true, seam: 0.25 / art.height, rich: true,
+          weatherMode: isWeather,
+          weatherHue: weatherHueCurrent,
+          ...RICH_GRADE
+        }));
+
+        gl.viewport(0, 0, PW, PH);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+
       function render() {
+        if (outputCodeArt) {
+          renderCodeArt();
+          return;
+        }
         if (!mainReady || !veloReady) return;
         if (mainVideo.readyState < 2 || veloVideo.readyState < 2) return;
 
@@ -4717,12 +4900,10 @@
           try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, secondaryVelo); } catch (e) { }
         }
 
-        let weatherHueDelta = weatherHueTarget - weatherHueCurrent;
-        if (weatherHueDelta > 0.5) weatherHueDelta -= 1;
-        if (weatherHueDelta < -0.5) weatherHueDelta += 1;
-        weatherHueCurrent += weatherHueDelta * 0.08;
+        easeWeatherHue();
 
         const isWeather = activeDataMode === 'weather';
+        gl.useProgram(blendPipeline.program); // a code-made art may have drawn with its own
         setBlendUniforms(gl, U, currentBlendParams({
           cross: currentCross, b1, b2, softRange,
           weatherMode: isWeather,
@@ -4741,7 +4922,8 @@
           colorAbsent, colorLate, colorPresent, wAbsent, wLate, wPresent,
           maskAmt, mixAmt, vibrancyAmt,
           sat: satAdj, vib: vibAdj, hl: hlAdj, sh: shAdj, br: brAdj, ct: ctAdj,
-          mood, weatherMode: false, weatherHue: weatherHueCurrent, whiteLift: 0
+          mood, weatherMode: false, weatherHue: weatherHueCurrent, whiteLift: 0,
+          packed: false, seam: 0, rich: false
         }, overrides);
       }
 
@@ -4788,10 +4970,13 @@
         ctx.uniform1f(u.u_weatherMode, p.weatherMode ? 1 : 0);
         ctx.uniform1f(u.u_weatherHue, p.weatherHue);
         ctx.uniform1f(u.u_whiteLift, p.whiteLift);
+        ctx.uniform1f(u.u_packed, p.packed ? 1 : 0);
+        ctx.uniform1f(u.u_seam, p.seam);
+        ctx.uniform1f(u.u_rich, p.rich ? 1 : 0);
       }
 
       function checkSync() {
-        if (!running) return;
+        if (!running || outputCodeArt) return;
         const now = performance.now();
         if (now - lastSyncCheck < 1000) return;
         lastSyncCheck = now;
@@ -4849,9 +5034,9 @@
       const lpTimeline = document.getElementById('lpTimeline');
       const lpTimelineFill = document.getElementById('lpTimelineFill');
 
-      const pgl = lpPreviewCanvas.getContext('webgl', {
-        alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false
-      });
+      // WebGL 2 where there is one: the code-made arts need it.
+      const previewOptions = { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false };
+      const pgl = lpPreviewCanvas.getContext('webgl2', previewOptions) || lpPreviewCanvas.getContext('webgl', previewOptions);
       const previewPipeline = pgl ? createBlendPipeline(pgl) : null;
 
       // Fixed zone boundaries for the attendance preview (the studio derives
@@ -4864,6 +5049,13 @@
       let previewLoopId = null;
       let previewHasFrame = false;
       let previewWeatherFetched = false;
+      let previewCodeArt = null; // the code-made art the preview shows, once it's made
+      let previewCodeLast = 0;
+
+      // Whether the preview shows a code-made art (live) rather than a video.
+      function isCodePreview() {
+        return !!(previewCard && previewCard.dataset.codeArt);
+      }
 
       function formatTime(sec) {
         if (!Number.isFinite(sec)) return '0:00';
@@ -4912,8 +5104,11 @@
       function loadLandingPreview(card) {
         previewCard = card;
         const isClock = !!card.dataset.clockArt;
+        const codeArtId = card.dataset.codeArt;
         lpVideoFrame.classList.toggle('is-clock', isClock);
-        document.getElementById('lpBadge').textContent = isClock ? 'Live Preview' : 'Video Preview';
+        lpVideoFrame.classList.toggle('is-live', !!codeArtId);
+        document.getElementById('lpBadge').textContent = (isClock || codeArtId) ? 'Live Preview' : 'Video Preview';
+        previewCodeArt = null;
         if (isClock) {
           lpPreviewVideo.pause();
           lpPreviewVelo.pause();
@@ -4932,6 +5127,22 @@
         if (pgl) {
           pgl.clearColor(0.953, 0.953, 0.953, 1);
           pgl.clear(pgl.COLOR_BUFFER_BIT);
+        }
+
+        if (codeArtId) {
+          lpPreviewVideo.pause();
+          lpPreviewVelo.pause();
+          getCodeArt(codeArtId, pgl).then(art => {
+            if (previewCard !== card) return;
+            if (!art) {
+              showPreviewError('This art needs WebGL 2, which this browser doesn’t have turned on.');
+              return;
+            }
+            previewCodeArt = art;
+            if (selectedDataMode() === 'weather') refreshPreviewWeather();
+            if (currentPage === 1 || currentPage === 0) playLandingPreview();
+          });
+          return;
         }
 
         const mainSrc = videoUrl(card.dataset.main);
@@ -4956,6 +5167,13 @@
       function playLandingPreview() {
         if (previewCard && previewCard.dataset.clockArt) {
           showClockPreview();
+          return;
+        }
+        if (isCodePreview()) {
+          if (!previewCodeArt) return; // still being made; it plays once it is
+          setPreviewPausedUI(previewUserPaused);
+          previewCodeLast = performance.now();
+          if (!previewLoopId) previewLoopId = requestAnimationFrame(previewLoop);
           return;
         }
         if (previewUserPaused || !previewCard) return;
@@ -4991,6 +5209,7 @@
 
         const mode = selectedDataMode();
         const card = previewCard;
+        pgl.useProgram(previewPipeline.program); // a code-made art may have drawn with its own
         setBlendUniforms(pgl, previewPipeline.uniforms, currentBlendParams({
           ...PREVIEW_ZONES,
           // No velocity pass (Garden): show the render as-is.
@@ -5010,8 +5229,53 @@
         }
       }
 
+      // A code-made art's preview: its next frame, through the same colour
+      // blend as the output. Paused, it redraws the same moment.
+      function drawCodeArtPreview() {
+        const art = previewCodeArt;
+        if (!previewPipeline || !art) return;
+        const now = performance.now();
+        const dt = previewUserPaused ? 0 : (now - previewCodeLast) / 1000;
+        previewCodeLast = now;
+        const mode = selectedDataMode();
+        art.resize(lpPreviewCanvas.width, lpPreviewCanvas.height);
+        art.setWind(mode === 'weather' ? lastWeatherReading.kph : null);
+        art.render(dt);
+
+        pgl.useProgram(previewPipeline.program);
+        pgl.activeTexture(pgl.TEXTURE0);
+        pgl.bindTexture(pgl.TEXTURE_2D, art.texture);
+        pgl.activeTexture(pgl.TEXTURE1);
+        pgl.bindTexture(pgl.TEXTURE_2D, art.texture);
+
+        const card = previewCard;
+        setBlendUniforms(pgl, previewPipeline.uniforms, currentBlendParams({
+          ...PREVIEW_ZONES,
+          packed: true, seam: 0.25 / art.height, rich: true,
+          weatherMode: mode === 'weather',
+          weatherHue: hueForTemp((lastWeatherReading && lastWeatherReading.tempC) ?? DEFAULT_PREVIEW_TEMP),
+          ...RICH_GRADE
+        }));
+        pgl.viewport(0, 0, lpPreviewCanvas.width, lpPreviewCanvas.height);
+        pgl.drawArrays(pgl.TRIANGLE_STRIP, 0, 4);
+
+        lpTime.textContent = 'Live';
+        if (!previewHasFrame) {
+          previewHasFrame = true;
+          lpVideoFrame.classList.add('has-frame');
+        }
+      }
+
       function previewLoop() {
         previewLoopId = null;
+        if (isCodePreview()) {
+          drawCodeArtPreview();
+          // Only while the landing shows: a stray refresh mustn't restart it elsewhere.
+          if (!previewUserPaused && (currentPage === 1 || currentPage === 0)) {
+            previewLoopId = requestAnimationFrame(previewLoop);
+          }
+          return;
+        }
         if (lpPreviewVelo.getAttribute('src') && !lpPreviewVideo.paused &&
           Math.abs(lpPreviewVelo.currentTime - lpPreviewVideo.currentTime) > 0.15) {
           try { lpPreviewVelo.currentTime = lpPreviewVideo.currentTime; } catch (e) { }
@@ -5032,8 +5296,8 @@
         lpPlayBtn.setAttribute('aria-label', paused ? 'Play preview' : 'Pause preview');
       }
 
-      lpPreviewVideo.addEventListener('play', () => setPreviewPausedUI(false));
-      lpPreviewVideo.addEventListener('pause', () => setPreviewPausedUI(true));
+      lpPreviewVideo.addEventListener('play', () => { if (!isCodePreview()) setPreviewPausedUI(false); });
+      lpPreviewVideo.addEventListener('pause', () => { if (!isCodePreview()) setPreviewPausedUI(true); });
       // Redraw once (e.g. new data colours, a new frame while paused).
       function refreshLandingPreview() {
         if (selectedDataMode() === 'weather') refreshPreviewWeather();
@@ -5045,21 +5309,23 @@
       });
 
       // A video that can't play would otherwise leave "Loading" up forever.
-      function showPreviewError() {
+      function showPreviewError(message) {
         lpVideoFrame.classList.add('has-error');
-        lpLoading.textContent = 'This video can’t load right now. Check your connection and try again.';
+        lpLoading.textContent = message || 'This video can’t load right now. Check your connection and try again.';
       }
       [lpPreviewVideo, lpPreviewVelo].forEach(video => {
-        video.addEventListener('error', () => { if (video.getAttribute('src')) showPreviewError(); });
+        video.addEventListener('error', () => { if (video.getAttribute('src') && !isCodePreview()) showPreviewError(); });
       });
 
       lpPlayBtn.addEventListener('click', () => {
-        if (lpPreviewVideo.paused) {
+        const paused = isCodePreview() ? previewUserPaused : lpPreviewVideo.paused;
+        if (paused) {
           previewUserPaused = false;
           playLandingPreview();
         } else {
           previewUserPaused = true;
           pauseLandingPreview();
+          if (isCodePreview()) setPreviewPausedUI(true);
         }
       });
 

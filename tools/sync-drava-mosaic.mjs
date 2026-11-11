@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
 const nexRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgDir = join(nexRoot, "packages/drava-mosaic");
 const apiRoute = join(nexRoot, "apps/api/src/routes/drava-mosaic.ts");
-const NEX_BRANCH = "sufiyan";
+const NEX_BRANCH = process.env.NEX_BRANCH || "sufiyan"; // mosaic's hook passes its drava.nexBranch setting
 // What a sync may change in nex, and so what --commit commits.
 const NEX_PATHS = ["packages/drava-mosaic", "apps/api/src/routes/drava-mosaic.ts", "pnpm-lock.yaml"];
 
