@@ -792,10 +792,15 @@ export function PublishBoard({
     scroller.addEventListener("scroll", onScroll, { passive: true });
     scroller.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onResize);
+    // The cards are sized to the carousel's height, which also moves when the
+    // details card under it grows or shrinks — not only on a window resize.
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(scroller);
     return () => {
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
     };
   }, [cards, updateSlideTransforms, maybeLoadMore]);
 
@@ -1112,7 +1117,7 @@ export function PublishBoard({
   );
 
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
+    <div className="relative flex flex-1 flex-col gap-4 p-4 select-none">
       {/* Publish target: a group, then a screen in it. */}
       <div className="flex shrink-0 items-center gap-2">
         {groupOptions.length > 0 && (
@@ -1409,8 +1414,10 @@ export function PublishBoard({
         </div>
       </div>
 
-      {/* Content carousel */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {/* Content carousel. No min-h-0 here or on the board: on a screen too
+          short for the carousel's minimum plus the details card, the page
+          scrolls rather than the two overlapping. */}
+      <div className="flex flex-1 flex-col gap-2">
         {loadingMedia && filter !== "experiences" && cards.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
@@ -1426,8 +1433,22 @@ export function PublishBoard({
           </div>
         ) : (
           <>
-            {/* The carousel, with its arrows over its left and right sides. */}
-            <div className="relative flex min-h-0 flex-1">
+            {/* The carousel, with its arrows over its left and right sides.
+                A size container, so a card can be sized to the room it has:
+                at most 24rem wide, never taller than the carousel (a 4:3
+                picture plus its ~2.5rem caption, with a little to spare for
+                the centred card's glow), and leaving the arrows some width.
+                A fixed-width card ran under the details card below on a
+                short screen (a landscape tablet). */}
+            <div
+              className="relative flex min-h-[11rem] flex-1"
+              style={
+                {
+                  containerType: "size",
+                  "--slide-w": "min(24rem, calc((100cqh - 3rem) * 4 / 3), calc(100cqw - 7rem))",
+                } as React.CSSProperties
+              }
+            >
             <div
               ref={scrollerRef}
               // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
@@ -1444,8 +1465,8 @@ export function PublishBoard({
               // behavior:"instant" precisely to opt out of this class.
               className="no-scrollbar relative flex min-h-0 min-w-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
               style={{
-                paddingLeft: "calc(50% - 12rem)",
-                paddingRight: "calc(50% - 12rem)",
+                paddingLeft: "calc(50% - var(--slide-w) / 2)",
+                paddingRight: "calc(50% - var(--slide-w) / 2)",
               }}
             >
               {cards.map((card) => {
@@ -1454,7 +1475,8 @@ export function PublishBoard({
                   <div
                     key={key}
                     ref={(el) => setSlideRef(key, el)}
-                    className="group/slide w-96 shrink-0 snap-center"
+                    className="group/slide shrink-0 snap-center"
+                    style={{ width: "var(--slide-w)" }}
                   >
                     <SwipeCard
                       card={card}
