@@ -18,23 +18,42 @@ export function ScreenMirror({
   screenId,
   title,
   interactive = false,
+  fillWidth = false,
 }: {
   screenId: string;
   title?: string;
   interactive?: boolean;
+  /**
+   * Lay the page out as wide as the box allows (at the TV's height) instead of a fixed 1920 wide, so
+   * a page that sizes itself from the viewport, like Drava Mosaic, fills a wider-than-16:9 panel
+   * with no side bars. Not an exact mirror of the TV's framing, so only for pages built for it.
+   */
+  fillWidth?: boolean;
 }) {
   const [ref, shouldMount] = useInView<HTMLDivElement>("150px");
   const boxRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0);
+  const [fit, setFit] = useState({ scale: 0, left: 0, top: 0, width: TV_WIDTH });
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const fit = () => setScale(el.clientWidth / TV_WIDTH);
-    fit();
-    const ro = new ResizeObserver(fit);
+    // Fit the whole TV frame inside the box (contain), centred. Scaling by width alone cut the
+    // bottom off whenever the box was wider than 16:9, as the big control view is.
+    const measure = () => {
+      const scale = Math.min(el.clientWidth / TV_WIDTH, el.clientHeight / TV_HEIGHT);
+      // Wider than 16:9: let the page itself be wider rather than leave bars either side.
+      const width = fillWidth && scale > 0 ? Math.max(TV_WIDTH, el.clientWidth / scale) : TV_WIDTH;
+      setFit({
+        scale,
+        left: (el.clientWidth - width * scale) / 2,
+        top: (el.clientHeight - TV_HEIGHT * scale) / 2,
+        width,
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [shouldMount]);
+  }, [shouldMount, fillWidth]);
 
   return (
     <div ref={ref} className="absolute inset-0 w-full h-full bg-zinc-950">
@@ -44,13 +63,15 @@ export function ScreenMirror({
             src={screenMirrorUrl(screenId)}
             title={title ?? `Screen ${screenId}`}
             scrolling="no"
-            className="absolute left-0 top-0 border-0"
+            className="absolute border-0"
             style={{
-              width: TV_WIDTH,
+              width: fit.width,
               height: TV_HEIGHT,
-              transform: `scale(${scale})`,
+              left: fit.left,
+              top: fit.top,
+              transform: `scale(${fit.scale})`,
               transformOrigin: "top left",
-              visibility: scale > 0 ? "visible" : "hidden",
+              visibility: fit.scale > 0 ? "visible" : "hidden",
               pointerEvents: interactive ? "auto" : "none",
               overflow: "hidden",
             }}
