@@ -32,7 +32,7 @@ export default async function BroadcastPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-hidden bg-zinc-100 dark:bg-transparent">
+    <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-zinc-100 dark:bg-transparent">
       <PublishBoard
         initialScreens={screens}
         initialActiveScreenIds={activeScreenIds}
