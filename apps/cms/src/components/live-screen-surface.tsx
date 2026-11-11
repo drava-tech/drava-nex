@@ -533,7 +533,12 @@ export function LiveScreenSurface({
         /* Big interactive screen */
         <div className="flex-1 min-h-0 flex items-center justify-center">
           <div className="relative w-full max-w-[1600px] aspect-[16/9] max-h-full rounded-2xl border-[6px] border-border shadow-2xl bg-zinc-950 overflow-hidden">
-            <ScreenMirror screenId={screenId} title={screenName} interactive />
+            <ScreenMirror
+              screenId={screenId}
+              title={screenName}
+              interactive
+              fillWidth={currentContent?.templateKey === "drava-mosaic"}
+            />
           </div>
         </div>
       )}

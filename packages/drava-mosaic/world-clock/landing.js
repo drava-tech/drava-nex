@@ -153,6 +153,7 @@ export function startLanding(root, initial, initialArt, initialClock, { onStart,
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "country-card";
+      btn.dataset.id = place.id; // nex: lets nex-sync.js read which cities are picked.
       btn.innerHTML = `<span class="country-badge"></span><span class="country-name"></span><span class="country-city"></span>`;
       btn.querySelector(".country-name").textContent = place.city;
       btn.querySelector(".country-city").textContent = place.country;
