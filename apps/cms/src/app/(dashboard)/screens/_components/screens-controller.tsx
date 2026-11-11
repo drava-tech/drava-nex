@@ -621,7 +621,7 @@ export function ScreensController({
               {filtering ? `${visible.length} of ${screens.length} screens` : `${screens.length} screen${screens.length === 1 ? "" : "s"} · ${liveCount} live`}
             </span>
             {filtering && (
-              <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
+              <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface">
                 Clear
               </button>
             )}
@@ -650,18 +650,18 @@ export function ScreensController({
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => router.push("/broadcast")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
+            <button type="button" onClick={() => router.push("/broadcast")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface">
               <Send className="h-3.5 w-3.5" />
               Drag & Publish
             </button>
             {isAdmin && (
-              <button type="button" onClick={() => setGroupDialog("new")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface">
+              <button type="button" onClick={() => setGroupDialog("new")} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface">
                 <FolderPlus className="h-3.5 w-3.5" />
                 New group
               </button>
             )}
             {isAdmin && (
-              <button type="button" onClick={() => setShowAddModal(true)} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-primary">
+              <button type="button" onClick={() => setShowAddModal(true)} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-primary">
                 <Plus className="h-3.5 w-3.5" />
                 Add Screen
               </button>
@@ -674,7 +674,7 @@ export function ScreensController({
           {screens.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
               <Layers className="h-8 w-8 text-zinc-400" />
-              <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No screens yet</p>
+              <p className="text-sm font-semibold text-zinc-500">No screens yet</p>
               <p className="text-xs text-zinc-400">Add your first screen to get started.</p>
             </div>
           ) : visible.length === 0 ? (

@@ -86,7 +86,7 @@ export function FilterPill<T extends string>({
         <button
           type="button"
           aria-label={`${label}: ${current?.label ?? ""}`}
-          className={`flex max-w-48 shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${
+          className={`flex max-w-48 shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${
             applied ? "btn-active" : "btn-surface"
           }`}
         >
@@ -98,7 +98,7 @@ export function FilterPill<T extends string>({
         {options.map((o) => (
           <DropdownMenuItem
             key={o.value}
-            className="cursor-pointer gap-2 text-xs uppercase tracking-wider"
+            className="cursor-pointer gap-2 text-xs"
             onSelect={() => onChange(o.value)}
           >
             {o.value === value ? <Check className="h-3.5 w-3.5 shrink-0" /> : <span className="w-3.5 shrink-0" />}

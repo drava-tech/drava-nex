@@ -486,7 +486,7 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-active`}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-active`}
               >
                 {selectedCategories.size === 0
                   ? "All Media"
@@ -503,7 +503,7 @@ export default function MediaPage() {
                   checked={selectedCategories.has(cat.id)}
                   onCheckedChange={() => toggleCategory(cat.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
+                  className="gap-2 text-xs font-semibold"
                 >
                   <cat.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {cat.label}
@@ -513,7 +513,7 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedCategories(new Set())}
                   >
                     All Media
@@ -528,7 +528,7 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selectedSources.size > 0 ? "btn-active" : "btn-surface"}`}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${selectedSources.size > 0 ? "btn-active" : "btn-surface"}`}
               >
                 {selectedSources.size === 0
                   ? "All sources"
@@ -545,7 +545,7 @@ export default function MediaPage() {
                   checked={selectedSources.has(src.id)}
                   onCheckedChange={() => toggleSource(src.id)}
                   onSelect={(e) => e.preventDefault()}
-                  className="gap-2 text-xs font-semibold uppercase tracking-wider"
+                  className="gap-2 text-xs font-semibold"
                 >
                   <src.icon className="h-3.5 w-3.5 text-zinc-400" />
                   {src.label}
@@ -555,7 +555,7 @@ export default function MediaPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400"
+                    className="cursor-pointer text-xs font-semibold text-zinc-500 dark:text-zinc-400"
                     onClick={() => setSelectedSources(new Set())}
                   >
                     All sources
@@ -569,11 +569,11 @@ export default function MediaPage() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${dateFrom || dateTo ? "btn-active" : "btn-surface"}`}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${dateFrom || dateTo ? "btn-active" : "btn-surface"}`}
               >
                 <CalendarRange className="h-3.5 w-3.5" />
                 {!dateFrom && !dateTo
-                  ? "Date Range"
+                  ? "Date range"
                   : dateFrom && dateTo
                     ? `${dateFrom} → ${dateTo}`
                     : dateFrom
@@ -630,7 +630,7 @@ export default function MediaPage() {
                 setShowList(false);
                 setBoardId(null);
               }}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface"
             >
               <GalleryHorizontal className="h-3.5 w-3.5" />
               Cards
@@ -638,7 +638,7 @@ export default function MediaPage() {
             <button
               type="button"
               onClick={() => (selecting ? handleExitSelecting() : setSelecting(true))}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${selecting ? "btn-active" : "btn-surface"}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${selecting ? "btn-active" : "btn-surface"}`}
             >
               <CheckSquare className="h-3.5 w-3.5" />
               {selecting ? "Cancel" : "Select"}
@@ -648,16 +648,16 @@ export default function MediaPage() {
               onClick={handleLoadFromEmail}
               disabled={loadingInbox}
               title="Load last 2 days from email"
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-surface disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`} />
-              {loadingInbox ? "Loading…" : "Load Email"}
+              {loadingInbox ? "Loading…" : "Load email"}
             </button>
             <button
               type="button"
               onClick={handleUploadClick}
               disabled={uploading}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               {uploading ? "Uploading…" : "Upload"}
@@ -687,7 +687,7 @@ export default function MediaPage() {
                 <button
                   onClick={handlePushSelected}
                   disabled={selectedIds.size === 0}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-full btn-primary text-xs font-normal uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-full btn-primary text-xs font-normal transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <MonitorPlay className="h-3.5 w-3.5" />
                   {selectedIds.size ? `Push selected (${selectedIds.size})` : "Push selected"}
@@ -695,14 +695,14 @@ export default function MediaPage() {
                 <button
                   onClick={handleBulkDelete}
                   disabled={selectedIds.size === 0 || bulkDeleting}
-                  className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   {bulkDeleting ? "Deleting…" : `Delete${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
                 </button>
                 <button
                   onClick={handleExitSelecting}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-full btn-surface text-xs font-normal uppercase tracking-wider transition-colors"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-full btn-surface text-xs font-normal transition-colors"
                 >
                   <X className="h-3.5 w-3.5" /> Cancel
                 </button>
@@ -730,16 +730,16 @@ export default function MediaPage() {
                   {inbox ? (
                     <>
                       , or email attachments to <span className="text-foreground">{inbox}</span> from{" "}
-                      <span className="text-foreground">{sessionUser?.email}</span> and press Load Email.
+                      <span className="text-foreground">{sessionUser?.email}</span> and press Load email.
                     </>
                   ) : (
-                    <>, or email them to Nex from {sessionUser?.email} and press Load Email.</>
+                    <>, or email them to Nex from {sessionUser?.email} and press Load email.</>
                   )}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">No assets found</p>
+                <p className="text-sm font-semibold text-zinc-500">No assets found</p>
                 <p className="text-xs text-zinc-400">Upload a file or add a link to get started.</p>
               </>
             )}

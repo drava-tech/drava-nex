@@ -792,10 +792,15 @@ export function PublishBoard({
     scroller.addEventListener("scroll", onScroll, { passive: true });
     scroller.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onResize);
+    // The cards are sized to the carousel's height, which also moves when the
+    // details card under it grows or shrinks — not only on a window resize.
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(scroller);
     return () => {
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
     };
   }, [cards, updateSlideTransforms, maybeLoadMore]);
 
@@ -1112,7 +1117,7 @@ export function PublishBoard({
   );
 
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
+    <div className="relative flex flex-1 flex-col gap-4 p-4 select-none">
       {/* Publish target: a group, then a screen in it. */}
       <div className="flex shrink-0 items-center gap-2">
         {groupOptions.length > 0 && (
@@ -1121,7 +1126,7 @@ export function PublishBoard({
               <button
                 type="button"
                 aria-label="Screen group"
-                className={`flex h-12 max-w-[40%] shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-semibold uppercase tracking-wide shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 ${activeGroup ? "border-primary/50 bg-card text-primary-ink" : "bg-card text-card-foreground"}`}
+                className={`flex h-12 max-w-[40%] shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 ${activeGroup ? "border-primary/50 bg-card text-primary-ink" : "bg-card text-card-foreground"}`}
               >
                 <Layers className="h-4 w-4 shrink-0" />
                 <span className="truncate">
@@ -1140,7 +1145,7 @@ export function PublishBoard({
                     onSelect={() => pickGroup(g.id)}
                     className="flex cursor-pointer items-center gap-3 py-2"
                   >
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wide">{g.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{g.name}</span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
                     {activeGroup === g.id ? <Check className="h-4 w-4 shrink-0 text-primary-ink" /> : <span className="w-4 shrink-0" />}
                   </DropdownMenuItem>
@@ -1195,7 +1200,7 @@ export function PublishBoard({
             {feedback.message}
           </span>
         ) : (
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
             Swipe left/right to browse • hold and swipe up to publish
           </span>
         )}
@@ -1208,13 +1213,13 @@ export function PublishBoard({
             <button
               type="button"
               onClick={focusMedia.onBack}
-              className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
+              className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs transition-colors"
             >
               <ListIcon className="h-3.5 w-3.5" />
               File list
             </button>
           ) : (
-            <span className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs uppercase tracking-wider">
+            <span className="flex items-center gap-1.5 rounded-full btn-active px-4 py-1.5 text-xs">
               {FILTER_LABELS.experiences}
             </span>
           )}
@@ -1226,7 +1231,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
+                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs transition-colors"
                 >
                   {tagFilter
                     ? (availableTags.find((t) => t.id === tagFilter)?.name ??
@@ -1240,7 +1245,7 @@ export function PublishBoard({
               always outrank that or cards poke over the open menu. */}
               <DropdownMenuContent align="start" className="z-[300]">
                 <DropdownMenuItem
-                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  className="cursor-pointer text-xs font-semibold"
                   onSelect={() => setTagFilter(null)}
                 >
                   All tags
@@ -1248,7 +1253,7 @@ export function PublishBoard({
                 {availableTags.map((tag) => (
                   <DropdownMenuItem
                     key={tag.id}
-                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                    className="cursor-pointer text-xs font-semibold"
                     onSelect={() => setTagFilter(tag.id)}
                   >
                     {tag.name}
@@ -1293,7 +1298,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors"
+                  className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs transition-colors"
                 >
                   {mediaTypeFilter
                     ? MEDIA_TYPE_LABELS[mediaTypeFilter]
@@ -1306,7 +1311,7 @@ export function PublishBoard({
               always outrank that or cards poke over the open menu. */}
               <DropdownMenuContent align="start" className="z-[300]">
                 <DropdownMenuItem
-                  className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                  className="cursor-pointer text-xs font-semibold"
                   onSelect={() => setMediaTypeFilter(null)}
                 >
                   All types
@@ -1314,7 +1319,7 @@ export function PublishBoard({
                 {availableMediaTypes.map(({ type, label }) => (
                   <DropdownMenuItem
                     key={type}
-                    className="cursor-pointer text-xs font-semibold uppercase tracking-wider"
+                    className="cursor-pointer text-xs font-semibold"
                     onSelect={() => setMediaTypeFilter(type)}
                   >
                     {label}
@@ -1331,7 +1336,7 @@ export function PublishBoard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${
                     mediaDateFrom || mediaDateTo
                       ? "btn-active"
                       : "btn-surface"
@@ -1339,7 +1344,7 @@ export function PublishBoard({
                 >
                   <CalendarRange className="h-3.5 w-3.5" />
                   {!mediaDateFrom && !mediaDateTo
-                    ? "Date Range"
+                    ? "Date range"
                     : mediaDateFrom && mediaDateTo
                       ? `${mediaDateFrom} → ${mediaDateTo}`
                       : mediaDateFrom
@@ -1377,7 +1382,7 @@ export function PublishBoard({
                   ? "Showing only media from email — click to show all"
                   : "Show only media that came in from email"
               }
-              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${
                 emailOnly
                   ? "btn-active"
                   : "btn-surface"
@@ -1388,7 +1393,7 @@ export function PublishBoard({
               ) : (
                 <Mail className="h-3.5 w-3.5" />
               )}
-              From Email
+              From email
             </button>
           )}
 
@@ -1398,19 +1403,21 @@ export function PublishBoard({
             onClick={handleLoadFromEmail}
             disabled={loadingInbox}
             title="Load last 2 days from email"
-            className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 btn-surface rounded-full px-4 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${loadingInbox ? "animate-spin" : ""}`}
             />
-            {loadingInbox ? "Loading…" : "Load Email"}
+            {loadingInbox ? "Loading…" : "Load email"}
           </button>
           )}
         </div>
       </div>
 
-      {/* Content carousel */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {/* Content carousel. No min-h-0 here or on the board: on a screen too
+          short for the carousel's minimum plus the details card, the page
+          scrolls rather than the two overlapping. */}
+      <div className="flex flex-1 flex-col gap-2">
         {loadingMedia && filter !== "experiences" && cards.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
@@ -1426,8 +1433,22 @@ export function PublishBoard({
           </div>
         ) : (
           <>
-            {/* The carousel, with its arrows over its left and right sides. */}
-            <div className="relative flex min-h-0 flex-1">
+            {/* The carousel, with its arrows over its left and right sides.
+                A size container, so a card can be sized to the room it has:
+                at most 24rem wide, never taller than the carousel (a 4:3
+                picture plus its ~2.5rem caption, with a little to spare for
+                the centred card's glow), and leaving the arrows some width.
+                A fixed-width card ran under the details card below on a
+                short screen (a landscape tablet). */}
+            <div
+              className="relative flex min-h-[11rem] flex-1"
+              style={
+                {
+                  containerType: "size",
+                  "--slide-w": "min(24rem, calc((100cqh - 3rem) * 4 / 3), calc(100cqw - 7rem))",
+                } as React.CSSProperties
+              }
+            >
             <div
               ref={scrollerRef}
               // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
@@ -1444,8 +1465,8 @@ export function PublishBoard({
               // behavior:"instant" precisely to opt out of this class.
               className="no-scrollbar relative flex min-h-0 min-w-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
               style={{
-                paddingLeft: "calc(50% - 12rem)",
-                paddingRight: "calc(50% - 12rem)",
+                paddingLeft: "calc(50% - var(--slide-w) / 2)",
+                paddingRight: "calc(50% - var(--slide-w) / 2)",
               }}
             >
               {cards.map((card) => {
@@ -1454,7 +1475,8 @@ export function PublishBoard({
                   <div
                     key={key}
                     ref={(el) => setSlideRef(key, el)}
-                    className="group/slide w-96 shrink-0 snap-center"
+                    className="group/slide shrink-0 snap-center"
+                    style={{ width: "var(--slide-w)" }}
                   >
                     <SwipeCard
                       card={card}
@@ -1527,7 +1549,7 @@ export function PublishBoard({
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           className="absolute inset-0 z-[200] flex items-center justify-center bg-zinc-950"
         >
-          <span className="text-sm font-bold uppercase tracking-widest text-white/70">
+          <span className="text-sm font-bold text-white/70">
             Opening {covering.screenName}…
           </span>
         </motion.div>
@@ -1661,7 +1683,7 @@ function DropZone({
                   }`}
                 />
               )}
-              <span className="truncate text-sm font-bold uppercase tracking-wide text-card-foreground">
+              <span className="truncate text-sm font-bold text-card-foreground">
                 {screen ? screen.screenName : "No screens registered yet"}
               </span>
             </span>
@@ -1697,7 +1719,7 @@ function DropZone({
                   title={online ? "Display connected" : "No display connected"}
                   className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-emerald-400" : "bg-amber-400"}`}
                 />
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wide">{s.screenName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.screenName}</span>
                 <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
                   {online ? currentLabel(s) : "Offline"}
                 </span>
@@ -1956,7 +1978,7 @@ function DetailBlock({
 }) {
   return (
     <div className="min-w-0 px-5 py-3.5">
-      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </p>
