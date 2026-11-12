@@ -115,8 +115,6 @@ export default async function DashboardPage() {
           }}
           icon={Users}
           highlight
-          // Only the super admin manages people, so only they get the way in.
-          href={viewer.role === "SUPERADMIN" ? "/settings#users" : undefined}
         />
       </div>
 
