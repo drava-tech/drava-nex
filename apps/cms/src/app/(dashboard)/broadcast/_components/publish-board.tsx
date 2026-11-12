@@ -1854,8 +1854,8 @@ function useVideoInfo(url: string | undefined): { length: string; resolution: st
 
 /**
  * What the centred card is and where it's in use: on which screens now, in
- * which schedules, and the file itself (media) or its template and tags
- * (portfolio). One card the width of the board, under the carousel,
+ * which schedules (media only — portfolio isn't scheduled), and the file
+ * itself (media) or its template and tags (portfolio). One card the width of the board, under the carousel,
  * following it as it moves — on Our Story and on Media.
  */
 function MediaDetailsCard({
@@ -1875,6 +1875,8 @@ function MediaDetailsCard({
   const video = useVideoInfo(card.type === "video" ? d.url : undefined);
   const typeLabel = card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type];
   const fileFacts = [d.size, video?.length, video?.resolution].filter(Boolean).join(" · ");
+  // Portfolio isn't part of scheduling, so it gets no Schedules block.
+  const isPortfolio = card.type === "experience";
   return (
     <section
       aria-label="Details"
@@ -1890,7 +1892,9 @@ function MediaDetailsCard({
         {d.date && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">Added {d.date}</span>}
       </header>
 
-      <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+      <div
+        className={`grid divide-y divide-border md:divide-x md:divide-y-0 ${isPortfolio ? "md:grid-cols-2" : "md:grid-cols-3"}`}
+      >
         <DetailBlock icon={MonitorPlay} label="Playing now">
           {playingOn.length === 0 ? (
             <span className="text-muted-foreground">Not on any screen</span>
@@ -1917,6 +1921,7 @@ function MediaDetailsCard({
           )}
         </DetailBlock>
 
+        {!isPortfolio && (
         <DetailBlock icon={CalendarClock} label="Schedules">
           {schedules.length === 0 ? (
             <span className="text-muted-foreground">Not scheduled</span>
@@ -1936,8 +1941,9 @@ function MediaDetailsCard({
             </ul>
           )}
         </DetailBlock>
+        )}
 
-        {card.type === "experience" ? (
+        {isPortfolio ? (
           <DetailBlock icon={Layers} label="Portfolio">
             <p>{card.template ?? "No template"}</p>
             {tagNames.length > 0 && (
