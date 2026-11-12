@@ -42,6 +42,7 @@ import {
 import { ScheduleEditor, type EditorDraft } from "./schedule-editor";
 import { MediaThumb } from "@/components/media-thumb";
 import { FilterPill, SearchPill, matchesSearch } from "@/components/filter-bar";
+import { GroupBar, ScreenBar } from "@/components/target-bars";
 import { WeekView } from "./week-view";
 import { MotionTriggers } from "./motion-triggers";
 import type { MotionOverview } from "@/actions/motion-trigger-actions";
@@ -140,14 +141,25 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
   // The bar under the tabs. Search and the screen pick apply on every tab; the
   // other pills belong to the tab that shows them.
   const [query, setQuery] = useState("");
-  /** "all", "group:<id>" or "screen:<id>". */
-  const [target, setTarget] = useState("all");
+  // Group, then screen — the tall bars, as on Our Story. Combined into one
+  // pick: "all", "group:<id>" or "screen:<id>".
+  const [groupPick, setGroupPickState] = useState("all");
+  const [screenPick, setScreenPick] = useState<string | null>(null);
+  const target = screenPick ? `screen:${screenPick}` : groupPick !== "all" ? `group:${groupPick}` : "all";
+  const screensInGroup = groupPick === "all" ? screens : screens.filter((s) => s.groupId === groupPick);
+  const setGroupPick = (group: string) => {
+    setGroupPickState(group);
+    // A picked screen outside the new group would hide everything.
+    if (screenPick && group !== "all" && !screens.some((s) => s.screenId === screenPick && s.groupId === group)) setScreenPick(null);
+  };
+  const storeActiveIds = useAppSelector((st) => st.screens.activeIds);
   const [triggerFilter, setTriggerFilter] = useState<"all" | keyof typeof TRIGGERS | "idle">("all");
   const [stateFilter, setStateFilter] = useState<"all" | "live" | "attention" | "ended">("all");
   const [modeFilter, setModeFilter] = useState<"all" | "loop" | "once">("all");
   const clearFilters = () => {
     setQuery("");
-    setTarget("all");
+    setGroupPickState("all");
+    setScreenPick(null);
     setTriggerFilter("all");
     setStateFilter("all");
     setModeFilter("all");
@@ -225,7 +237,9 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
   };
 
   return (
-    <div className="@container flex flex-col gap-5 p-4 sm:p-6">
+    // The page frame Our Story, Media and Screens use: full height, grey, 16px.
+    <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-zinc-100 dark:bg-transparent">
+    <div className="@container flex flex-col gap-4 p-4">
       {editing && (
         <ScheduleEditor
           draft={editing}
@@ -237,24 +251,42 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
         />
       )}
 
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl">Schedules</h1>
-          <p className="text-sm text-muted-foreground">
-            Queue content on screens and groups, by time of day, weekday and date.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button variant="pill" size="pill" onClick={() => setEditing({ mode: "new" })}>
-            <Plus className="h-4 w-4" />
-            New schedule
-          </Button>
-        )}
+      {/* Group, then screen — Our Story's tall bars, first and in the same
+          place, so moving between the pages nothing shifts. Motion triggers
+          aren't picked by screen, so on that tab they're dimmed. */}
+      <div
+        aria-disabled={tab === "motion" || undefined}
+        className={`flex shrink-0 items-center gap-2 ${tab === "motion" ? "pointer-events-none opacity-40" : ""}`}
+      >
+          {groups.length > 0 && (
+            <GroupBar
+              value={groupPick}
+              onChange={setGroupPick}
+              options={[
+                { value: "all", label: "All screens", count: screens.length },
+                ...groups.map((g) => ({ value: g.id, label: g.name, count: screens.filter((s) => s.groupId === g.id).length })),
+              ]}
+            />
+          )}
+          <ScreenBar
+            screens={screensInGroup.map((s) => ({
+              id: s.screenId,
+              name: s.screenName,
+              online: storeActiveIds.includes(s.screenId),
+              detail: showing.get(s.screenId),
+            }))}
+            value={screenPick}
+            onChange={setScreenPick}
+            allSummary={`${screensInGroup.length} screen${screensInGroup.length === 1 ? "" : "s"} · ${
+              screensInGroup.filter((s) => storeActiveIds.includes(s.screenId)).length
+            } live`}
+          />
       </div>
 
-      {/* Tabs */}
-      <div role="tablist" aria-label="Schedule views" className="flex flex-wrap gap-2">
+      {/* The bar, laid out and styled like Our Story's, Media's and Screens':
+          the views on the left, the action on the right, all in the same pills. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div role="tablist" aria-label="Schedule views" className="flex flex-wrap items-center gap-2">
         {(
           [
             { key: "now", label: "On air", icon: Radio, badge: onAirCount || null },
@@ -269,11 +301,11 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
             type="button"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm transition-colors ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${
               tab === key ? "btn-active" : "btn-surface"
             }`}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             {label}
             {badge !== null && (
               <span
@@ -287,21 +319,21 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
           </button>
         ))}
       </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setEditing({ mode: "new" })}
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-primary"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New schedule
+          </button>
+        )}
+      </div>
 
-      {/* The bar — the Motion tab lists its own triggers and has none. */}
+      {/* Filters, then search. */}
       {tab !== "motion" && (
         <div className="flex flex-wrap items-center gap-2">
-          <SearchPill value={query} onChange={setQuery} label="Search schedules, screens, content" className="w-64" />
-          <FilterPill
-            label="Screens"
-            value={target}
-            onChange={setTarget}
-            options={[
-              { value: "all", label: "All screens" },
-              ...groups.map((g) => ({ value: `group:${g.id}`, label: `Group · ${g.name}` })),
-              ...screens.map((s) => ({ value: `screen:${s.screenId}`, label: s.screenName })),
-            ]}
-          />
           {tab === "now" && (
             <FilterPill
               label="Trigger"
@@ -341,6 +373,7 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
               />
             </>
           )}
+          <SearchPill value={query} onChange={setQuery} label="Search schedules, screens, content" className="w-64" />
           {filtering && (
             <>
               {tab !== "week" && (
@@ -350,7 +383,7 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
                     : `${listed.length} of ${schedules.length} schedules`}
                 </span>
               )}
-              <button type="button" onClick={clearFilters} className="rounded-full px-2 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+              <button type="button" onClick={clearFilters} className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors btn-surface">
                 Clear
               </button>
             </>
@@ -391,6 +424,7 @@ export function SchedulesView({ schedules, screenRows, groups, experiences, init
       {tab === "week" && <WeekView schedules={found} screens={screens} filter={target} />}
 
       {tab === "motion" && isAdmin && <MotionTriggers overview={motion} screens={screens} groups={groups} isAdmin={isAdmin} />}
+    </div>
     </div>
   );
 }
