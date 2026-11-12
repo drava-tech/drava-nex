@@ -59,11 +59,10 @@ export const session = pgTable(
     // Better Auth resolves a user's sessions by user_id, and the FK cascade
     // from `user` needs it too — without an index both were sequential scans.
     index("session_user_id_idx").on(table.userId),
-    // Backs getUserStats' "active users" tile:
+    // Built for the dashboard's "active users" count
     //   SELECT count(DISTINCT user_id) FROM session WHERE expires_at > now()
-    // which sits on the dashboard's critical path. expires_at leads so the
-    // range is a direct scan; user_id rides along so the count never has to
-    // touch the heap.
+    // whose tile has since been removed. Kept (dropping it needs a migration);
+    // expires_at leads so an expiry range is a direct scan.
     index("session_expires_at_user_id_idx").on(table.expiresAt, table.userId),
   ]
 );

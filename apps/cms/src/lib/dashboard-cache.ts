@@ -5,7 +5,6 @@ import {
   getScreenUptimeRecordingSince,
   getRecentActivity,
   getExperienceStats,
-  getUserStats,
   type MediaLibraryStats,
   type DashboardActivityItem,
 } from "@platform/db";
@@ -101,8 +100,3 @@ export const getCachedExperienceStats = unstable_cache(
   cacheOpts
 );
 
-export const getCachedUserStats = unstable_cache(
-  getUserStats,
-  ["dashboard:user-stats"],
-  cacheOpts
-);
