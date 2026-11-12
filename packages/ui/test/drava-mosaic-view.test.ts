@@ -17,9 +17,18 @@ describe("readDataArtView", () => {
   it("keeps a running World Clock so Show Clock reaches the other screens", () => {
     expect(
       readDataArtView({ data: "d", art: "a", open: true, clock: { places: ["london", "tokyo", 3], art: "fabric", style: "digital" } })?.clock,
-    ).toEqual({ places: ["london", "tokyo"], art: "fabric", style: "digital" });
+    ).toEqual({ places: ["london", "tokyo"], art: "fabric", style: "digital", running: true });
     expect(readDataArtView({ data: "d", art: "a", open: true, clock: { places: [] } })?.clock).toBeNull();
     expect(readDataArtView({ data: "d", art: "a", open: true, clock: "x" })?.clock).toBeNull();
+  });
+
+  it("keeps the World Clock city picker's choices, even with no city picked yet", () => {
+    expect(
+      readDataArtView({ data: "d", art: "a", open: true, clock: { places: ["paris"], art: "map", style: "analog", running: false } })?.clock,
+    ).toEqual({ places: ["paris"], art: "map", style: "analog", running: false });
+    expect(
+      readDataArtView({ data: "d", art: "a", open: true, clock: { places: [], art: "fabric", style: null, running: false } })?.clock,
+    ).toEqual({ places: [], art: "fabric", style: null, running: false });
   });
 
   it("treats missing or wrongly-typed fields as nothing picked / not open", () => {

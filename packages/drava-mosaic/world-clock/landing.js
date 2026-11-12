@@ -26,13 +26,14 @@ export function startLanding(root, initial, initialArt, initialClock, { onStart,
   root.style.removeProperty("--count");
   root.innerHTML = `
     <div class="landing">
-      <header class="landing-header">
-        <h1 class="landing-kicker landing-logo"><img src="${logoUrl}" alt="Drava Mosaic" width="416" height="92" /></h1>
-        <p class="landing-title">World Clock</p>
-        <p class="landing-sub">Choose up to ${MAX_PLACES} cities. Each one becomes a live band showing its local time and temperature.</p>
-      </header>
+      <h1 class="landing-kicker landing-logo"><img src="${logoUrl}" alt="Drava Mosaic" width="416" height="92" /></h1>
 
       <div class="lp-shell">
+        <header class="landing-header">
+          <p class="landing-title">World Clock</p>
+          <p class="landing-sub">Choose up to ${MAX_PLACES} cities. Each one becomes a live band showing its local time and temperature.</p>
+        </header>
+
         <section class="lp-panel lp-bands" aria-label="Bands">
           <h2 class="lp-panel-title">Bands</h2>
           <ol class="band-list"></ol>
@@ -152,6 +153,7 @@ export function startLanding(root, initial, initialArt, initialClock, { onStart,
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "country-card";
+      btn.dataset.id = place.id; // nex: lets nex-sync.js read which cities are picked.
       btn.innerHTML = `<span class="country-badge"></span><span class="country-name"></span><span class="country-city"></span>`;
       btn.querySelector(".country-name").textContent = place.city;
       btn.querySelector(".country-city").textContent = place.country;
