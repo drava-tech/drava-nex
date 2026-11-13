@@ -215,9 +215,11 @@ export default function LightingContent({ isExpanded, state, actions: liveAction
           </span>
         </div>
       ) : (
-        // Fixture rows take the height they need (scrolling quietly if they
-        // outgrow the card); the ambient modes follow straight on beneath them.
+        // The ambient modes come first, as the room-wide presets; the fixture
+        // rows follow, taking the height they need (scrolling quietly if they
+        // outgrow the card).
         <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <AmbientModesPanel onApplied={actions.modeApplied} />
           <div className="no-scrollbar flex min-h-0 flex-col gap-2.5 overflow-y-auto pr-1">
           {groups.map((g) => {
 
@@ -323,7 +325,6 @@ export default function LightingContent({ isExpanded, state, actions: liveAction
             );
           })}
           </div>
-          <AmbientModesPanel onApplied={actions.modeApplied} />
         </div>
       )}
     </div>
