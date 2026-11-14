@@ -246,7 +246,7 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll' | 'scrollH';
+      action: 'move' | 'click' | 'press' | 'release' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
@@ -316,7 +316,7 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll' | 'scrollH';
+      action: 'move' | 'click' | 'press' | 'release' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;

@@ -10,6 +10,9 @@ interface UseScreenCursorControlReturn {
   agentOnline: boolean | null;
   moveCursor: (dx: number, dy: number) => void;
   click: (button?: "left" | "right") => void;
+  /** Hold / release the left button (double-tap-and-drag). */
+  pressButton: () => void;
+  releaseButton: () => void;
   scroll: (deltaY: number) => void;
   scrollHorizontal: (deltaX: number) => void;
 }
@@ -86,6 +89,9 @@ export function useScreenCursorControl(screenId: string): UseScreenCursorControl
     [send, screenId]
   );
 
+  const pressButton = useCallback(() => send({ type: "CURSOR_CONTROL", screenId, action: "press" }), [send, screenId]);
+  const releaseButton = useCallback(() => send({ type: "CURSOR_CONTROL", screenId, action: "release" }), [send, screenId]);
+
   const scroll = useCallback(
     (deltaY: number) => send({ type: "CURSOR_CONTROL", screenId, action: "scroll", deltaY }),
     [send, screenId]
@@ -96,5 +102,5 @@ export function useScreenCursorControl(screenId: string): UseScreenCursorControl
     [send, screenId]
   );
 
-  return { agentOnline, moveCursor, click, scroll, scrollHorizontal };
+  return { agentOnline, moveCursor, click, pressButton, releaseButton, scroll, scrollHorizontal };
 }
