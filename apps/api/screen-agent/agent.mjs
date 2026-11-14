@@ -72,6 +72,9 @@ async function jiggleCursor() {
 // and could introduce visible jitter) covers that recurring case cheaply.
 const MOVE_IDLE_REPRIME_MS = 1_500;
 let lastMoveAt = 0;
+// True while a pad drag holds the left button; released if the link drops so
+// the OS is never left with a stuck button.
+let dragHeld = false;
 
 async function handleCursorControl(msg) {
   try {
@@ -101,6 +104,13 @@ async function handleCursorControl(msg) {
       if (DEBUG) console.debug(`[agent] move -> (${next.x}, ${next.y})`);
     } else if (msg.action === 'click') {
       await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
+    } else if (msg.action === 'press') {
+      // Double-tap-and-drag on the pad: hold the left button while moves follow.
+      dragHeld = true;
+      await mouse.pressButton(Button.LEFT);
+    } else if (msg.action === 'release') {
+      dragHeld = false;
+      await mouse.releaseButton(Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {
       const amount = Math.round(Math.abs(msg.deltaY));
       if (amount === 0) return;
@@ -158,6 +168,10 @@ function connect() {
   });
 
   ws.on('close', () => {
+    if (dragHeld) {
+      dragHeld = false;
+      mouse.releaseButton(Button.LEFT).catch(() => {});
+    }
     console.warn(`[agent] WS disconnected. Reconnecting in ${reconnectDelay}ms...`);
     scheduleReconnect();
   });

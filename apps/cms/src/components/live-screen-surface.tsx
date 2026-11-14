@@ -521,12 +521,20 @@ export function LiveScreenSurface({
           </div>
         </div>
       ) : showTouchpad ? (
-        // No preview — a blank touchpad that drives the REAL OS cursor on the
-        // TV's own PC (see ScreenTouchpad/screen-agent), instead of tapping a
-        // mirrored preview of the page.
+        // A touchpad that drives the REAL OS cursor on the TV's own PC (see
+        // ScreenTouchpad/screen-agent). The live mirror of what's on the
+        // screen is on the left, view-only, with a tall, narrow pad on the
+        // right (stacked under the preview on narrow widths).
+        // The group sizes to the mirror (16:9 by width), and the pad stretches
+        // to the same height.
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden">
-            <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
+          <div className="flex w-full max-w-[1600px] flex-col gap-3 md:flex-row">
+            <div className="relative min-w-0 flex-1 aspect-[16/9] rounded-2xl border-[6px] border-border shadow-2xl bg-zinc-950 overflow-hidden">
+              <ScreenMirror screenId={screenId} title={screenName} />
+            </div>
+            <div className="relative flex h-44 w-full shrink-0 flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden md:h-auto md:w-96 md:self-stretch">
+              <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
+            </div>
           </div>
         </div>
       ) : (
