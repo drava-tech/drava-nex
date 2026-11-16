@@ -199,6 +199,9 @@ export function LiveScreenSurface({
   // Native video is controlled from VideoControlPanel, which has a real
   // position and a scrub bar; only YouTube still needs this reduced pill.
   const showTransport = isPlayableMedia(currentContent) && currentContent?.type !== "video";
+  /** PDF / slides / Word on screen: the touchpad is then in touchscreen mode
+   * (drag scrolls, pinch zooms) and is shown on its own, without the mirror. */
+  const currentDocumentKind = documentKindOf(currentContent);
 
   const handleSeek = async (delta: number) => {
     await sendRemoteCommand(screenId, MEDIA_SEEK, { delta });
@@ -520,6 +523,15 @@ export function LiveScreenSurface({
             />
           </div>
         </div>
+      ) : showTouchpad && currentDocumentKind ? (
+        // A document (PDF / slides / Word): just the touchpad, full size, no
+        // mirror. Drag scrolls and pinch zooms the document on the TV — see
+        // ScreenTouchpad's touchscreen mode.
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="relative flex h-full min-h-0 w-full max-w-[1600px] flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden">
+            <ScreenTouchpad screenId={screenId} documentKind={currentDocumentKind} />
+          </div>
+        </div>
       ) : showTouchpad ? (
         // A touchpad that drives the REAL OS cursor on the TV's own PC (see
         // ScreenTouchpad/screen-agent). The live mirror of what's on the
@@ -533,7 +545,7 @@ export function LiveScreenSurface({
               <ScreenMirror screenId={screenId} title={screenName} />
             </div>
             <div className="relative flex h-44 w-full shrink-0 flex-col rounded-2xl border-[3px] border-border shadow-2xl overflow-hidden md:h-auto md:w-96 md:self-stretch">
-              <ScreenTouchpad screenId={screenId} documentKind={documentKindOf(currentContent)} />
+              <ScreenTouchpad screenId={screenId} documentKind={null} />
             </div>
           </div>
         </div>

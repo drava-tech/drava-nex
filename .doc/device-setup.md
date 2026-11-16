@@ -215,7 +215,7 @@ Linux API container: one injects real OS-level input, the other drives WASAPI.
 
 | Helper | Path | Does | Needs in `.env` |
 |---|---|---|---|
-| **screen-agent** | `apps/api/screen-agent/` | Moves the real mouse cursor for the CMS touchpad (nut-js) | `BROADCAST_SECRET`, `SCREEN_ID` (this PC's own screen id, matching its kiosk URL), optional `SCREEN_AGENT_WS_URL` |
+| **screen-agent** | `apps/api/screen-agent/` | Moves the real mouse cursor for the CMS touchpad (nut-js) | `BROADCAST_SECRET`, `SCREEN_ID` (this PC's own screen id, matching its kiosk URL), optional `SCREEN_AGENT_WS_URL`, `SCREEN_AGENT_FOLLOW_WINDOW` (see below) |
 | **audio bridge** | `apps/api/audio-helper/` | System volume/mute; spawns `audio-helper.exe` (NAudio) as a child | `BROADCAST_SECRET`, optional `AUDIO_BRIDGE_WS_URL` |
 
 `screen-agent` installs its own dependencies — run `npm install` in that folder
@@ -223,6 +223,15 @@ once per PC (it is deliberately outside the pnpm workspace, because nut-js has
 native bindings that must build on the target machine). The audio bridge
 resolves `ws` from the workspace, so that PC needs a `pnpm install` at the repo
 root.
+
+**More than one monitor:** set `SCREEN_AGENT_FOLLOW_WINDOW` to the kiosk app's
+process name (e.g. `Nexus`). Without it the cursor can only ever be on the
+**primary** monitor: node is DPI-unaware, and next to a monitor with different
+scaling Windows gives it no coordinates that reach the other one. With it, a
+small helper (`kiosk-cursor.cs`, compiled in memory by PowerShell, nothing to
+install) keeps the cursor inside that app's window on whichever monitor it is
+on, and pulls it back in before every click or scroll. `agent.log` names the
+area it is using (`Following the "Nexus" window: ...`).
 
 ### How they start
 
