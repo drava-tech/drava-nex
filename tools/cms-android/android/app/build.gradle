@@ -12,9 +12,9 @@ if (hasReleaseKeystore) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
-// Built files come out as Nexus-debug.apk / Nexus-release.apk instead of app-*.apk.
+// Built files come out as drava-nex-debug.apk / drava-nex-release.apk instead of app-*.apk.
 base {
-    archivesName = "Nexus"
+    archivesName = "drava-nex"
 }
 
 android {

@@ -15,7 +15,7 @@
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">192.168.1.250</domain>
+        <domain includeSubdomains="true">192.168.20.250</domain>
         <domain includeSubdomains="true">ec-cms</domain>
         <domain includeSubdomains="true">ec-cms.local</domain>
         <trust-anchors>

@@ -1,6 +1,6 @@
-# Nexus - Main Display
+# Drava Nex - Main Display
 
-**Nexus - Main Display** (`Nexus.exe`) is a small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
+**Drava Nex - Main Display** (`DravaNex.exe`) is a small Windows app (.NET 8 WPF + WebView2) that opens a CMS display page
 full-screen on a lobby TV's PC, with no browser chrome, and lets the CMS
 remotely minimize, restore, or close it.
 
@@ -89,7 +89,7 @@ dotnet build
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-Output: `bin/Release/net8.0-windows/win-x64/publish/Nexus.exe` — a
+Output: `bin/Release/net8.0-windows/win-x64/publish/DravaNex.exe` — a
 single self-contained file (~160MB), no .NET runtime needed on the target
 machine. `bin/` and `obj/` aren't committed; publish on (or copy the
 published output to) the machine you're deploying to.
@@ -97,19 +97,19 @@ published output to) the machine you're deploying to.
 ## Deploy on the TV's PC
 
 1. Copy the **entire** `publish` folder's contents to the machine — not just
-   `Nexus.exe` anymore. The `frame-unlock-extension/` subfolder next
+   `DravaNex.exe` anymore. The `frame-unlock-extension/` subfolder next
    to it is required at every launch (see below), not just debug symbols/docs.
-2. For auto-start on login/reboot, add a shortcut to `Nexus.exe` in:
+2. For auto-start on login/reboot, add a shortcut to `DravaNex.exe` in:
    `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
-3. For a desktop icon, add a shortcut named `Nexus - Main Display` to `Nexus.exe`
+3. For a desktop icon, add a shortcut named `Drava Nex - Main Display` to `DravaNex.exe`
    in `C:\Users\Public\Desktop\` (shows on every user's desktop).
    `deploy.ps1` creates this one itself.
 
-The exe was called `EMS.exe` before the Nexus rename, and `MainScreenKiosk.exe`
+The exe was called `Nexus.exe` before the Drava Nex rename, `EMS.exe` before that, and `MainScreenKiosk.exe`
 before that. On a PC set up back then, point the existing Startup shortcut at
-`Nexus.exe`. `deploy.ps1` does this for you when it can reach the PC over
+`DravaNex.exe`. `deploy.ps1` does this for you when it can reach the PC over
 remoting. The rename also gives the app a fresh WebView2 profile
-(`Nexus.exe.WebView2`), which only holds browser cache. `deploy.ps1` already
+(`DravaNex.exe.WebView2`), which only holds browser cache. `deploy.ps1` already
 clears the profile on every deploy.
 
 ### Scripted deploy (`deploy.ps1`)

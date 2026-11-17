@@ -100,12 +100,12 @@ In dev the apps run directly: CMS `http://localhost:3000`, API `http://localhost
 
 ## Production Deployment (office LAN)
 
-The whole stack runs as Docker containers on one host (e.g. `ec-cms`, LAN IP `192.168.1.250`); **only Nginx is exposed to the local network** mapping ports 80/443 directly. Everything inside (CMS app, Hono API, Postgres, Mosquitto, local-inference services) communicates inside the Docker network safely behind Nginx.
+The whole stack runs as Docker containers on one host (e.g. `ec-cms`, LAN IP `192.168.20.250`); **only Nginx is exposed to the local network** mapping ports 80/443 directly. Everything inside (CMS app, Hono API, Postgres, Mosquitto, local-inference services) communicates inside the Docker network safely behind Nginx.
 
 ## Default Ports & URLs
 
 Once deployed, the following URLs are available locally via the host's LAN name (`ec-cms`) or its
-IP (`192.168.1.250` — use the IP from phones and tablets, which often can't resolve the hostname).
+IP (`192.168.20.250` — use the IP from phones and tablets, which often can't resolve the hostname).
 Nginx accepts **only** those two names; any other `Host` is refused with a bare closed connection.
 
 Session-bearing routes are forced to **https**; public display routes stay on **http**:

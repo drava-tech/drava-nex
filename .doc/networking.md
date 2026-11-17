@@ -57,7 +57,7 @@ Two Docker networks are defined in `infra/docker/docker-compose.yml`:
 ## 3. Nginx Routing (Docker mode — `infra/nginx/default.conf`)
 
 Three server blocks: a `default_server` that rejects unknown hosts, a `:80` block, and a `:443`
-block. Both named blocks answer to `server_name ec-cms 192.168.1.250;`.
+block. Both named blocks answer to `server_name ec-cms 192.168.20.250;`.
 
 ### 3.1 Host filtering
 
@@ -65,7 +65,7 @@ block. Both named blocks answer to `server_name ec-cms 192.168.1.250;`.
 server { listen 80 default_server; server_name _; return 444; }
 ```
 
-Any request whose `Host` isn't `ec-cms` or `192.168.1.250` gets **444** — connection closed, no
+Any request whose `Host` isn't `ec-cms` or `192.168.20.250` gets **444** — connection closed, no
 response. Browsers render this as a generic "site can't be reached", indistinguishable from the
 host being down. **If the host's LAN IP changes, add it to `server_name` in both named blocks.**
 
@@ -135,7 +135,7 @@ Browser-side requests always go through Nginx — they never hit the API contain
 actually use** — both the hostname and the IP, at the right scheme:
 
 ```
-CORS_ORIGIN=https://ec-cms,https://192.168.1.250
+CORS_ORIGIN=https://ec-cms,https://192.168.20.250
 ```
 
 The same applies to `BETTER_AUTH_URL` / `BETTER_AUTH_TRUSTED_ORIGINS`; a mismatch there produces
@@ -162,7 +162,7 @@ handshake dies (this silently broke all real-time sync until the exact block was
 
 ## 7. Production LAN Deployment
 
-The stack runs on one host (e.g. `ec-cms`, LAN IP `192.168.1.250`); Nginx publishes `80:80` and
+The stack runs on one host (e.g. `ec-cms`, LAN IP `192.168.20.250`); Nginx publishes `80:80` and
 `443:443` and is the only web entry point. All devices share one instance via relative `/api`
 and `/ws` URLs, so a single build works for any hostname or IP. Server-side calls from the CMS
 use `INTERNAL_API_URL=http://api:4000`.

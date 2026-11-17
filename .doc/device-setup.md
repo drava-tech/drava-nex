@@ -4,13 +4,13 @@ How to connect a **TV** (Chromium PC driving a screen) and a **tablet** (Android
 control the screens) to the platform host over the office LAN.
 
 Assumes the stack is already deployed — see [`infrastructure.md`](./infrastructure.md) for that.
-Throughout, the host is `ec-cms` at `192.168.1.250`; substitute your own.
+Throughout, the host is `ec-cms` at `192.168.20.250`; substitute your own.
 
 ---
 
 ## 1. Can devices reach it by IP?
 
-**Yes.** `infra/nginx/default.conf` declares `server_name ec-cms 192.168.1.250;` on both the
+**Yes.** `infra/nginx/default.conf` declares `server_name ec-cms 192.168.20.250;` on both the
 `:80` and `:443` server blocks, so the raw IP and the hostname are equally valid. Devices that
 can't resolve `ec-cms` on your LAN (phones and tablets often can't) should use the IP.
 
@@ -59,7 +59,7 @@ unknown id renders a 404. Create the screen in the CMS before pointing the TV at
 ### 3.2 Open the display
 
 ```
-http://192.168.1.250/display/main-TV
+http://192.168.20.250/display/main-TV
 ```
 
 - **http, not https.** No login prompt — the route is public.
@@ -84,7 +84,7 @@ Without it, a pushed web page that sends those headers stays blank on this TV.
 Two notes:
 
 - The manifest's `content_scripts.matches` covers `https://ec-cms/*` and
-  `https://192.168.1.250/*`, but **not** the http display origin — so the
+  `https://192.168.20.250/*`, but **not** the http display origin — so the
   `data-cms-frame-unlock` marker isn't set on the display page. That is harmless: the marker
   only hides the install banner on the CMS admin's Browser page. The header-stripping
   `declarativeNetRequest` rule is origin-independent and applies to every frame in the profile.
@@ -96,7 +96,7 @@ Two notes:
 ### 3.4 Kiosk launch flags
 
 ```
-chrome.exe --kiosk "http://192.168.1.250/display/main-TV" ^
+chrome.exe --kiosk "http://192.168.20.250/display/main-TV" ^
   --autoplay-policy=no-user-gesture-required ^
   --noerrdialogs ^
   --disable-session-crashed-bubble ^
@@ -121,8 +121,8 @@ The tablet has two possible roles. Be clear which one you want, because the URLs
 
 | Role | URL |
 |---|---|
-| Admin / screen control | `https://192.168.1.250` |
-| A second display | `http://192.168.1.250/display/<screenId>` |
+| Admin / screen control | `https://192.168.20.250` |
+| A second display | `http://192.168.20.250/display/<screenId>` |
 
 As a display, follow §3 exactly. For the admin role, the https requirement means certificates:
 
@@ -135,7 +135,7 @@ Using [mkcert](https://github.com/FiloSottile/mkcert) on the host:
 
 ```bash
 mkcert -install
-mkcert -cert-file fullchain.pem -key-file privkey.pem ec-cms 192.168.1.250 localhost 127.0.0.1
+mkcert -cert-file fullchain.pem -key-file privkey.pem ec-cms 192.168.20.250 localhost 127.0.0.1
 ```
 
 Put both files in `infra/nginx/certs/` and restart nginx.
@@ -167,8 +167,8 @@ On the host's `.env.production`:
 
 ```
 BETTER_AUTH_URL=https://ec-cms
-BETTER_AUTH_TRUSTED_ORIGINS=https://192.168.1.250,https://ec-cms
-CORS_ORIGIN=https://ec-cms,https://192.168.1.250
+BETTER_AUTH_TRUSTED_ORIGINS=https://192.168.20.250,https://ec-cms
+CORS_ORIGIN=https://ec-cms,https://192.168.20.250
 ```
 
 List every origin any device will use. Check the current values on the host before changing
@@ -180,16 +180,16 @@ anything — `.env.production` is gitignored, so it is not visible from a clone.
 
 On the host:
 
-- [ ] `infra/nginx/certs/fullchain.pem` exists and its SAN list includes `192.168.1.250` (§4.1)
+- [ ] `infra/nginx/certs/fullchain.pem` exists and its SAN list includes `192.168.20.250` (§4.1)
 - [ ] `.env.production` auth origins use `https://` and list every device origin (§4.3)
 
 From the devices:
 
-- [ ] TV: `http://192.168.1.250/display/main-TV` loads with no login prompt
+- [ ] TV: `http://192.168.20.250/display/main-TV` loads with no login prompt
 - [ ] TV: push a site that blocks framing (e.g. `google.com`) from the media library — it renders
       with Frame Unlock enabled, and goes blank when you disable the extension
 - [ ] TV: a YouTube link plays automatically without being clicked (confirms the autoplay flag)
-- [ ] Tablet: `https://192.168.1.250` shows the login page with no certificate warning
+- [ ] Tablet: `https://192.168.20.250` shows the login page with no certificate warning
 - [ ] Tablet: log in, then reload — the session survives (confirms the auth origins)
 
 ---

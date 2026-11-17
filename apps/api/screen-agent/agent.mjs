@@ -31,7 +31,7 @@ const SCREEN_ID = process.env.SCREEN_ID || '';
 // rather than a console. Set SCREEN_AGENT_DEBUG=1 in .env to turn it on
 // while diagnosing, then turn it back off.
 const DEBUG = process.env.SCREEN_AGENT_DEBUG === '1';
-// Process name of the kiosk app on this PC (e.g. Nexus). When set, the cursor
+// Process name of the kiosk app on this PC (e.g. DravaNex). When set, the cursor
 // follows that app's window onto whichever monitor it is on, even one that is
 // not the primary display; see kiosk-cursor.cs. Unset: primary monitor only.
 const FOLLOW_WINDOW = (process.env.SCREEN_AGENT_FOLLOW_WINDOW || '').trim();
