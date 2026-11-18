@@ -13,6 +13,8 @@ dist/
 # .NET build outputs (tools/drava-nex)
 tools/drava-nex/bin/
 tools/drava-nex/obj/
+# audio-helper: obj/ is a pure build cache (bin/ stays tracked on purpose)
+apps/api/audio-helper/obj/
 
 # Android build outputs (tools/cms-android). The generated android/ project is
 # committed on purpose — it carries the network security config, the manifest
