@@ -11,6 +11,8 @@ import { readWelcomeContent } from "@platform/ui/templates/welcome";
 import { readObjectRecognitionContent } from "@platform/ui/templates/object-recognition";
 import { readFlightSimulationContent } from "@platform/ui/templates/flight-simulation";
 import { readGalleryContent } from "@platform/ui/templates/gallery";
+import { readCanvasContent } from "@platform/ui/templates/canvas";
+import { readStoryContent } from "@platform/ui/templates/story";
 
 /**
  * Per-template reader for the experience's saved content slice. Table-driven so
@@ -33,6 +35,8 @@ const CONTENT_READERS: Record<
   "drava-mosaic": () => null,
   // Same for Drava World: the app is shown exactly as the standalone one.
   "drava-world": () => null,
+  canvas: readCanvasContent,
+  story: readStoryContent,
 };
 
 interface EditPageProps {

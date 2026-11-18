@@ -14,6 +14,7 @@ import {
   Settings2,
   CalendarClock,
   Send,
+  LayoutTemplate,
   // SquareTerminal,
   // Globe,
 } from "lucide-react";
@@ -53,6 +54,12 @@ const ALL_NAV = [
     icon: Film,
     roles: ["ADMIN", "GUEST"] as string[],
     guestModeVisible: true,
+  },
+  {
+    title: "Templates",
+    url: "/templates",
+    icon: LayoutTemplate,
+    roles: ["ADMIN"] as string[],
   },
   {
     title: "Screens",

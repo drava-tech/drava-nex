@@ -45,6 +45,14 @@
       "import": "./src/templates/gallery/index.ts",
       "types": "./src/templates/gallery/index.ts"
     },
+    "./templates/canvas": {
+      "import": "./src/templates/canvas/index.ts",
+      "types": "./src/templates/canvas/index.ts"
+    },
+    "./templates/story": {
+      "import": "./src/templates/story/index.ts",
+      "types": "./src/templates/story/index.ts"
+    },
     "./playback-sync": {
       "import": "./src/lib/playback-sync.ts",
       "types": "./src/lib/playback-sync.ts"
