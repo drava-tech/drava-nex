@@ -58,7 +58,7 @@ export function useAudioKeepAlive(enabled: boolean) {
 
     // An AudioContext is born `suspended` without a user gesture. On the kiosk
     // the host's --autoplay-policy=no-user-gesture-required flag
-    // (tools/main-screen-kiosk/MainWindow.xaml.cs) means this resolves straight
+    // (tools/drava-nex/MainWindow.xaml.cs) means this resolves straight
     // away; the listeners below cover every other viewer, and re-resume after
     // Chromium suspends the context while the tab is hidden.
     const resume = () => {

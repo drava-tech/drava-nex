@@ -79,7 +79,7 @@ is actually pointed at.
 Requires the .NET 8 SDK.
 
 ```
-cd tools/main-screen-kiosk
+cd tools/drava-nex
 dotnet build
 ```
 

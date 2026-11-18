@@ -21,7 +21,7 @@ there is no Node runtime, no database and no session server on the device. A
 static export (`output: 'export'`) would strip every server action and every
 DB-backed page, which is the entire product.
 
-So this app does what `tools/main-screen-kiosk` does for the lobby TV, only for
+So this app does what `tools/drava-nex` does for the lobby TV, only for
 Android: it is a native window around the CMS you already deploy. The CMS keeps
 running on `ec-cms` exactly as before, and **nothing in `apps/cms` changes**.
 

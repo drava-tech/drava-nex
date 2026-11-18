@@ -8,8 +8,10 @@
 param(
     [string]$VhdxPath   = "C:\Users\TWT\AppData\Local\Docker\wsl\disk\docker_data.vhdx",
     [string]$DockerExe  = "C:\Program Files\Docker\Docker\Docker Desktop.exe",
-    [string]$ComposeYml = "E:\EC\cms-platform\infra\docker\docker-compose.yml",
-    [string]$EnvFile    = "E:\EC\cms-platform\.env.production",
+    # Derived from this script's own location (infra\scripts), so the repo
+    # folder can be renamed or moved without editing the scheduled task.
+    [string]$ComposeYml = (Join-Path $PSScriptRoot "..\docker\docker-compose.yml"),
+    [string]$EnvFile    = (Join-Path $PSScriptRoot "..\..\.env.production"),
     [string]$LogDir     = "E:\EC\cms-platform-data\logs\shrink-docker"
 )
 $ErrorActionPreference = "Stop"

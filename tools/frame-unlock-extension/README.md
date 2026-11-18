@@ -18,10 +18,10 @@ load on the server.
 
 ## Install (per machine)
 
-On the signage kiosk (`tools/main-screen-kiosk`), this is now **installed
+On the signage kiosk (`tools/drava-nex`), this is now **installed
 automatically** at startup — `MainWindow.xaml.cs` loads this folder straight
 into its own WebView2 profile, no manual step needed there. See
-[`../main-screen-kiosk/README.md`](../main-screen-kiosk/README.md#frame-unlock-extension).
+[`../drava-nex/README.md`](../drava-nex/README.md#frame-unlock-extension).
 
 The manual steps below are still how you'd install this into a regular
 desktop Chrome/Edge tab — e.g. to test the CMS Browser page or the Media

@@ -3,7 +3,7 @@ test_rtsp_pipeline_postgres.py — full pipeline dry run against the real
 shared cms_db Postgres+pgvector instance (db_face_recognition.py).
 
 This now targets DATABASE_URL — the real, shared production database the
-rest of cms-platform uses (packages/db/src/schema/visitors.ts owns `visitor`;
+rest of drava-nex uses (packages/db/src/schema/visitors.ts owns `visitor`;
 we only added the new, additive `visitor_embedding` table via
 visitor_embedding_migration.sql, applied directly to this DB). Writes here
 are real and visible to the actual CMS Visitors page.

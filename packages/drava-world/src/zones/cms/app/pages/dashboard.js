@@ -1,4 +1,4 @@
-// Dashboard: the real Nex's overview (cms-platform master, app/(dashboard)/page.tsx): the KPI
+// Dashboard: the real Nex's overview (drava-nex master, app/(dashboard)/page.tsx): the KPI
 // row (Active Users in the sidebar's red), then two columns, Screen Uptime over the Screens
 // list on the left, Media Ratio over Recent Activity on the right.
 

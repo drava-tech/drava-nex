@@ -272,7 +272,7 @@ export type WsClientMessage =
        * (the kiosk runs with devtools disabled). `dpr` other than 1, or an
        * `inner` noticeably smaller than `screen`, means the page is
        * compositing below native resolution and the output is being upscaled
-       * — see --force-device-scale-factor in tools/main-screen-kiosk.
+       * — see --force-device-scale-factor in tools/drava-nex.
        */
       viewport?: { dpr: number; innerW: number; innerH: number; screenW: number; screenH: number };
     }
