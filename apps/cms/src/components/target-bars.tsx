@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Layers } from "lucide-react";
+import { Check, ChevronDown, Layers, MonitorPlay } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@platform/ui";
 
 /**
@@ -14,6 +14,24 @@ const BAR =
 
 /** z-[300] matches Our Story's menus, which must clear its carousel. */
 const MENU = "z-[300] max-h-[60vh] overflow-y-auto";
+
+/** Classes for the one-item menu a long-press on a screen bar opens. */
+export const VIEW_DISPLAY_MENU = "z-[300] min-w-56";
+
+/**
+ * The single item a long-press (or right-click) on a screen bar offers: open
+ * that screen's live page, which shows whatever controls what is on it — the
+ * trackpad for a document, a mirror for a template, video controls, ...
+ */
+export function ViewDisplayItem({ screenName, onSelect }: { screenName: string; onSelect: () => void }) {
+  return (
+    <DropdownMenuItem onSelect={onSelect} className="flex cursor-pointer items-center gap-3 py-2">
+      <MonitorPlay className="h-4 w-4 shrink-0" />
+      <span className="flex-1 text-sm font-semibold">View Display</span>
+      <span className="max-w-[50%] shrink-0 truncate text-xs text-muted-foreground">{screenName}</span>
+    </DropdownMenuItem>
+  );
+}
 
 export interface GroupBarOption<T extends string> {
   value: T;

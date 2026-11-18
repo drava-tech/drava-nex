@@ -1,6 +1,6 @@
-# Nexus — Android shell
+# Drava Nex — Android shell
 
-**Nexus** (launcher name, formerly EMS) is an Android app that opens the CMS admin dashboard full-screen on an office
+**Drava Nex** (launcher name; files are named `drava-nex-*.apk`; formerly Nexus, before that EMS) is an Android app that opens the CMS admin dashboard full-screen on an office
 tablet, with its own launcher icon and no browser chrome. Built with Capacitor.
 
 Target server is set in `capacitor.config.ts`:
@@ -21,7 +21,7 @@ there is no Node runtime, no database and no session server on the device. A
 static export (`output: 'export'`) would strip every server action and every
 DB-backed page, which is the entire product.
 
-So this app does what `tools/main-screen-kiosk` does for the lobby TV, only for
+So this app does what `tools/drava-nex` does for the lobby TV, only for
 Android: it is a native window around the CMS you already deploy. The CMS keeps
 running on `ec-cms` exactly as before, and **nothing in `apps/cms` changes**.
 
@@ -101,8 +101,8 @@ npm run build:debug        # debug apk, no keystore needed
 npm run gradle -- <task>   # any other Gradle task, same environment
 ```
 
-Output: `android/app/build/outputs/apk/release/Nexus-release.apk` (~3.8 MB), or
-`apk/debug/Nexus-debug.apk` for a debug build. The file name comes from
+Output: `android/app/build/outputs/apk/release/drava-nex-release.apk` (~3.8 MB), or
+`apk/debug/drava-nex-debug.apk` for a debug build. The file name comes from
 `base.archivesName` in `android/app/build.gradle`.
 
 Both build scripts run `npm run sync` first, which re-copies the root CA, points
@@ -130,7 +130,7 @@ needs a manual uninstall and reinstall, and every installed copy is orphaned.
 Check what a built apk is actually signed with:
 
 ```
-apksigner verify --print-certs -v android/app/build/outputs/apk/release/Nexus-release.apk
+apksigner verify --print-certs -v android/app/build/outputs/apk/release/drava-nex-release.apk
 ```
 
 ### Why `-Djava.net.preferIPv4Stack=true`

@@ -86,7 +86,7 @@ export function WelcomeRenderer({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   // Default to unmuted: the kiosk's WebView2 host launches with
-  // --autoplay-policy=no-user-gesture-required (tools/main-screen-kiosk/
+  // --autoplay-policy=no-user-gesture-required (tools/drava-nex/
   // MainWindow.xaml.cs), so the real TV can autoplay with sound with no
   // gesture needed. The `autoPlay` attribute can't surface a blocked-playback
   // promise rejection, though, so the effect below calls play() explicitly —

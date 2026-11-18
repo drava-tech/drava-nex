@@ -61,6 +61,8 @@ import {
   type ContentSchedule,
 } from "@/components/schedule-info";
 import { SearchPill, matchesSearch } from "@/components/filter-bar";
+import { VIEW_DISPLAY_MENU, ViewDisplayItem } from "@/components/target-bars";
+import { useTapOrHold } from "@/hooks/useTapOrHold";
 import { boardDefaults, readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
 
 /** The group filter's value for screens in no group. */
@@ -301,6 +303,8 @@ export function PublishBoard({
   const [covering, setCovering] = useState<{
     screenId: string;
     screenName: string;
+    /** Where the live page's Back goes: unset = Our Story (as after a push). */
+    from?: "media";
   } | null>(null);
   // Drives the cover's navigation, and guarantees the cover can always be
   // dismissed. This used to hang off the cover's own onAnimationComplete, which
@@ -317,7 +321,7 @@ export function PublishBoard({
     }
     if (coverNavRef.current === covering.screenId) return;
     coverNavRef.current = covering.screenId;
-    const target = `/broadcast/live/${covering.screenId}`;
+    const target = `/broadcast/live/${covering.screenId}${covering.from ? `?from=${covering.from}` : ""}`;
     const nav = window.setTimeout(() => router.push(target), COVER_SETTLE_MS);
     // The destination re-runs the expensive getExperiences() and has no
     // loading.tsx, so a slow or failed navigation is entirely possible. Hand
@@ -1164,6 +1168,16 @@ export function PublishBoard({
           }}
           isPushing={pushingId !== null}
           controls={boxControls}
+          // Long-press "View Display": the same cover and live page a push
+          // lands on, with Back returning to the board it came from.
+          onViewDisplay={() => {
+            if (!targetScreen) return;
+            setCovering({
+              screenId: targetScreen.screenId,
+              screenName: targetScreen.screenName,
+              from: focusMedia ? "media" : undefined,
+            });
+          }}
         />
         {/* Past a handful of screens, jump straight to one by name, group or what it's playing. */}
         {screens.length > 3 && (
@@ -1655,6 +1669,7 @@ function DropZone({
   onPick,
   isPushing,
   controls,
+  onViewDisplay,
 }: {
   screen: ScreenRow | null;
   screens: ScreenRow[];
@@ -1663,16 +1678,40 @@ function DropZone({
   onPick: (screenId: string) => void;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
+  /** Open `screen`'s live page — what a long-press on the bar offers. */
+  onViewDisplay: () => void;
 }) {
   const isOnline = screen ? activeScreenIds.includes(screen.screenId) : false;
+  // A tap opens the screen list (on release); a long-press or right-click
+  // offers "View Display" for the screen in the bar instead.
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"list" | "view">("list");
+  const press = useTapOrHold({
+    onTap: () => {
+      setMode("list");
+      setOpen(true);
+    },
+    onHold: () => {
+      setMode("view");
+      setOpen(true);
+    },
+    holdEnabled: screen !== null,
+  });
   return (
     <motion.div animate={controls} className="w-full flex-1">
-      <DropdownMenu>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setMode("list"); // keyboard / Radix's own open is always the list
+          setOpen(next);
+        }}
+      >
         <DropdownMenuTrigger asChild disabled={screens.length === 0}>
           <button
             type="button"
             aria-label={screen ? `Publishing to ${screen.screenName}. Choose another screen` : "No screens"}
             className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border bg-card px-4 text-left text-card-foreground shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 disabled:cursor-default"
+            {...press}
                 >
             <span className="flex min-w-0 items-center gap-2">
               {screen && (
@@ -1701,7 +1740,12 @@ function DropZone({
             </span>
           </button>
         </DropdownMenuTrigger>
-        {/* z-[300]: above the carousel's centred card (inline z-index up to 5). */}
+        {mode === "view" && screen ? (
+          <DropdownMenuContent align="start" className={VIEW_DISPLAY_MENU}>
+            <ViewDisplayItem screenName={screen.screenName} onSelect={onViewDisplay} />
+          </DropdownMenuContent>
+        ) : (
+        /* z-[300]: above the carousel's centred card (inline z-index up to 5). */
         <DropdownMenuContent
           align="start"
           className="z-[300] max-h-[60vh] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
@@ -1728,6 +1772,7 @@ function DropZone({
             );
           })}
         </DropdownMenuContent>
+        )}
       </DropdownMenu>
     </motion.div>
   );

@@ -142,8 +142,8 @@ DB password (ask the host owner — the password is *not* stored in this repo).
 
 ```bash
 # 1. Clone
-git clone https://github.com/vamsi80/cms-platform.git
-cd cms-platform
+git clone https://github.com/drava-tech/drava-nex.git
+cd drava-nex
 
 # 2. Create the three env files from the templates
 cp .env.team.example          .env

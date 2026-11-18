@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * The CMS is a Next.js SSR app (server actions, direct Postgres access via
  * @platform/db, better-auth server sessions) — it cannot be bundled into the
  * APK. This app is a thin native shell that loads the deployed CMS, the same
- * way tools/main-screen-kiosk wraps /display on Windows.
+ * way tools/drava-nex wraps /display on Windows.
  *
  * Because `server.url` points at a remote origin, Capacitor does NOT inject its
  * JS bridge into the pages — no Capacitor plugins work here, by design. Every
@@ -14,7 +14,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.thewhitetusker.eccms',
-  appName: 'Nexus',
+  appName: 'Drava Nex',
   webDir: 'www',
   server: {
     // Raw IP, not the `ec-cms` hostname: Android devices on this LAN do not

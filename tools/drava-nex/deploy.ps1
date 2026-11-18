@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-  Publishes Nexus - Main Display (Nexus.exe, + the frame-unlock-extension folder
+  Publishes Drava Nex - Main Display (DravaNex.exe, + the frame-unlock-extension folder
   it needs alongside it) and deploys it to a kiosk PC over the LAN.
 
 .DESCRIPTION
   1. dotnet publish (unless -SkipPublish).
-  2. Best-effort: stop the remote Nexus.exe process over PowerShell Remoting,
+  2. Best-effort: stop the remote DravaNex.exe process over PowerShell Remoting,
      so the copy below isn't blocked by a locked exe. Also stops the
-     pre-rename EMS.exe / MainScreenKiosk.exe, re-points any Startup-folder
-     shortcut that still targets one at Nexus.exe, and creates a "Nexus - Main Display"
+     pre-rename Nexus.exe / EMS.exe / MainScreenKiosk.exe, re-points any Startup-folder
+     shortcut that still targets one at DravaNex.exe, and creates a "Drava Nex - Main Display"
      shortcut on the Public Desktop.
   3. robocopy /MIR the publish output to an admin share on the target
      (\\ComputerName\C$\...), so the destination folder always ends up an
      exact mirror, including the frame-unlock-extension subfolder.
-  4. Best-effort: relaunch Nexus.exe remotely.
+  4. Best-effort: relaunch DravaNex.exe remotely.
 
   Steps 2 and 4 need PowerShell Remoting (WinRM) enabled on the kiosk PC and
   fail gracefully (a warning, not a hard stop) if it isn't - the copy in step
@@ -62,14 +62,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $publishDir = Join-Path $root 'bin\Release\net8.0-windows\win-x64\publish'
-$exeName = 'Nexus.exe'
-# Earlier names of the same app (EMS.exe, and MainScreenKiosk.exe before
+$exeName = 'DravaNex.exe'
+# Earlier names of the same app (Nexus.exe, EMS.exe, and MainScreenKiosk.exe before
 # that); kiosk PCs deployed back then still run one and auto-start it from a
 # shortcut.
-$legacyExeNames = @('EMS.exe', 'MainScreenKiosk.exe')
+$legacyExeNames = @('Nexus.exe', 'EMS.exe', 'MainScreenKiosk.exe')
 
 if (-not $SkipPublish) {
-    Write-Host "Publishing Nexus - Main Display..." -ForegroundColor Cyan
+    Write-Host "Publishing Drava Nex - Main Display..." -ForegroundColor Cyan
     Push-Location $root
     try {
         dotnet publish -c Release -r win-x64 --self-contained true `
@@ -133,13 +133,13 @@ if (-not $SkipRestart) {
                     Write-Host "Removed old desktop shortcut $($lnk.FullName)"
                 }
             }
-            $desktopLnk = $shell.CreateShortcut('C:\Users\Public\Desktop\Nexus - Main Display.lnk')
+            $desktopLnk = $shell.CreateShortcut('C:\Users\Public\Desktop\Drava Nex - Main Display.lnk')
             $desktopLnk.TargetPath = Join-Path $remotePath $exeName
             $desktopLnk.WorkingDirectory = $remotePath
             $desktopLnk.IconLocation = "$(Join-Path $remotePath $exeName),0"
-            $desktopLnk.Description = 'Nexus - Main Display'
+            $desktopLnk.Description = 'Drava Nex - Main Display'
             $desktopLnk.Save()
-            Write-Host "Desktop shortcut: C:\Users\Public\Desktop\Nexus - Main Display.lnk"
+            Write-Host "Desktop shortcut: C:\Users\Public\Desktop\Drava Nex - Main Display.lnk"
         } -ArgumentList $RemotePath, $exeName, $legacyExeNames
     } catch {
         Write-Warning "Couldn't reach $ComputerName over PowerShell Remoting (WinRM) to stop the running app / clear its old profile: $($_.Exception.Message)`nIf $exeName (or an older $($legacyExeNames -join ' / ')) is currently running there, the copy below may fail to overwrite it - close it by hand on that PC first, then re-run this script. If Frame Unlock still doesn't load after deploying, also manually delete '$RemotePath\$exeName.WebView2' on that PC and relaunch. If that PC auto-starts an older exe from its Startup folder, point that shortcut at $exeName by hand, and create the desktop shortcut to $exeName by hand too."

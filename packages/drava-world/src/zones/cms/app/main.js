@@ -1,4 +1,4 @@
-// The Nex replica: a browser-only copy of White Tusker's Nex (cms-platform, apps/cms) that
+// The Nex replica: a browser-only copy of White Tusker's Nex (drava-nex, apps/cms) that
 // runs on the kiosk in Zone 02. Same navigation, pages and styling; the state lives in
 // this browser and reaches the screens (Zone 02's three screens, and those of the zones further
 // on: SCREEN_ZONES) and the room's devices over a BroadcastChannel (shared/state.js).
@@ -27,7 +27,7 @@ import { renderVisitors } from './pages/visitors.js';
 import { renderBrowser, renderSettings } from './pages/other.js';
 
 // guest: shown in Guest mode (the real Nex's guestModeVisible). hidden: a page the real Nex
-// still has but no longer lists in its sidebar (cms-platform master, app-sidebar.tsx); it
+// still has but no longer lists in its sidebar (drava-nex master, app-sidebar.tsx); it
 // opens by its address only.
 const NAV = [
   { title: 'Dashboard', path: '/', icon: 'LayoutDashboard', render: renderDashboard },
