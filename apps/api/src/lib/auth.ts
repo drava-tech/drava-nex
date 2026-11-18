@@ -13,7 +13,7 @@ const CMS_URL = process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000";
 // session cookie is never sent inside a cross-site frame, so the dashboard
 // loops back to /login. SameSite=None fixes that but requires Secure (HTTPS
 // only) and drops the browser's CSRF backstop on cookie-authed routes, so it
-// is opt-in. Same-host framing (ec-cms / 192.168.1.250, any port) needs none of this.
+// is opt-in. Same-host framing (ec-cms / 192.168.20.250, any port) needs none of this.
 const ALLOW_IFRAME_EMBED =
   process.env["ALLOW_IFRAME_EMBED"] === "true" && CMS_URL.startsWith("https://");
 

@@ -44,10 +44,10 @@ build` time, so changing them needs a rebuild.
 |---|---|---|
 | `BROADCAST_SECRET` | `<32-byte hex>` | Shared secret the CMS sends (`x-broadcast-secret`) when POSTing to the API `/api/internal/broadcast`; must match on both sides |
 | `INTERNAL_API_URL` | `http://api:4000` | Server-side base URL the CMS uses to reach the API by service name (`http://localhost:4000` in local dev) |
-| `CORS_ORIGIN` | `https://ec-cms,https://192.168.1.250` | Comma-separated allowed origins for the API. Defaults to **only** `http://localhost:3000` when unset |
+| `CORS_ORIGIN` | `https://ec-cms,https://192.168.20.250` | Comma-separated allowed origins for the API. Defaults to **only** `http://localhost:3000` when unset |
 | `BETTER_AUTH_URL` | `https://ec-cms` | Base URL for better-auth — becomes both `baseURL` and the first entry of `trustedOrigins` (`apps/cms/src/lib/auth.ts`) |
 | `BETTER_AUTH_SECRET` | `<hex>` | Session signing secret (each dev generates their own) |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | `https://192.168.1.250,https://ec-cms` | Additional trusted origins, comma-separated — list every origin a device will use |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | `https://192.168.20.250,https://ec-cms` | Additional trusted origins, comma-separated — list every origin a device will use |
 
 > **The auth origins must be `https://` on a LAN deployment.** Nginx 301-redirects `/` and
 > `/api/auth/*` to https, and better-auth issues `Secure` / `__Secure-` cookies that browsers

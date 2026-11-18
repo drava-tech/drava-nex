@@ -35,7 +35,7 @@ infra/nginx/
 - **:80** — plain http for TVs/kiosks: `/display`, `/media`, `/drava-mosaic/`, `/drava-world`, `/ws` stay on http;
   `/api/auth/*` and the dashboard 301 to https (better-auth's Secure cookies need it).
 - **:443** — everything, plus the sign-up block (`/api/auth/sign-up/*` → 403).
-- **Unknown Host** → `444` on both ports. Known names: `ec-cms`, `192.168.1.250`, and on :443
+- **Unknown Host** → `444` on both ports. Known names: `ec-cms`, `192.168.20.250`, and on :443
   `nexus.drava.technology` (public) and `nexus-web` (the name Caddy dials).
 - **Proxy headers are set once at http level.** Never add `proxy_set_header` inside a location:
   nginx then drops all the inherited ones for that location.

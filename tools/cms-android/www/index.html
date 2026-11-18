@@ -58,7 +58,7 @@
   <script>
     // SERVER_URL is rewritten at build time by scripts/sync-ca.mjs to match
     // server.url in capacitor.config.ts, so this page can never drift from it.
-    var SERVER_URL = 'https://192.168.1.250';
+    var SERVER_URL = 'https://192.168.20.250';
     document.getElementById('server').textContent = SERVER_URL;
     document.getElementById('retry').addEventListener('click', function () {
       location.replace(SERVER_URL);

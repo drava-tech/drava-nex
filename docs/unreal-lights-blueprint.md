@@ -15,7 +15,7 @@ Unreal ──POST /api/devices/lights/<id>/state  (Authorization: Bearer <token>
 
 | Requirement | How to check |
 |---|---|
-| The Unreal PC is on the office LAN | Open `http://192.168.1.250/health` in a browser on that PC. It should show `"status":"ok"` |
+| The Unreal PC is on the office LAN | Open `http://192.168.20.250/health` in a browser on that PC. It should show `"status":"ok"` |
 | The CMS account is an **ADMIN** | Log into the CMS with it. If you can open the **Lights** page, the account is fine |
 | Account used | `experience@thewhitetusker.com` |
 
@@ -41,7 +41,7 @@ The Game Instance lives for the whole game, so the token survives level changes.
 
 | Variable | Type | Default value |
 |---|---|---|
-| `BaseUrl` | String | `http://192.168.1.250` |
+| `BaseUrl` | String | `http://192.168.20.250` |
 | `Email` | String | `experience@thewhitetusker.com` |
 | `Password` | String | *(the account password; see section 6)* |
 | `Token` | String | *(empty)* |
@@ -260,7 +260,7 @@ For shipped builds, put it in a config file instead:
 
 ## 7. API reference
 
-Base URL: `http://192.168.1.250`
+Base URL: `http://192.168.20.250`
 
 | Action | Method | URL | Body |
 |---|---|---|---|
@@ -285,14 +285,14 @@ Every call except login needs `Authorization: Bearer <token>`.
 | `403` on light calls | The account isn't ADMIN | Change the role in CMS → Users |
 | `404 Device not found` | Wrong ID | Use `id` from `LoadDevices`, not `deviceId` |
 | `400 VALIDATION` | Bad body | `on` must be a bool, `brightness` a number from 0 to 100 |
-| No response / code `0` | The PC can't reach the server | Open `http://192.168.1.250/health` in a browser on that PC |
+| No response / code `0` | The PC can't reach the server | Open `http://192.168.20.250/health` in a browser on that PC |
 | `200` but the light doesn't change | Hardware or MQTT bridge problem, not Unreal | Try the same light from the CMS Lights page |
 
 You can test the API without Unreal from a terminal:
 ```bash
-curl -i -X POST http://192.168.1.250/api/auth/sign-in/email \
+curl -i -X POST http://192.168.20.250/api/auth/sign-in/email \
   -H "Content-Type: application/json" \
   -d '{"email":"experience@thewhitetusker.com","password":"..."}'
 # copy "token" from the response, then:
-curl http://192.168.1.250/api/devices -H "Authorization: Bearer <token>"
+curl http://192.168.20.250/api/devices -H "Authorization: Bearer <token>"
 ```

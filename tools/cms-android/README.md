@@ -7,7 +7,7 @@ Target server is set in `capacitor.config.ts`:
 
 ```ts
 server: {
-  url: 'https://192.168.1.250',
+  url: 'https://192.168.20.250',
   ...
 }
 ```
@@ -27,7 +27,7 @@ running on `ec-cms` exactly as before, and **nothing in `apps/cms` changes**.
 
 ## What it does
 
-- Opens `https://192.168.1.250` full-screen, no URL bar, own launcher icon.
+- Opens `https://192.168.20.250` full-screen, no URL bar, own launcher icon.
 - **Trusts the LAN certificate silently.** nginx serves the CMS with a mkcert
   cert (`infra/nginx/certs/`), which Android trusts by default about as much as
   any browser does — not at all. `res/xml/network_security_config.xml` adds the
@@ -58,7 +58,7 @@ them to work from CMS pages.
 ## Why the raw IP and not `ec-cms`
 
 Android devices on this LAN do not reliably resolve the bare `ec-cms` hostname,
-and a failed lookup looks identical to "the server is down". `192.168.1.250` is
+and a failed lookup looks identical to "the server is down". `192.168.20.250` is
 a SAN on the mkcert leaf certificate and is already listed in
 `BETTER_AUTH_TRUSTED_ORIGINS` and `CORS_ORIGIN` in `.env.production`, so login
 works against it. `ec-cms` and `ec-cms.local` are still in `allowNavigation` and
