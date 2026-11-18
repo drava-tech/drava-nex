@@ -1,6 +1,6 @@
 # Environment Variables Reference
 
-All configuration lives in a single `.env` file at the repo root (`e:\EC\cms-platform\.env`).
+All configuration lives in a single `.env` file at the repo root (`E:\EC\drava-nex\.env`).
 
 This file is **gitignored** — it must never be committed. Copy `.env.example` to create it.
 

@@ -19,7 +19,7 @@ const env = import.meta.env;
 export const MEDIA_BASE = (env.VITE_MEDIA_BASE || 'https://pub-b087a9a8256a4a79a4c2272b6883f1cd.r2.dev').replace(/\/$/, '');
 
 // Zone 02, the Nex Zone: one kiosk and three screens on the front wall, and a switch between the two things it runs.
-// Nex: the built-in Nex (app/ in zones/cms, styled and laid out like cms-platform master; first
+// Nex: the built-in Nex (app/ in zones/cms, styled and laid out like drava-nex master; first
 // built as the Nex), which also drives the three screens and the room's lights, AC, door and sound.
 // VITE_EMS_URL in .env can point the kiosk at the live one on the office network instead
 // (https://ec-cms/); the screens then show that one's display pages (a screen with none rests on

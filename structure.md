@@ -1,4 +1,4 @@
-# cms-platform — Root Structure
+# drava-nex — Root Structure
 
 > **Event-Driven Digital Signage + CMS + IoT Platform**
 > Stack: `pnpm` · `Turborepo` · `TypeScript` · `Next.js` · `Hono` · `MQTT` · `Drizzle ORM`
@@ -8,7 +8,7 @@
 ## What Lives Here
 
 ```
-cms-platform/                 ← YOU ARE HERE
+drava-nex/                    ← YOU ARE HERE
 │
 ├── apps/                     → 3 runnable applications (servers)
 ├── packages/                 → 5 shared libraries (code shared between apps)
