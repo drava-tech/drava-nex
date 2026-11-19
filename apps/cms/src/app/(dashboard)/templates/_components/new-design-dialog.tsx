@@ -12,10 +12,11 @@ import {
   type CanvasContent,
   type CanvasPage,
 } from "@platform/ui/templates/canvas";
-import { blankStory, StoryFrame, STORY_APP_ICON, type StoryContent } from "@platform/ui/templates/story";
+import { StoryFrame, STORY_APP_ICON } from "@platform/ui/templates/story";
 import { createDesign, createStory } from "@/actions/design-actions";
 import { CANVAS_PRESETS } from "@/templates/canvas/presets";
-import { sampleStory } from "@/templates/story/sample";
+import { STORY_PRESETS } from "@/templates/story/presets";
+import "@/templates/canvas/fonts";
 
 const CUSTOM = "custom";
 
@@ -27,7 +28,7 @@ export function NewDesignDialog({ onClose }: { onClose: () => void }) {
   const [customH, setCustomH] = useState(1080);
   const [startId, setStartId] = useState("blank");
   const [kind, setKind] = useState<"canvas" | "story">("canvas");
-  const [storyStart, setStoryStart] = useState<"sample" | "blank">("sample");
+  const [storyStart, setStoryStart] = useState(STORY_PRESETS[0]!.id);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -48,15 +49,16 @@ export function NewDesignDialog({ onClose }: { onClose: () => void }) {
   }, [size.width, size.height]);
 
   const stories = useMemo(
-    () => ({ sample: sampleStory(size.width, size.height), blank: blankStory(size.width, size.height) }) as Record<"sample" | "blank", StoryContent>,
+    () => STORY_PRESETS.map((p) => ({ ...p, content: p.build(size.width, size.height) })),
     [size.width, size.height]
   );
 
   const create = () => {
     setError(null);
     if (kind === "story") {
-      const content = stories[storyStart];
-      const finalName = name.trim() || (storyStart === "sample" ? "Our story" : "Untitled story");
+      const preset = stories.find((p) => p.id === storyStart) ?? stories[0]!;
+      const content = preset.content;
+      const finalName = name.trim() || preset.defaultName;
       startTransition(async () => {
         const res = await createStory(finalName, content);
         if (!res.success) return setError(res.error);
@@ -201,23 +203,18 @@ export function NewDesignDialog({ onClose }: { onClose: () => void }) {
           {kind === "story" ? (
             <div className="flex flex-col gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Start from</span>
-              <div className="grid grid-cols-2 gap-3">
-                {(
-                  [
-                    ["sample", "Sample story", "Every app type, filled with placeholder content to replace"],
-                    ["blank", "Blank story", "An empty menu — add apps yourself"],
-                  ] as const
-                ).map(([k, label, desc]) => (
-                  <button key={k} type="button" data-plain onClick={() => setStoryStart(k)} className="flex flex-col gap-1.5 text-left">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {stories.map((p) => (
+                  <button key={p.id} type="button" data-plain onClick={() => setStoryStart(p.id)} className="flex flex-col gap-1 text-left">
                     <div
-                      className={`flex h-40 items-center justify-center rounded-lg border-2 bg-zinc-100 p-1.5 dark:bg-zinc-800 ${
-                        storyStart === k ? "border-violet-500" : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-600"
+                      className={`flex h-28 items-center justify-center rounded-lg border-2 bg-zinc-100 p-1.5 dark:bg-zinc-800 ${
+                        storyStart === p.id ? "border-violet-500" : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-600"
                       }`}
                     >
-                      <StoryFrame content={stories[k]} still className="max-h-full max-w-full rounded-sm" style={thumbStyle(size.width, size.height)} />
+                      <StoryFrame content={p.content} still className="max-h-full max-w-full rounded-sm" style={thumbStyle(size.width, size.height)} />
                     </div>
-                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">{label}</span>
-                    <span className="text-[11px] text-zinc-500">{desc}</span>
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">{p.label}</span>
+                    <span className="text-[11px] leading-snug text-zinc-500">{p.description}</span>
                   </button>
                 ))}
               </div>

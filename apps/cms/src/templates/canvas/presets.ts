@@ -1,6 +1,7 @@
 import {
   CANVAS_FONTS,
   blankPage,
+  makeImage,
   makeShape,
   makeText,
   type CanvasPage,
@@ -182,6 +183,118 @@ export const CANVAS_PRESETS: CanvasPreset[] = [
           { text: "On selected items, this weekend only", fontFamily: SANS, fontSize: Math.round(40 * u), color: "#fee2e2", align: portrait ? "center" : "left", animation: "fade", animationDelay: 0.3 }
         ),
       ];
+      return page;
+    },
+  },
+  {
+    id: "case-study",
+    label: "Case study",
+    build: (W, H) => {
+      const u = Math.min(W, H) / 1080;
+      const portrait = H > W;
+      const page = blankPage({ color: "#0f1115" });
+      const pad = 90 * u;
+      // Landscape: photo down the left 44%, story on the right. Portrait: photo on top.
+      const img = portrait ? { x: 0, y: 0, w: W, h: H * 0.36 } : { x: 0, y: 0, w: W * 0.44, h: H };
+      const tx = portrait ? pad : img.w + pad;
+      const tw = W - tx - pad;
+      let y = portrait ? img.h + 70 * u : H * 0.1;
+      const els: CanvasPage["elements"] = [
+        makeImage(img, "/media/brand-experiences.png", { animation: "fade" }),
+        makeShape({ x: portrait ? 0 : img.w - 10 * u, y: portrait ? img.h - 10 * u : 0, w: portrait ? W : 10 * u, h: portrait ? 10 * u : H }, { fill: "#92ff5f" }),
+        makeText({ x: tx, y, w: tw, h: 40 * u }, { text: "CASE STUDY", fontFamily: SANS, fontSize: Math.round(26 * u), fontWeight: 700, letterSpacing: 0.3, color: "#92ff5f" }),
+      ];
+      y += 56 * u;
+      els.push(
+        makeText({ x: tx, y, w: tw, h: 150 * u }, { text: "Client name", fontFamily: HEADING, fontSize: Math.round(84 * u), fontWeight: 700, lineHeight: 1.05, color: "#ffffff", animation: "slide-up" }),
+        makeText({ x: tx, y: y + 110 * u, w: tw, h: 50 * u }, { text: "Project title · Year · Location", fontFamily: SANS, fontSize: Math.round(30 * u), color: "#9aa3b2", animation: "fade", animationDelay: 0.2 })
+      );
+      y += 210 * u;
+      const blocks: [string, string][] = [
+        ["The challenge", "One or two lines on the problem the client came to us with."],
+        ["Our approach", "What we designed and built, and why it worked."],
+        ["The result", "The outcome, in the client's terms — footfall, sales, time saved."],
+      ];
+      const blockH = portrait ? 150 * u : Math.min(150 * u, (H * 0.68 - y) / blocks.length);
+      blocks.forEach(([label, text], i) => {
+        const by = y + i * blockH;
+        els.push(
+          makeText({ x: tx, y: by, w: tw, h: 34 * u }, { text: label.toUpperCase(), fontFamily: SANS, fontSize: Math.round(22 * u), fontWeight: 700, letterSpacing: 0.15, color: "#92ff5f", animation: "fade", animationDelay: 0.3 + i * 0.15 }),
+          makeText({ x: tx, y: by + 40 * u, w: tw, h: 90 * u }, { text, fontFamily: SANS, fontSize: Math.round(30 * u), lineHeight: 1.35, color: "#e4e6eb", animation: "fade", animationDelay: 0.3 + i * 0.15 })
+        );
+      });
+      // The headline number, bottom of the text column.
+      const sy = portrait ? H - pad - 170 * u : H - pad - 170 * u;
+      const statW = Math.min(tw / 2 - 20 * u, 420 * u);
+      [
+        ["+40%", "Visitor dwell time"],
+        ["3 mo", "Concept to launch"],
+      ].forEach(([n, cap], i) => {
+        const sx = tx + i * (statW + 40 * u);
+        els.push(
+          makeShape({ x: sx, y: sy, w: statW, h: 170 * u }, { fill: "#1a1d24", radius: 20 * u, animation: "zoom", animationDelay: 0.7 + i * 0.15 }),
+          makeText({ x: sx + 30 * u, y: sy + 22 * u, w: statW - 60 * u, h: 80 * u }, { text: n!, fontFamily: HEADING, fontSize: Math.round(64 * u), fontWeight: 700, color: "#ffffff", animation: "fade", animationDelay: 0.8 + i * 0.15 }),
+          makeText({ x: sx + 30 * u, y: sy + 108 * u, w: statW - 60 * u, h: 40 * u }, { text: cap!, fontFamily: SANS, fontSize: Math.round(24 * u), color: "#9aa3b2", animation: "fade", animationDelay: 0.8 + i * 0.15 })
+        );
+      });
+      page.elements = els;
+      return page;
+    },
+  },
+  {
+    id: "timeline",
+    label: "Timeline",
+    build: (W, H) => {
+      const u = Math.min(W, H) / 1080;
+      const portrait = H > W;
+      const page = blankPage({ color: "#f3ece0" });
+      const pad = 100 * u;
+      const ink = "#2b2118";
+      const accent = "#a8742c";
+      const items: [string, string, string][] = [
+        ["1974", "Founded", "A workshop, three people and one lathe."],
+        ["1983", "First factory", "Forty craftspeople under one roof."],
+        ["1999", "Design studio", "Ideas and making, side by side."],
+        ["2012", "National award", "Restoration project of the year."],
+        ["2024", "Fifty years", "Three generations, one promise."],
+      ];
+      const els: CanvasPage["elements"] = [
+        makeText({ x: pad, y: pad * 0.9, w: W - pad * 2, h: 40 * u }, { text: "OUR JOURNEY", fontFamily: SANS, fontSize: Math.round(26 * u), fontWeight: 700, letterSpacing: 0.3, color: accent }),
+        makeText({ x: pad, y: pad * 0.9 + 50 * u, w: W - pad * 2, h: 120 * u }, { text: "Fifty years in five moments", fontFamily: SERIF, fontSize: Math.round(76 * u), fontWeight: 700, color: ink, animation: "slide-up" }),
+      ];
+      if (portrait) {
+        // A vertical spine with the milestones stacked down the right of it.
+        const top = pad * 0.9 + 240 * u;
+        const lineX = pad + 30 * u;
+        const step = (H - top - pad) / items.length;
+        els.push(makeShape({ x: lineX - 3 * u, y: top, w: 6 * u, h: H - top - pad }, { fill: accent, opacity: 0.35 }));
+        items.forEach(([year, title, text], i) => {
+          const y = top + i * step;
+          const d = 0.25 + i * 0.15;
+          els.push(
+            makeShape({ x: lineX - 22 * u, y: y + 6 * u, w: 44 * u, h: 44 * u }, { shape: "ellipse", fill: accent, animation: "zoom", animationDelay: d }),
+            makeText({ x: lineX + 60 * u, y, w: W - lineX - 60 * u - pad, h: 64 * u }, { text: year, fontFamily: SERIF, fontSize: Math.round(54 * u), fontWeight: 700, color: accent, animation: "fade", animationDelay: d }),
+            makeText({ x: lineX + 60 * u, y: y + 70 * u, w: W - lineX - 60 * u - pad, h: 46 * u }, { text: title, fontFamily: SANS, fontSize: Math.round(34 * u), fontWeight: 700, color: ink, animation: "fade", animationDelay: d }),
+            makeText({ x: lineX + 60 * u, y: y + 118 * u, w: W - lineX - 60 * u - pad, h: 80 * u }, { text, fontFamily: SANS, fontSize: Math.round(27 * u), lineHeight: 1.35, color: "#7a6a58", animation: "fade", animationDelay: d })
+          );
+        });
+      } else {
+        // A horizontal spine; years above it, the story below.
+        const lineY = H * 0.56;
+        const colW = (W - pad * 2) / items.length;
+        els.push(makeShape({ x: pad, y: lineY - 3 * u, w: W - pad * 2, h: 6 * u }, { fill: accent, opacity: 0.35 }));
+        items.forEach(([year, title, text], i) => {
+          const x = pad + i * colW;
+          const d = 0.25 + i * 0.15;
+          els.push(
+            makeText({ x, y: lineY - 120 * u, w: colW - 30 * u, h: 80 * u }, { text: year, fontFamily: SERIF, fontSize: Math.round(70 * u), fontWeight: 700, color: accent, animation: "slide-up", animationDelay: d }),
+            makeShape({ x: x, y: lineY - 20 * u, w: 40 * u, h: 40 * u }, { shape: "ellipse", fill: accent, animation: "zoom", animationDelay: d }),
+            makeText({ x, y: lineY + 60 * u, w: colW - 40 * u, h: 50 * u }, { text: title, fontFamily: SANS, fontSize: Math.round(34 * u), fontWeight: 700, color: ink, animation: "fade", animationDelay: d + 0.1 }),
+            makeText({ x, y: lineY + 112 * u, w: colW - 40 * u, h: 110 * u }, { text, fontFamily: SANS, fontSize: Math.round(26 * u), lineHeight: 1.4, color: "#7a6a58", animation: "fade", animationDelay: d + 0.1 })
+          );
+        });
+      }
+      page.elements = els;
       return page;
     },
   },

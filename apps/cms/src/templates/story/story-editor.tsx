@@ -45,7 +45,7 @@ import "../canvas/fonts";
 
 type Section = { kind: "brand" } | { kind: "idle" } | { kind: "home" } | { kind: "app"; id: string };
 
-const APP_KINDS: StoryAppKind[] = ["timeline", "map", "showcase", "hotspots"];
+const APP_KINDS: StoryAppKind[] = ["timeline", "map", "showcase", "hotspots", "video"];
 
 function viewFor(section: Section): StoryView {
   if (section.kind === "idle") return { screen: "idle" };

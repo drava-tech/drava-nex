@@ -52,11 +52,13 @@ export async function listDesigns(): Promise<DesignCard[]> {
           case "timeline":
             return { ...a, events: [] };
           case "map":
-            return { ...a, pins: [] };
+            return { ...a, pins: [], regions: [] };
           case "showcase":
             return { ...a, items: [] };
           case "hotspots":
             return { ...a, hotspots: [] };
+          case "video":
+            return { ...a, chapters: [] };
         }
       });
       return { ...base, kind: "story", appCount: s.apps.length, preview: { ...s, apps } };

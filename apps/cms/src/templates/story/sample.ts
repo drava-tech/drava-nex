@@ -63,6 +63,9 @@ export function sampleStory(width = 1920, height = 1080): StoryContent {
       tagline: "Offices, partners and projects",
       coverUrl: null,
       mapUrl: null,
+      mode: "pins",
+      dial: true,
+      regions: [],
       filters: [offices, partners, projects],
       pins: [
         { id: storyId(), x: 22, y: 38, filterId: offices.id, title: "Head office", subtitle: "Offices", body: "Where it all started. Design, engineering and our largest studio.", media: [] },
@@ -99,6 +102,19 @@ export function sampleStory(width = 1920, height = 1080): StoryContent {
         { id: storyId(), x: 30, y: 40, title: "Adaptive lighting", subtitle: "Comfort", body: "Lighting follows daylight and the time of day.", media: [] },
         { id: storyId(), x: 58, y: 55, title: "Acoustic design", subtitle: "Comfort", body: "Materials chosen to keep conversations private.", media: [] },
         { id: storyId(), x: 76, y: 32, title: "Connected screens", subtitle: "Technology", body: "Every display can be updated from one place.", media: [] },
+      ],
+    },
+    {
+      id: storyId(),
+      kind: "video",
+      title: "Our story, told by us",
+      tagline: "Short films and narrated photos",
+      coverUrl: IMG.centre,
+      autoAdvance: true,
+      chapters: [
+        { id: storyId(), title: "Where it began", subtitle: "Chapter one", body: "Add a voice-over to a photo and it becomes a narrated chapter — this text shows as captions while it plays.", media: [], videoUrl: null, posterUrl: IMG.interior, voiceUrl: null },
+        { id: storyId(), title: "Building the centre", subtitle: "Chapter two", body: "Or add a video. With a voice-over too, the video plays muted under the narration.", media: [], videoUrl: null, posterUrl: IMG.centre, voiceUrl: null },
+        { id: storyId(), title: "What's next", subtitle: "Chapter three", body: "Chapters play one after another, and the wall stays awake until they finish.", media: [], videoUrl: null, posterUrl: IMG.brand, voiceUrl: null },
       ],
     },
   ];

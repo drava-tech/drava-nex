@@ -6,7 +6,7 @@
 // Structure a viewer moves through:
 //   idle screen (attract loop)  ── tap ──▶  home (branded menu of apps)
 //        ▲                                   │ tap a tile
-//        └── no touch for idle.timeoutSeconds ┴─▶ app: timeline | map | showcase | hotspots
+//        └── no touch for idle.timeoutSeconds ┴─▶ app: timeline | map | showcase | hotspots | video
 //                                                    │ tap an item
 //                                                    ▼
 //                                                 detail lightbox (text + images/video/PDF)
@@ -52,6 +52,42 @@ export interface StoryMapPin extends StoryDetail {
   filterId: string | null;
 }
 
+/** A tappable area on the map, as a polygon in 0–100 % image coordinates. */
+export interface StoryMapRegion extends StoryDetail {
+  id: string;
+  points: { x: number; y: number }[];
+  filterId: string | null;
+}
+
+/**
+ * How a map app presents its places:
+ *  - pins:    tappable markers, colour-coded by category
+ *  - journey: the pins in list order, joined by a route that draws itself
+ *             stop by stop (expansion, a founder's travels, a supply chain)
+ *  - regions: tappable areas that light up (states, quarters, campus zones)
+ */
+export type StoryMapMode = "pins" | "journey" | "regions";
+
+export const STORY_MAP_MODES: { mode: StoryMapMode; label: string; description: string }[] = [
+  { mode: "pins", label: "Pins", description: "Tappable markers, colour-coded by category" },
+  { mode: "journey", label: "Journey", description: "A route that draws itself stop by stop, in list order" },
+  { mode: "regions", label: "Regions", description: "Tappable areas that light up — states, quarters, zones" },
+];
+
+/**
+ * One chapter of a video app. Plays its video; a voice-over, when set,
+ * narrates over it (the video is muted and loops under the narration) — or
+ * over a still image, for a narrated photo. `body` is the transcript, shown
+ * as captions on demand.
+ */
+export interface StoryVideoChapter extends StoryDetail {
+  id: string;
+  videoUrl: string | null;
+  /** Poster for the video, or the still that a voice-over plays over. */
+  posterUrl: string | null;
+  voiceUrl: string | null;
+}
+
 export interface StoryShowcaseItem extends StoryDetail {
   id: string;
   coverUrl: string | null;
@@ -83,8 +119,16 @@ export interface StoryMapApp extends StoryAppBase {
   kind: "map";
   /** The map artwork (world, region, campus, floor plan…); null = a plain grid. */
   mapUrl: string | null;
+  mode: StoryMapMode;
+  /**
+   * Journey only: drive it with a round jog dial (finger, a tangible puck on
+   * a touch table, or a rotary controller) instead of previous/next buttons.
+   */
+  dial: boolean;
   filters: StoryFilter[];
+  /** Pins mode, and the stops of a journey (in order). */
   pins: StoryMapPin[];
+  regions: StoryMapRegion[];
 }
 
 export interface StoryShowcaseApp extends StoryAppBase {
@@ -99,7 +143,14 @@ export interface StoryHotspotApp extends StoryAppBase {
   hotspots: StoryHotspot[];
 }
 
-export type StoryApp = StoryTimelineApp | StoryMapApp | StoryShowcaseApp | StoryHotspotApp;
+export interface StoryVideoApp extends StoryAppBase {
+  kind: "video";
+  /** Play the next chapter when one ends. */
+  autoAdvance: boolean;
+  chapters: StoryVideoChapter[];
+}
+
+export type StoryApp = StoryTimelineApp | StoryMapApp | StoryShowcaseApp | StoryHotspotApp | StoryVideoApp;
 export type StoryAppKind = StoryApp["kind"];
 
 export interface StoryIdleSlide {
@@ -158,6 +209,7 @@ export const STORY_APP_LABELS: Record<StoryAppKind, string> = {
   map: "Map",
   showcase: "Showcase",
   hotspots: "Hotspot image",
+  video: "Video",
 };
 
 export const STORY_APP_DESCRIPTIONS: Record<StoryAppKind, string> = {
@@ -165,6 +217,7 @@ export const STORY_APP_DESCRIPTIONS: Record<StoryAppKind, string> = {
   map: "Colour-coded pins on any map — world, region, campus or floor plan.",
   showcase: "A filterable grid of products, projects, people or case studies.",
   hotspots: "Tap points on a diagram, infographic or photo.",
+  video: "Narrated chapters — videos, or photos with a voice-over, with captions.",
 };
 
 export function storyId(): string {
@@ -206,11 +259,13 @@ export function makeApp(kind: StoryAppKind): StoryApp {
     case "timeline":
       return { ...base, kind, filters: [], events: [] };
     case "map":
-      return { ...base, kind, mapUrl: null, filters: [], pins: [] };
+      return { ...base, kind, mapUrl: null, mode: "pins", dial: true, filters: [], pins: [], regions: [] };
     case "showcase":
       return { ...base, kind, filters: [], items: [] };
     case "hotspots":
       return { ...base, kind, imageUrl: null, hotspots: [] };
+    case "video":
+      return { ...base, kind, autoAdvance: true, chapters: [] };
   }
 }
 
@@ -287,10 +342,24 @@ function readApp(v: unknown): StoryApp | null {
         ...base,
         kind: "map",
         mapUrl: strOrNull(r.mapUrl),
+        mode: r.mode === "journey" || r.mode === "regions" ? r.mode : "pins",
+        dial: r.dial !== false,
         filters: readFilters(r.filters),
         pins: arr(r.pins).map((p) => {
           const x = obj(p);
           return { ...readDetail(x), id: id(x.id), x: pct(x.x), y: pct(x.y), filterId: filterId(x) };
+        }),
+        regions: arr(r.regions).map((g) => {
+          const x = obj(g);
+          return {
+            ...readDetail(x),
+            id: id(x.id),
+            points: arr(x.points).map((pt) => {
+              const q = obj(pt);
+              return { x: pct(q.x), y: pct(q.y) };
+            }),
+            filterId: filterId(x),
+          };
         }),
       };
     case "showcase":
@@ -311,6 +380,22 @@ function readApp(v: unknown): StoryApp | null {
         hotspots: arr(r.hotspots).map((h) => {
           const x = obj(h);
           return { ...readDetail(x), id: id(x.id), x: pct(x.x), y: pct(x.y) };
+        }),
+      };
+    case "video":
+      return {
+        ...base,
+        kind: "video",
+        autoAdvance: r.autoAdvance !== false,
+        chapters: arr(r.chapters).map((c) => {
+          const x = obj(c);
+          return {
+            ...readDetail(x),
+            id: id(x.id),
+            videoUrl: strOrNull(x.videoUrl),
+            posterUrl: strOrNull(x.posterUrl),
+            voiceUrl: strOrNull(x.voiceUrl),
+          };
         }),
       };
     default:

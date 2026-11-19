@@ -142,7 +142,9 @@ export function MediaPicker({
   // PDFs it refuses to let you upload.
   const uploadAccept =
     accept === "video"
-      ? "video/*"
+      ? // Audio is filed as "video" by the API — it's how a Story chapter's
+        // voice-over gets into the library.
+        "video/*,audio/*"
       : accept === "visual"
         ? "image/*,video/*"
       : accept === "all"

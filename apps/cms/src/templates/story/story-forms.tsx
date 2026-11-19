@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Film, FileText, Image as ImageIcon, Plus, Trash2, ArrowUp, ArrowDown, X, Crosshair } from "lucide-react";
+import { ChevronDown, ChevronRight, Film, FileText, Image as ImageIcon, Plus, Trash2, ArrowUp, ArrowDown, X, Crosshair, Mic, Undo2 } from "lucide-react";
 import { CANVAS_FONTS } from "@platform/ui/templates/canvas";
 import {
   emptyDetail,
   makeFilter,
   storyId,
+  STORY_MAP_MODES,
   type StoryApp,
+  type StoryMapRegion,
   type StoryBrand,
   type StoryContent,
   type StoryDetail,
@@ -95,6 +97,50 @@ export function ImageSlot({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A video or audio slot — shows the file name, since there's no picture to show. */
+function MediaSlot({
+  label,
+  url,
+  onChange,
+  kit,
+  icon,
+  hint,
+}: {
+  label: string;
+  url: string | null;
+  onChange: (url: string | null) => void;
+  kit: FormKit;
+  icon: React.ReactNode;
+  hint?: string;
+}) {
+  const name = url ? decodeURIComponent(url.split("/").pop()?.split("?")[0] ?? url) : null;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] text-zinc-500">{label}</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {name && (
+            <span className="flex min-w-0 max-w-[150px] items-center gap-1 truncate text-[11px] text-zinc-600 dark:text-zinc-300" title={name}>
+              {icon}
+              <span className="truncate">{name}</span>
+            </span>
+          )}
+          <button type="button" data-plain onClick={() => kit.pickMedia("video", (m) => onChange(m.url))} className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[11px] hover:bg-accent">
+            {!name && icon}
+            {name ? "Change" : "Choose"}
+          </button>
+          {name && (
+            <button type="button" data-plain onClick={() => onChange(null)} aria-label={`Remove ${label}`} className="rounded-md p-1.5 text-zinc-500 hover:bg-accent">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {hint && <p className="text-[11px] leading-snug text-zinc-500">{hint}</p>}
     </div>
   );
 }
@@ -529,6 +575,130 @@ function PointPlacer({
   );
 }
 
+/**
+ * Draw tappable regions on the map: with a region open, each click on the
+ * image adds a corner to its outline; drag a corner to move it. Clicking
+ * another region's shape opens it. Positions are % so they survive any size.
+ */
+function RegionDrawer({
+  imageUrl,
+  regions,
+  activeId,
+  onChange,
+  onSelect,
+  colorOf,
+  kit,
+}: {
+  imageUrl: string | null;
+  regions: StoryMapRegion[];
+  activeId: string | null;
+  onChange: (regions: StoryMapRegion[]) => void;
+  onSelect: (id: string) => void;
+  colorOf: (r: StoryMapRegion) => string;
+  kit: FormKit;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<number | null>(null);
+  const active = regions.find((r) => r.id === activeId) ?? null;
+  const at = (e: React.PointerEvent) => {
+    const r = box.current!.getBoundingClientRect();
+    return {
+      x: Math.round(Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)) * 10) / 10,
+      y: Math.round(Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100)) * 10) / 10,
+    };
+  };
+  const setPoints = (points: StoryMapRegion["points"]) =>
+    active && onChange(regions.map((r) => (r.id === active.id ? { ...r, points } : r)));
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="flex items-center gap-1 text-[11px] text-zinc-500">
+        <Crosshair className="h-3 w-3" />
+        {active ? "Click the map to add corners to the open region. Drag a corner to move it." : "Open a region below, then click around its edge to outline it."}
+      </span>
+      <div
+        ref={box}
+        onPointerDown={(e) => {
+          if (!active || e.target !== e.currentTarget) return;
+          setPoints([...active.points, at(e)]);
+        }}
+        onPointerMove={(e) => {
+          if (drag === null || !active) return;
+          const p = at(e);
+          setPoints(active.points.map((q, i) => (i === drag ? p : q)));
+        }}
+        onPointerUp={() => {
+          if (drag !== null) kit.end();
+          setDrag(null);
+        }}
+        className="relative w-full select-none overflow-hidden rounded-md border border-border bg-zinc-800"
+        style={{
+          aspectRatio: imageUrl ? undefined : "16 / 9",
+          cursor: active ? "crosshair" : "default",
+          backgroundImage: imageUrl ? undefined : "repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 24px), repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 24px)",
+        }}
+      >
+        {imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" draggable={false} className="pointer-events-none block w-full" />
+        )}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
+          {regions.map((r) => {
+            const c = colorOf(r);
+            const pts = r.points.map((p) => `${p.x},${p.y}`).join(" ");
+            const isActive = r.id === activeId;
+            return r.points.length >= 3 ? (
+              <polygon
+                key={r.id}
+                points={pts}
+                fill={c}
+                fillOpacity={isActive ? 0.45 : 0.25}
+                stroke={c}
+                strokeWidth={isActive ? 2 : 1}
+                vectorEffect="non-scaling-stroke"
+                className={isActive ? "" : "pointer-events-auto cursor-pointer"}
+                onPointerDown={(e) => {
+                  if (isActive) return;
+                  e.stopPropagation();
+                  onSelect(r.id);
+                }}
+              />
+            ) : (
+              <polyline key={r.id} points={pts} fill="none" stroke={c} strokeWidth={2} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            );
+          })}
+        </svg>
+        {active?.points.map((p, i) => (
+          <div
+            key={i}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              (e.currentTarget.parentElement as HTMLElement).setPointerCapture(e.pointerId);
+              kit.begin();
+              setDrag(i);
+            }}
+            className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-white shadow"
+            style={{ left: `${p.x}%`, top: `${p.y}%`, background: colorOf(active) }}
+          />
+        ))}
+      </div>
+      {active && (
+        <div className="flex items-center gap-2">
+          <span className="flex-1 text-[11px] text-zinc-500">
+            {active.points.length < 3 ? `${active.points.length} of at least 3 corners` : `${active.points.length} corners`}
+          </span>
+          <button type="button" data-plain disabled={active.points.length === 0} onClick={() => setPoints(active.points.slice(0, -1))} className="flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] hover:bg-accent disabled:opacity-40">
+            <Undo2 className="h-3 w-3" /> Undo corner
+          </button>
+          <button type="button" data-plain disabled={active.points.length === 0} onClick={() => setPoints([])} className="flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] hover:bg-accent disabled:opacity-40">
+            <Trash2 className="h-3 w-3" /> Clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppForm({ app, onChange, kit }: { app: StoryApp; onChange: (a: StoryApp) => void; kit: FormKit }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const filterSelect = (value: string | null, filters: StoryFilter[], set: (v: string | null) => void) =>
@@ -581,41 +751,107 @@ export function AppForm({ app, onChange, kit }: { app: StoryApp; onChange: (a: S
           />
         </>
       );
-    case "map":
+    case "map": {
+      const pinColor = (filterId: string | null) => app.filters.find((f) => f.id === filterId)?.color ?? "#92ff5f";
+      const journey = app.mode === "journey";
       return (
         <>
           {general}
+          <Section title="Map type">
+            <div className="grid grid-cols-3 gap-2">
+              {STORY_MAP_MODES.map((m) => (
+                <button
+                  key={m.mode}
+                  type="button"
+                  data-plain
+                  onClick={() => {
+                    setOpenId(null);
+                    onChange({ ...app, mode: m.mode });
+                  }}
+                  title={m.description}
+                  className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
+                    app.mode === m.mode ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300" : "border-border hover:border-zinc-400"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] leading-snug text-zinc-500">{STORY_MAP_MODES.find((m) => m.mode === app.mode)?.description}.</p>
+            {journey && (
+              <>
+                <Row label="Round dial control">
+                  <input type="checkbox" checked={app.dial} onChange={(e) => onChange({ ...app, dial: e.target.checked })} className="accent-violet-600" />
+                </Row>
+                <p className="text-[11px] leading-snug text-zinc-500">
+                  Viewers turn a big dial to travel the route — with a finger, a tangible dial puck on a touch table, or a rotary controller (scroll or arrow keys). Off: previous / next buttons.
+                </p>
+              </>
+            )}
+          </Section>
           <Section title="Map">
             <ImageSlot label="Map image" url={app.mapUrl} kit={kit} onChange={(url) => onChange({ ...app, mapUrl: url })} />
             <p className="text-[11px] leading-snug text-zinc-500">Any artwork works: a world or regional map, a campus, a floor plan.</p>
-            <PointPlacer
-              imageUrl={app.mapUrl}
-              points={app.pins}
-              activeId={openId}
-              kit={kit}
-              onSelect={setOpenId}
-              colorOf={(id) => app.filters.find((f) => f.id === app.pins.find((p) => p.id === id)?.filterId)?.color ?? "#92ff5f"}
-              onPlace={(id, x, y) => onChange({ ...app, pins: app.pins.map((p) => (p.id === id ? { ...p, x, y } : p)) })}
-            />
-          </Section>
-          <FiltersForm label="Categories" filters={app.filters} colors kit={kit} onChange={(filters) => onChange({ ...app, filters })} />
-          <ItemList
-            title="Pins"
-            addLabel="Add pin"
-            items={app.pins}
-            openId={openId}
-            setOpenId={setOpenId}
-            onChange={(pins) => onChange({ ...app, pins })}
-            make={() => ({ ...emptyDetail("New location"), id: storyId(), x: 50, y: 50, filterId: app.filters[0]?.id ?? null })}
-            render={(pin, update) => (
-              <>
-                {filterSelect(pin.filterId, app.filters, (v) => update({ ...pin, filterId: v }))}
-                <DetailFields item={pin} kit={kit} onChange={update} />
-              </>
+            {app.mode === "regions" ? (
+              <RegionDrawer
+                imageUrl={app.mapUrl}
+                regions={app.regions}
+                activeId={openId}
+                kit={kit}
+                onSelect={setOpenId}
+                colorOf={(r) => pinColor(r.filterId)}
+                onChange={(regions) => onChange({ ...app, regions })}
+              />
+            ) : (
+              <PointPlacer
+                imageUrl={app.mapUrl}
+                points={app.pins}
+                activeId={openId}
+                kit={kit}
+                numbered={journey}
+                onSelect={setOpenId}
+                colorOf={(id) => pinColor(app.pins.find((p) => p.id === id)?.filterId ?? null)}
+                onPlace={(id, x, y) => onChange({ ...app, pins: app.pins.map((p) => (p.id === id ? { ...p, x, y } : p)) })}
+              />
             )}
-          />
+          </Section>
+          <FiltersForm label={journey ? "Legs / colours (optional)" : "Categories"} filters={app.filters} colors kit={kit} onChange={(filters) => onChange({ ...app, filters })} />
+          {app.mode === "regions" ? (
+            <ItemList
+              title="Regions"
+              addLabel="Add region"
+              items={app.regions}
+              openId={openId}
+              setOpenId={setOpenId}
+              onChange={(regions) => onChange({ ...app, regions })}
+              make={() => ({ ...emptyDetail("New region"), id: storyId(), points: [], filterId: app.filters[0]?.id ?? null })}
+              render={(g, update) => (
+                <>
+                  {filterSelect(g.filterId, app.filters, (v) => update({ ...g, filterId: v }))}
+                  <DetailFields item={g} kit={kit} onChange={update} />
+                </>
+              )}
+            />
+          ) : (
+            <ItemList
+              title={journey ? "Stops, in order" : "Pins"}
+              addLabel={journey ? "Add stop" : "Add pin"}
+              items={app.pins}
+              openId={openId}
+              setOpenId={setOpenId}
+              onChange={(pins) => onChange({ ...app, pins })}
+              make={() => ({ ...emptyDetail(journey ? "New stop" : "New location"), id: storyId(), x: 50, y: 50, filterId: app.filters[0]?.id ?? null })}
+              render={(pin, update) => (
+                <>
+                  {filterSelect(pin.filterId, app.filters, (v) => update({ ...pin, filterId: v }))}
+                  <DetailFields item={pin} kit={kit} onChange={update} />
+                </>
+              )}
+            />
+          )}
         </>
       );
+    }
     case "showcase":
       return (
         <>
@@ -664,6 +900,46 @@ export function AppForm({ app, onChange, kit }: { app: StoryApp; onChange: (a: S
             onChange={(hotspots) => onChange({ ...app, hotspots })}
             make={() => ({ ...emptyDetail("New hotspot"), id: storyId(), x: 50, y: 50 })}
             render={(h, update) => <DetailFields item={h} kit={kit} onChange={update} />}
+          />
+        </>
+      );
+    case "video":
+      return (
+        <>
+          {general}
+          <Section title="Playback">
+            <Row label="Play the next chapter automatically">
+              <input type="checkbox" checked={app.autoAdvance} onChange={(e) => onChange({ ...app, autoAdvance: e.target.checked })} className="accent-violet-600" />
+            </Row>
+            <p className="text-[11px] leading-snug text-zinc-500">
+              Each chapter plays a video, or a photo with a voice-over. Add a voice-over to a video to narrate over it — the video is muted and loops under the narration. The transcript shows as captions.
+            </p>
+          </Section>
+          <ItemList
+            title="Chapters"
+            addLabel="Add chapter"
+            items={app.chapters}
+            openId={openId}
+            setOpenId={setOpenId}
+            onChange={(chapters) => onChange({ ...app, chapters })}
+            make={() => ({ ...emptyDetail("New chapter"), id: storyId(), videoUrl: null, posterUrl: null, voiceUrl: null })}
+            render={(c, update) => (
+              <>
+                <TextField label="Title" value={c.title} kit={kit} onChange={(v) => update({ ...c, title: v })} />
+                <TextField label="Subtitle" value={c.subtitle} kit={kit} onChange={(v) => update({ ...c, subtitle: v })} />
+                <MediaSlot label="Video" url={c.videoUrl} kit={kit} icon={<Film className="h-3.5 w-3.5" />} onChange={(url) => update({ ...c, videoUrl: url })} />
+                <ImageSlot label={c.videoUrl ? "Poster image" : "Photo"} url={c.posterUrl} kit={kit} onChange={(url) => update({ ...c, posterUrl: url })} />
+                <MediaSlot
+                  label="Voice-over"
+                  url={c.voiceUrl}
+                  kit={kit}
+                  icon={<Mic className="h-3.5 w-3.5" />}
+                  hint="Optional narration (MP3, M4A, WAV). Upload it in the picker — it's listed with the videos."
+                  onChange={(url) => update({ ...c, voiceUrl: url })}
+                />
+                <TextField label="Transcript (captions)" multiline value={c.body} kit={kit} onChange={(v) => update({ ...c, body: v })} />
+              </>
+            )}
           />
         </>
       );

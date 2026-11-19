@@ -10,6 +10,7 @@ import type {
   StoryDetail,
   StoryFilter,
   StoryMedia,
+  StoryVideoChapter,
 } from "./content";
 
 /**
@@ -31,6 +32,8 @@ const CSS = `
 @keyframes st-pop { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: none } }
 @keyframes st-pulse { 0% { transform: translate(-50%,-50%) scale(1); opacity: .55 } 100% { transform: translate(-50%,-50%) scale(2.4); opacity: 0 } }
 @keyframes st-breathe { 0%,100% { opacity: .65 } 50% { opacity: 1 } }
+@keyframes st-glow { 0%,100% { fill-opacity: .2 } 50% { fill-opacity: .42 } }
+@keyframes st-kb { from { transform: scale(1) } to { transform: scale(1.14) } }
 .st-root *::-webkit-scrollbar { display: none }
 .st-root * { scrollbar-width: none }
 .st-tap { transition: transform .15s ease, filter .15s ease }
@@ -144,6 +147,11 @@ const ICONS = {
   showcase: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   hotspots: "M12 12m-3 0a3 3 0 1 0 6 0 3 3 0 1 0-6 0M12 12m-8 0a8 8 0 1 0 16 0 8 8 0 1 0-16 0",
   file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
+  video: "M3 6h12v12H3zM15 10l6-4v12l-6-4",
+  play: "M7 4v16l13-8z",
+  pause: "M7 4h3v16H7zM14 4h3v16h-3z",
+  next: "m6 18 8.5-6L6 6zM17 6v12",
+  prev: "m18 18-8.5-6L18 6zM7 6v12",
 } as const;
 
 export const STORY_APP_ICON: Record<StoryAppKind, string> = {
@@ -151,6 +159,7 @@ export const STORY_APP_ICON: Record<StoryAppKind, string> = {
   map: ICONS.map,
   showcase: ICONS.showcase,
   hotspots: ICONS.hotspots,
+  video: ICONS.video,
 };
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
@@ -161,6 +170,8 @@ interface Ctx {
   u: number;
   portrait: boolean;
   open: (d: StoryDetail) => void;
+  /** Counts as a touch for the idle timer — anything playing calls it so the wall doesn't go idle mid-story. */
+  poke: () => void;
 }
 
 function Chips({
@@ -604,9 +615,29 @@ function TimelineView({ app, ctx }: { app: Extract<StoryApp, { kind: "timeline" 
   );
 }
 
-function Pin({ x, y, color, label, onClick, ctx, number }: { x: number; y: number; color: string; label?: string; onClick: () => void; ctx: Ctx; number?: number }) {
+function Pin({
+  x,
+  y,
+  color,
+  label,
+  onClick,
+  ctx,
+  number,
+  dim,
+  big,
+}: {
+  x: number;
+  y: number;
+  color: string;
+  label?: string;
+  onClick: () => void;
+  ctx: Ctx;
+  number?: number;
+  dim?: boolean;
+  big?: boolean;
+}) {
   const { u, brand } = ctx;
-  const d = (number !== undefined ? 52 : 34) * u;
+  const d = (number !== undefined ? (big ? 68 : 52) : 34) * u;
   // A finger-sized hit area centred on the point, bigger than the dot itself.
   const hit = 96 * u;
   return (
@@ -628,9 +659,12 @@ function Pin({ x, y, color, label, onClick, ctx, number }: { x: number; y: numbe
         padding: 0,
         background: "none",
         cursor: "pointer",
+        opacity: dim ? 0.45 : 1,
+        zIndex: big ? 2 : 1,
+        transition: "opacity .4s",
       }}
     >
-      <span style={{ position: "absolute", left: "50%", top: "50%", width: d, height: d, borderRadius: 99, background: color, animation: "st-pulse 2s ease-out infinite" }} />
+      {!dim && <span style={{ position: "absolute", left: "50%", top: "50%", width: d, height: d, borderRadius: 99, background: color, animation: "st-pulse 2s ease-out infinite" }} />}
       <span
         style={{
           position: "absolute",
@@ -639,6 +673,7 @@ function Pin({ x, y, color, label, onClick, ctx, number }: { x: number; y: numbe
           width: d,
           height: d,
           transform: "translate(-50%,-50%)",
+          transition: "width .35s, height .35s",
           borderRadius: 99,
           background: color,
           border: `${4 * u}px solid #fff`,
@@ -674,7 +709,7 @@ function Pin({ x, y, color, label, onClick, ctx, number }: { x: number; y: numbe
   );
 }
 
-function MapView({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: Ctx }) {
+function useFilterSet() {
   const [on, setOn] = useState<Set<string>>(new Set());
   const toggle = (id: string | null) =>
     setOn((prev) => {
@@ -684,6 +719,17 @@ function MapView({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: C
       else next.add(id);
       return next;
     });
+  return [on, toggle] as const;
+}
+
+function MapView({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: Ctx }) {
+  if (app.mode === "journey") return <JourneyMap app={app} ctx={ctx} />;
+  if (app.mode === "regions") return <RegionsMap app={app} ctx={ctx} />;
+  return <PinsMap app={app} ctx={ctx} />;
+}
+
+function PinsMap({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: Ctx }) {
+  const [on, toggle] = useFilterSet();
   const visible = app.pins.filter((p) => on.size === 0 || (p.filterId && on.has(p.filterId)));
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 32 * ctx.u, padding: `0 ${110 * ctx.u}px ${80 * ctx.u}px` }}>
@@ -703,6 +749,909 @@ function MapView({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: C
           ))
         }
       </FittedImage>
+    </div>
+  );
+}
+
+type Pt = { x: number; y: number };
+
+/** The control point of a gentle arc from a to b (so a route reads as travel, not a ruler line). */
+function arcControl(a: Pt, b: Pt): Pt {
+  const bend = 0.18;
+  return { x: (a.x + b.x) / 2 - (b.y - a.y) * bend, y: (a.y + b.y) / 2 + (b.x - a.x) * bend };
+}
+
+function arc(a: Pt, b: Pt): string {
+  const c = arcControl(a, b);
+  return `M ${a.x} ${a.y} Q ${c.x} ${c.y} ${b.x} ${b.y}`;
+}
+
+/** Point t (0–1) along that arc. */
+function onArc(a: Pt, b: Pt, t: number): Pt {
+  const c = arcControl(a, b);
+  const s = 1 - t;
+  return { x: s * s * a.x + 2 * s * t * c.x + t * t * b.x, y: s * s * a.y + 2 * s * t * c.y + t * t * b.y };
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Seconds a journey takes per leg when playing, and how long it rests at each stop. */
+const LEG_SECONDS = 2.4;
+const STOP_HOLD_SECONDS = 1.4;
+
+/** Degrees of dial travel used for the whole journey (the gap is at the bottom). */
+const DIAL_SPAN = 280;
+const DIAL_START = -DIAL_SPAN / 2;
+
+/** SVG arc along a circle, angles in degrees clockwise from 12 o'clock. */
+function ringArc(cx: number, cy: number, r: number, a0: number, a1: number): string {
+  const p = (a: number) => {
+    const rad = (a * Math.PI) / 180;
+    return `${cx + r * Math.sin(rad)} ${cy - r * Math.cos(rad)}`;
+  };
+  if (a1 - a0 < 0.01) return `M ${p(a0)}`;
+  return `M ${p(a0)} A ${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${p(a1)}`;
+}
+
+/**
+ * A round jog dial for the journey — made for touch tables. Turn it with a
+ * finger around the ring, or set a tangible dial puck on it: a capacitive
+ * puck's feet register as several touches turning together, so every active
+ * touch contributes its share of the rotation. The knob tracks the finger
+ * 1:1 along the ring, stops are ticks on it, the centre opens the current
+ * stop and a tap on a tick jumps there. Scroll wheels and rotary controllers
+ * that send wheel input step one stop per notch.
+ */
+function JourneyDial({
+  ctx,
+  count,
+  pos,
+  size,
+  colorOf,
+  title,
+  onTurn,
+  onRelease,
+  onPick,
+  onCenter,
+  onStep,
+}: {
+  ctx: Ctx;
+  count: number;
+  pos: number;
+  size: number;
+  colorOf: (k: number) => string;
+  title: string;
+  /** Rotation in stops (fractional). */
+  onTurn: (deltaStops: number) => void;
+  onRelease: () => void;
+  onPick: (k: number) => void;
+  onCenter: () => void;
+  onStep: (dir: -1 | 1) => void;
+}) {
+  const { brand, u } = ctx;
+  const ref = useRef<HTMLDivElement>(null);
+  const per = count > 1 ? DIAL_SPAN / (count - 1) : DIAL_SPAN;
+  const angleOf = (p: number) => DIAL_START + clamp(p, 0, Math.max(0, count - 1)) * per;
+  const touches = useRef(new Map<number, { last: number; travel: number; startX: number; startY: number }>());
+  const lastWheel = useRef(0);
+
+  const D = size;
+  const c = D / 2;
+  const ringR = D / 2 - 46 * u;
+  const hubR = D * 0.27;
+
+  const polar = (e: React.PointerEvent) => {
+    const r = ref.current!.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    return {
+      // Degrees clockwise from 12 o'clock.
+      angle: (Math.atan2(dx, -dy) * 180) / Math.PI,
+      // 0 at the centre, 1 at the rim — scale-free, so it works under the stage's CSS scale.
+      radius: Math.hypot(dx, dy) / (r.width / 2),
+    };
+  };
+
+  const down = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    try {
+      ref.current?.setPointerCapture(e.pointerId);
+    } catch {
+      /* already gone */
+    }
+    touches.current.set(e.pointerId, { last: polar(e).angle, travel: 0, startX: e.clientX, startY: e.clientY });
+  };
+
+  const move = (e: React.PointerEvent) => {
+    const t = touches.current.get(e.pointerId);
+    if (!t) return;
+    const p = polar(e);
+    let d = p.angle - t.last;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    t.last = p.angle;
+    // Near the centre the angle swings wildly for tiny moves — ignore it there.
+    if (p.radius < 0.18) return;
+    t.travel += Math.abs(d);
+    // Each touch turns the dial by its share, so a three-footed puck turns it once, not three times.
+    onTurn(d / per / touches.current.size);
+  };
+
+  const up = (e: React.PointerEvent) => {
+    const t = touches.current.get(e.pointerId);
+    if (!t) return;
+    touches.current.delete(e.pointerId);
+    const p = polar(e);
+    const moved = Math.hypot(e.clientX - t.startX, e.clientY - t.startY);
+    const box = ref.current!.getBoundingClientRect().width;
+    // A tap, not a turn: the centre opens the stop, the ring jumps to the nearest tick.
+    if (t.travel < 6 && moved < box * 0.04 && touches.current.size === 0) {
+      if (p.radius < (hubR / (D / 2)) * 1.05) onCenter();
+      else if (count > 0) onPick(Math.round(clamp((p.angle - DIAL_START) / per, 0, count - 1)));
+      return;
+    }
+    if (touches.current.size === 0) onRelease();
+  };
+
+  const wheel = (e: React.WheelEvent) => {
+    const now = performance.now();
+    if (now - lastWheel.current < 140 || Math.abs(e.deltaY) + Math.abs(e.deltaX) < 1) return;
+    lastWheel.current = now;
+    onStep((e.deltaY || e.deltaX) > 0 ? 1 : -1);
+  };
+
+  const knobA = angleOf(pos);
+  const knobRad = (knobA * Math.PI) / 180;
+  const step = Math.round(clamp(pos, 0, Math.max(0, count - 1)));
+  const accent = colorOf(step);
+
+  return (
+    <div
+      ref={ref}
+      role="slider"
+      aria-label="Journey dial"
+      aria-valuemin={1}
+      aria-valuemax={count}
+      aria-valuenow={step + 1}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onWheel={wheel}
+      style={{ position: "relative", width: D, height: D, flexShrink: 0, touchAction: "none", cursor: "grab" }}
+    >
+      <svg width={D} height={D} viewBox={`0 0 ${D} ${D}`} style={{ position: "absolute", inset: 0, overflow: "visible", filter: "drop-shadow(0 18px 40px rgba(0,0,0,.35))" }}>
+        <circle cx={c} cy={c} r={D / 2 - 2} fill={brand.surface} />
+        {/* Knurled rim — turns with the dial, so it feels like a physical knob. */}
+        <g transform={`rotate(${pos * per} ${c} ${c})`}>
+          {Array.from({ length: 72 }, (_, i) => {
+            const a = (i * 5 * Math.PI) / 180;
+            const r0 = D / 2 - 14 * u;
+            const r1 = D / 2 - 4 * u;
+            return (
+              <line
+                key={i}
+                x1={c + r0 * Math.sin(a)}
+                y1={c - r0 * Math.cos(a)}
+                x2={c + r1 * Math.sin(a)}
+                y2={c - r1 * Math.cos(a)}
+                stroke={brand.text}
+                strokeOpacity={0.18}
+                strokeWidth={2 * u}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </g>
+        <path d={ringArc(c, c, ringR, DIAL_START, DIAL_START + DIAL_SPAN)} fill="none" stroke={brand.text} strokeOpacity={0.14} strokeWidth={14 * u} strokeLinecap="round" />
+        {count > 0 && <path d={ringArc(c, c, ringR, DIAL_START, knobA)} fill="none" stroke={accent} strokeWidth={14 * u} strokeLinecap="round" />}
+        {Array.from({ length: count }, (_, k) => {
+          const a = (angleOf(k) * Math.PI) / 180;
+          const passed = k <= pos + 0.001;
+          const labelR = ringR - 44 * u;
+          return (
+            <g key={k}>
+              <circle
+                cx={c + ringR * Math.sin(a)}
+                cy={c - ringR * Math.cos(a)}
+                r={(k === step ? 13 : 9) * u}
+                fill={passed ? colorOf(k) : brand.surface}
+                stroke={passed ? brand.surface : brand.muted}
+                strokeWidth={3 * u}
+              />
+              {count <= 14 && (
+                <text
+                  x={c + labelR * Math.sin(a)}
+                  y={c - labelR * Math.cos(a)}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{ font: `${k === step ? 700 : 500} ${20 * u}px ${brand.bodyFont}` }}
+                  fill={k === step ? brand.text : brand.muted}
+                >
+                  {k + 1}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {/* The knob */}
+        <circle cx={c + ringR * Math.sin(knobRad)} cy={c - ringR * Math.cos(knobRad)} r={30 * u} fill={accent} stroke="#fff" strokeWidth={6 * u} />
+        <circle cx={c} cy={c} r={hubR} fill={brand.background} />
+      </svg>
+      {/* Hub: the current stop; tap it to read. */}
+      <div
+        style={{
+          position: "absolute",
+          left: c - hubR,
+          top: c - hubR,
+          width: hubR * 2,
+          height: hubR * 2,
+          borderRadius: 999,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          padding: 18 * u,
+          boxSizing: "border-box",
+          pointerEvents: "none",
+        }}
+      >
+        <span style={{ font: `700 ${68 * u}px/1 ${brand.headingFont}`, color: accent }}>{String(step + 1).padStart(2, "0")}</span>
+        <span style={{ marginTop: 6 * u, font: `600 ${16 * u}px ${brand.bodyFont}`, color: brand.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>of {count}</span>
+        <span
+          style={{
+            marginTop: 8 * u,
+            font: `700 ${20 * u}px/1.2 ${brand.headingFont}`,
+            color: brand.text,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {title}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The pins as an ordered route. Position along the journey is continuous —
+ * the route draws itself and a traveller moves along it as the dial turns, or
+ * as Play walks it stop by stop — so expansion or travel reads as movement.
+ */
+function JourneyMap({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: Ctx }) {
+  const { brand, u, portrait } = ctx;
+  const stops = app.pins;
+  const last = Math.max(0, stops.length - 1);
+  const [pos, setPosState] = useState(0);
+  const posRef = useRef(0);
+  const setPos = useCallback(
+    (p: number) => {
+      posRef.current = clamp(p, 0, last);
+      setPosState(posRef.current);
+    },
+    [last]
+  );
+  const [playing, setPlaying] = useState(false);
+  const raf = useRef<number | null>(null);
+  const poke = useRef(ctx.poke);
+  poke.current = ctx.poke;
+
+  const halt = () => {
+    if (raf.current !== null) cancelAnimationFrame(raf.current);
+    raf.current = null;
+  };
+  useEffect(() => halt, []);
+
+  /** Glide to a position (a stop, usually), easing in and out. */
+  const glideTo = useCallback(
+    (target: number) => {
+      halt();
+      const from = posRef.current;
+      const to = clamp(target, 0, last);
+      if (Math.abs(to - from) < 0.001) return setPos(to);
+      const dur = Math.min(1600, 380 + Math.abs(to - from) * 650);
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - t0) / dur);
+        const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        setPos(from + (to - from) * e);
+        raf.current = k < 1 ? requestAnimationFrame(tick) : null;
+      };
+      raf.current = requestAnimationFrame(tick);
+    },
+    [last, setPos]
+  );
+
+  // Play: walk each leg, rest at each stop, stop at the end.
+  useEffect(() => {
+    if (!playing) return;
+    halt();
+    let prev = performance.now();
+    let hold = 0;
+    const tick = (now: number) => {
+      const dt = (now - prev) / 1000;
+      prev = now;
+      if (hold > 0) {
+        hold -= dt;
+      } else {
+        const before = posRef.current;
+        let next = before + dt / LEG_SECONDS;
+        if (Math.floor(next) > Math.floor(before + 1e-6)) {
+          next = Math.floor(next);
+          hold = STOP_HOLD_SECONDS;
+          poke.current();
+        }
+        setPos(next);
+        if (next >= last) {
+          setPlaying(false);
+          raf.current = null;
+          return;
+        }
+      }
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return halt;
+  }, [playing, last, setPos]);
+
+  const step = Math.round(pos);
+  const cur = stops[step];
+
+  // A tiny haptic click at each stop, where the hardware has one.
+  const lastStep = useRef(step);
+  useEffect(() => {
+    if (lastStep.current !== step) {
+      lastStep.current = step;
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        /* not supported */
+      }
+    }
+  }, [step]);
+
+  const goStep = useCallback(
+    (k: number) => {
+      setPlaying(false);
+      glideTo(Math.round(k));
+      poke.current();
+    },
+    [glideTo]
+  );
+
+  const togglePlay = () => {
+    if (playing) return setPlaying(false);
+    if (posRef.current >= last - 0.001) setPos(0);
+    else setPos(Math.round(posRef.current));
+    setPlaying(true);
+  };
+
+  // Keyboard-style rotary controllers (and arrow keys) step stops; Enter reads one.
+  const keyState = useRef({ step, cur, goStep, open: ctx.open, togglePlay });
+  keyState.current = { step, cur, goStep, open: ctx.open, togglePlay };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Never steal keys from a form field (the editor's live preview runs this too).
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName))) return;
+      const s = keyState.current;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "PageDown") s.goStep(s.step + 1);
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") s.goStep(s.step - 1);
+      else if (e.key === "Enter" && s.cur) s.open(s.cur);
+      else if (e.key === " ") s.togglePlay();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const colorOf = (filterId: string | null) => app.filters.find((f) => f.id === filterId)?.color ?? brand.accent;
+  const stopColor = (k: number) => colorOf(stops[k]?.filterId ?? null);
+
+  const roundBtn = (d: string, label: string, onClick: () => void, disabled = false, primary = false) => (
+    <button
+      type="button"
+      className="st-tap"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        width: 88 * u,
+        height: 88 * u,
+        flexShrink: 0,
+        borderRadius: 99,
+        border: "none",
+        background: primary ? brand.accent : brand.surface,
+        opacity: disabled ? 0.35 : 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: disabled ? "default" : "pointer",
+      }}
+    >
+      <Icon d={d} size={36 * u} color={primary ? brand.accentText : brand.text} />
+    </button>
+  );
+
+  const stopCard = (compact: boolean) =>
+    cur && (
+      <button
+        type="button"
+        className="st-tap"
+        onClick={() => ctx.open(cur)}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 24 * u,
+          padding: `${18 * u}px ${30 * u}px`,
+          borderRadius: brand.radius * u,
+          border: "none",
+          background: brand.surface,
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        {!compact && <span style={{ font: `700 ${44 * u}px/1 ${brand.headingFont}`, color: stopColor(step), flexShrink: 0 }}>{String(step + 1).padStart(2, "0")}</span>}
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: "block", font: `600 ${18 * u}px ${brand.bodyFont}`, color: brand.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+            Stop {step + 1} of {stops.length}
+            {cur.subtitle ? ` · ${cur.subtitle}` : ""}
+          </span>
+          <span style={{ display: "block", marginTop: 6 * u, font: `700 ${32 * u}px/1.15 ${brand.headingFont}`, color: brand.text, whiteSpace: compact ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur.title}</span>
+          {compact && <span style={{ display: "block", marginTop: 10 * u, font: `600 ${20 * u}px ${brand.bodyFont}`, color: brand.accent }}>Read more</span>}
+        </span>
+        {!compact && <span style={{ font: `600 ${20 * u}px ${brand.bodyFont}`, color: brand.accent, flexShrink: 0 }}>Read more</span>}
+      </button>
+    );
+
+  const map = (
+    <FittedImage url={app.mapUrl} ctx={ctx} grid>
+      {(box) => {
+        const pts = stops.map((p) => ({ x: (p.x / 100) * box.w, y: (p.y / 100) * box.h }));
+        const leg = Math.min(Math.floor(pos), Math.max(0, pts.length - 2));
+        const traveller = pts.length > 1 ? onArc(pts[leg]!, pts[leg + 1]!, clamp(pos - leg, 0, 1)) : null;
+        const between = Math.abs(pos - Math.round(pos)) > 0.02;
+        return (
+          <>
+            <svg width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`} style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}>
+              {pts.slice(1).map((b, k) => {
+                const d = arc(pts[k]!, b);
+                const drawn = clamp(pos - k, 0, 1);
+                return (
+                  <g key={k}>
+                    <path d={d} fill="none" stroke={brand.text} strokeOpacity={0.28} strokeWidth={4 * u} strokeDasharray={`${10 * u} ${12 * u}`} strokeLinecap="round" />
+                    {drawn > 0 && (
+                      <path
+                        d={d}
+                        fill="none"
+                        stroke={stopColor(k + 1)}
+                        strokeWidth={7 * u}
+                        strokeLinecap="round"
+                        pathLength={1}
+                        strokeDasharray="1 1"
+                        strokeDashoffset={1 - drawn}
+                        style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,.35))" }}
+                      />
+                    )}
+                  </g>
+                );
+              })}
+              {traveller && between && (
+                <g>
+                  <circle cx={traveller.x} cy={traveller.y} r={30 * u} fill={stopColor(leg + 1)} fillOpacity={0.25} />
+                  <circle cx={traveller.x} cy={traveller.y} r={15 * u} fill={stopColor(leg + 1)} stroke="#fff" strokeWidth={5 * u} />
+                </g>
+              )}
+            </svg>
+            {stops.map((p, k) => (
+              <Pin
+                key={p.id}
+                x={p.x}
+                y={p.y}
+                ctx={ctx}
+                number={k + 1}
+                big={k === step && !between}
+                dim={k > pos + 0.01}
+                color={stopColor(k)}
+                label={k === step && !between ? p.title : undefined}
+                onClick={() => {
+                  goStep(k);
+                  ctx.open(p);
+                }}
+              />
+            ))}
+          </>
+        );
+      }}
+    </FittedImage>
+  );
+
+  if (stops.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: `0 ${110 * u}px ${64 * u}px` }}>
+        <Empty ctx={ctx} text="Add stops to draw the journey." />
+      </div>
+    );
+  }
+
+  if (!app.dial) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 28 * u, padding: `0 ${110 * u}px ${64 * u}px` }}>
+        {map}
+        <div style={{ display: "flex", alignItems: "center", gap: 20 * u }}>
+          {roundBtn(ICONS.prev, "Previous stop", () => goStep(step - 1), step === 0)}
+          {stopCard(false)}
+          {roundBtn(ICONS.next, "Next stop", () => goStep(step + 1), step >= last)}
+          {roundBtn(playing ? ICONS.pause : ICONS.play, playing ? "Pause journey" : "Play journey", togglePlay, false, true)}
+        </div>
+      </div>
+    );
+  }
+
+  const dialSize = (portrait ? 430 : 470) * u;
+  const dial = (
+    <JourneyDial
+      ctx={ctx}
+      count={stops.length}
+      pos={pos}
+      size={dialSize}
+      colorOf={stopColor}
+      title={cur?.title ?? ""}
+      onTurn={(d) => {
+        halt();
+        setPlaying(false);
+        setPos(posRef.current + d);
+        poke.current();
+      }}
+      onRelease={() => glideTo(Math.round(posRef.current))}
+      onPick={goStep}
+      onCenter={() => cur && ctx.open(cur)}
+      onStep={(dir) => goStep(Math.round(posRef.current) + dir)}
+    />
+  );
+  const hint = (
+    <div style={{ display: "flex", alignItems: "center", gap: 16 * u }}>
+      {roundBtn(playing ? ICONS.pause : ICONS.play, playing ? "Pause journey" : "Play journey", togglePlay, false, true)}
+      <span style={{ font: `500 ${20 * u}px/1.35 ${brand.bodyFont}`, color: brand.muted }}>Turn the dial to travel · tap the centre to read</span>
+    </div>
+  );
+
+  return portrait ? (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 32 * u, padding: `0 ${110 * u}px ${64 * u}px` }}>
+      {map}
+      <div style={{ display: "flex", alignItems: "center", gap: 40 * u }}>
+        {dial}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 * u }}>
+          {stopCard(true)}
+          {hint}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div style={{ display: "flex", height: "100%", gap: 56 * u, padding: `0 ${110 * u}px ${64 * u}px` }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>{map}</div>
+      <div style={{ width: dialSize, flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 * u }}>
+        {dial}
+        {stopCard(true)}
+        {hint}
+      </div>
+    </div>
+  );
+}
+
+/** Tappable areas drawn over the map; each glows until tapped, then opens its story. */
+function RegionsMap({ app, ctx }: { app: Extract<StoryApp, { kind: "map" }>; ctx: Ctx }) {
+  const { brand, u } = ctx;
+  const [on, toggle] = useFilterSet();
+  const [selected, setSelected] = useState<string | null>(null);
+  const visible = app.regions.filter((g) => g.points.length >= 3 && (on.size === 0 || (g.filterId && on.has(g.filterId))));
+  const colorOf = (filterId: string | null) => app.filters.find((f) => f.id === filterId)?.color ?? brand.accent;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 32 * u, padding: `0 ${110 * u}px ${80 * u}px` }}>
+      <Chips ctx={ctx} filters={app.filters} active={on} onToggle={toggle} allLabel="Everything" dots />
+      <FittedImage url={app.mapUrl} ctx={ctx} grid>
+        {(box) => (
+          <>
+            <svg width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`} style={{ position: "absolute", inset: 0 }}>
+              {visible.map((g, k) => {
+                const c = colorOf(g.filterId);
+                const sel = selected === g.id;
+                return (
+                  <polygon
+                    key={g.id}
+                    points={g.points.map((p) => `${(p.x / 100) * box.w},${(p.y / 100) * box.h}`).join(" ")}
+                    fill={c}
+                    fillOpacity={sel ? 0.6 : 0.3}
+                    stroke={c}
+                    strokeWidth={(sel ? 6 : 3) * u}
+                    strokeLinejoin="round"
+                    onClick={() => {
+                      setSelected(g.id);
+                      ctx.open(g);
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      transition: "fill-opacity .3s, stroke-width .3s",
+                      animation: sel ? undefined : `st-glow 3s ${k * 0.35}s ease-in-out infinite`,
+                    }}
+                  />
+                );
+              })}
+            </svg>
+            {visible.map((g) => {
+              const cx = g.points.reduce((a, p) => a + p.x, 0) / g.points.length;
+              const cy = g.points.reduce((a, p) => a + p.y, 0) / g.points.length;
+              return (
+                <span
+                  key={g.id}
+                  style={{
+                    position: "absolute",
+                    left: `${cx}%`,
+                    top: `${cy}%`,
+                    transform: "translate(-50%,-50%)",
+                    pointerEvents: "none",
+                    whiteSpace: "nowrap",
+                    padding: `${8 * u}px ${18 * u}px`,
+                    borderRadius: 999,
+                    background: "rgba(10,10,14,.78)",
+                    color: "#fff",
+                    font: `600 ${22 * u}px ${brand.bodyFont}`,
+                  }}
+                >
+                  {g.title}
+                </span>
+              );
+            })}
+          </>
+        )}
+      </FittedImage>
+    </div>
+  );
+}
+
+// ─── Video ────────────────────────────────────────────────────────────────────
+
+/**
+ * One chapter on the stage. The "master" track decides progress and the end:
+ * the voice-over when there is one (the video, muted, loops under it), else the
+ * video itself. A photo with a voice-over slowly zooms while it plays.
+ */
+function ChapterStage({ ch, ctx, captions, onEnded }: { ch: StoryVideoChapter; ctx: Ctx; captions: boolean; onEnded: () => void }) {
+  const { brand, u } = ctx;
+  const video = useRef<HTMLVideoElement>(null);
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const masterKind: "audio" | "video" | null = ch.voiceUrl ? "audio" : ch.videoUrl ? "video" : null;
+  const master = () => (masterKind === "audio" ? audio.current : masterKind === "video" ? video.current : null);
+
+  const play = useCallback(() => {
+    const m = masterKind === "audio" ? audio.current : masterKind === "video" ? video.current : null;
+    if (!m) return;
+    // The viewer just tapped, so sound is allowed; if the browser still says
+    // no, the big play button stays up for them to press.
+    m.play().catch(() => setPlaying(false));
+    if (masterKind === "audio") video.current?.play().catch(() => {});
+  }, [masterKind]);
+
+  const pause = () => {
+    master()?.pause();
+    if (masterKind === "audio") video.current?.pause();
+  };
+
+  useEffect(() => {
+    play();
+  }, [play]);
+
+  const masterEvents = {
+    onPlay: () => setPlaying(true),
+    onPause: () => setPlaying(false),
+    onTimeUpdate: (e: React.SyntheticEvent<HTMLMediaElement>) => {
+      const m = e.currentTarget;
+      setProgress(m.duration ? m.currentTime / m.duration : 0);
+      ctx.poke();
+    },
+    onEnded: () => {
+      setPlaying(false);
+      video.current?.pause();
+      onEnded();
+    },
+  };
+
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const m = master();
+    if (!m || !m.duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    m.currentTime = ((e.clientX - r.left) / r.width) * m.duration;
+  };
+
+  const fill: React.CSSProperties = { position: "absolute", inset: 0, width: "100%", height: "100%" };
+
+  return (
+    <div
+      onClick={() => (playing ? pause() : play())}
+      style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: brand.radius * u, background: "#000", cursor: masterKind ? "pointer" : "default" }}
+    >
+      {ch.videoUrl ? (
+        <video
+          ref={video}
+          src={ch.videoUrl}
+          poster={ch.posterUrl ?? undefined}
+          playsInline
+          muted={!!ch.voiceUrl}
+          loop={!!ch.voiceUrl}
+          style={{ ...fill, objectFit: "contain" }}
+          {...(masterKind === "video" ? masterEvents : {})}
+        />
+      ) : ch.posterUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={ch.posterUrl}
+          alt=""
+          draggable={false}
+          style={{
+            ...fill,
+            objectFit: "cover",
+            animation: masterKind ? "st-kb 30s ease-out both" : undefined,
+            animationPlayState: playing ? "running" : "paused",
+          }}
+        />
+      ) : (
+        <div style={{ ...fill, display: "flex", alignItems: "center", justifyContent: "center", padding: 80 * u, boxSizing: "border-box", background: `linear-gradient(135deg, ${brand.surface}, ${brand.background})` }}>
+          <div style={{ textAlign: "center" }}>
+            <Icon d={ICONS.video} size={90 * u} color={brand.accent} stroke={1.6} />
+            <div style={{ marginTop: 24 * u, font: `700 ${56 * u}px/1.1 ${brand.headingFont}`, color: brand.text }}>{ch.title}</div>
+            {!masterKind && ch.body && <div style={{ marginTop: 20 * u, font: `400 ${26 * u}px/1.5 ${brand.bodyFont}`, color: brand.muted, maxWidth: 1000 * u }}>{ch.body}</div>}
+          </div>
+        </div>
+      )}
+      {ch.voiceUrl && <audio ref={audio} src={ch.voiceUrl} {...masterEvents} />}
+
+      {masterKind && !playing && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.25)" }}>
+          <span style={{ width: 150 * u, height: 150 * u, borderRadius: 99, background: brand.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(0,0,0,.4)" }}>
+            <Icon d={ICONS.play} size={64 * u} color={brand.accentText} />
+          </span>
+        </div>
+      )}
+
+      {captions && masterKind && ch.body && (
+        <div
+          style={{
+            position: "absolute",
+            left: 60 * u,
+            right: 60 * u,
+            bottom: 70 * u,
+            maxHeight: "40%",
+            overflow: "hidden",
+            padding: `${20 * u}px ${30 * u}px`,
+            borderRadius: 16 * u,
+            background: "rgba(0,0,0,.72)",
+            color: "#fff",
+            font: `400 ${28 * u}px/1.45 ${brand.bodyFont}`,
+            whiteSpace: "pre-wrap",
+            textAlign: "center",
+          }}
+        >
+          {ch.body}
+        </div>
+      )}
+
+      {masterKind && (
+        <div onClick={seek} style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 36 * u, display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+          <div style={{ width: "100%", height: 8 * u, background: "rgba(255,255,255,.25)" }}>
+            <div style={{ width: `${progress * 100}%`, height: "100%", background: brand.accent, transition: "width .25s linear" }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoView({ app, ctx }: { app: Extract<StoryApp, { kind: "video" }>; ctx: Ctx }) {
+  const { brand, u, portrait } = ctx;
+  const [i, setI] = useState(0);
+  const [captions, setCaptions] = useState(true);
+  const rail = useDragScroll<HTMLDivElement>();
+  const chapters = app.chapters;
+  const ch = chapters[Math.min(i, chapters.length - 1)];
+
+  if (!ch) return <Empty ctx={ctx} text="No chapters yet." />;
+
+  const next = () => {
+    if (app.autoAdvance && i < chapters.length - 1) setI(i + 1);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: portrait ? "column" : "row", height: "100%", gap: 36 * u, padding: `0 ${110 * u}px ${80 * u}px` }}>
+      <div style={{ flex: portrait ? "0 0 auto" : 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 24 * u }}>
+        <div style={{ position: "relative", width: "100%", aspectRatio: portrait ? "16 / 9" : undefined, flex: portrait ? undefined : 1, minHeight: 0 }}>
+          <ChapterStage key={ch.id} ch={ch} ctx={ctx} captions={captions} onEnded={next} />
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 24 * u }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: `600 ${20 * u}px ${brand.bodyFont}`, color: brand.accent, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              Chapter {i + 1} of {chapters.length}
+              {ch.subtitle ? ` · ${ch.subtitle}` : ""}
+            </div>
+            <div style={{ marginTop: 8 * u, font: `700 ${40 * u}px/1.1 ${brand.headingFont}`, color: brand.text }}>{ch.title}</div>
+          </div>
+          {(ch.voiceUrl || ch.videoUrl) && ch.body && (
+            <button
+              type="button"
+              className="st-tap"
+              onClick={() => setCaptions((c) => !c)}
+              aria-pressed={captions}
+              style={{
+                flexShrink: 0,
+                height: 64 * u,
+                padding: `0 ${26 * u}px`,
+                borderRadius: 999,
+                border: `${2 * u}px solid ${captions ? brand.accent : "rgba(127,127,127,.35)"}`,
+                background: captions ? brand.accent : "transparent",
+                color: captions ? brand.accentText : brand.text,
+                font: `700 ${22 * u}px ${brand.bodyFont}`,
+                cursor: "pointer",
+              }}
+            >
+              CC {captions ? "On" : "Off"}
+            </button>
+          )}
+        </div>
+      </div>
+      {chapters.length > 1 && (
+        <div
+          ref={rail}
+          style={{
+            flex: portrait ? 1 : `0 0 ${560 * u}px`,
+            minHeight: 0,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16 * u,
+          }}
+        >
+          {chapters.map((c, k) => {
+            const active = k === i;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                className="st-tap"
+                onClick={() => setI(k)}
+                style={{
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 22 * u,
+                  padding: 14 * u,
+                  borderRadius: brand.radius * u,
+                  border: `${3 * u}px solid ${active ? brand.accent : "transparent"}`,
+                  background: brand.surface,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <Cover url={c.posterUrl} ctx={ctx} kind="video" style={{ width: 170 * u, height: 100 * u, flexShrink: 0, borderRadius: Math.max(4, brand.radius * 0.6) * u }} />
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: "block", font: `600 ${18 * u}px ${brand.bodyFont}`, color: active ? brand.accent : brand.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                    {active ? "Now playing" : `Chapter ${k + 1}`}
+                  </span>
+                  <span style={{ display: "block", marginTop: 6 * u, font: `700 ${26 * u}px/1.2 ${brand.headingFont}`, color: brand.text }}>{c.title}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -824,6 +1773,7 @@ function AppScreen({ app, ctx, onHome }: { app: StoryApp; ctx: Ctx; onHome: () =
         {app.kind === "map" && <MapView app={app} ctx={ctx} />}
         {app.kind === "showcase" && <ShowcaseView app={app} ctx={ctx} />}
         {app.kind === "hotspots" && <HotspotView app={app} ctx={ctx} />}
+        {app.kind === "video" && <VideoView app={app} ctx={ctx} />}
       </div>
     </div>
   );
@@ -834,7 +1784,7 @@ function AppScreen({ app, ctx, onHome }: { app: StoryApp; ctx: Ctx; onHome: () =
 function MediaSlide({ m, ctx, active }: { m: StoryMedia; ctx: Ctx; active: boolean }) {
   const fill: React.CSSProperties = { width: "100%", height: "100%", objectFit: "contain", display: "block", background: "#000" };
   if (m.type === "video")
-    return active ? <video src={m.url} autoPlay controls playsInline style={fill} /> : <div style={fill} />;
+    return active ? <video src={m.url} autoPlay controls playsInline onTimeUpdate={ctx.poke} style={fill} /> : <div style={fill} />;
   if (m.type === "pdf")
     return active ? (
       <iframe src={`${m.url}#toolbar=0&navpanes=0`} title={m.name ?? "Document"} style={{ ...fill, border: "none", background: "#fff" }} />
@@ -1008,7 +1958,7 @@ export function StorySurface({ content, view: controlled, onViewChange, disableI
   const app = view.screen === "app" ? content.apps.find((a) => a.id === view.appId) : undefined;
   const screen = view.screen === "app" && !app ? "home" : view.screen;
 
-  const ctx: Ctx = { brand: content.brand, u, portrait, open: setDetail };
+  const ctx: Ctx = { brand: content.brand, u, portrait, open: setDetail, poke: arm };
 
   return (
     <div

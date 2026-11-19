@@ -33,7 +33,16 @@ const MAX_UPLOAD_BYTES = Number(process.env["MAX_UPLOAD_BYTES"] ?? 1024 * 1024 *
 // risk when served same-origin). Anything not matched here is rejected.
 const ALLOWED: Record<string, { mimes: string[]; exts: string[] }> = {
   image: { mimes: ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"], exts: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"] },
-  video: { mimes: ["video/mp4", "video/webm", "video/ogg", "video/quicktime"], exts: [".mp4", ".webm", ".ogg", ".mov", ".m4v"] },
+  // Audio is filed as "video": <video> plays it (no picture) — the same call
+  // media-content.ts makes for linked audio — so no new type has to reach
+  // every screen renderer. Story chapter voice-overs are what it's for.
+  video: {
+    mimes: [
+      "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+      "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/wav", "audio/x-wav", "audio/wave", "audio/ogg", "audio/webm",
+    ],
+    exts: [".mp4", ".webm", ".ogg", ".mov", ".m4v", ".mp3", ".m4a", ".aac", ".wav", ".oga", ".opus"],
+  },
   document: { mimes: ["application/pdf"], exts: [".pdf"] },
   // Legacy binary .xls is intentionally excluded — the spreadsheet viewer
   // (apps/cms/src/app/display/sheet) reads .xlsx and .csv only, and accepting a
