@@ -1,5 +1,5 @@
 // Content shape for the Canvas ("Design") template — a free-form, Canva-style
-// layout built in the Templates editor. Stored on the experience as
+// layout built in the Frames editor. Stored on the experience as
 // experience.templateContent.canvas, the same keyed-JSONB convention as every
 // other template (the DB stores it loosely; readCanvasContent normalises it).
 //

@@ -215,12 +215,12 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 text-card-foreground">
         <div className="flex min-w-0 items-center gap-2">
           <Link
-            href="/templates"
+            href="/frames"
             onClick={(e) => {
               if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
             }}
             className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            title="Back to Templates"
+            title="Back to Frames"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

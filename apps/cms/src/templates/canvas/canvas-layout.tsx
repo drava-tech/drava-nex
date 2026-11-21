@@ -3,7 +3,7 @@ import { CanvasRenderer, readCanvasContent, DEFAULT_CANVAS_CONTENT } from "@plat
 import "./fonts";
 
 /**
- * Design template — a free-form layout from the Templates editor. The preview
+ * Design template — a free-form layout from the Frames editor. The preview
  * tab plays it exactly as a screen does (scaled to fit, pages cycling).
  */
 export function CanvasLayout({ experience }: { experience: Experience; subpath: string[]; mode?: "edit" | "preview" }) {

@@ -9,7 +9,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { apiFetch } from "@/lib/api-client";
 
 /**
- * Templates (sidebar) = experiences on the "canvas" (Design) and "story"
+ * Frames (sidebar) = experiences on the "canvas" (Design) and "story"
  * templates. Creating, editing and pushing go through the same experience API
  * every other template uses, so these push, schedule and appear in Our Story
  * like any experience. Reads stay direct, as in project-actions.ts.
@@ -97,7 +97,7 @@ async function createTemplated(kind: Kind, name: string, content: unknown, fallb
   });
   if (!saved.ok) return { success: false, error: saved.error.message };
 
-  revalidatePath("/templates");
+  revalidatePath("/frames");
   revalidatePath("/experiences");
   return { success: true, slug };
 }
@@ -131,7 +131,7 @@ export async function deleteDesign(id: string): Promise<{ success: boolean; erro
   await requireAdmin();
   const res = await apiFetch(`/api/experiences/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) return { success: false, error: res.error.message };
-  revalidatePath("/templates");
+  revalidatePath("/frames");
   revalidatePath("/experiences");
   return { success: true };
 }

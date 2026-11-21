@@ -52,7 +52,7 @@ type MediaTarget =
 const ZOOMS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
 /**
- * The Templates editor (Canva-style) for a Design experience. Full-tab and
+ * The Frames editor (Canva-style) for a Design experience. Full-tab and
  * chrome-free, opened at /edit/experiences/<slug> like every template's editor.
  */
 export function CanvasEditorWorkspace({
@@ -421,12 +421,12 @@ export function CanvasEditorWorkspace({
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3 text-card-foreground">
         <div className="flex min-w-0 items-center gap-2">
           <Link
-            href="/templates"
+            href="/frames"
             onClick={(e) => {
               if (dirty && !window.confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
             }}
             className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            title="Back to Templates"
+            title="Back to Frames"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

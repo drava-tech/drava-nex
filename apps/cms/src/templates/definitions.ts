@@ -121,7 +121,7 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
   canvas: {
     key: "canvas",
     label: TEMPLATE_LABELS.canvas,
-    // Created and edited from the Templates page (sidebar) — a Canva-style
+    // Created and edited from the Frames page (sidebar) — a Canva-style
     // free-form layout, landscape or portrait.
     Layout: CanvasLayout,
     defaultContent: DEFAULT_CANVAS_CONTENT,
@@ -131,7 +131,7 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     key: "story",
     label: TEMPLATE_LABELS.story,
     // Interactive touchscreen storytelling (idle loop, home menu, timeline /
-    // map / showcase / hotspot apps), created from the Templates page.
+    // map / showcase / hotspot apps), created from the Frames page.
     Layout: StoryLayout,
     defaultContent: DEFAULT_STORY_CONTENT,
     Workspace: StoryEditorWorkspace,

@@ -56,8 +56,8 @@ const ALL_NAV = [
     guestModeVisible: true,
   },
   {
-    title: "Templates",
-    url: "/templates",
+    title: "Frames",
+    url: "/frames",
     icon: LayoutTemplate,
     roles: ["ADMIN"] as string[],
   },

@@ -149,7 +149,7 @@ export function ContentRenderer({
         return <DravaWorldRenderer />;
       }
       if (content.templateKey === "canvas") {
-        // A Templates design: scaled to fit the screen (letterboxed if the
+        // A Frames design: scaled to fit the screen (letterboxed if the
         // screen's orientation differs), pages cycling on their durations.
         const design = readCanvasContent(content.templateContent);
         if (design) return <CanvasRenderer content={design} preview={preview} />;

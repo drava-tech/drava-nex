@@ -35,7 +35,7 @@ function Thumb({ d, className, style }: { d: DesignCard; className?: string; sty
   );
 }
 
-export function TemplatesGallery({ designs }: { designs: DesignCard[] }) {
+export function FramesGallery({ designs }: { designs: DesignCard[] }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [kind, setKind] = useState<KindFilter>("all");

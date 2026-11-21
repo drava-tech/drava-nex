@@ -10,7 +10,7 @@ import type {
 } from "./content";
 
 /**
- * One renderer for every place a design is drawn — the Templates editor's
+ * One renderer for every place a design is drawn — the Frames editor's
  * artboard, gallery thumbnails, the preview tab, and the live screen — so what
  * an operator lays out is exactly what the screen shows. Plain DOM (not a
  * <canvas>), so text stays crisp at 4K and video plays natively.
