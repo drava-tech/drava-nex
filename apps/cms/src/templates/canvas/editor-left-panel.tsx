@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -18,13 +18,12 @@ import {
 } from "lucide-react";
 import {
   CANVAS_FONTS,
-  CanvasThumbnail,
   makeShape,
   makeText,
   type CanvasElement,
   type CanvasPage,
 } from "@platform/ui/templates/canvas";
-import { CANVAS_PRESETS } from "./presets";
+import { TemplatePicker, buildTemplate } from "./template-picker";
 
 type Tab = "elements" | "presets" | "layers";
 
@@ -74,11 +73,6 @@ export function EditorLeftPanel({
       })
     );
   };
-
-  const presets = useMemo(
-    () => CANVAS_PRESETS.map((p) => ({ ...p, page: p.build(width, height) })),
-    [width, height]
-  );
 
   return (
     <aside className="flex w-[300px] shrink-0 border-r border-border bg-card text-card-foreground">
@@ -166,28 +160,11 @@ export function EditorLeftPanel({
 
         {tab === "presets" && (
           <div className="flex flex-col gap-3">
-            <PanelTitle>Starter layouts</PanelTitle>
+            <PanelTitle>Templates</PanelTitle>
             <p className="text-[11px] leading-snug text-zinc-500">
               Replaces what&apos;s on this page, sized for your canvas. Ctrl+Z undoes it.
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {presets.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  data-plain
-                  onClick={() => onApplyPreset(p.page)}
-                  className="group flex flex-col gap-1 text-left"
-                >
-                  <CanvasThumbnail
-                    content={{ version: 1, width, height, pages: [p.page] }}
-                    style={{ aspectRatio: `${width} / ${height}`, maxHeight: 220 }}
-                    className="w-full overflow-hidden rounded-md border border-border bg-zinc-100 transition-shadow group-hover:ring-2 group-hover:ring-violet-500 dark:bg-zinc-800"
-                  />
-                  <span className="text-[11px] text-zinc-600 dark:text-zinc-300">{p.label}</span>
-                </button>
-              ))}
-            </div>
+            <TemplatePicker compact width={width} height={height} onPick={(id) => onApplyPreset(buildTemplate(id, width, height))} />
           </div>
         )}
 

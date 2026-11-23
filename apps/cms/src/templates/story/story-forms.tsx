@@ -17,6 +17,7 @@ import {
   type StoryMedia,
 } from "@platform/ui/templates/story";
 import { ColorField, NumberField, Row, Section, SelectField } from "../canvas/editor-fields";
+import { STORY_PALETTES } from "./presets";
 
 /**
  * Form panels for the Story editor. Each takes the slice it edits plus an
@@ -197,13 +198,6 @@ function move<T>(list: T[], from: number, to: number): T[] {
 
 // ─── Brand ────────────────────────────────────────────────────────────────────
 
-const THEMES: { label: string; brand: Partial<StoryBrand> }[] = [
-  { label: "Night", brand: { background: "#0b0d12", surface: "#161a22", text: "#f5f6f8", muted: "#9aa3b2", accent: "#92ff5f", accentText: "#0b0d12" } },
-  { label: "Paper", brand: { background: "#f4f1ea", surface: "#ffffff", text: "#1a1a1a", muted: "#6b6b6b", accent: "#1a1a1a", accentText: "#ffffff" } },
-  { label: "Ocean", brand: { background: "#06172b", surface: "#0e2744", text: "#eaf4ff", muted: "#8fb0d0", accent: "#38bdf8", accentText: "#06172b" } },
-  { label: "Ember", brand: { background: "#1c1210", surface: "#2a1c18", text: "#fff4ee", muted: "#c9a99a", accent: "#ff7a45", accentText: "#1c1210" } },
-];
-
 export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChange: (b: StoryBrand) => void; kit: FormKit }) {
   const set = (p: Partial<StoryBrand>) => onChange({ ...brand, ...p });
   const color = (label: string, key: keyof StoryBrand) => (
@@ -215,7 +209,7 @@ export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChang
     <>
       <Section title="Theme">
         <div className="grid grid-cols-4 gap-2">
-          {THEMES.map((t) => (
+          {STORY_PALETTES.map((t) => (
             <button
               key={t.label}
               type="button"
@@ -234,7 +228,7 @@ export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChang
       </Section>
       <Section title="Logo">
         <ImageSlot label="Logo" url={brand.logoUrl} kit={kit} onChange={(url) => set({ logoUrl: url })} />
-        <p className="text-[11px] text-zinc-500">Shown on the idle screen, the home menu and each app.</p>
+        <p className="text-[11px] text-zinc-500">Shown on the idle screen, the home menu and each module.</p>
       </Section>
       <Section title="Colours">
         {color("Background", "background")}
@@ -335,12 +329,12 @@ export function HomeForm({ home, onChange, kit }: { home: StoryContent["home"]; 
       <TextField label="Headline" value={home.headline} kit={kit} onChange={(v) => set({ headline: v })} />
       <TextField label="Subheadline" value={home.subheadline} kit={kit} onChange={(v) => set({ subheadline: v })} />
       <ImageSlot label="Background" url={home.backgroundUrl} kit={kit} onChange={(url) => set({ backgroundUrl: url })} />
-      <p className="text-[11px] leading-snug text-zinc-500">Each app in the story becomes a tile here, in the order of the list on the left.</p>
+      <p className="text-[11px] leading-snug text-zinc-500">Each module in the story becomes a tile here, in the order of the list on the left.</p>
     </Section>
   );
 }
 
-// ─── Apps ─────────────────────────────────────────────────────────────────────
+// ─── Modules ─────────────────────────────────────────────────────────────────────
 
 function ItemActions({ onUp, onDown, onDelete }: { onUp?: () => void; onDown?: () => void; onDelete: () => void }) {
   const btn = "rounded p-1 text-zinc-500 hover:bg-zinc-200 disabled:opacity-30 dark:hover:bg-zinc-700";

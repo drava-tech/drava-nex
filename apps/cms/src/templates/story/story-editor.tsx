@@ -41,11 +41,11 @@ import { PushToScreenModal } from "@/components/push-to-screen-modal";
 import { useHistory } from "../canvas/use-history";
 import { Row, SelectField } from "../canvas/editor-fields";
 import { AppForm, BrandForm, HomeForm, IdleForm, type FormKit } from "./story-forms";
+import { STORY_MODULE_KINDS } from "./presets";
 import "../canvas/fonts";
 
 type Section = { kind: "brand" } | { kind: "idle" } | { kind: "home" } | { kind: "app"; id: string };
 
-const APP_KINDS: StoryAppKind[] = ["timeline", "map", "showcase", "hotspots", "video"];
 
 function viewFor(section: Section): StoryView {
   if (section.kind === "idle") return { screen: "idle" };
@@ -286,7 +286,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
           {navItem({ kind: "brand" }, "Brand & screen", <Palette className="h-3.5 w-3.5" />)}
           {navItem({ kind: "idle" }, "Idle screen", <MonitorPlay className="h-3.5 w-3.5" />)}
           {navItem({ kind: "home" }, "Home menu", <Home className="h-3.5 w-3.5" />)}
-          <p className="px-2.5 pb-1 pt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Apps</p>
+          <p className="px-2.5 pb-1 pt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">Modules</p>
           {content.apps.map((a, i) => (
             <React.Fragment key={a.id}>
             {navItem(
@@ -302,7 +302,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
                 <button type="button" data-plain disabled={i === content.apps.length - 1} onClick={() => moveApp(i, 1)} className="rounded p-0.5 hover:bg-zinc-200 disabled:opacity-30 dark:hover:bg-zinc-700" aria-label="Move down">
                   <ArrowDown className="h-3 w-3" />
                 </button>
-                <button type="button" data-plain onClick={() => deleteApp(a.id)} className="rounded p-0.5 hover:bg-zinc-200 hover:text-red-500 dark:hover:bg-zinc-700" aria-label="Delete app">
+                <button type="button" data-plain onClick={() => deleteApp(a.id)} className="rounded p-0.5 hover:bg-zinc-200 hover:text-red-500 dark:hover:bg-zinc-700" aria-label="Delete module">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </span>
@@ -316,11 +316,11 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
               onClick={() => setAddOpen((o) => !o)}
               className="flex w-full items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-2.5 py-2 text-xs text-zinc-500 hover:border-violet-400 hover:text-violet-600 dark:border-zinc-700"
             >
-              <Plus className="h-3.5 w-3.5" /> Add app
+              <Plus className="h-3.5 w-3.5" /> Add module
             </button>
             {addOpen && (
               <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-xl">
-                {APP_KINDS.map((k) => (
+                {STORY_MODULE_KINDS.map((k) => (
                   <button key={k} type="button" data-plain onClick={() => addApp(k)} className="flex w-full items-start gap-2 px-3 py-2.5 text-left hover:bg-accent">
                     <svg className="mt-0.5 shrink-0 text-violet-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <path d={STORY_APP_ICON[k]} />
