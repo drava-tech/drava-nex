@@ -208,7 +208,7 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
                       <p className="text-[11px] capitalize text-zinc-500">
                         {d.kind === "story" ? "Story" : "Design"} · {o} · {d.preview.width}×{d.preview.height}
                         {d.kind === "canvas" && d.pageCount > 1 && ` · ${d.pageCount} pages`}
-                        {d.kind === "story" && ` · ${d.appCount} app${d.appCount === 1 ? "" : "s"}`}
+                        {d.kind === "story" && ` · ${d.appCount} module${d.appCount === 1 ? "" : "s"}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">

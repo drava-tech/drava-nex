@@ -1,6 +1,7 @@
 import { CANVAS_FONTS } from "@platform/ui/templates/canvas";
 import {
   blankStory,
+  makeApp,
   makeFilter,
   storyId,
   type StoryBrand,
@@ -8,6 +9,7 @@ import {
   type StoryFilter,
   type StoryHotspot,
   type StoryApp,
+  type StoryAppKind,
   type StoryMapPin,
   type StoryMapRegion,
   type StoryVideoChapter,
@@ -682,6 +684,54 @@ export const STORY_PRESETS: StoryPreset[] = [
   { id: "city", label: "City & museum", description: "Parchment and terracotta: eras, landmarks map, artefacts", defaultName: "Stories of the city", build: cityHeritage },
   { id: "institution", label: "School & university", description: "Collegiate green: a century, campus map, notable alumni", defaultName: "A century of learning", build: institution },
   { id: "brand", label: "Brand archive", description: "Clean white with a red accent: launches, icons, product anatomy", defaultName: "The archive", build: brandEvolution },
-  { id: "sample", label: "Sample story", description: "Every app type, filled with placeholder content to replace", defaultName: "Our story", build: sampleStory },
-  { id: "blank", label: "Blank story", description: "An empty menu — add apps yourself", defaultName: "Untitled story", build: blankStory },
+  { id: "sample", label: "Sample story", description: "Every module type, filled with placeholder content to replace", defaultName: "Our story", build: sampleStory },
+  { id: "blank", label: "Blank story", description: "An empty menu — add modules yourself", defaultName: "Untitled story", build: blankStory },
 ];
+
+// ─── Composing a new story: modules first, then the look ─────────────────────
+
+/** Every module kind, in the order they're offered. */
+export const STORY_MODULE_KINDS: StoryAppKind[] = ["timeline", "map", "showcase", "hotspots", "video"];
+
+/** Base palettes for a story in the operator's own brand (also the editor's theme row). */
+export const STORY_PALETTES: { label: string; brand: Partial<StoryBrand> }[] = [
+  { label: "Night", brand: { background: "#0b0d12", surface: "#161a22", text: "#f5f6f8", muted: "#9aa3b2", accent: "#92ff5f", accentText: "#0b0d12" } },
+  { label: "Paper", brand: { background: "#f4f1ea", surface: "#ffffff", text: "#1a1a1a", muted: "#6b6b6b", accent: "#1a1a1a", accentText: "#ffffff" } },
+  { label: "Ocean", brand: { background: "#06172b", surface: "#0e2744", text: "#eaf4ff", muted: "#8fb0d0", accent: "#38bdf8", accentText: "#06172b" } },
+  { label: "Ember", brand: { background: "#1c1210", surface: "#2a1c18", text: "#fff4ee", muted: "#c9a99a", accent: "#ff7a45", accentText: "#1c1210" } },
+];
+
+/** The ready-made looks. Sample and Blank are what "Your brand" builds on. */
+export const STORY_THEMES: StoryPreset[] = STORY_PRESETS.filter((p) => p.id !== "sample" && p.id !== "blank");
+
+export type StoryLook = { kind: "brand"; brand: Partial<StoryBrand> } | { kind: "theme"; themeId: string };
+
+/**
+ * A new story with exactly the chosen modules, in the chosen look. A theme
+ * keeps its own modules of those kinds (in its own order) and borrows the
+ * sample's for any kind it doesn't have. Without examples, every module
+ * starts empty.
+ */
+export function composeStory(opts: {
+  modules: StoryAppKind[];
+  look: StoryLook;
+  examples: boolean;
+  width: number;
+  height: number;
+}): { content: StoryContent; defaultName: string } {
+  const { modules, look, examples, width: W, height: H } = opts;
+  const picked = STORY_MODULE_KINDS.filter((k) => modules.includes(k));
+  const theme = look.kind === "theme" ? (STORY_THEMES.find((t) => t.id === look.themeId) ?? STORY_THEMES[0]!) : null;
+  const sample = sampleStory(W, H);
+  const s = theme ? theme.build(W, H) : examples ? sample : blankStory(W, H);
+  if (look.kind === "brand") s.brand = { ...s.brand, ...look.brand };
+
+  if (!examples) {
+    s.apps = picked.map(makeApp);
+  } else {
+    const kept = s.apps.filter((a) => picked.includes(a.kind));
+    const borrowed = picked.filter((k) => !kept.some((a) => a.kind === k)).flatMap((k) => sample.apps.filter((a) => a.kind === k));
+    s.apps = [...kept, ...borrowed];
+  }
+  return { content: s, defaultName: theme?.defaultName ?? "Our story" };
+}
