@@ -5,13 +5,15 @@ import { Search } from "lucide-react";
 import { CanvasThumbnail, blankPage, type CanvasPage } from "@platform/ui/templates/canvas";
 import { CANVAS_PRESETS, TEMPLATE_CATEGORIES, type TemplateCategory } from "./presets";
 import { CANVAS_THEMES } from "./library/themes";
+import type { BrandKit } from "../brand";
 
 export const BLANK_TEMPLATE_ID = "blank";
 
 /** Builds a template's page for a canvas size (or a blank page). */
-export function buildTemplate(id: string, width: number, height: number): CanvasPage {
+export function buildTemplate(id: string, width: number, height: number, brand?: BrandKit | null): CanvasPage {
   const t = CANVAS_PRESETS.find((p) => p.id === id);
-  return t ? t.build(width, height) : blankPage();
+  if (t) return t.build(width, height, brand);
+  return brand ? blankPage({ color: brand.background }) : blankPage();
 }
 
 export function templateLabel(id: string): string | null {
@@ -28,6 +30,7 @@ function Tile({
   active,
   onClick,
   thumbH,
+  brand,
 }: {
   id: string;
   label: string;
@@ -37,6 +40,7 @@ function Tile({
   active: boolean;
   onClick: () => void;
   thumbH: number;
+  brand?: BrandKit | null;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [seen, setSeen] = useState(false);
@@ -47,7 +51,7 @@ function Tile({
     io.observe(node);
     return () => io.disconnect();
   }, [seen]);
-  const pageData = useMemo(() => (seen ? buildTemplate(id, width, height) : null), [seen, id, width, height]);
+  const pageData = useMemo(() => (seen ? buildTemplate(id, width, height, brand) : null), [seen, id, width, height, brand]);
   const box: React.CSSProperties = width >= height ? { width: "100%", aspectRatio: `${width} / ${height}` } : { height: "100%", aspectRatio: `${width} / ${height}` };
 
   return (
@@ -85,6 +89,7 @@ export function TemplatePicker({
   onPick,
   includeBlank = false,
   compact = false,
+  brand = null,
 }: {
   width: number;
   height: number;
@@ -92,6 +97,8 @@ export function TemplatePicker({
   onPick: (id: string) => void;
   includeBlank?: boolean;
   compact?: boolean;
+  /** Redraw every template in this brand. */
+  brand?: BrandKit | null;
 }) {
   const [cat, setCat] = useState<TemplateCategory | "all">("all");
   const [q, setQ] = useState("");
@@ -165,19 +172,20 @@ export function TemplatePicker({
       ) : (
         <div className={`grid gap-3 ${compact ? "grid-cols-2" : "grid-cols-3 sm:grid-cols-5"}`}>
           {showBlank && (
-            <Tile id={BLANK_TEMPLATE_ID} label="Blank" width={width} height={height} active={value === BLANK_TEMPLATE_ID} onClick={() => onPick(BLANK_TEMPLATE_ID)} thumbH={thumbH} />
+            <Tile id={BLANK_TEMPLATE_ID} label="Blank" width={width} height={height} active={value === BLANK_TEMPLATE_ID} onClick={() => onPick(BLANK_TEMPLATE_ID)} thumbH={thumbH} brand={brand} />
           )}
           {visible.map((t) => (
             <Tile
               key={t.id}
               id={t.id}
               label={t.label}
-              sub={compact ? undefined : CANVAS_THEMES[t.theme].label}
+              sub={compact ? undefined : brand ? "Your brand" : CANVAS_THEMES[t.theme].label}
               width={width}
               height={height}
               active={value === t.id}
               onClick={() => onPick(t.id)}
               thumbH={thumbH}
+              brand={brand}
             />
           ))}
         </div>
