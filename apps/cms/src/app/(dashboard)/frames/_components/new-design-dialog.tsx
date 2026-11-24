@@ -6,21 +6,16 @@ import { Check, Loader2, X } from "lucide-react";
 import { CANVAS_MAX_SIDE, CANVAS_MIN_SIDE, CANVAS_SIZE_PRESETS, type CanvasContent } from "@platform/ui/templates/canvas";
 import { StoryFrame, STORY_APP_DESCRIPTIONS, STORY_APP_ICON, STORY_APP_LABELS, type StoryAppKind } from "@platform/ui/templates/story";
 import { createDesign, createStory } from "@/actions/design-actions";
-import { MediaPicker } from "@/components/media-picker";
 import { toStoryBrand, type BrandKit } from "@/templates/brand";
 import { BLANK_TEMPLATE_ID, TemplatePicker, buildTemplate, templateLabel } from "@/templates/canvas/template-picker";
 import { STORY_MODULE_KINDS, STORY_THEMES, composeStory, type StoryScreen } from "@/templates/story/presets";
 import "@/templates/canvas/fonts";
-import { Field, ImageField, card, inputCls, thumbStyle } from "./form-fields";
+import { card, thumbStyle } from "./form-fields";
 
 const CUSTOM = "custom";
 
-const TIMEOUTS = [
-  { label: "30 seconds", value: 30 },
-  { label: "1 minute", value: 60 },
-  { label: "2 minutes", value: 120 },
-  { label: "5 minutes", value: 300 },
-] as const;
+/** Idle and home screen defaults; changed later in the story editor. */
+const SCREEN_DEFAULTS = { backgroundUrl: null, prompt: "Touch to explore", timeoutSeconds: 60 } as const;
 
 function StepLabel({ n, children, hint }: { n: number; children: React.ReactNode; hint?: React.ReactNode }) {
   return (
@@ -47,7 +42,6 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [picking, setPicking] = useState(false);
 
   // ① What and how big.
   const [kind, setKind] = useState<"canvas" | "story">("canvas");
@@ -61,9 +55,6 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
   const [modules, setModules] = useState<StoryAppKind[]>(["timeline", "map", "showcase"]);
   const [themeId, setThemeId] = useState(STORY_THEMES[0]!.id);
   const [examples, setExamples] = useState(true);
-  const [homeBg, setHomeBg] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("Touch to explore");
-  const [timeoutSeconds, setTimeoutSeconds] = useState(60);
 
   const size =
     sizeId === CUSTOM
@@ -74,8 +65,8 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
       : CANVAS_SIZE_PRESETS.find((s) => s.id === sizeId)!;
 
   const screen = useMemo<StoryScreen>(
-    () => ({ ...(brand ? { name: brand.name, tagline: brand.tagline } : {}), backgroundUrl: homeBg, prompt, timeoutSeconds }),
-    [brand, homeBg, prompt, timeoutSeconds]
+    () => ({ ...(brand ? { name: brand.name, tagline: brand.tagline } : {}), ...SCREEN_DEFAULTS }),
+    [brand]
   );
 
   /** No brand: one composed story per signature theme, so each thumbnail shows the picked modules. */
@@ -272,12 +263,10 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
                 </label>
               </section>
 
-              {/* ③ Story look and screens */}
-              <section className="flex flex-col gap-3">
-                <StepLabel n={3} hint={brand ? "In your brand" : "Pick a signature theme"}>
-                  {brand ? "Screens" : "Theme & screens"}
-                </StepLabel>
-                {!brand && (
+              {/* ③ No brand: a signature theme */}
+              {!brand && (
+                <section className="flex flex-col gap-3">
+                  <StepLabel n={3}>Theme</StepLabel>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {themed.map(({ theme, content }) => (
                       <button key={theme.id} type="button" data-plain onClick={() => setThemeId(theme.id)} className="flex flex-col gap-1 text-left">
@@ -293,30 +282,8 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
                       </button>
                     ))}
                   </div>
-                )}
-                <div className={`grid gap-4 ${branded ? "sm:grid-cols-[1fr_1.2fr]" : ""}`}>
-                  <div className="flex flex-col gap-2.5">
-                    <ImageField label="Background image" url={homeBg} cover onPick={() => setPicking(true)} onClear={() => setHomeBg(null)} />
-                    <Field label="Idle prompt">
-                      <input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Touch to explore" className={inputCls} />
-                    </Field>
-                    <Field label="Back to idle after">
-                      <select value={timeoutSeconds} onChange={(e) => setTimeoutSeconds(Number(e.target.value))} className={inputCls}>
-                        {TIMEOUTS.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label} without a touch
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  {branded && (
-                    <div className="flex h-56 items-center justify-center rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800">
-                      <StoryFrame content={branded.content} still className="max-h-full max-w-full rounded-sm" style={thumbStyle(size.width, size.height)} />
-                    </div>
-                  )}
-                </div>
-              </section>
+                </section>
+              )}
             </>
           )}
         </div>
@@ -338,18 +305,6 @@ export function NewDesignDialog({ onClose, brand }: { onClose: () => void; brand
             </button>
           </div>
         </div>
-      </div>
-
-      <div onClick={(e) => e.stopPropagation()}>
-        <MediaPicker
-          open={picking}
-          onClose={() => setPicking(false)}
-          accept="image"
-          onSelect={(url) => {
-            setHomeBg(url);
-            setPicking(false);
-          }}
-        />
       </div>
     </div>
   );
