@@ -1,4 +1,5 @@
 import type { CanvasPage } from "@platform/ui/templates/canvas";
+import { brandLogoSlot, toCanvasTheme, type BrandKit } from "../../brand";
 import { LAYOUTS, type Copy, type LayoutId } from "./layouts";
 import { pics } from "./stock";
 import { CANVAS_THEMES, type CanvasThemeId } from "./themes";
@@ -33,7 +34,8 @@ export interface CanvasTemplate {
   category: TemplateCategory;
   layout: LayoutId;
   theme: CanvasThemeId;
-  build: (width: number, height: number) => CanvasPage;
+  /** Builds the page for a canvas size — in the template's own theme, or redrawn in a brand. */
+  build: (width: number, height: number, brand?: BrandKit | null) => CanvasPage;
 }
 
 
@@ -203,6 +205,9 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = TEMPLATE_CATEGORIES.flatMap(({
     category,
     layout,
     theme,
-    build: (W: number, H: number) => LAYOUTS[layout](W, H, CANVAS_THEMES[theme], copy),
+    build: (W: number, H: number, brand?: BrandKit | null) => {
+      if (!brand) return LAYOUTS[layout](W, H, CANVAS_THEMES[theme], copy);
+      return brandLogoSlot(LAYOUTS[layout](W, H, toCanvasTheme(CANVAS_THEMES[theme], brand), copy), brand);
+    },
   }))
 );

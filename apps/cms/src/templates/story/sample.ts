@@ -9,12 +9,12 @@ import {
 /**
  * A filled-in starter story — every app type with placeholder copy, so an
  * operator sees the whole experience working and replaces text and images
- * rather than starting from nothing. Images are the CMS's bundled samples.
+ * rather than starting from nothing. Images are neutral stock photos.
  */
 const IMG = {
-  centre: "/media/experience-center.png",
-  brand: "/media/brand-experiences.png",
-  interior: "/media/interior-space.png",
+  centre: "/media/stock/city-street.jpg",
+  brand: "/media/stock/flatlay.jpg",
+  interior: "/media/stock/cafe-tables.jpg",
 };
 
 const img = (url: string): StoryMedia => ({ id: storyId(), type: "image", url });
@@ -23,9 +23,9 @@ export function sampleStory(width = 1920, height = 1080): StoryContent {
   const s = blankStory(width, height);
 
   s.idle.slides = [
-    { id: storyId(), mediaUrl: IMG.centre, mediaType: "image", headline: "Welcome to our Experience Centre", body: "Twenty years of building spaces people remember." },
-    { id: storyId(), mediaUrl: IMG.brand, mediaType: "image", headline: "New: Brand Experiences", body: "See how we bring a brand to life, end to end." },
-    { id: storyId(), mediaUrl: IMG.interior, mediaType: "image", headline: "Designed around people", body: "Touch the screen to explore our story." },
+    { id: storyId(), mediaUrl: IMG.centre, mediaType: "image", headline: "Welcome", body: "Twenty years of building things people remember." },
+    { id: storyId(), mediaUrl: IMG.brand, mediaType: "image", headline: "Our story, in your hands", body: "Milestones, places and the work that made us." },
+    { id: storyId(), mediaUrl: IMG.interior, mediaType: "image", headline: "Made by people", body: "Touch the screen to explore." },
   ];
   s.home = { headline: "Explore our story", subheadline: "Tap a tile to begin", backgroundUrl: null };
 

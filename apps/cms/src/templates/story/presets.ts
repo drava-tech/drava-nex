@@ -704,6 +704,20 @@ export const STORY_PALETTES: { label: string; brand: Partial<StoryBrand> }[] = [
 /** The ready-made looks. Sample and Blank are what "Your brand" builds on. */
 export const STORY_THEMES: StoryPreset[] = STORY_PRESETS.filter((p) => p.id !== "sample" && p.id !== "blank");
 
+/** What the operator tells us about their story's screens, applied on top of the look. */
+export interface StoryScreen {
+  /** Organisation or story name — the home headline and the first idle slide. */
+  name?: string;
+  /** Line under the home headline. */
+  tagline?: string;
+  /** Home screen and welcome-slide background. */
+  backgroundUrl?: string | null;
+  /** Call to action on the idle loop. */
+  prompt?: string;
+  /** Back to the idle loop after this long with no touch. */
+  timeoutSeconds?: number;
+}
+
 export type StoryLook = { kind: "brand"; brand: Partial<StoryBrand> } | { kind: "theme"; themeId: string };
 
 /**
@@ -715,16 +729,19 @@ export type StoryLook = { kind: "brand"; brand: Partial<StoryBrand> } | { kind: 
 export function composeStory(opts: {
   modules: StoryAppKind[];
   look: StoryLook;
+  /** Screen details (name, idle prompt, timeout…) laid over either look. */
+  screen?: StoryScreen;
   examples: boolean;
   width: number;
   height: number;
 }): { content: StoryContent; defaultName: string } {
-  const { modules, look, examples, width: W, height: H } = opts;
+  const { modules, look, screen, examples, width: W, height: H } = opts;
   const picked = STORY_MODULE_KINDS.filter((k) => modules.includes(k));
   const theme = look.kind === "theme" ? (STORY_THEMES.find((t) => t.id === look.themeId) ?? STORY_THEMES[0]!) : null;
   const sample = sampleStory(W, H);
   const s = theme ? theme.build(W, H) : examples ? sample : blankStory(W, H);
   if (look.kind === "brand") s.brand = { ...s.brand, ...look.brand };
+  applyScreen(s, screen);
 
   if (!examples) {
     s.apps = picked.map(makeApp);
@@ -734,4 +751,31 @@ export function composeStory(opts: {
     s.apps = [...kept, ...borrowed];
   }
   return { content: s, defaultName: theme?.defaultName ?? "Our story" };
+}
+
+function applyScreen(s: StoryContent, screen: StoryScreen | undefined) {
+  if (!screen) return;
+  const name = screen.name?.trim();
+  const tagline = screen.tagline?.trim();
+  const prompt = screen.prompt?.trim();
+  if (name) {
+    s.home.headline = name;
+    const first = s.idle.slides[0];
+    if (first) first.headline = `Welcome to ${name}`;
+  }
+  if (tagline) {
+    s.home.subheadline = tagline;
+    const first = s.idle.slides[0];
+    if (first) first.body = tagline;
+  }
+  if (screen.backgroundUrl) {
+    s.home.backgroundUrl = screen.backgroundUrl;
+    const first = s.idle.slides[0];
+    if (first) {
+      first.mediaUrl = screen.backgroundUrl;
+      first.mediaType = "image";
+    }
+  }
+  if (prompt) s.idle.prompt = prompt;
+  if (screen.timeoutSeconds) s.idle.timeoutSeconds = screen.timeoutSeconds;
 }
