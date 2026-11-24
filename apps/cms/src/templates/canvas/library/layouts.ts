@@ -1,5 +1,6 @@
 import type { CanvasElement, CanvasPage } from "@platform/ui/templates/canvas";
 import { circle, column, ctx, headingParts, image, measure, page, pill, rect, text, type Ctx } from "./engine";
+import { pics } from "./stock";
 import type { CanvasTheme } from "./themes";
 
 /** The words (and pictures) a template fills a layout with. */
@@ -24,7 +25,7 @@ export interface Copy {
 
 export type Layout = (W: number, H: number, th: CanvasTheme, k: Copy) => CanvasPage;
 
-const IMG = ["/media/experience-center.png", "/media/brand-experiences.png", "/media/interior-space.png"];
+const IMG = pics("workspace", "cafeTables", "skyline");
 const img = (k: Copy, i = 0) => k.images?.[i] ?? IMG[i % IMG.length]!;
 const alpha = (hex: string, a: number) => {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
