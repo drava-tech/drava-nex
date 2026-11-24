@@ -20,6 +20,7 @@ import { StoryFrame } from "@platform/ui/templates/story";
 import { deleteDesign, duplicateDesign, type DesignCard } from "@/actions/design-actions";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { PushToScreenModal } from "@/components/push-to-screen-modal";
+import { BrandBar, useBrandLibrary } from "./brand-bar";
 import { NewDesignDialog } from "./new-design-dialog";
 import "@/templates/canvas/fonts";
 
@@ -47,6 +48,7 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const brandLib = useBrandLibrary();
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -146,6 +148,8 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
           <Plus className="h-4 w-4" /> New
         </Button>
       </div>
+
+      <BrandBar lib={brandLib} />
 
       {error && (
         <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
@@ -265,7 +269,7 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
         )}
       </div>
 
-      {newOpen && <NewDesignDialog onClose={() => setNewOpen(false)} />}
+      {newOpen && <NewDesignDialog onClose={() => setNewOpen(false)} brand={brandLib.brand} />}
 
       {pushTarget && (
         <PushToScreenModal
