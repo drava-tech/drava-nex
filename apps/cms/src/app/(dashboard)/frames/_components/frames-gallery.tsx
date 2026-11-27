@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Copy,
-  LayoutTemplate,
   Loader2,
   MonitorUp,
   MoreHorizontal,
@@ -20,11 +19,10 @@ import { StoryFrame } from "@platform/ui/templates/story";
 import { deleteDesign, duplicateDesign, type DesignCard } from "@/actions/design-actions";
 import { assignExperience, assignMedia } from "@/actions/screen-actions";
 import { PushToScreenModal } from "@/components/push-to-screen-modal";
-import { BrandBar, useBrandLibrary } from "./brand-bar";
-import { NewDesignDialog } from "./new-design-dialog";
+import { BrandMenu, useBrandLibrary } from "./brand-bar";
+import { KindChoice, NewDesignDialog, type NewKind } from "./new-design-dialog";
 import "@/templates/canvas/fonts";
 
-type Filter = "all" | "landscape" | "portrait";
 type KindFilter = "all" | "canvas" | "story";
 
 /** A design's first page or a story's home menu, scaled into the box the caller sizes. */
@@ -38,10 +36,10 @@ function Thumb({ d, className, style }: { d: DesignCard; className?: string; sty
 
 export function FramesGallery({ designs }: { designs: DesignCard[] }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("all");
   const [kind, setKind] = useState<KindFilter>("all");
   const [query, setQuery] = useState("");
-  const [newOpen, setNewOpen] = useState(false);
+  /** true: ask what to make first; a kind: go straight to it. */
+  const [newOpen, setNewOpen] = useState<false | true | NewKind>(false);
   const [pushTarget, setPushTarget] = useState<DesignCard | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DesignCard | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -52,24 +50,12 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return designs.filter((d) => {
-      const o = canvasOrientation(d.preview.width, d.preview.height);
-      if (filter === "landscape" && o === "portrait") return false;
-      if (filter === "portrait" && o === "landscape") return false;
-      if (kind !== "all" && d.kind !== kind) return false;
-      return !q || d.name.toLowerCase().includes(q);
-    });
-  }, [designs, filter, kind, query]);
+    return designs.filter((d) => (kind === "all" || d.kind === kind) && (!q || d.name.toLowerCase().includes(q)));
+  }, [designs, kind, query]);
 
   const counts = useMemo(() => {
-    let landscape = 0;
-    let portrait = 0;
-    for (const d of designs) {
-      const o = canvasOrientation(d.preview.width, d.preview.height);
-      if (o === "portrait") portrait++;
-      else if (o === "landscape") landscape++;
-    }
-    return { all: designs.length, landscape, portrait };
+    const story = designs.filter((d) => d.kind === "story").length;
+    return { all: designs.length, canvas: designs.length - story, story };
   }, [designs]);
 
   const open = (d: DesignCard) => router.push(`/edit/experiences/${d.slug}`);
@@ -98,58 +84,50 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5" onClick={() => setMenuId(null)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-2 flex rounded-full bg-zinc-200/80 p-0.5 dark:bg-zinc-800">
+      <div className="flex flex-wrap items-center gap-3">
+        {designs.length > 0 && (
+          <div className="flex rounded-full bg-zinc-200/80 p-0.5 dark:bg-zinc-800">
             {(
               [
-                ["all", "Everything"],
-                ["canvas", "Designs"],
-                ["story", "Stories"],
+                ["all", "All", counts.all],
+                ["canvas", "Designs", counts.canvas],
+                ["story", "Stories", counts.story],
               ] as const
-            ).map(([k, label]) => (
+            ).map(([k, label, n]) => (
               <button
                 key={k}
                 type="button"
+                data-plain
                 onClick={() => setKind(k)}
-                className={`h-7 rounded-full px-3 text-xs font-medium transition-colors ${
-                  kind === k ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500"
+                aria-pressed={kind === k}
+                className={`h-8 rounded-full px-3.5 text-xs font-medium transition-colors ${
+                  kind === k ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
-                {label}
+                {label} <span className="opacity-50">{n}</span>
               </button>
             ))}
           </div>
-          {(["all", "landscape", "portrait"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`h-8 rounded-full px-3.5 text-xs font-medium capitalize transition-colors ${
-                filter === f
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "btn-surface text-zinc-600 dark:text-zinc-300"
-              }`}
-            >
-              {f} <span className="opacity-60">{counts[f]}</span>
-            </button>
-          ))}
-          <div className="relative ml-1">
+        )}
+        {designs.length > 6 && (
+          <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search designs"
-              className="h-8 w-52 rounded-full border border-border bg-white pl-8 pr-3 text-xs outline-none focus:border-violet-500 dark:bg-zinc-900"
+              placeholder="Search"
+              aria-label="Search frames"
+              className="h-9 w-48 rounded-full border border-border bg-white pl-8 pr-3 text-xs outline-none focus:border-violet-500 dark:bg-zinc-900"
             />
           </div>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <BrandMenu lib={brandLib} />
+          <Button size="pill" onClick={() => setNewOpen(true)}>
+            <Plus className="h-4 w-4" /> New
+          </Button>
         </div>
-        <Button size="pill" onClick={() => setNewOpen(true)}>
-          <Plus className="h-4 w-4" /> New
-        </Button>
       </div>
-
-      <BrandBar lib={brandLib} />
 
       {error && (
         <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
@@ -159,17 +137,12 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {designs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-            <LayoutTemplate className="h-8 w-8 text-zinc-400" />
+          <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
             <div>
-              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Nothing here yet</p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Lay out a screen design, or build an interactive touchscreen story, then push it.
-              </p>
+              <p className="text-base font-semibold text-zinc-800 dark:text-zinc-100">Make your first frame</p>
+              <p className="mt-1 text-xs text-zinc-500">Pick one to start. You can push it to any screen when it&apos;s ready.</p>
             </div>
-            <Button size="pill" onClick={() => setNewOpen(true)}>
-              <Plus className="h-4 w-4" /> Create your first design
-            </Button>
+            <KindChoice onPick={(k) => setNewOpen(k)} />
           </div>
         ) : visible.length === 0 ? (
           <p className="py-24 text-center text-xs text-zinc-500">No designs match.</p>
@@ -209,10 +182,9 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
                   <div className="flex items-start justify-between gap-2 px-3 py-2.5">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">{d.name}</p>
-                      <p className="text-[11px] capitalize text-zinc-500">
-                        {d.kind === "story" ? "Story" : "Design"} · {o} · {d.preview.width}×{d.preview.height}
+                      <p className="text-[11px] text-zinc-500" title={`${d.preview.width}×${d.preview.height}`}>
+                        {d.kind === "story" ? "Story" : "Design"} · <span className="capitalize">{o}</span>
                         {d.kind === "canvas" && d.pageCount > 1 && ` · ${d.pageCount} pages`}
-                        {d.kind === "story" && ` · ${d.appCount} module${d.appCount === 1 ? "" : "s"}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
@@ -269,7 +241,13 @@ export function FramesGallery({ designs }: { designs: DesignCard[] }) {
         )}
       </div>
 
-      {newOpen && <NewDesignDialog onClose={() => setNewOpen(false)} brand={brandLib.brand} />}
+      {newOpen && (
+        <NewDesignDialog
+          initialKind={newOpen === true ? null : newOpen}
+          onClose={() => setNewOpen(false)}
+          brand={brandLib.brand}
+        />
+      )}
 
       {pushTarget && (
         <PushToScreenModal

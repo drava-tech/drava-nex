@@ -155,13 +155,13 @@ export function TemplatePicker({
         ) : null}
       </div>
       {!compact && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           <button type="button" data-plain onClick={() => setCat("all")} className={chip(cat === "all")}>
-            All <span className="opacity-60">{CANVAS_PRESETS.length}</span>
+            All
           </button>
           {TEMPLATE_CATEGORIES.map((c) => (
             <button key={c.id} type="button" data-plain onClick={() => setCat(c.id)} className={chip(cat === c.id)}>
-              {c.label} <span className="opacity-60">{counts.get(c.id) ?? 0}</span>
+              {c.label}
             </button>
           ))}
         </div>
