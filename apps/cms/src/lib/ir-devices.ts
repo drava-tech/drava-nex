@@ -44,9 +44,10 @@ export const IR_REMOTES: IrRemoteConfig[] = [
   {
     label: "TV",
     uuid: "06763297-4d5a-47e9-9b33-66c2bddf17ee",
-    deviceId: "d7d74af8f0b7a3a5c24ca6",
+    deviceId: "d7906ec075f40500aes46f",
     irDevice: "tv",
-    keys: ["Power", "Volume+", "Volume-", "Channel+", "Channel-", "Up", "Down", "Left", "Right", "OK", "Menu"],
+    // Tuya key codes for this remote — list them with `tuya:discover`.
+    keys: ["Power", "Volume+", "Volume-", "Channel+", "Channel-", "continuous up", "Continuous down", "continuous left", "continuous right", "confirm", "Back"],
   },
   {
     label: "Soundbar",
