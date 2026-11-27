@@ -11,7 +11,7 @@ import { upsertDevice } from "@platform/db";
 // bridge-side remote name (the `device` field CrabController dispatches on).
 const IR_DEVICES = [
   { deviceId: "d7b20d1b6760571b8b0cnw", type: "ir", name: "Experience Centre AC", config: { driver: "ir", irDevice: "ac" } },
-  { deviceId: "d7d74af8f0b7a3a5c24ca6", type: "ir", name: "TV", config: { driver: "ir", irDevice: "tv", categoryId: 2, remoteIndex: 692 } },
+  { deviceId: "d7906ec075f40500aes46f", type: "ir", name: "TV", config: { driver: "ir", irDevice: "tv", categoryId: 2, remoteIndex: 112034014 } },
   { deviceId: "d746e7d41e962b00dd0jhl", type: "ir", name: "Soundbar", config: { driver: "ir", irDevice: "soundbar", categoryId: 7, remoteIndex: 417259975 } },
 ];
 
