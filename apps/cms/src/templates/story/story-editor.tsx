@@ -85,7 +85,13 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
   const [picker, setPicker] = useState<{ accept: "image" | "video" | "visual" | "all"; onPick: (m: StoryMedia) => void } | null>(null);
   const dirty = content !== saved || name.trim() !== savedName;
 
+  // The overview row under the mouse: the preview shows and blinks the part it changes.
+  const [hover, setHover] = useState<Section | null>(null);
+  const shownView: StoryView = !hover || hover.kind === "brand" ? view : hover.kind === "idle" ? { screen: "idle" } : { screen: "home" };
+  const hoverKey = hover && hover.kind !== "overview" ? (hover.kind === "app" ? `app:${hover.id}` : hover.kind) : null;
+
   const go = (s: Section) => {
+    setHover(null);
     setSection(s);
     setView(viewFor(s));
   };
@@ -209,6 +215,8 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
       tabIndex={0}
       onClick={() => go(s)}
       onKeyDown={(e) => e.key === "Enter" && go(s)}
+      onMouseEnter={() => setHover(s)}
+      onMouseLeave={() => setHover(null)}
       className="group flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-background/40 p-3 transition-colors hover:border-violet-400 hover:bg-violet-500/5"
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">{icon}</span>
@@ -249,7 +257,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
               onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
               aria-label="Story name"
               title="Click to rename"
-              className="w-[260px] truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-semibold outline-none hover:border-border focus:border-violet-500"
+              className="w-65 truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-semibold outline-none hover:border-border focus:border-violet-500"
             />
             <p className={`px-1.5 text-[11px] ${dirty ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
               {dirty ? "Unsaved changes" : "All changes saved"}
@@ -257,7 +265,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {error && <span className="max-w-[240px] truncate text-xs text-red-500" title={error}>{error}</span>}
+          {error && <span className="max-w-60 truncate text-xs text-red-500" title={error}>{error}</span>}
           <button type="button" data-plain onClick={undo} disabled={!history.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo" className="rounded-md p-2 text-muted-foreground hover:bg-accent disabled:opacity-30">
             <Undo2 className="h-4 w-4" />
           </button>
@@ -277,7 +285,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
             type="button"
             onClick={() => save()}
             disabled={isSaving || !dirty}
-            className="flex min-w-[84px] items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+            className="flex min-w-21 items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
           >
             {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : justSaved ? <Check className="h-3.5 w-3.5" /> : null}
             {isSaving ? "Saving…" : justSaved ? "Saved" : "Save"}
@@ -295,7 +303,7 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
 
       <div className="flex min-h-0 flex-1">
         {/* One panel: the list of parts, or the form for the part you opened */}
-        <aside className="flex w-[400px] shrink-0 flex-col overflow-hidden border-r border-border bg-card text-card-foreground">
+        <aside className="flex w-100 shrink-0 flex-col overflow-hidden border-r border-border bg-card text-card-foreground">
           {!detail ? (
             <div className="flex flex-col gap-2 overflow-y-auto p-4">
               <p className="pb-1 text-xs text-zinc-500">Click a part to change it. The preview on the right updates as you go.</p>
@@ -435,9 +443,12 @@ export function StoryEditorWorkspace({ experience, initialContent }: { experienc
             </div>
           </div>
           <div ref={previewRef} className="min-h-0 flex-1 p-4">
+            {hoverKey && (
+              <style>{`[data-story-part="${hoverKey}"]::after{content:"";position:absolute;inset:0;z-index:50;pointer-events:none;border:8px solid #a78bfa;border-radius:inherit;background:rgba(139,92,246,.14);animation:story-part-blink .9s ease-in-out infinite}@keyframes story-part-blink{50%{opacity:.15}}@media (prefers-reduced-motion:reduce){[data-story-part]::after{animation:none!important}}`}</style>
+            )}
             <StoryFrame
               content={content}
-              view={view}
+              view={shownView}
               disableIdle
               onViewChange={(v) => {
                 setView(v);

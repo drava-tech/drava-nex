@@ -314,7 +314,7 @@ function IdleScreen({ content, ctx, onStart, animate }: { content: StoryContent;
   const s = slides[i % Math.max(1, slides.length)];
 
   return (
-    <div onClick={onStart} style={{ position: "absolute", inset: 0, cursor: "pointer", overflow: "hidden" }}>
+    <div data-story-part="idle" onClick={onStart} style={{ position: "absolute", inset: 0, cursor: "pointer", overflow: "hidden" }}>
       {s && (
         <div key={s.id} style={{ position: "absolute", inset: 0, animation: animate ? "st-fade 1s ease both" : undefined }}>
           {s.mediaUrl && s.mediaType === "video" ? (
@@ -385,7 +385,7 @@ function HomeScreen({ content, ctx, onOpen, animate }: { content: StoryContent; 
   const pad = 110 * u;
   const scroller = useDragScroll<HTMLDivElement>();
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: `${80 * u}px ${pad}px ${pad}px` }}>
+    <div data-story-part="home" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", padding: `${80 * u}px ${pad}px ${pad}px` }}>
       {content.home.backgroundUrl && (
         <div style={{ position: "absolute", inset: 0, background: `center / cover no-repeat url("${content.home.backgroundUrl.replace(/"/g, '\\"')}")`, opacity: 0.35 }} />
       )}
@@ -428,6 +428,7 @@ function HomeScreen({ content, ctx, onOpen, animate }: { content: StoryContent; 
           <button
             key={app.id}
             type="button"
+            data-story-part={`app:${app.id}`}
             className="st-tap"
             onClick={() => onOpen(app.id)}
             style={{
@@ -1963,6 +1964,7 @@ export function StorySurface({ content, view: controlled, onViewChange, disableI
   return (
     <div
       className="st-root"
+      data-story-part="brand"
       onPointerDownCapture={arm}
       style={{
         position: "relative",
