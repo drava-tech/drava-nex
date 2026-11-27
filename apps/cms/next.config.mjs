@@ -33,6 +33,10 @@ const nextConfig = {
     optimizePackageImports: ['@platform/ui', '@platform/types', 'lucide-react'],
     middlewareClientMaxBodySize: '100mb',
   },
+  async redirects() {
+    // The Templates section was renamed Frames — keep old links working.
+    return [{ source: '/templates', destination: '/frames', permanent: true }];
+  },
   async rewrites() {
     return {
       // Next.js has no API routes — proxy everything to the single Hono backend.

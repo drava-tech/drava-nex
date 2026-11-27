@@ -17,4 +17,6 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   gallery: "Gallery",
   "drava-mosaic": "Drava Mosaic",
   "drava-world": "Drava World",
+  canvas: "Design",
+  story: "Story",
 };

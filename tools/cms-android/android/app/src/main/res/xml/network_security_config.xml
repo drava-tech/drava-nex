@@ -8,14 +8,14 @@
   This trusts the mkcert root CA — and ONLY it, and ONLY for the CMS hosts.
   Every other domain still uses the normal system trust store, so this is not
   a blanket "ignore certificate errors" switch. Same posture as the WebView2
-  host allow-list in tools/main-screen-kiosk.
+  host allow-list in tools/drava-nex.
 
   res/raw/ec_cms_root_ca.crt is copied from infra/nginx/certs/rootCA.crt by
   scripts/sync-ca.mjs — do not hand-edit it.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">192.168.1.250</domain>
+        <domain includeSubdomains="true">192.168.20.250</domain>
         <domain includeSubdomains="true">ec-cms</domain>
         <domain includeSubdomains="true">ec-cms.local</domain>
         <trust-anchors>

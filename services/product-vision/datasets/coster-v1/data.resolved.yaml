@@ -1,4 +1,4 @@
-path: E:\EC\cms-platform\services\product-vision\datasets\coster-v1
+path: E:\EC\drava-nex\services\product-vision\datasets\coster-v1
 train: images/train
 val: images/val
 test: images/test

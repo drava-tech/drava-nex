@@ -37,15 +37,20 @@ export interface DataArtView {
   data: string | null;
   art: string | null;
   open: boolean;
-  /** World Clock only: the running clock ("Show Clock" pressed); null = city picker / other art. */
+  /** World Clock only: what its page shows (picker or running clock); null = another art, or not there. */
   clock: DataArtClock | null;
 }
 
-/** The World Clock a screen is showing: place ids, artwork id and clock style id. */
+/**
+ * The World Clock a screen is showing: place ids (in band order), artwork id and clock style id.
+ * `running` false = the city picker is up with these choices made so far (places may be empty);
+ * true = "Show Clock" was pressed and the clock runs.
+ */
 export interface DataArtClock {
   places: string[];
   art: string | null;
   style: string | null;
+  running: boolean;
 }
 
 /** Studio -> parent: the operator changed something. */
@@ -69,6 +74,8 @@ function readClock(value: unknown): DataArtClock | null {
   if (!Array.isArray(c["places"])) return null;
   const id = (x: unknown) => (typeof x === "string" && x.length <= 64 ? x : null);
   const places = c["places"].filter((p): p is string => typeof p === "string" && p.length <= 64).slice(0, 5);
-  if (places.length === 0) return null;
-  return { places, art: id(c["art"]), style: id(c["style"]) };
+  // Messages from before the picker was shared carry no flag, and only ever described a running clock.
+  const running = c["running"] !== false;
+  if (running && places.length === 0) return null;
+  return { places, art: id(c["art"]), style: id(c["style"]), running };
 }

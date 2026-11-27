@@ -372,7 +372,7 @@ services:
 
   # ─── Nginx (nexus's own router, behind edge) ────────────────────────────────
   # No host ports: the shared edge Caddy (E:\edge) owns 80/443 for every project
-  # on this box and forwards ec-cms / 192.168.1.250 (LAN) and
+  # on this box and forwards ec-cms / 192.168.20.250 (LAN) and
   # nexus.drava.technology (Cloudflare tunnel) here over the `edge` network.
   # Caddy picks the project; nginx keeps all of nexus's own path routing.
   nginx:
@@ -405,7 +405,7 @@ services:
           cpus: "2"
           memory: 512M
     healthcheck:
-      # Must send the canonical Host — server_name is ec-cms/192.168.1.250 and
+      # Must send the canonical Host — server_name is ec-cms/192.168.20.250 and
       # anything else hits the catch-all `return 444`, which would look like an
       # outage while the stack is fine.
       test: ["CMD", "wget", "-q", "--spider", "--header=Host: ec-cms", "http://127.0.0.1/health"]

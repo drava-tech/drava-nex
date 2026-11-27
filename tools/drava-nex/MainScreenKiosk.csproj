@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Output is DravaNex.exe (was Nexus.exe, before that EMS.exe and MainScreenKiosk.exe);
+         AssemblyTitle is the name Task Manager and the file's Properties dialog
+         show. The project file and the C# namespace keep the old
+         MainScreenKiosk name, since nobody sees them. -->
+    <AssemblyName>DravaNex</AssemblyName>
+    <AssemblyTitle>Drava Nex - Main Display</AssemblyTitle>
+    <Product>Drava Nex - Main Display</Product>
+    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
+    <!-- Per-monitor DPI awareness — see app.manifest for why this matters to
+         picture quality on a 4K panel. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ships tools/frame-unlock-extension as loose files next to the published
+         exe. AddBrowserExtensionAsync (MainWindow.xaml.cs) needs a real folder
+         on disk containing manifest.json — an unpacked extension can't be
+         loaded from inside the PublishSingleFile bundle itself. -->
+    <Content Include="..\frame-unlock-extension\**"
+             Link="frame-unlock-extension\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

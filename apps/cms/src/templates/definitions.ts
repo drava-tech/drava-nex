@@ -18,6 +18,12 @@ import { DravaMosaicLayout } from "./drava-mosaic/drava-mosaic-layout";
 import { DravaMosaicEditorWorkspace } from "./drava-mosaic/editor-workspace";
 import { DravaWorldLayout } from "./drava-world/drava-world-layout";
 import { DravaWorldEditorWorkspace } from "./drava-world/editor-workspace";
+import { CanvasLayout } from "./canvas/canvas-layout";
+import { CanvasEditorWorkspace } from "./canvas/editor-workspace";
+import { DEFAULT_CANVAS_CONTENT } from "@platform/ui/templates/canvas";
+import { StoryLayout } from "./story/story-layout";
+import { StoryEditorWorkspace } from "./story/story-editor";
+import { DEFAULT_STORY_CONTENT } from "@platform/ui/templates/story";
 import { DEFAULT_PORTFOLIO_CONTENT } from "@platform/ui/templates/portfolio";
 import { DEFAULT_LIVE_STREAM_CONTENT } from "@platform/ui/templates/live-stream";
 import { DEFAULT_PRODUCT_SHOWCASE_CONTENT } from "@platform/ui/templates/product-showcase";
@@ -111,6 +117,24 @@ export const TEMPLATE_DEFINITIONS: Record<TemplateKey, TemplateDefinition> = {
     Layout: DravaWorldLayout,
     // No settings: "Edit" just opens Drava World full-screen.
     Workspace: DravaWorldEditorWorkspace,
+  },
+  canvas: {
+    key: "canvas",
+    label: TEMPLATE_LABELS.canvas,
+    // Created and edited from the Frames page (sidebar) — a Canva-style
+    // free-form layout, landscape or portrait.
+    Layout: CanvasLayout,
+    defaultContent: DEFAULT_CANVAS_CONTENT,
+    Workspace: CanvasEditorWorkspace,
+  },
+  story: {
+    key: "story",
+    label: TEMPLATE_LABELS.story,
+    // Interactive touchscreen storytelling (idle loop, home menu, timeline /
+    // map / showcase / hotspot apps), created from the Frames page.
+    Layout: StoryLayout,
+    defaultContent: DEFAULT_STORY_CONTENT,
+    Workspace: StoryEditorWorkspace,
   },
 };
 

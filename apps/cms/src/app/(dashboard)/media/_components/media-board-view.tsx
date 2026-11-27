@@ -37,7 +37,7 @@ export function MediaBoardView({ mediaId, onBack }: { mediaId: string | null; on
   }, []);
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-hidden bg-zinc-100 dark:bg-transparent">
+    <div className="flex h-[calc(100vh-5rem)] min-h-0 flex-col overflow-y-auto overflow-x-hidden bg-zinc-100 dark:bg-transparent">
       {screens === null ? (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…

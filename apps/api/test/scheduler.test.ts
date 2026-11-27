@@ -139,12 +139,30 @@ describe("scheduler tick", () => {
     expect(db.upsertScheduleScreenState).toHaveBeenCalled(); // but now it's tracked
   });
 
-  it("hands the screen back when the window ends", async () => {
+  it("sends the screen to idle when a loop's window ends", async () => {
     vi.setSystemTime(new Date("2026-11-09T13:00:00.000Z")); // 18:30 Kolkata
     setup([lobby], [screen({ currentContentKind: "media", currentMediaAssetId: "img-1" })], [state()]);
     await runSchedulerTick();
-    expect(db.setScreenExperience).toHaveBeenCalledWith("tv-1", "exp-before", { record: false });
+    expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", null, { record: false }); // idle
+    expect(db.setScreenExperience).not.toHaveBeenCalled(); // not handed back to "before"
     expect(db.deleteScheduleScreenState).toHaveBeenCalledWith("tv-1");
+  });
+
+  it("shows the chosen media when a loop's window ends", async () => {
+    vi.setSystemTime(new Date("2026-11-09T13:00:00.000Z"));
+    const looped = { ...lobby, afterMedia: { id: "idle-1", name: "Logo", type: "video", url: "/media/l.mp4", thumbnailUrl: null } };
+    setup([looped], [screen({ currentContentKind: "media", currentMediaAssetId: "img-1" })], [state()]);
+    await runSchedulerTick();
+    expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", "idle-1", { record: false });
+  });
+
+  it("hands the screen back when its schedule is deleted, switched off or no longer targets it", async () => {
+    for (const rows of [[], [{ ...lobby, enabled: false }], [{ ...lobby, groupIds: ["grp-other"] }]]) {
+      db.setScreenExperience.mockReset();
+      setup(rows, [screen({ currentContentKind: "media", currentMediaAssetId: "img-1" })], [state()]);
+      await runSchedulerTick();
+      expect(db.setScreenExperience).toHaveBeenCalledWith("tv-1", "exp-before", { record: false });
+    }
   });
 
   it("doesn't undo a manual push when the window ends", async () => {
@@ -196,12 +214,13 @@ describe("scheduler tick", () => {
     expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", "after-1", { record: false });
   });
 
-  it("hands back the previous content when a play-once slot ends before the queue does", async () => {
+  it("goes idle when a play-once slot ends before the queue does", async () => {
     vi.setSystemTime(new Date("2026-11-09T13:00:00.000Z")); // 18:30 Kolkata, slot over
     const once = { ...lobby, loop: false };
     setup([once], [screen({ currentContentKind: "media", currentMediaAssetId: "img-1" })], [state()]);
     await runSchedulerTick();
-    expect(db.setScreenExperience).toHaveBeenCalledWith("tv-1", "exp-before", { record: false });
+    expect(db.setScreenMedia).toHaveBeenCalledWith("tv-1", null, { record: false });
+    expect(db.setScreenExperience).not.toHaveBeenCalled();
   });
 
   it("leaves a manual push alone when a play-once queue finishes", async () => {

@@ -31,6 +31,8 @@ export const TEMPLATE_KEYS = [
   "gallery",
   "drava-mosaic",
   "drava-world",
+  "canvas",
+  "story",
 ] as const;
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number];
 export function isTemplateKey(value: unknown): value is TemplateKey {
@@ -246,7 +248,7 @@ export type WsServerMessage =
   | { type: 'SCREEN_AGENT_REGISTER_NACK'; reason: string }
   | {
       type: 'CURSOR_CONTROL';
-      action: 'move' | 'click' | 'scroll' | 'scrollH';
+      action: 'move' | 'click' | 'press' | 'release' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;
@@ -272,7 +274,7 @@ export type WsClientMessage =
        * (the kiosk runs with devtools disabled). `dpr` other than 1, or an
        * `inner` noticeably smaller than `screen`, means the page is
        * compositing below native resolution and the output is being upscaled
-       * — see --force-device-scale-factor in tools/main-screen-kiosk.
+       * — see --force-device-scale-factor in tools/drava-nex.
        */
       viewport?: { dpr: number; innerW: number; innerH: number; screenW: number; screenH: number };
     }
@@ -316,7 +318,7 @@ export type WsClientMessage =
   | {
       type: 'CURSOR_CONTROL';
       screenId: string;
-      action: 'move' | 'click' | 'scroll' | 'scrollH';
+      action: 'move' | 'click' | 'press' | 'release' | 'scroll' | 'scrollH';
       dx?: number;
       dy?: number;
       deltaY?: number;

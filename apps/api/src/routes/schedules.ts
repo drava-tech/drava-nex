@@ -100,8 +100,10 @@ async function parseSchedule(c: Parameters<typeof ok>[0]): Promise<ScheduleInput
       }
     }
   }
-  // What plays after a play-once queue must be an image or video in the library.
-  if (s.loop) s.afterMediaId = null;
+  // What shows once the schedule is over (a loop's slot ends, a play-once queue
+  // finishes) must be an image or video in the library. An all-day schedule
+  // has no slot to end.
+  if (!s.startTime && !s.endTime) s.afterMediaId = null;
   if (s.afterMediaId) {
     const after = await getMediaAsset(s.afterMediaId);
     if (!after || (after.type !== "image" && after.type !== "video")) {

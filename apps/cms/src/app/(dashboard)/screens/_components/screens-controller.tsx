@@ -23,6 +23,7 @@ import { ScreenAssignmentPicker } from "./screens-assignment-picker";
 import { ScreenMirror } from "./screen-mirror";
 import { AddScreenModal } from "./add-screen-modal";
 import { ScreenGroupDialog } from "./screen-group-dialog";
+import { GroupBar, ScreenBar } from "@/components/target-bars";
 import type { WsContent } from "@platform/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { screensHydrated, activeScreensUpdated, screenContentUpdated } from "@/store/screens-slice";
@@ -119,7 +120,9 @@ export function ScreensController({
   // The bar: what's typed and picked narrows the screens listed below.
   const [query, setQuery] = useState("");
   /** "all", "none" (ungrouped), or a group id. */
-  const [groupFilter, setGroupFilter] = useState("all");
+  const [groupFilter, setGroupFilterState] = useState("all");
+  /** One screen picked in the screen bar; null = all of them. */
+  const [screenFilter, setScreenFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "offline" | "stopped">("all");
   const [contentFilter, setContentFilter] = useState<"all" | "experience" | "media" | "none">("all");
   // Cards with a live preview, or one line per screen. A big install opens in
@@ -262,17 +265,30 @@ export function ScreensController({
   // A groupId pointing at a group that no longer exists counts as ungrouped.
   const groupNames = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
   const kindOf = (s: ScreenConfig) => (!s.contentLabel ? "none" : s.contentType === "experience" ? "experience" : "media");
-  const filtering = Boolean(query.trim()) || groupFilter !== "all" || statusFilter !== "all" || contentFilter !== "all";
+  const inGroup = (s: ScreenConfig, group: string) => {
+    const groupName = s.groupId ? groupNames.get(s.groupId) : undefined;
+    return group === "all" || (group === "none" ? groupName === undefined : s.groupId === group);
+  };
+  /** The screen bar lists the screens in the picked group, like Our Story's. */
+  const screensInGroup = screens.filter((s) => inGroup(s, groupFilter));
+  const setGroupFilter = (group: string) => {
+    setGroupFilterState(group);
+    // A picked screen outside the new group would hide everything.
+    if (screenFilter && !screens.some((s) => s.id === screenFilter && inGroup(s, group))) setScreenFilter(null);
+  };
+  const filtering =
+    Boolean(query.trim()) || groupFilter !== "all" || screenFilter !== null || statusFilter !== "all" || contentFilter !== "all";
   const visible = useMemo(
     () => screens.filter((s) => {
       const groupName = s.groupId ? groupNames.get(s.groupId) : undefined;
       if (groupFilter === "none" ? groupName !== undefined : groupFilter !== "all" && s.groupId !== groupFilter) return false;
+      if (screenFilter && s.id !== screenFilter) return false;
       if (statusFilter === "stopped" ? !s.blanked : statusFilter !== "all" && activeScreenIds.has(s.id) !== (statusFilter === "live")) return false;
       if (contentFilter !== "all" && kindOf(s) !== contentFilter) return false;
       // A group's name finds every screen in it; so does what a screen is playing.
       return matchesSearch(query, s.name, groupName, s.contentLabel);
     }),
-    [screens, groupNames, activeScreenIds, query, groupFilter, statusFilter, contentFilter],
+    [screens, groupNames, activeScreenIds, query, groupFilter, screenFilter, statusFilter, contentFilter],
   );
 
   // Screens listed under each group, in group order, then the ungrouped ones.
@@ -287,7 +303,8 @@ export function ScreensController({
   const liveCount = screens.filter((s) => activeScreenIds.has(s.id)).length;
   const clearFilters = () => {
     setQuery("");
-    setGroupFilter("all");
+    setGroupFilterState("all");
+    setScreenFilter(null);
     setStatusFilter("all");
     setContentFilter("all");
   };
@@ -579,21 +596,37 @@ export function ScreensController({
       )}
 
       <div className="flex h-full min-h-0 w-full flex-1 select-none flex-col">
+        {/* Group, then screen — the tall bars at the top of Our Story. */}
+        <div className="flex shrink-0 items-center gap-2 px-4 pt-4">
+          {groups.length > 0 && (
+            <GroupBar
+              value={groupFilter}
+              onChange={setGroupFilter}
+              options={[
+                { value: "all", label: "All screens", count: screens.length },
+                ...groups.map((g) => ({ value: g.id, label: g.name, count: screens.filter((s) => s.groupId === g.id).length })),
+                { value: "none", label: "Ungrouped", count: screens.filter((s) => !s.groupId || !groupNames.has(s.groupId)).length },
+              ]}
+            />
+          )}
+          <ScreenBar
+            screens={screensInGroup.map((s) => ({
+              id: s.id,
+              name: s.name,
+              online: activeScreenIds.has(s.id),
+              detail: s.blanked ? "Stopped" : s.contentLabel,
+            }))}
+            value={screenFilter}
+            onChange={setScreenFilter}
+            allSummary={`${screensInGroup.length} screen${screensInGroup.length === 1 ? "" : "s"} · ${
+              screensInGroup.filter((s) => activeScreenIds.has(s.id)).length
+            } live`}
+          />
+        </div>
+
         {/* The bar — outside the scrolling list, so search is always in reach. */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-4 pt-2 sm:px-6 lg:px-10">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {groups.length > 0 && (
-              <FilterPill
-                label="Group"
-                value={groupFilter}
-                onChange={setGroupFilter}
-                options={[
-                  { value: "all", label: "All groups" },
-                  ...groups.map((g) => ({ value: g.id, label: g.name, count: screens.filter((s) => s.groupId === g.id).length })),
-                  { value: "none", label: "Ungrouped", count: screens.filter((s) => !s.groupId || !groupNames.has(s.groupId)).length },
-                ]}
-              />
-            )}
             <FilterPill
               label="Status"
               value={statusFilter}
@@ -670,7 +703,7 @@ export function ScreensController({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-        <div className="@container mx-auto w-full max-w-full px-4 sm:px-6 lg:px-10">
+        <div className="@container mx-auto w-full max-w-full px-4">
           {screens.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
               <Layers className="h-8 w-8 text-zinc-400" />

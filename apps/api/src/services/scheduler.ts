@@ -14,7 +14,6 @@ import {
   type SchedulerScreenRow,
 } from "@platform/db";
 import {
-  activeWindow,
   nextWindowStart,
   resolveSchedules,
   type ScheduleContentKind,
@@ -42,9 +41,11 @@ import { clearTakeoverFlag, getConnectedScreenIds } from "../ws/gateway.js";
  *     already shows that content, e.g. a one-item loop);
  *   - someone pushes something by hand meanwhile → it stays up until the next
  *     item is due (the state's item key hasn't changed, so nothing happens);
- *   - the schedule's window ends → put back what the screen showed before the
- *     schedule took it over, but only if it still shows the schedule's
- *     content (a manual push since then is left alone);
+ *   - the schedule runs its course (its window ends, or a play-once queue
+ *     finishes) → the media chosen for afterwards, or the idle screen; a
+ *     schedule taken away (deleted, switched off, the screen removed from it)
+ *     puts back what the screen showed before. Only if it still shows the
+ *     schedule's content (a manual push since then is left alone);
  *   - a screen that is Stopped (blanked) or has a live whiteboard is left
  *     alone until that ends.
  *
@@ -141,9 +142,8 @@ async function applyToScreen(
   s: SchedulerScreenRow,
   res: ScheduleResolution | null,
   state: ScheduleScreenStateRow | undefined,
-  /** The schedule the screen's state came from, if it still exists. */
-  stateSpec?: ScheduleSpec,
-  now = new Date()
+  /** The schedule the screen's state came from, while it exists and still targets this screen. */
+  stateSpec?: ScheduleSpec
 ): Promise<boolean> {
   if (s.blanked || s.whiteboardActive) return false;
 
@@ -171,16 +171,17 @@ async function applyToScreen(
   }
 
   if (state) {
-    // The schedule is over. If it was a play-once queue that has finished
-    // inside its slot, the screen goes to idle; otherwise (the slot ended,
-    // the schedule was deleted) it gets back what it showed before. Either
-    // way, only if it still shows the schedule's content — a manual push
-    // since then is left alone.
-    const playedOnce = !!stateSpec && !stateSpec.loop && activeWindow(stateSpec, now) !== null;
+    // The schedule is over here. If it ran its course (a loop whose slot
+    // ended, a play-once queue that finished), the screen shows the media
+    // chosen for afterwards, or goes idle. If it was taken away instead
+    // (deleted, switched off, the screen taken out of it), the screen gets
+    // back what it showed before. Either way, only if it still shows the
+    // schedule's content — a manual push since then is left alone.
+    // (stateSpec is only passed while the schedule still targets this screen.)
+    const ranItsCourse = !!stateSpec && stateSpec.enabled;
     let pushed = false;
     if (isShowing(s, state.contentKind, state.contentId)) {
-      // After a play-once queue: the media chosen for afterwards, or idle.
-      if (playedOnce) await assign(s.screenId, stateSpec?.afterMediaId ? "media" : null, stateSpec?.afterMediaId ?? null);
+      if (ranItsCourse) await assign(s.screenId, stateSpec.afterMediaId ? "media" : null, stateSpec.afterMediaId);
       else await assign(s.screenId, state.previousContentKind, state.previousContentId);
       pushed = true;
     }
@@ -244,7 +245,10 @@ async function tick(): Promise<number> {
     if (res) soonest = Math.min(soonest, res.changesInSeconds);
     try {
       const state = snap.states.get(s.screenId);
-      await applyToScreen(s, res, state, state ? snap.specs.get(state.scheduleId) : undefined, now);
+      // The schedule the state came from, while it still exists and still targets this screen.
+      const stateRow = state ? snap.rows.find((r) => r.id === state.scheduleId) : undefined;
+      const stateSpec = stateRow && scheduleTargetsScreen(stateRow, s) ? snap.specs.get(stateRow.id) : undefined;
+      await applyToScreen(s, res, state, stateSpec);
     } catch (err) {
       console.error(`[scheduler] couldn't update "${s.screenId}":`, err);
     }

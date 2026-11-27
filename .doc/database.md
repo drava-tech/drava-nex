@@ -11,7 +11,7 @@ The database connection pool and client are wrapped inside the shared workspace 
 - **Connection Pool:** Uses the `pg` Pool client. Max 20 connections, idle timeout 30s, connection timeout 5s.
 - **Environment Resolution:** `process.env["DATABASE_URL"]` is checked first. If not set, the client falls back to reading the root workspace `.env` file via a filesystem path crawler:
   ```
-  e:\EC\cms-platform\.env   (local dev)
+  E:\EC\drava-nex\.env   (local dev)
   ```
   In Docker mode, `DATABASE_URL` is injected via `env_file` — the fallback never runs.
 - **Docker host:** `postgresql://cms_app:PASSWORD@postgres:5432/cms_db` (`postgres` = Docker service name)

@@ -8,6 +8,14 @@ interface PageProps {
   // deviceId = a screen's screenId, same convention as the other
   // .../live/[deviceId] routes (media, experiences, browser).
   params: Promise<{ deviceId: string }>;
+  // Where Back returns: a long-press "View Display" on Media's screen bar
+  // sets it. Unset (Our Story, or after a push) = Our Story.
+  searchParams: Promise<{ from?: string }>;
+}
+
+/** Allowed Back targets only, never an arbitrary URL from the query string. */
+function backHrefFor(from: string | undefined): string {
+  return from === "media" ? "/media" : "/broadcast";
 }
 
 /**
@@ -16,9 +24,11 @@ interface PageProps {
  * under the /broadcast route so the sidebar stays on "Broadcast" instead of
  * jumping over to "Screens".
  */
-export default async function BroadcastLivePage({ params }: PageProps) {
+export default async function BroadcastLivePage({ params, searchParams }: PageProps) {
   await requireGuestOrAdmin();
   const { deviceId } = await params;
+  const { from } = await searchParams;
+  const backHref = backHrefFor(from);
 
   const row = await getScreenLiveRow(deviceId);
   if (!row) notFound();
@@ -48,7 +58,7 @@ export default async function BroadcastLivePage({ params }: PageProps) {
             }
           : null
       }
-      backHref="/broadcast"
+      backHref={backHref}
     />
   );
 }

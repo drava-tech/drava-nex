@@ -575,8 +575,9 @@ body:has(.landing-view) {
 }
 
 .landing-header {
+  grid-area: head;
   text-align: center;
-  margin-bottom: calc(36 * var(--u));
+  margin-bottom: calc(8 * var(--u));
 }
 
 .landing-kicker {
@@ -613,10 +614,10 @@ body:has(.landing-view) {
   width: min(calc(1384 * var(--u)), 100%);
   display: grid;
   grid-template-columns: minmax(calc(230 * var(--u)), calc(280 * var(--u))) minmax(0, 1fr) minmax(calc(240 * var(--u)), calc(310 * var(--u)));
-  grid-template-areas: "bands preview countries";
+  grid-template-areas: "head head head" "bands preview countries";
   align-items: start;
   gap: calc(32 * var(--u));
-  padding: calc(48 * var(--u)) calc(36 * var(--u)) calc(40 * var(--u));
+  padding: calc(44 * var(--u)) calc(36 * var(--u)) calc(40 * var(--u));
   background: linear-gradient(180deg, rgba(22, 27, 33, 0.42) 0%, rgba(22, 27, 33, 0.55) 100%);
   border: 1px solid #2a3038;
   border-radius: calc(32 * var(--u));
@@ -681,8 +682,8 @@ body:has(.landing-view) {
 }
 
 .band-item.selected {
-  background: #7cf04b;
-  color: #0a0d12;
+  background: #393b3d;
+  color: #f2f4f7;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
   cursor: grab;
   /* Dragging a band reorders it (landing.js), so a touch on it mustn't
@@ -1189,8 +1190,8 @@ body:has(.landing-view) {
 }
 
 .lp-art-option[aria-checked="true"] {
-  background: #7cf04b;
-  color: #0a0d12;
+  background: #393b3d;
+  color: #f2f4f7;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
 }
 
@@ -1330,8 +1331,8 @@ body:has(.landing-view) {
 }
 
 .country-card.selected {
-  background: #7cf04b;
-  color: #0a0d12;
+  background: #393b3d;
+  color: #f2f4f7;
   box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.55);
 }
 
@@ -1342,7 +1343,7 @@ body:has(.landing-view) {
 }
 
 .country-card.selected .country-city {
-  color: rgba(10, 13, 18, 0.65);
+  color: rgba(242, 244, 247, 0.65);
 }
 
 .country-card:disabled {
@@ -1367,7 +1368,7 @@ body:has(.landing-view) {
 
   .lp-shell {
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: "bands countries" "preview preview";
+    grid-template-areas: "head head" "bands countries" "preview preview";
     padding: 36px 24px;
   }
 }
@@ -1379,7 +1380,7 @@ body:has(.landing-view) {
   }
 
   .landing-header {
-    margin-bottom: 28px;
+    margin-bottom: 0;
   }
 
   .landing-sub {
@@ -1388,7 +1389,7 @@ body:has(.landing-view) {
 
   .lp-shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "bands" "countries" "preview";
+    grid-template-areas: "head" "bands" "countries" "preview";
     gap: 20px;
     padding: 20px 14px;
     border-radius: 24px;
@@ -1535,7 +1536,7 @@ body:has(.landing-view) {
   .lp-art-option {
     white-space: nowrap;
     height: calc(36 * var(--u));
-    padding: 0 calc(10 * var(--u));
+    padding: 0 calc(14 * var(--u));
     font-size: calc(12 * var(--u));
   }
 
@@ -1585,7 +1586,7 @@ body:has(.landing-view) {
 
   .lp-art-option {
     height: calc(32 * var(--u));
-    padding: 0 calc(6 * var(--u));
+    padding: 0 calc(16 * var(--u));
     border-radius: calc(11 * var(--u));
     background: transparent;
     box-shadow: none;
@@ -1598,8 +1599,8 @@ body:has(.landing-view) {
   }
 
   .lp-art-option[aria-checked="true"] {
-    background: #7cf04b;
-    color: #0a0d12;
+    background: #393b3d;
+    color: #f2f4f7;
     box-shadow: none;
   }
 }
@@ -1618,12 +1619,17 @@ body:has(.landing-view) {
     aspect-ratio: 2.15 / 1;
   }
 
+  /* Spans the preview window: Artwork lines up with its left edge and
+     Clock with its right edge. */
   .lp-options {
+    width: 100%;
     align-items: flex-end;
-    gap: 0 calc(80 * var(--u));
+    justify-content: space-between;
+    gap: 0 calc(24 * var(--u));
   }
 
   .lp-arts {
+    gap: calc(8 * var(--u));
     padding: calc(4 * var(--u));
   }
 
@@ -1635,7 +1641,7 @@ body:has(.landing-view) {
     font-size: calc(11 * var(--u));
     font-weight: 700;
     letter-spacing: 0.14em;
-    color: #7cf04b;
+    color: #f2f4f7;
   }
 }
 
@@ -1722,4 +1728,13 @@ body:has(.landing-view) {
 
 .landing-title {
   margin-top: calc(14 * var(--u));
+}
+
+/* The logo sits above the card; the title and description sit inside it. */
+.landing-logo {
+  margin: 0 0 calc(28 * var(--u));
+}
+
+.landing-header .landing-title {
+  margin-top: 0;
 }

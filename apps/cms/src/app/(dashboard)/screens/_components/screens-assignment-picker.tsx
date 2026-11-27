@@ -6,7 +6,6 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import {
   X,
   Check,
-  Search,
   Image as ImageIcon,
   Video,
   Loader2,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import type { WsContent } from "@platform/types";
 import { mediaThumbnailSrc } from "@/lib/media-tiles";
+import { SearchPill } from "@/components/filter-bar";
 
 interface MediaItem {
   id: string;
@@ -384,10 +384,10 @@ export function ScreenAssignmentPicker({
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 tracking-[0.25em] uppercase mb-0.5">
-              Assign Content
+            <p className="mb-0.5 text-xs text-muted-foreground">
+              Assign content
             </p>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-wide uppercase">
+            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
               {screenName}
             </h2>
           </div>
@@ -408,7 +408,7 @@ export function ScreenAssignmentPicker({
                 setActiveTab("experiences");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-normal rounded-full transition-colors ${
                 activeTab === "experiences"
                   ? "btn-active"
                   : "btn-surface"
@@ -421,7 +421,7 @@ export function ScreenAssignmentPicker({
                 setActiveTab("files");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-normal rounded-full transition-colors ${
                 activeTab === "files"
                   ? "btn-active"
                   : "btn-surface"
@@ -434,33 +434,29 @@ export function ScreenAssignmentPicker({
                 setActiveTab("recent");
                 setSearchQuery("");
               }}
-              className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-normal rounded-full uppercase tracking-wider transition-all duration-200 ${
+              className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-normal rounded-full transition-colors ${
                 activeTab === "recent"
                   ? "btn-active"
                   : "btn-surface"
               }`}
             >
-              Recently Opened
+              Recently opened
             </button>
           </div>
 
-          {/* Search bar */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={
-                activeTab === "experiences"
-                  ? "Search portfolio..."
-                  : activeTab === "recent"
-                    ? "Search recently opened..."
-                    : "Search files..."
-              }
-              className="w-full h-9 pl-9 pr-4 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-transparent focus:bg-white dark:focus:bg-zinc-905 focus:border-zinc-300 dark:focus:border-zinc-750 transition-all text-xs outline-none text-zinc-800 dark:text-zinc-200"
-            />
-          </div>
+          {/* Search — the same pill as Our Story's and Media's. */}
+          <SearchPill
+            value={searchQuery}
+            onChange={setSearchQuery}
+            label={
+              activeTab === "experiences"
+                ? "Search portfolio"
+                : activeTab === "recent"
+                  ? "Search recently opened"
+                  : "Search files"
+            }
+            className="w-full sm:w-64"
+          />
         </div>
 
         {/* Dynamic List Content Panel */}

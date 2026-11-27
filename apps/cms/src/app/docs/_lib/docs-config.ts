@@ -92,7 +92,7 @@ export const docsNav: DocSection[] = [
       {
         slug: "settings",
         title: "Settings",
-        description: "Portfolio-type configuration for the CMS.",
+        description: "Who can sign in to Nex, and what they can do.",
         headings: STANDARD_HEADINGS,
       },
       {

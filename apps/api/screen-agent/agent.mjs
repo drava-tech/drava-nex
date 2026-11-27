@@ -17,6 +17,7 @@
 
 import { WebSocket } from 'ws';
 import { mouse, Point, screen, Button } from '@nut-tree-fork/nut-js';
+import { startKioskCursor } from './kiosk-cursor.mjs';
 
 // Instant jumps instead of nut-js's default glide animation — a real
 // trackpad moves the cursor 1:1 with the drag, not on a delay.
@@ -30,6 +31,10 @@ const SCREEN_ID = process.env.SCREEN_ID || '';
 // rather than a console. Set SCREEN_AGENT_DEBUG=1 in .env to turn it on
 // while diagnosing, then turn it back off.
 const DEBUG = process.env.SCREEN_AGENT_DEBUG === '1';
+// Process name of the kiosk app on this PC (e.g. DravaNex). When set, the cursor
+// follows that app's window onto whichever monitor it is on, even one that is
+// not the primary display; see kiosk-cursor.cs. Unset: primary monitor only.
+const FOLLOW_WINDOW = (process.env.SCREEN_AGENT_FOLLOW_WINDOW || '').trim();
 
 if (!SECRET) {
   console.error('[agent] BROADCAST_SECRET is not set — copy .env.example to .env and fill it in. Exiting.');
@@ -45,6 +50,10 @@ if (!SCREEN_ID) {
 
 // ─── OS-level cursor control (nut-js) ───────────────────────────────────────
 
+// Owns cursor POSITIONING while ready; clicks and scroll stay on nut-js, which
+// acts wherever the cursor already is. null or not ready: plain nut-js below.
+const kiosk = FOLLOW_WINDOW ? startKioskCursor(FOLLOW_WINDOW, { debug: DEBUG }) : null;
+
 /**
  * A net-zero-displacement nudge — move the real cursor by (+1,+1) then
  * immediately back by (-1,-1). Forces at least one genuine OS-level
@@ -54,6 +63,10 @@ if (!SCREEN_ID) {
  * cursor was already visible.
  */
 async function jiggleCursor() {
+  if (kiosk?.ready) {
+    kiosk.jiggle();
+    return;
+  }
   try {
     const pos = await mouse.getPosition();
     await mouse.setPosition(new Point(pos.x + 1, pos.y + 1));
@@ -72,9 +85,25 @@ async function jiggleCursor() {
 // and could introduce visible jitter) covers that recurring case cheaply.
 const MOVE_IDLE_REPRIME_MS = 1_500;
 let lastMoveAt = 0;
+// True while a pad drag holds the left button; released if the link drops so
+// the OS is never left with a stuck button.
+let dragHeld = false;
 
 async function handleCursorControl(msg) {
   try {
+    if (kiosk?.ready) {
+      if (msg.action === 'move') {
+        // The helper's own moves are real input events, so no idle re-prime.
+        kiosk.move(msg.dx, msg.dy);
+        return;
+      }
+      // Pull the cursor back into the kiosk first if it is elsewhere (say the
+      // physical mouse was used on another monitor), so the click or wheel
+      // event lands on the kiosk and never on the desktop beside it. Release
+      // is exempt: a held button must always be let go.
+      if (msg.action !== 'release') await kiosk.ensureInside();
+    }
+
     if (msg.action === 'move' && typeof msg.dx === 'number' && typeof msg.dy === 'number') {
       const now = Date.now();
       if (now - lastMoveAt > MOVE_IDLE_REPRIME_MS) {
@@ -101,6 +130,13 @@ async function handleCursorControl(msg) {
       if (DEBUG) console.debug(`[agent] move -> (${next.x}, ${next.y})`);
     } else if (msg.action === 'click') {
       await mouse.click(msg.button === 'right' ? Button.RIGHT : Button.LEFT);
+    } else if (msg.action === 'press') {
+      // Double-tap-and-drag on the pad: hold the left button while moves follow.
+      dragHeld = true;
+      await mouse.pressButton(Button.LEFT);
+    } else if (msg.action === 'release') {
+      dragHeld = false;
+      await mouse.releaseButton(Button.LEFT);
     } else if (msg.action === 'scroll' && typeof msg.deltaY === 'number') {
       const amount = Math.round(Math.abs(msg.deltaY));
       if (amount === 0) return;
@@ -158,6 +194,10 @@ function connect() {
   });
 
   ws.on('close', () => {
+    if (dragHeld) {
+      dragHeld = false;
+      mouse.releaseButton(Button.LEFT).catch(() => {});
+    }
     console.warn(`[agent] WS disconnected. Reconnecting in ${reconnectDelay}ms...`);
     scheduleReconnect();
   });

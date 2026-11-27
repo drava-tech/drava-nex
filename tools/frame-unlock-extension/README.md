@@ -18,10 +18,10 @@ load on the server.
 
 ## Install (per machine)
 
-On the signage kiosk (`tools/main-screen-kiosk`), this is now **installed
+On the signage kiosk (`tools/drava-nex`), this is now **installed
 automatically** at startup — `MainWindow.xaml.cs` loads this folder straight
 into its own WebView2 profile, no manual step needed there. See
-[`../main-screen-kiosk/README.md`](../main-screen-kiosk/README.md#frame-unlock-extension).
+[`../drava-nex/README.md`](../drava-nex/README.md#frame-unlock-extension).
 
 The manual steps below are still how you'd install this into a regular
 desktop Chrome/Edge tab — e.g. to test the CMS Browser page or the Media
@@ -38,7 +38,7 @@ Edge and any other Chromium browser.
 ## Point it at your CMS
 
 `manifest.json` → `content_scripts[0].matches` lists the CMS origin, currently
-`localhost:3000` (local dev), `ec-cms` and `192.168.1.250` (the LAN deployment,
+`localhost:3000` (local dev), `ec-cms` and `192.168.20.250` (the LAN deployment,
 served over HTTPS via nginx). This only controls whether the Browser page can
 tell the extension is installed (it hides the amber banner) — the header rule
 itself works regardless.

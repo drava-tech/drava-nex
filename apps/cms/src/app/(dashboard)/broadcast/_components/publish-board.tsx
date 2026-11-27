@@ -31,11 +31,14 @@ import {
   Layers,
   Loader2,
   Mail,
+  Play,
   Presentation,
   RefreshCw,
   List as ListIcon,
   Search,
   Video,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import {
@@ -58,6 +61,8 @@ import {
   type ContentSchedule,
 } from "@/components/schedule-info";
 import { SearchPill, matchesSearch } from "@/components/filter-bar";
+import { VIEW_DISPLAY_MENU, ViewDisplayItem } from "@/components/target-bars";
+import { useTapOrHold } from "@/hooks/useTapOrHold";
 import { boardDefaults, readBoardSnapshot, saveBoardSnapshot } from "./publish-board-state";
 
 /** The group filter's value for screens in no group. */
@@ -298,6 +303,8 @@ export function PublishBoard({
   const [covering, setCovering] = useState<{
     screenId: string;
     screenName: string;
+    /** Where the live page's Back goes: unset = Our Story (as after a push). */
+    from?: "media";
   } | null>(null);
   // Drives the cover's navigation, and guarantees the cover can always be
   // dismissed. This used to hang off the cover's own onAnimationComplete, which
@@ -314,7 +321,7 @@ export function PublishBoard({
     }
     if (coverNavRef.current === covering.screenId) return;
     coverNavRef.current = covering.screenId;
-    const target = `/broadcast/live/${covering.screenId}`;
+    const target = `/broadcast/live/${covering.screenId}${covering.from ? `?from=${covering.from}` : ""}`;
     const nav = window.setTimeout(() => router.push(target), COVER_SETTLE_MS);
     // The destination re-runs the expensive getExperiences() and has no
     // loading.tsx, so a slow or failed navigation is entirely possible. Hand
@@ -640,6 +647,8 @@ export function PublishBoard({
 
   /** The slide wearing the "this is what a swipe publishes" glow. */
   const centredKeyRef = useRef<string | null>(null);
+  /** The one video card playing its preview; a single <video> is mounted at a time. */
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
   /** The same, as state: the details card under the carousel shows this one. */
   const [centredKey, setCentredKey] = useState<string | null>(null);
   const centredCard = cards.find((c) => `${c.type}:${c.id}` === centredKey) ?? null;
@@ -723,6 +732,9 @@ export function PublishBoard({
       if (centredKeyRef.current) slideRefs.current.get(centredKeyRef.current)?.removeAttribute("data-centred");
       slideRefs.current.get(nearestKey)?.setAttribute("data-centred", "true");
       centredKeyRef.current = nearestKey;
+      // Moving on to another card ends the preview of the one left behind.
+      const centred = nearestKey;
+      setPreviewKey((k) => (k && k !== centred ? null : k));
       setCentredKey(nearestKey);
     }
     if (nearestKey) saveSnapshot({ centredCardKey: nearestKey });
@@ -784,10 +796,15 @@ export function PublishBoard({
     scroller.addEventListener("scroll", onScroll, { passive: true });
     scroller.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onResize);
+    // The cards are sized to the carousel's height, which also moves when the
+    // details card under it grows or shrinks — not only on a window resize.
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(scroller);
     return () => {
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
     };
   }, [cards, updateSlideTransforms, maybeLoadMore]);
 
@@ -1104,7 +1121,7 @@ export function PublishBoard({
   );
 
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col gap-4 p-4 select-none">
+    <div className="relative flex flex-1 flex-col gap-4 p-4 select-none">
       {/* Publish target: a group, then a screen in it. */}
       <div className="flex shrink-0 items-center gap-2">
         {groupOptions.length > 0 && (
@@ -1151,6 +1168,16 @@ export function PublishBoard({
           }}
           isPushing={pushingId !== null}
           controls={boxControls}
+          // Long-press "View Display": the same cover and live page a push
+          // lands on, with Back returning to the board it came from.
+          onViewDisplay={() => {
+            if (!targetScreen) return;
+            setCovering({
+              screenId: targetScreen.screenId,
+              screenName: targetScreen.screenName,
+              from: focusMedia ? "media" : undefined,
+            });
+          }}
         />
         {/* Past a handful of screens, jump straight to one by name, group or what it's playing. */}
         {screens.length > 3 && (
@@ -1401,8 +1428,10 @@ export function PublishBoard({
         </div>
       </div>
 
-      {/* Content carousel */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {/* Content carousel. No min-h-0 here or on the board: on a screen too
+          short for the carousel's minimum plus the details card, the page
+          scrolls rather than the two overlapping. */}
+      <div className="flex flex-1 flex-col gap-2">
         {loadingMedia && filter !== "experiences" && cards.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
@@ -1418,8 +1447,22 @@ export function PublishBoard({
           </div>
         ) : (
           <>
-            {/* The carousel, with its arrows over its left and right sides. */}
-            <div className="relative flex min-h-0 flex-1">
+            {/* The carousel, with its arrows over its left and right sides.
+                A size container, so a card can be sized to the room it has:
+                at most 24rem wide, never taller than the carousel (a 4:3
+                picture plus its ~2.5rem caption, with a little to spare for
+                the centred card's glow), and leaving the arrows some width.
+                A fixed-width card ran under the details card below on a
+                short screen (a landscape tablet). */}
+            <div
+              className="relative flex min-h-[11rem] flex-1"
+              style={
+                {
+                  containerType: "size",
+                  "--slide-w": "min(24rem, calc((100cqh - 3rem) * 4 / 3), calc(100cqw - 7rem))",
+                } as React.CSSProperties
+              }
+            >
             <div
               ref={scrollerRef}
               // Deliberately NO `scroll-smooth`. Setting scrollLeft counts as a
@@ -1436,8 +1479,8 @@ export function PublishBoard({
               // behavior:"instant" precisely to opt out of this class.
               className="no-scrollbar relative flex min-h-0 min-w-0 flex-1 cursor-grab items-center gap-1 overflow-x-auto overflow-y-visible snap-x snap-mandatory"
               style={{
-                paddingLeft: "calc(50% - 12rem)",
-                paddingRight: "calc(50% - 12rem)",
+                paddingLeft: "calc(50% - var(--slide-w) / 2)",
+                paddingRight: "calc(50% - var(--slide-w) / 2)",
               }}
             >
               {cards.map((card) => {
@@ -1446,13 +1489,16 @@ export function PublishBoard({
                   <div
                     key={key}
                     ref={(el) => setSlideRef(key, el)}
-                    className="group/slide w-96 shrink-0 snap-center"
+                    className="group/slide shrink-0 snap-center"
+                    style={{ width: "var(--slide-w)" }}
                   >
                     <SwipeCard
                       card={card}
                       pushing={pushingId === card.id}
                       onPublish={triggerPublish}
                       scheduledIn={scheduleInfo.byContent.get(card.id)}
+                      previewing={previewKey === key}
+                      onPreview={(on) => setPreviewKey(on ? key : null)}
                     />
                   </div>
                 );
@@ -1623,6 +1669,7 @@ function DropZone({
   onPick,
   isPushing,
   controls,
+  onViewDisplay,
 }: {
   screen: ScreenRow | null;
   screens: ScreenRow[];
@@ -1631,16 +1678,40 @@ function DropZone({
   onPick: (screenId: string) => void;
   isPushing: boolean;
   controls: ReturnType<typeof useAnimation>;
+  /** Open `screen`'s live page — what a long-press on the bar offers. */
+  onViewDisplay: () => void;
 }) {
   const isOnline = screen ? activeScreenIds.includes(screen.screenId) : false;
+  // A tap opens the screen list (on release); a long-press or right-click
+  // offers "View Display" for the screen in the bar instead.
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"list" | "view">("list");
+  const press = useTapOrHold({
+    onTap: () => {
+      setMode("list");
+      setOpen(true);
+    },
+    onHold: () => {
+      setMode("view");
+      setOpen(true);
+    },
+    holdEnabled: screen !== null,
+  });
   return (
     <motion.div animate={controls} className="w-full flex-1">
-      <DropdownMenu>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setMode("list"); // keyboard / Radix's own open is always the list
+          setOpen(next);
+        }}
+      >
         <DropdownMenuTrigger asChild disabled={screens.length === 0}>
           <button
             type="button"
             aria-label={screen ? `Publishing to ${screen.screenName}. Choose another screen` : "No screens"}
             className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border bg-card px-4 text-left text-card-foreground shadow-[var(--card-shadow)] transition-colors hover:border-primary/50 disabled:cursor-default"
+            {...press}
                 >
             <span className="flex min-w-0 items-center gap-2">
               {screen && (
@@ -1669,7 +1740,12 @@ function DropZone({
             </span>
           </button>
         </DropdownMenuTrigger>
-        {/* z-[300]: above the carousel's centred card (inline z-index up to 5). */}
+        {mode === "view" && screen ? (
+          <DropdownMenuContent align="start" className={VIEW_DISPLAY_MENU}>
+            <ViewDisplayItem screenName={screen.screenName} onSelect={onViewDisplay} />
+          </DropdownMenuContent>
+        ) : (
+        /* z-[300]: above the carousel's centred card (inline z-index up to 5). */
         <DropdownMenuContent
           align="start"
           className="z-[300] max-h-[60vh] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
@@ -1696,6 +1772,7 @@ function DropZone({
             );
           })}
         </DropdownMenuContent>
+        )}
       </DropdownMenu>
     </motion.div>
   );
@@ -1713,12 +1790,17 @@ function SwipeCard({
   pushing,
   onPublish,
   scheduledIn,
+  previewing,
+  onPreview,
 }: {
   card: ContentCard;
   pushing?: boolean;
   onPublish: (card: ContentCard) => void;
   /** The schedules this card's content is in, for its "Scheduled" tag. */
   scheduledIn?: ContentSchedule[];
+  /** A video card playing its preview in place. */
+  previewing?: boolean;
+  onPreview?: (on: boolean) => void;
 }) {
   const y = useMotionValue(0);
   const opacity = useMotionValue(1);
@@ -1732,6 +1814,7 @@ function SwipeCard({
     if (swipedUp) {
       animate(y, -400, { duration: 0.22, ease: "easeIn" });
       animate(opacity, 0, { duration: 0.22 });
+      if (previewing) onPreview?.(false);
       onPublish(card);
       window.setTimeout(() => {
         y.set(0);
@@ -1751,7 +1834,13 @@ function SwipeCard({
       whileDrag={{ scale: 1.05, zIndex: 10 }}
       className="cursor-grab active:cursor-grabbing"
     >
-      <CardVisual card={card} pushing={pushing} scheduledIn={scheduledIn} />
+      <CardVisual
+        card={card}
+        pushing={pushing}
+        scheduledIn={scheduledIn}
+        previewing={previewing}
+        onPreview={onPreview}
+      />
     </motion.div>
   );
 }
@@ -1810,8 +1899,8 @@ function useVideoInfo(url: string | undefined): { length: string; resolution: st
 
 /**
  * What the centred card is and where it's in use: on which screens now, in
- * which schedules, and the file itself (media) or its template and tags
- * (portfolio). One card the width of the board, under the carousel,
+ * which schedules (media only — portfolio isn't scheduled), and the file
+ * itself (media) or its template and tags (portfolio). One card the width of the board, under the carousel,
  * following it as it moves — on Our Story and on Media.
  */
 function MediaDetailsCard({
@@ -1831,6 +1920,8 @@ function MediaDetailsCard({
   const video = useVideoInfo(card.type === "video" ? d.url : undefined);
   const typeLabel = card.type === "experience" ? "Portfolio" : MEDIA_TYPE_LABELS[card.type];
   const fileFacts = [d.size, video?.length, video?.resolution].filter(Boolean).join(" · ");
+  // Portfolio isn't part of scheduling, so it gets no Schedules block.
+  const isPortfolio = card.type === "experience";
   return (
     <section
       aria-label="Details"
@@ -1846,7 +1937,9 @@ function MediaDetailsCard({
         {d.date && <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">Added {d.date}</span>}
       </header>
 
-      <div className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+      <div
+        className={`grid divide-y divide-border md:divide-x md:divide-y-0 ${isPortfolio ? "md:grid-cols-2" : "md:grid-cols-3"}`}
+      >
         <DetailBlock icon={MonitorPlay} label="Playing now">
           {playingOn.length === 0 ? (
             <span className="text-muted-foreground">Not on any screen</span>
@@ -1873,6 +1966,7 @@ function MediaDetailsCard({
           )}
         </DetailBlock>
 
+        {!isPortfolio && (
         <DetailBlock icon={CalendarClock} label="Schedules">
           {schedules.length === 0 ? (
             <span className="text-muted-foreground">Not scheduled</span>
@@ -1892,8 +1986,9 @@ function MediaDetailsCard({
             </ul>
           )}
         </DetailBlock>
+        )}
 
-        {card.type === "experience" ? (
+        {isPortfolio ? (
           <DetailBlock icon={Layers} label="Portfolio">
             <p>{card.template ?? "No template"}</p>
             {tagNames.length > 0 && (
@@ -1947,10 +2042,14 @@ function CardVisual({
   card,
   pushing,
   scheduledIn,
+  previewing,
+  onPreview,
 }: {
   card: ContentCard;
   pushing?: boolean;
   scheduledIn?: ContentSchedule[];
+  previewing?: boolean;
+  onPreview?: (on: boolean) => void;
 }) {
   const FileIcon =
     card.type === "experience" || card.type === "image" || card.type === "video"
@@ -1967,6 +2066,8 @@ function CardVisual({
     frameRef,
   );
   const picture = card.thumbnail ?? frame;
+  const canPreview = card.type === "video" && !!card.videoUrl && !!onPreview;
+  const tap = useTap();
   // A picture that won't load shows the type icon instead. (Its alt text would
   // otherwise print the name over the preview: a third copy of it, with the
   // caption below and the details card.)
@@ -1998,7 +2099,26 @@ function CardVisual({
             )}
           </div>
         )}
-        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+        {canPreview && previewing && !pushing && (
+          <VideoPreview
+            url={card.videoUrl!}
+            poster={showPicture ? picture : null}
+            title={card.title}
+            onClose={() => onPreview!(false)}
+          />
+        )}
+        {canPreview && !previewing && !pushing && (
+          <button
+            type="button"
+            {...tap.handlers(() => onPreview!(true))}
+            aria-label={`Play a preview of ${card.title}`}
+            title="Play a preview"
+            className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-black/20 transition-transform hover:scale-110"
+          >
+            <Play className="ml-0.5 h-5 w-5 fill-current" />
+          </button>
+        )}
+        <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-[2] flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
           {card.type === "video" ? (
             <Video className="h-2.5 w-2.5" />
           ) : card.type === "image" ? (
@@ -2012,9 +2132,9 @@ function CardVisual({
             ? "portfolio"
             : MEDIA_TYPE_LABELS[card.type]}
         </div>
-        <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 shadow" />
+        <ScheduledChip list={scheduledIn} className="absolute left-1.5 top-1.5 z-[2] shadow" />
         {pushing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <div className="absolute inset-0 z-[3] flex items-center justify-center bg-black/40">
             <Loader2 className="h-5 w-5 animate-spin text-white" />
           </div>
         )}
@@ -2026,6 +2146,188 @@ function CardVisual({
         >
           {card.title}
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Playing a video card before it's pushed ─────────────────────────────────
+
+/**
+ * Clicks that are taps, not the end of a drag: the card swipes up to publish and
+ * the carousel drags sideways, and neither should press a button on the way.
+ */
+function useTap() {
+  const down = useRef<{ x: number; y: number } | null>(null);
+  return {
+    handlers: (fn: () => void) => ({
+      onPointerDown: (e: React.PointerEvent) => {
+        down.current = { x: e.clientX, y: e.clientY };
+      },
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const d = down.current;
+        down.current = null;
+        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) return;
+        fn();
+      },
+    }),
+  };
+}
+
+const clock = (t: number) => {
+  if (!Number.isFinite(t) || t < 0) return "0:00";
+  const m = Math.floor(t / 60);
+  return `${m}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+};
+
+/**
+ * The video playing in its card, muted to start: tap to pause, a sound
+ * switch, a scrubber, and a close. Mounted only while previewing, so the
+ * carousel never holds more than one video decoder.
+ */
+function VideoPreview({
+  url,
+  poster,
+  title,
+  onClose,
+}: {
+  url: string;
+  poster: string | null;
+  title: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [playing, setPlaying] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const tap = useTap();
+  // The scrubber keeps its pointer. It's stopped natively because the card's
+  // swipe and the carousel's drag listen natively too (React's is too late).
+  const scrubRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrubRef.current;
+    if (!el) return;
+    const stop = (e: Event) => e.stopPropagation();
+    el.addEventListener("pointerdown", stop);
+    return () => el.removeEventListener("pointerdown", stop);
+  }, []);
+
+  useEffect(() => {
+    const v = ref.current;
+    return () => {
+      // Let the decoder go as soon as the preview closes.
+      if (v) {
+        v.pause();
+        v.removeAttribute("src");
+        v.load();
+      }
+    };
+  }, []);
+
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    if (v.paused) void v.play().catch(() => setPlaying(false));
+    else v.pause();
+  };
+  const seek = (e: React.PointerEvent<HTMLDivElement>) => {
+    const v = ref.current;
+    if (!v || !duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    v.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
+  };
+
+  return (
+    <div className="absolute inset-0 z-[1] bg-black">
+      <video
+        ref={ref}
+        src={url}
+        poster={poster ?? undefined}
+        autoPlay
+        loop
+        muted={muted}
+        playsInline
+        preload="auto"
+        aria-label={`Preview of ${title}`}
+        className="h-full w-full object-contain"
+        {...tap.handlers(toggle)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onError={() => setFailed(true)}
+      />
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-white/80">
+          This video can&apos;t be played here.
+        </div>
+      ) : (
+        !playing && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white">
+              <Play className="ml-0.5 h-5 w-5 fill-current" />
+            </span>
+          </div>
+        )
+      )}
+      <div className="absolute right-1.5 top-1.5 z-[2] flex items-center gap-1">
+        <button
+          type="button"
+          {...tap.handlers(() => setMuted((m) => !m))}
+          aria-label={muted ? "Turn the sound on" : "Mute"}
+          title={muted ? "Sound on" : "Mute"}
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+        >
+          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          {...tap.handlers(onClose)}
+          aria-label="Stop the preview"
+          title="Stop the preview"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Scrubber. Its pointer stays its own so dragging it doesn't swipe the card. */}
+      <div className="absolute inset-x-0 bottom-0 z-[2] flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-1.5 pt-5 pl-[5.5rem] text-[10px] tabular-nums text-white/90">
+        <div
+          ref={scrubRef}
+          role="slider"
+          aria-label="Position in the video"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(time)}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            seek(e);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) seek(e);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            const v = ref.current;
+            if (!v) return;
+            if (e.key === "ArrowRight") v.currentTime = Math.min(duration, v.currentTime + 5);
+            if (e.key === "ArrowLeft") v.currentTime = Math.max(0, v.currentTime - 5);
+          }}
+          className="relative h-3 flex-1 cursor-pointer touch-none"
+        >
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/30" />
+          <div
+            className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
+            style={{ width: duration ? `${(time / duration) * 100}%` : "0%" }}
+          />
+        </div>
+        <span className="shrink-0">
+          {clock(time)} / {clock(duration)}
+        </span>
       </div>
     </div>
   );

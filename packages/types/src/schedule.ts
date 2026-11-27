@@ -47,8 +47,9 @@ export interface ScheduleSpec {
    */
   loop: boolean;
   /**
-   * For a queue that plays once: the image or video the screens show after
-   * it finishes. null = their normal idle screen.
+   * The image or video the screens show once the schedule is over: a loop's
+   * slot has ended, or a play-once queue has finished. null = their normal
+   * idle screen.
    */
   afterMediaId: string | null;
   /**

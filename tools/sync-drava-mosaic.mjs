@@ -21,7 +21,9 @@
 //   - videos stream through /api/drava-mosaic/video?name=<file> instead of the
 //     public R2 URL, so WebGL can read their frames same-origin;
 //   - any .mp4 the pages name is added to VIDEO_NAMES in that route;
-//   - mosaic's dependencies are copied into nex's package.json.
+//   - mosaic's dependencies are copied into nex's package.json;
+//   - the studio and World Clock pages load public/nex-sync.js (nex's own file), which shares
+//     the operator's choices with the other clients of a screen (see that file).
 //
 // If mosaic changes in a way these rules don't cover (a new R2 URL, a new API
 // call, a new page), it stops with an error naming the file, rather than
@@ -35,7 +37,7 @@ import { fileURLToPath } from "node:url";
 const nexRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgDir = join(nexRoot, "packages/drava-mosaic");
 const apiRoute = join(nexRoot, "apps/api/src/routes/drava-mosaic.ts");
-const NEX_BRANCH = "sufiyan";
+const NEX_BRANCH = process.env.NEX_BRANCH; // no default: mosaic's hook passes its drava.nexBranch setting
 // What a sync may change in nex, and so what --commit commits.
 const NEX_PATHS = ["packages/drava-mosaic", "apps/api/src/routes/drava-mosaic.ts", "pnpm-lock.yaml"];
 
@@ -51,6 +53,7 @@ const NEX_OWNED = [
   /^vite\.config\.js$/,
   /^vercel\.json$/,
   /^(README|readme)/,
+  /^public\/nex-sync\.js$/, // nex's console <-> TV sync bridge, not in mosaic
 ];
 const isNexOwned = (path) => NEX_OWNED.some((re) => re.test(path));
 
@@ -168,6 +171,18 @@ function sync() {
     `return VIDEO_BASE_URL + src.replace(/^\\/+/, '');`,
     `return VIDEO_BASE_URL + encodeURIComponent(src.replace(/^\\/+/, '').split('?')[0]);`);
 
+  // Console <-> TV sync: nex-sync.js reads and clicks the pages' own elements. It's a module script
+  // from public/ (Vite leaves a root path into public/ alone, and rewrites it for the page's depth),
+  // so it runs after the page's other scripts and the World Clock has drawn its first view.
+  const syncScript = `  <script type="module" src="/nex-sync.js"></script>
+  </body>`;
+  exact("velocitymapping.html", "</body>", syncScript);
+  exact("world-clock/index.html", "</body>", syncScript);
+  exact("world-clock/landing.js",
+    `btn.className = "country-card";`,
+    `btn.className = "country-card";
+      btn.dataset.id = place.id; // nex: lets nex-sync.js read which cities are picked.`);
+
   const textFiles = sourceFiles.filter((p) => /\.(m?js|html|css)$/.test(p) && !p.startsWith("public/"));
   for (const path of textFiles) {
     editText(path, (text) => text
@@ -276,6 +291,10 @@ function runOnce() {
 
 try {
   if (shouldCommit) {
+    if (!NEX_BRANCH) {
+      fail("NEX_BRANCH isn't set. Set it (or `git config drava.nexBranch <branch>` in drava-mosaic) " +
+        "to the drava-nex branch to commit on.");
+    }
     const branch = nexBranch();
     if (branch !== NEX_BRANCH) {
       fail(`drava-nex is on '${branch}', not '${NEX_BRANCH}', so it wasn't touched. ` +

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ────────────────────────────────────────────────────────────
-#  cms-platform — Bootstrap Script
+#  drava-nex — Bootstrap Script
 #  Installs dependencies and builds all packages in order.
 # ────────────────────────────────────────────────────────────
 set -e
 
 echo ""
 echo "┌──────────────────────────────────────────────────────┐"
-echo "│       cms-platform  —  Bootstrap                     │"
+echo "│       drava-nex  —  Bootstrap                        │"
 echo "└──────────────────────────────────────────────────────┘"
 
 echo "→ Installing dependencies via pnpm..."

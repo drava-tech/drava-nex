@@ -11,6 +11,9 @@ import {
 import { GalleryRenderer, readGalleryContent } from "@platform/ui/templates/gallery";
 import { DravaMosaicRenderer } from "@platform/ui/templates/drava-mosaic";
 import { DravaWorldRenderer } from "@platform/ui/templates/drava-world";
+import { CanvasRenderer, readCanvasContent } from "@platform/ui/templates/canvas";
+import { StoryPlayer, readStoryContent } from "@platform/ui/templates/story";
+import "@/templates/canvas/fonts";
 import type { Content } from "@/types/display";
 import { VideoRenderer } from "./VideoRenderer";
 import { ImageRenderer } from "./ImageRenderer";
@@ -144,6 +147,18 @@ export function ContentRenderer({
       if (content.templateKey === "drava-world") {
         // Full-bleed too: Drava World sizes its own WebGL canvas.
         return <DravaWorldRenderer />;
+      }
+      if (content.templateKey === "canvas") {
+        // A Frames design: scaled to fit the screen (letterboxed if the
+        // screen's orientation differs), pages cycling on their durations.
+        const design = readCanvasContent(content.templateContent);
+        if (design) return <CanvasRenderer content={design} preview={preview} />;
+      }
+      if (content.templateKey === "story") {
+        // Interactive touchscreen story: idle loop until touched, then the
+        // viewer drives it; drifts back to idle after a stretch with no touch.
+        const story = readStoryContent(content.templateContent);
+        if (story) return <StoryPlayer content={story} />;
       }
       return <ExperienceDisplay title={content.title} screenId={screenId} />;
     }
