@@ -25,10 +25,16 @@ import "@/templates/canvas/fonts";
 
 type KindFilter = "all" | "canvas" | "story";
 
-/** A design's first page or a story's home menu, scaled into the box the caller sizes. */
+/** A design's first page, or a story's welcome screen (its main menu when that's off), scaled into the box the caller sizes. */
 function Thumb({ d, className, style }: { d: DesignCard; className?: string; style?: React.CSSProperties }) {
   return d.kind === "story" ? (
-    <StoryFrame content={d.preview} still className={className} style={style} />
+    <StoryFrame
+      content={d.preview}
+      view={{ screen: d.preview.idle.enabled ? "idle" : "home" }}
+      still
+      className={className}
+      style={style}
+    />
   ) : (
     <CanvasThumbnail content={d.preview} className={className} style={style} />
   );
