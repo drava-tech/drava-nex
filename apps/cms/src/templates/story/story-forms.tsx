@@ -199,6 +199,7 @@ function move<T>(list: T[], from: number, to: number): T[] {
 // ─── Brand ────────────────────────────────────────────────────────────────────
 
 export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChange: (b: StoryBrand) => void; kit: FormKit }) {
+  const [more, setMore] = useState(false);
   const set = (p: Partial<StoryBrand>) => onChange({ ...brand, ...p });
   const color = (label: string, key: keyof StoryBrand) => (
     <Row label={label}>
@@ -207,7 +208,7 @@ export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChang
   );
   return (
     <>
-      <Section title="Theme">
+      <Section title="Pick a colour theme">
         <div className="grid grid-cols-4 gap-2">
           {STORY_PALETTES.map((t) => (
             <button
@@ -228,27 +229,43 @@ export function BrandForm({ brand, onChange, kit }: { brand: StoryBrand; onChang
       </Section>
       <Section title="Logo">
         <ImageSlot label="Logo" url={brand.logoUrl} kit={kit} onChange={(url) => set({ logoUrl: url })} />
-        <p className="text-[11px] text-zinc-500">Shown on the idle screen, the home menu and each module.</p>
+        <p className="text-[11px] text-zinc-500">Shown on every screen of the story.</p>
       </Section>
-      <Section title="Colours">
-        {color("Background", "background")}
-        {color("Cards & panels", "surface")}
-        {color("Text", "text")}
-        {color("Muted text", "muted")}
-        {color("Accent", "accent")}
-        {color("Text on accent", "accentText")}
-      </Section>
-      <Section title="Type & shape">
-        <Row label="Headings">
-          <SelectField value={brand.headingFont} width={170} options={CANVAS_FONTS.map((f) => ({ label: f.label, value: f.value }))} onChange={(v) => set({ headingFont: v })} />
-        </Row>
-        <Row label="Body">
-          <SelectField value={brand.bodyFont} width={170} options={CANVAS_FONTS.map((f) => ({ label: f.label, value: f.value }))} onChange={(v) => set({ bodyFont: v })} />
-        </Row>
-        <Row label="Corner radius">
-          <NumberField value={brand.radius} min={0} max={80} suffix="px" onChange={(v) => set({ radius: v })} />
-        </Row>
-      </Section>
+      <div className="border-b border-border px-4 py-3">
+        <button
+          type="button"
+          data-plain
+          onClick={() => setMore((m) => !m)}
+          aria-expanded={more}
+          className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100"
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${more ? "rotate-180" : ""}`} />
+          {more ? "Hide fine-tuning" : "Fine-tune colours, fonts and corners"}
+        </button>
+      </div>
+      {more && (
+        <>
+          <Section title="Colours">
+            {color("Background", "background")}
+            {color("Cards & panels", "surface")}
+            {color("Text", "text")}
+            {color("Softer text", "muted")}
+            {color("Highlight", "accent")}
+            {color("Text on highlight", "accentText")}
+          </Section>
+          <Section title="Fonts & corners">
+            <Row label="Titles">
+              <SelectField value={brand.headingFont} width={170} options={CANVAS_FONTS.map((f) => ({ label: f.label, value: f.value }))} onChange={(v) => set({ headingFont: v })} />
+            </Row>
+            <Row label="Text">
+              <SelectField value={brand.bodyFont} width={170} options={CANVAS_FONTS.map((f) => ({ label: f.label, value: f.value }))} onChange={(v) => set({ bodyFont: v })} />
+            </Row>
+            <Row label="Corner roundness">
+              <NumberField value={brand.radius} min={0} max={80} suffix="px" onChange={(v) => set({ radius: v })} />
+            </Row>
+          </Section>
+        </>
+      )}
     </>
   );
 }
@@ -259,20 +276,17 @@ export function IdleForm({ idle, onChange, kit }: { idle: StoryContent["idle"]; 
   const set = (p: Partial<StoryContent["idle"]>) => onChange({ ...idle, ...p });
   return (
     <>
-      <Section title="Behaviour">
-        <Row label="Use an idle screen">
+      <Section title="Settings">
+        <Row label="Show a welcome screen">
           <input type="checkbox" checked={idle.enabled} onChange={(e) => set({ enabled: e.target.checked })} className="accent-violet-600" />
         </Row>
-        <Row label="Return after no touch for">
+        <TextField label="Text inviting people to touch" value={idle.prompt} kit={kit} placeholder="e.g. Touch to explore" onChange={(v) => set({ prompt: v })} />
+        <Row label="Come back here when nobody touches for">
           <NumberField value={idle.timeoutSeconds} min={10} max={3600} suffix="s" onChange={(v) => set({ timeoutSeconds: v })} />
         </Row>
-        <Row label="Each slide shows for">
+        <Row label="Show each slide for">
           <NumberField value={idle.slideSeconds} min={2} max={600} suffix="s" onChange={(v) => set({ slideSeconds: v })} />
         </Row>
-        <TextField label="Prompt" value={idle.prompt} kit={kit} onChange={(v) => set({ prompt: v })} />
-        <p className="text-[11px] leading-snug text-zinc-500">
-          The screen plays these slides — announcements, videos, news — until someone touches it.
-        </p>
       </Section>
       <Section
         title={`Slides (${idle.slides.length})`}
@@ -311,8 +325,8 @@ export function IdleForm({ idle, onChange, kit }: { idle: StoryContent["idle"]; 
                 <Film className="h-3 w-3" /> Video: {decodeURIComponent(s.mediaUrl.split("/").pop() ?? "")}
               </p>
             )}
-            <TextField label="Headline" value={s.headline} kit={kit} onChange={(v) => set({ slides: idle.slides.map((x) => (x.id === s.id ? { ...x, headline: v } : x)) })} />
-            <TextField label="Body" value={s.body} kit={kit} onChange={(v) => set({ slides: idle.slides.map((x) => (x.id === s.id ? { ...x, body: v } : x)) })} />
+            <TextField label="Title" value={s.headline} kit={kit} onChange={(v) => set({ slides: idle.slides.map((x) => (x.id === s.id ? { ...x, headline: v } : x)) })} />
+            <TextField label="Text" value={s.body} kit={kit} onChange={(v) => set({ slides: idle.slides.map((x) => (x.id === s.id ? { ...x, body: v } : x)) })} />
           </div>
         ))}
       </Section>
@@ -325,11 +339,11 @@ export function IdleForm({ idle, onChange, kit }: { idle: StoryContent["idle"]; 
 export function HomeForm({ home, onChange, kit }: { home: StoryContent["home"]; onChange: (h: StoryContent["home"]) => void; kit: FormKit }) {
   const set = (p: Partial<StoryContent["home"]>) => onChange({ ...home, ...p });
   return (
-    <Section title="Home menu">
-      <TextField label="Headline" value={home.headline} kit={kit} onChange={(v) => set({ headline: v })} />
-      <TextField label="Subheadline" value={home.subheadline} kit={kit} onChange={(v) => set({ subheadline: v })} />
-      <ImageSlot label="Background" url={home.backgroundUrl} kit={kit} onChange={(url) => set({ backgroundUrl: url })} />
-      <p className="text-[11px] leading-snug text-zinc-500">Each module in the story becomes a tile here, in the order of the list on the left.</p>
+    <Section title="Words and picture">
+      <TextField label="Title" value={home.headline} kit={kit} onChange={(v) => set({ headline: v })} />
+      <TextField label="Line under the title" value={home.subheadline} kit={kit} onChange={(v) => set({ subheadline: v })} />
+      <ImageSlot label="Background picture (optional)" url={home.backgroundUrl} kit={kit} onChange={(url) => set({ backgroundUrl: url })} />
+      <p className="text-[11px] leading-snug text-zinc-500">The buttons below the title are your sections. Go Back to add, remove or reorder them.</p>
     </Section>
   );
 }
@@ -708,10 +722,10 @@ export function AppForm({ app, onChange, kit }: { app: StoryApp; onChange: (a: S
     );
 
   const general = (
-    <Section title="Tile">
-      <TextField label="Title" value={app.title} kit={kit} onChange={(v) => onChange({ ...app, title: v })} />
-      <TextField label="Tagline" value={app.tagline} kit={kit} onChange={(v) => onChange({ ...app, tagline: v })} />
-      <ImageSlot label="Tile image" url={app.coverUrl} kit={kit} onChange={(url) => onChange({ ...app, coverUrl: url })} />
+    <Section title="Its button on the main menu">
+      <TextField label="Name" value={app.title} kit={kit} onChange={(v) => onChange({ ...app, title: v })} />
+      <TextField label="Short description" value={app.tagline} kit={kit} onChange={(v) => onChange({ ...app, tagline: v })} />
+      <ImageSlot label="Picture" url={app.coverUrl} kit={kit} onChange={(url) => onChange({ ...app, coverUrl: url })} />
     </Section>
   );
 

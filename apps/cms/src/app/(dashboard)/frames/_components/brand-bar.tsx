@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Palette, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { CANVAS_FONTS, CanvasThumbnail, type CanvasContent } from "@platform/ui/templates/canvas";
 import { MediaPicker } from "@/components/media-picker";
 import { onBackground, textOn, type BrandKit } from "@/templates/brand";
@@ -160,140 +160,157 @@ export function useBrandLibrary() {
 
 export type BrandLibrary = ReturnType<typeof useBrandLibrary>;
 
-const chipCls = (active: boolean) =>
-  `flex h-8 items-center gap-2 rounded-full border text-xs font-medium transition-colors ${
-    active ? "border-violet-500 bg-violet-500/10 text-zinc-900 dark:text-zinc-50" : "border-border text-zinc-600 hover:border-zinc-400 dark:text-zinc-300"
-  }`;
-
-function BrandChip({ b, active, onClick, onDelete }: { b: BrandProfile; active: boolean; onClick: () => void; onDelete: () => void }) {
-  const k = kitOf(b);
-  const [confirming, setConfirming] = useState(false);
-  const label = b.orgName.trim() || "Unnamed brand";
-
-  if (confirming) {
-    return (
-      <span className="flex h-8 items-center gap-1 rounded-full border border-red-400/60 bg-red-500/5 pl-3 pr-1 text-xs">
-        <span className="max-w-[140px] truncate text-zinc-600 dark:text-zinc-300">Delete {label}?</span>
-        <button
-          type="button"
-          data-plain
-          onClick={() => {
-            setConfirming(false);
-            onDelete();
-          }}
-          className="h-6 rounded-full bg-red-600 px-2.5 text-[11px] font-semibold text-white hover:bg-red-700"
-        >
-          Delete
-        </button>
-        <button type="button" data-plain onClick={() => setConfirming(false)} className="h-6 rounded-full px-2 text-[11px] text-zinc-500 hover:bg-accent">
-          Keep
-        </button>
-      </span>
-    );
+/** A brand's little logo or colour dot. */
+function BrandDot({ b, size = 20 }: { b: BrandProfile | null; size?: number }) {
+  if (!b) {
+    return <span className="shrink-0 rounded-full border border-dashed border-zinc-400" style={{ width: size, height: size }} />;
   }
-
-  return (
-    <span className={`group max-w-[220px] pl-1 pr-1 ${chipCls(active)}`}>
-      <button type="button" data-plain onClick={onClick} aria-pressed={active} className="flex min-w-0 items-center gap-2">
-        {b.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={b.logoUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-contain p-0.5" style={{ background: k.background }} />
-        ) : (
-          <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-border" style={{ background: k.background }}>
-            <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full" style={{ background: k.accent }} />
-          </span>
-        )}
-        <span className="truncate">{label}</span>
-      </button>
-      <button
-        type="button"
-        data-plain
-        onClick={() => setConfirming(true)}
-        title={`Delete ${label}`}
-        aria-label={`Delete ${label}`}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-red-500/10 hover:text-red-600"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+  const k = kitOf(b);
+  return b.logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={b.logoUrl} alt="" className="shrink-0 rounded-full object-contain p-0.5" style={{ width: size, height: size, background: k.background }} />
+  ) : (
+    <span className="relative shrink-0 overflow-hidden rounded-full border border-border" style={{ width: size, height: size, background: k.background }}>
+      <span className="absolute bottom-[18%] right-[18%] h-[40%] w-[40%] rounded-full" style={{ background: k.accent }} />
     </span>
   );
 }
 
+const brandLabel = (b: BrandProfile | null) => (b ? b.orgName.trim() || "Unnamed brand" : "No brand");
+
 /**
- * The Frames screen's brands. Pick one (or No brand) and everything created
- * from here, Design templates and Stories, follows it.
+ * One button in the Frames toolbar. It shows the brand new designs and
+ * stories are made in, and opens a short menu to switch, add or edit one.
  */
-export function BrandBar({ lib }: { lib: BrandLibrary }) {
-  const [open, setOpen] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
-  const s = lib.active;
-  const update = lib.updateActive;
-  const kit = lib.brand;
+export function BrandMenu({ lib }: { lib: BrandLibrary }) {
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const active = lib.active;
 
-  const preview = useMemo<CanvasContent | null>(
-    () => (kit ? { version: 1, width: PREVIEW_W, height: PREVIEW_H, pages: [buildTemplate(BRAND_PREVIEW_TEMPLATE, PREVIEW_W, PREVIEW_H, kit)] } : null),
-    [kit]
-  );
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
 
-  const choose = (id: string | null) => {
+  const item = (on: boolean) =>
+    `flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+      on ? "font-semibold text-zinc-900 dark:text-zinc-50" : "text-zinc-600 dark:text-zinc-300"
+    }`;
+
+  const pick = (id: string | null) => {
     lib.select(id);
-    setConfirmRemove(false);
-    if (!id) setOpen(false);
+    setMenu(false);
   };
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-border bg-white p-3 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 flex items-center gap-2 pl-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
-          <Palette className="h-3.5 w-3.5" /> Brand
-        </span>
-        <button type="button" data-plain onClick={() => choose(null)} aria-pressed={!s} className={`px-3 ${chipCls(!s)}`}>
-          No brand
-        </button>
-        {lib.brands.map((b) => (
-          <BrandChip
-            key={b.id}
-            b={b}
-            active={s?.id === b.id}
-            onClick={() => choose(b.id)}
-            onDelete={() => {
-              if (s?.id === b.id) setOpen(false);
-              lib.remove(b.id);
-            }}
-          />
-        ))}
-        <button
-          type="button"
-          data-plain
-          onClick={() => {
-            lib.add();
-            setConfirmRemove(false);
-            setOpen(true);
-          }}
-          className="flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-3 text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-100"
-        >
-          <Plus className="h-3.5 w-3.5" /> New brand
-        </button>
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        data-plain
+        onClick={() => setMenu((m) => !m)}
+        aria-expanded={menu}
+        aria-haspopup="menu"
+        title="The brand new designs and stories are made in"
+        className="flex h-9 max-w-[220px] items-center gap-2 rounded-full border border-border bg-white pl-1.5 pr-2.5 text-xs font-medium text-zinc-700 hover:border-zinc-400 dark:bg-zinc-900 dark:text-zinc-200"
+      >
+        <BrandDot b={active} size={24} />
+        <span className="truncate">{brandLabel(active)}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+      </button>
 
-        {s ? (
+      {menu && (
+        <div role="menu" className="absolute right-0 top-full z-30 mt-1.5 w-60 overflow-hidden rounded-xl border border-border bg-white py-1 shadow-xl dark:bg-zinc-900">
+          <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">New work uses</p>
+          <button type="button" data-plain role="menuitemradio" aria-checked={!active} onClick={() => pick(null)} className={item(!active)}>
+            <BrandDot b={null} />
+            <span className="flex-1 truncate">No brand</span>
+            {!active && <Check className="h-3.5 w-3.5 text-violet-500" />}
+          </button>
+          {lib.brands.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              data-plain
+              role="menuitemradio"
+              aria-checked={active?.id === b.id}
+              onClick={() => pick(b.id)}
+              className={item(active?.id === b.id)}
+            >
+              <BrandDot b={b} />
+              <span className="flex-1 truncate">{brandLabel(b)}</span>
+              {active?.id === b.id && <Check className="h-3.5 w-3.5 text-violet-500" />}
+            </button>
+          ))}
+          <div className="my-1 border-t border-border" />
+          {active && (
+            <button
+              type="button"
+              data-plain
+              onClick={() => {
+                setMenu(false);
+                setEditing(true);
+              }}
+              className={item(false)}
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit {brandLabel(active)}
+            </button>
+          )}
           <button
             type="button"
             data-plain
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            className="ml-auto flex h-7 items-center gap-1 rounded-full border border-border px-3 text-[11px] font-medium hover:bg-accent"
+            onClick={() => {
+              lib.add();
+              setMenu(false);
+              setEditing(true);
+            }}
+            className={item(false)}
           >
-            {open ? "Done" : "Edit brand"}
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+            <Plus className="h-3.5 w-3.5" /> New brand
           </button>
-        ) : (
-          <span className="ml-auto text-[11px] text-zinc-500">New designs use each template&apos;s own look; stories use a signature theme.</span>
-        )}
-      </div>
+        </div>
+      )}
 
-      {s && kit && preview && open && (
-        <div className="flex flex-col gap-3">
+      {editing && active && <BrandEditorDialog lib={lib} onClose={() => setEditing(false)} />}
+    </div>
+  );
+}
+
+/** Edits the active brand in a modal, so the Frames screen stays uncluttered. */
+function BrandEditorDialog({ lib, onClose }: { lib: BrandLibrary; onClose: () => void }) {
+  const [picking, setPicking] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [more, setMore] = useState(false);
+  const s = lib.active!;
+  const update = lib.updateActive;
+  const kit = lib.brand!;
+
+  const preview = useMemo<CanvasContent>(
+    () => ({ version: 1, width: PREVIEW_W, height: PREVIEW_H, pages: [buildTemplate(BRAND_PREVIEW_TEMPLATE, PREVIEW_W, PREVIEW_H, kit)] }),
+    [kit]
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit brand"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl dark:bg-[#0f0f0f]"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{s.orgName.trim() || "New brand"}</h2>
+          <button type="button" data-plain onClick={onClose} aria-label="Close" className="rounded-md p-1 text-zinc-500 hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
           <BrandBookImport
             key={s.id}
             onResult={(r) => {
@@ -312,54 +329,80 @@ export function BrandBar({ lib }: { lib: BrandLibrary }) {
             }}
           />
 
-          <div className="grid gap-5 rounded-xl border border-border p-4 sm:grid-cols-[1fr_1fr_0.9fr]">
+          <div className="grid gap-6 sm:grid-cols-[1fr_0.9fr]">
             <div className="flex flex-col gap-5">
-              <Group title="Identity">
-                <Field label="Organisation">
-                  <input value={s.orgName} onChange={(e) => update({ orgName: e.target.value })} placeholder="e.g. Northwind Holdings" className={inputCls} />
-                </Field>
-                <Field label="Tagline">
-                  <input value={s.tagline} onChange={(e) => update({ tagline: e.target.value })} placeholder="e.g. Fifty years of craft" className={inputCls} />
+              <Group title="Basics">
+                <Field label="Name">
+                  <input
+                    value={s.orgName}
+                    onChange={(e) => update({ orgName: e.target.value })}
+                    placeholder="e.g. Northwind Holdings"
+                    className={inputCls}
+                  />
                 </Field>
                 <ImageField label="Logo" url={s.logoUrl} onPick={() => setPicking(true)} onClear={() => update({ logoUrl: null })} />
               </Group>
-              <Group title="Type & shape">
-                <FontField label="Heading font" value={s.headingFont} onChange={(v) => update({ headingFont: v })} />
-                <FontField label="Body font" value={s.bodyFont} onChange={(v) => update({ bodyFont: v })} />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-zinc-500">Corners</span>
-                  <span className="flex w-44 gap-1">
-                    {RADII.map((r) => (
+
+              <Group title={s.book?.colours.length ? "Colours · from your brand book" : "Colours"}>
+                {s.book?.colours.length ? (
+                  <>
+                    <BrandSwatches
+                      colours={s.book.colours}
+                      background={s.background}
+                      accent={s.accent}
+                      onPick={(f) => update({ ...(f.background ? { background: f.background } : {}), ...(f.accent ? { accent: f.accent } : {}) })}
+                    />
+                    <button
+                      type="button"
+                      data-plain
+                      onClick={() => update({ book: null })}
+                      className="self-start text-[11px] text-zinc-500 underline-offset-2 hover:underline"
+                    >
+                      Use preset palettes instead
+                    </button>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {STORY_PALETTES.map((p, i) => (
                       <button
-                        key={r.value}
+                        key={p.label}
                         type="button"
                         data-plain
-                        title={r.label}
-                        aria-label={r.label}
-                        aria-pressed={s.radius === r.value}
-                        onClick={() => update({ radius: r.value })}
-                        className={`flex h-8 flex-1 items-center justify-center rounded-md border ${
-                          s.radius === r.value ? "border-violet-500 bg-violet-500/5" : "border-border hover:border-zinc-400"
+                        onClick={() => update({ paletteIdx: i, accent: p.brand.accent!, background: p.brand.background! })}
+                        className={`flex flex-col items-center gap-1 rounded-lg border p-1.5 text-[10px] ${
+                          s.paletteIdx === i && s.background === p.brand.background ? "border-violet-500" : "border-border hover:border-zinc-400"
                         }`}
                       >
-                        <span className="h-3.5 w-5 border-2 border-zinc-500" style={{ borderRadius: Math.min(r.value / 3, 7) }} />
+                        <span className="flex h-7 w-full overflow-hidden rounded" style={{ background: p.brand.background }}>
+                          <span className="m-1 w-1/2 rounded-sm" style={{ background: p.brand.surface }} />
+                          <span className="my-2 mr-1 h-3 w-3 rounded-full" style={{ background: p.brand.accent }} />
+                        </span>
+                        {p.label}
                       </button>
                     ))}
-                  </span>
-                </div>
+                  </div>
+                )}
               </Group>
-            </div>
 
-            <Group title={s.book?.colours.length ? "Colours · from your brand book" : "Colours"}>
-              {s.book?.colours.length ? (
-                <>
-                  <BrandSwatches
-                    colours={s.book.colours}
-                    background={s.background}
-                    accent={s.accent}
-                    onPick={(f) => update({ ...(f.background ? { background: f.background } : {}), ...(f.accent ? { accent: f.accent } : {}) })}
-                  />
-                  {(s.background !== s.book.suggestion.background || s.accent !== s.book.suggestion.accent) && (
+              <button
+                type="button"
+                data-plain
+                onClick={() => setMore((m) => !m)}
+                aria-expanded={more}
+                className="flex items-center gap-1 self-start text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100"
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${more ? "rotate-180" : ""}`} />
+                {more ? "Fewer options" : "More options: tagline, exact colours, fonts, corners"}
+              </button>
+
+              {more && (
+                <Group title="More">
+                  <Field label="Tagline">
+                    <input value={s.tagline} onChange={(e) => update({ tagline: e.target.value })} placeholder="e.g. Fifty years of craft" className={inputCls} />
+                  </Field>
+                  <ColourField label="Background" value={s.background} onChange={(v) => update({ background: v })} />
+                  <ColourField label="Accent colour" value={s.accent} onChange={(v) => update({ accent: v })} />
+                  {s.book?.colours.length && (s.background !== s.book.suggestion.background || s.accent !== s.book.suggestion.accent) ? (
                     <button
                       type="button"
                       data-plain
@@ -368,82 +411,82 @@ export function BrandBar({ lib }: { lib: BrandLibrary }) {
                     >
                       Reset to the brand book&apos;s picks
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    data-plain
-                    onClick={() => update({ book: null })}
-                    className="self-start text-[11px] text-zinc-500 underline-offset-2 hover:underline"
-                  >
-                    Use preset palettes instead
-                  </button>
-                </>
-              ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {STORY_PALETTES.map((p, i) => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      data-plain
-                      onClick={() => update({ paletteIdx: i, accent: p.brand.accent!, background: p.brand.background! })}
-                      className={`flex flex-col items-center gap-1 rounded-lg border p-1.5 text-[10px] ${
-                        s.paletteIdx === i && s.background === p.brand.background ? "border-violet-500" : "border-border hover:border-zinc-400"
-                      }`}
-                    >
-                      <span className="flex h-7 w-full overflow-hidden rounded" style={{ background: p.brand.background }}>
-                        <span className="m-1 w-1/2 rounded-sm" style={{ background: p.brand.surface }} />
-                        <span className="my-2 mr-1 h-3 w-3 rounded-full" style={{ background: p.brand.accent }} />
-                      </span>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+                  ) : null}
+                  <FontField label="Heading font" value={s.headingFont} onChange={(v) => update({ headingFont: v })} />
+                  <FontField label="Body font" value={s.bodyFont} onChange={(v) => update({ bodyFont: v })} />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[11px] text-zinc-500">Corners</span>
+                    <span className="flex w-44 gap-1">
+                      {RADII.map((r) => (
+                        <button
+                          key={r.value}
+                          type="button"
+                          data-plain
+                          title={r.label}
+                          aria-label={r.label}
+                          aria-pressed={s.radius === r.value}
+                          onClick={() => update({ radius: r.value })}
+                          className={`flex h-8 flex-1 items-center justify-center rounded-md border ${
+                            s.radius === r.value ? "border-violet-500 bg-violet-500/5" : "border-border hover:border-zinc-400"
+                          }`}
+                        >
+                          <span className="h-3.5 w-5 border-2 border-zinc-500" style={{ borderRadius: Math.min(r.value / 3, 7) }} />
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                </Group>
               )}
-              <ColourField label="Background" value={s.background} onChange={(v) => update({ background: v })} />
-              <ColourField label="Accent colour" value={s.accent} onChange={(v) => update({ accent: v })} />
-            </Group>
+            </div>
 
             <div className="flex flex-col gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Preview</span>
-              <div className="flex h-36 items-center justify-center rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800">
+              <div className="flex h-44 items-center justify-center rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800">
                 <CanvasThumbnail content={preview} className="max-h-full max-w-full rounded-sm border border-border" style={thumbStyle(PREVIEW_W, PREVIEW_H)} />
               </div>
-              <p className="text-[11px] leading-snug text-zinc-500">While this brand is selected, every new design and story is made in it. Fine-tune anything later in the editor.</p>
-              <div className="mt-auto flex items-center gap-2 pt-2">
-                {confirmRemove ? (
-                  <>
-                    <span className="text-[11px] text-zinc-500">Delete this brand?</span>
-                    <button
-                      type="button"
-                      data-plain
-                      onClick={() => {
-                        lib.remove(s.id);
-                        setConfirmRemove(false);
-                        setOpen(false);
-                      }}
-                      className="h-7 rounded-full bg-red-600 px-3 text-[11px] font-semibold text-white hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
-                    <button type="button" data-plain onClick={() => setConfirmRemove(false)} className="h-7 rounded-full px-2 text-[11px] text-zinc-500 hover:bg-accent">
-                      Keep
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    data-plain
-                    onClick={() => setConfirmRemove(true)}
-                    className="flex h-7 items-center gap-1.5 rounded-full px-2 text-[11px] text-zinc-500 hover:bg-accent hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete brand
-                  </button>
-                )}
-              </div>
+              <p className="text-[11px] leading-snug text-zinc-500">New designs and stories are made in this brand. You can still change anything in the editor.</p>
             </div>
           </div>
         </div>
-      )}
+
+        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
+          {confirmRemove ? (
+            <span className="flex items-center gap-2">
+              <span className="text-[11px] text-zinc-500">Delete this brand?</span>
+              <button
+                type="button"
+                data-plain
+                onClick={() => {
+                  lib.remove(s.id);
+                  onClose();
+                }}
+                className="h-7 rounded-full bg-red-600 px-3 text-[11px] font-semibold text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+              <button type="button" data-plain onClick={() => setConfirmRemove(false)} className="h-7 rounded-full px-2 text-[11px] text-zinc-500 hover:bg-accent">
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              data-plain
+              onClick={() => setConfirmRemove(true)}
+              className="flex h-7 items-center gap-1.5 rounded-full px-2 text-[11px] text-zinc-500 hover:bg-accent hover:text-red-600"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete brand
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-5 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/90"
+          >
+            Done
+          </button>
+        </div>
+      </div>
 
       <MediaPicker
         open={picking}
@@ -454,6 +497,6 @@ export function BrandBar({ lib }: { lib: BrandLibrary }) {
           setPicking(false);
         }}
       />
-    </section>
+    </div>
   );
 }
